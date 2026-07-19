@@ -128,21 +128,23 @@ src/
 
 目标：只验证机制本身有没有设计缺陷，不接 Gugu-web 任何真实组件。
 
-- [ ] `Runtime`/`Session`/`Owner`（对象级 `ControlMode` + channel Lease）
-- [ ] `Visual`/`Motion`/`Layout` 的最小实现
-- [ ] `Cleanup`
-- [ ] 一个假的可拖拽 demo 页面：几个方块 + 几个容器，模拟"拖入容器触发兄弟
-      重排 + 容器自身高度变化"，用 Vue（或干脆先用原生 DOM，看是否需要
-      Vue 参与）搭一个最小复现环境
-- [ ] `useRuntimeTransition` 的最小实现，demo 里用 `<TransitionGroup
+- [x] `Runtime`/`Session`/`Owner`（对象级 `ControlMode` + channel Lease）
+- [x] `Visual`/`Layout` 的最小实现（`Motion` 暂以 CSS transition 落地飞行
+      代替，尚未做弹簧/惯性）
+- [x] `Cleanup`
+- [x] demo 页面：三列看板（两个普通列 + 一个按分组展示的完成列），验证
+      跨列拖拽触发兄弟重排 + 列表自身高度变化
+- [x] `useRuntimeTransition` 的最小实现，demo 里用 `<TransitionGroup
       :css="!controlled">` 验证"总闸"确实能挡住 Vue 的 Transition
 
-验收标准：
-- 连续拖拽、中途中断（regrab）、快速连续操作，不出现"两套动画都在跑"
-  的画面撕裂
-- 旧 Session 不会清理新 Session 的样式
-- 所有监听器和 RAF 都能在 dispose 后验证确实清空（可以写一个"泄漏检测"
-  小工具：dispose 后统计还挂着的 listener/RAF 数量）
+验收标准（均已在浏览器 + 程序化 pointer 事件下验证，见 2026-07-19 两次提交）：
+- [x] 连续拖拽、中途中断（regrab）、快速连续操作，不出现"两套动画都在跑"
+      的画面撕裂
+- [x] 旧 Session 不会清理新 Session 的样式（regrab 走显式 `endSession`；
+      绕过 regrab、直接在旧 Session landing 中途对同一对象开新 Session
+      的极端情况下，靠 Owner 的 `ownerSessionId` 校验也不会互相清理）
+- [x] 所有监听器和 RAF 都能在 dispose 后验证确实清空——`Cleanup` 模块
+      维护全局活跃计数，5 次快速连续拖拽压力测试后计数归零
 
 ### 阶段 1：迁移 Gugu-web 抽屉链路（试点，不是看板项目卡）
 
