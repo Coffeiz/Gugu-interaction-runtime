@@ -24,10 +24,15 @@ function createDetachLandingVisual(
   beforeRect: DOMRect,
   dragSnapshot: VisualSnapshot | undefined,
   targetSnapshot: VisualSnapshot | undefined,
+  beforeContent: HTMLElement,
   duration = LANDING_DURATION,
 ): { readonly finished: Promise<void>; readonly dispose: () => void } {
   const targetRect = target.getBoundingClientRect()
-  const proxy = createDragProxy(target, beforeRect)
+  // 代理内容克隆自抓起时冻结的快照，不是 target 此刻（已经按新状态重渲染过）
+  // 的内容——否则落地代理从第一帧起就已经是"新内容"，没有旧内容可供交叉
+  // 淡变，表现为落进已完成列时徽章瞬间出现、没有过渡（拖出来也是反过来
+  // 瞬间消失）。真正的内容渐变交给下面 landDragProxy 的 targetContent。
+  const proxy = createDragProxy(beforeContent, beforeRect)
   const previousVisibility = target.style.visibility
   let disposed = false
   const dispose = () => {
@@ -52,6 +57,7 @@ function createDetachLandingVisual(
     targetRadius: targetSnapshot?.borderRadius,
     targetBackground: targetSnapshot?.background,
     targetOpacity: targetSnapshot?.opacity,
+    targetContent: target,
   }).finally(() => {
     dispose()
   })
@@ -76,6 +82,12 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   // 对象声明了自己不能参与 'move' 类型的 Session，直接拒绝。
   if (!runtime.objects.hasAbility(cardId, 'move')) return
   event.preventDefault()
+  // 落地代理要能从"抓起时的内容"渐变到"落点的内容"（比如落进已完成列多一个
+  // 徽章、拖出来少一个徽章）——detach 全程只有这一个真实节点，proxy 迟早要
+  // 克隆它，但如果落地时才克隆，克隆到的已经是 Vue 按新位置/新状态重渲染过
+  // 的内容，没有"旧内容"可供交叉淡变。这里在任何拖拽样式介入之前，先冻结
+  // 一份最原始的内容快照。
+  const beforeContent = sourceEl.cloneNode(true) as HTMLElement
   const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
     .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')
   const beforePickup = captureLayoutFlip(cards)
@@ -240,6 +252,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         beforeRect,
         draggingSnapshot,
         targetSnapshot,
+        beforeContent,
       )
       session.cleanup.track(landingVisual.dispose)
       void landingVisual.finished.then(() => {
