@@ -82,6 +82,7 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
 .kb-done-group { display: flex; flex-direction: column; gap: 8px; }
 .kb-done-group-title { font-size: 11px; color: #888; padding: 0 4px; }
 .kb-card {
+  box-sizing: border-box;
   background: #fff; border-radius: 8px; padding: 10px 12px; font-size: 13px;
   box-shadow: 0 1px 3px rgba(0,0,0,.08); cursor: grab; user-select: none;
 }
