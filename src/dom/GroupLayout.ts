@@ -1,0 +1,338 @@
+import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } from './Flip'
+
+export interface GroupRect { readonly top: number; readonly left: number; readonly width: number; readonly height: number }
+export interface GroupLayoutSnapshot {
+  readonly element: HTMLElement
+  readonly parent: HTMLElement | null
+  readonly rect: GroupRect
+}
+export interface ScrollSnapshot { readonly top: number; readonly height: number; readonly clientHeight: number; readonly anchor: 'top' | 'middle' | 'bottom' }
+export interface SurfaceLayoutSnapshot {
+  readonly element: HTMLElement
+  readonly rect: GroupRect
+  readonly inlineStyle: Pick<CSSStyleDeclaration, 'height' | 'overflow' | 'transition'>
+}
+export interface LayoutFlipSnapshot {
+  readonly root: ParentNode
+  /** 分组树（年/月包装节点 + 挂在分组下的卡片叶子）的 Relative FLIP 快照。 */
+  readonly group?: { readonly before: GroupLayoutSnapshot[] }
+  /** 不属于任何分组的普通卡片（比如"进行中"列）的常规 FLIP 快照。 */
+  readonly flat?: { readonly elements: HTMLElement[]; readonly before: Map<HTMLElement, DOMRect> }
+  readonly surfaces: SurfaceLayoutSnapshot[]
+}
+
+/**
+ * 一次跨列拖拽可能同时涉及分组列表（已完成的年/月分组）和普通列表（进行中/
+ * 待办）——按每张卡片自己是否挂在 `[data-layout-group]` 下分类，而不是用
+ * 拖动起点单一决定整个事务的模式，否则目标列的普通卡片会被整批排除在
+ * FLIP 之外，只有列容器的 resize 在动、卡片瞬间摆好位置，两者节奏脱节。
+ */
+function splitLayoutFlipParticipants(
+  cards: readonly HTMLElement[],
+  root: ParentNode,
+): { groups: HTMLElement[]; groupLeaves: HTMLElement[]; flatCards: HTMLElement[] } {
+  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group]'))
+  const groupLeaves: HTMLElement[] = []
+  const flatCards: HTMLElement[] = []
+  for (const card of cards) {
+    if (card.closest('[data-layout-group]') !== null) groupLeaves.push(card)
+    else flatCards.push(card)
+  }
+  return { groups, groupLeaves, flatCards }
+}
+
+/** 一份快照里按各自参与者的实际归属，分别捕获 Relative Group FLIP 和普通 FLIP。 */
+export function captureLayoutFlip(
+  cards: readonly HTMLElement[],
+  root: ParentNode = document,
+): LayoutFlipSnapshot {
+  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root)
+  const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')))
+  const snapshot: LayoutFlipSnapshot = {
+    root,
+    group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves]) } : undefined,
+    flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards) } : undefined,
+    surfaces,
+  }
+  return mergePendingLayoutSnapshot(root, snapshot)
+}
+
+export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
+  if (snapshot.group) playGroupFlip(snapshot.group.before, FLIP_DURATION, FLIP_EASING)
+  if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, FLIP_DURATION, FLIP_EASING)
+  playSurfaceResize(snapshot.surfaces, FLIP_DURATION, FLIP_EASING)
+}
+
+/**
+ * 将布局播放排到下一帧。同一 root 在这一帧内出现新事务时，新事务会接管
+ * 旧快照：抓起后立刻放下就不会先启动"收束"，再被第二笔 FLIP 硬清空。
+ */
+export function scheduleLayoutFlip(snapshot: LayoutFlipSnapshot): void {
+  pendingLayoutFlips.set(snapshot.root, snapshot)
+  requestAnimationFrame(() => {
+    if (pendingLayoutFlips.get(snapshot.root) !== snapshot) return
+    pendingLayoutFlips.delete(snapshot.root)
+    playLayoutFlip(snapshot)
+  })
+}
+
+/**
+ * 若上一笔事务还未进入播放帧，屏幕最后展示的仍是它的 before 布局。把该
+ * before 继承给新事务，直接从旧视觉状态飞向最新布局，而非经过中间布局。
+ */
+function mergePendingLayoutSnapshot(root: ParentNode, next: LayoutFlipSnapshot): LayoutFlipSnapshot {
+  const pending = pendingLayoutFlips.get(root)
+  if (!pending) return next
+  const surfaces = mergeSurfaceSnapshots(next.surfaces, pending.surfaces)
+  const flat = mergeFlatSnapshot(next.flat, pending.flat)
+  const group = mergeGroupSnapshot(next.group, pending.group)
+  return { ...next, flat, group, surfaces }
+}
+
+function mergeFlatSnapshot(
+  next: LayoutFlipSnapshot['flat'],
+  pending: LayoutFlipSnapshot['flat'],
+): LayoutFlipSnapshot['flat'] {
+  if (!next || !pending) return next
+  const before = new Map(next.before)
+  for (const element of next.elements) {
+    const rect = pending.before.get(element)
+    if (rect) before.set(element, rect)
+  }
+  return { ...next, before }
+}
+
+function mergeGroupSnapshot(
+  next: LayoutFlipSnapshot['group'],
+  pending: LayoutFlipSnapshot['group'],
+): LayoutFlipSnapshot['group'] {
+  if (!next || !pending) return next
+  const pendingRects = new Map(pending.before.map(item => [item.element, item.rect]))
+  return { before: next.before.map(item => ({ ...item, rect: pendingRects.get(item.element) ?? item.rect })) }
+}
+
+function mergeSurfaceSnapshots(
+  next: readonly SurfaceLayoutSnapshot[],
+  pending: readonly SurfaceLayoutSnapshot[],
+): SurfaceLayoutSnapshot[] {
+  const pendingByElement = new Map(pending.map(item => [item.element, item]))
+  return next.map(item => {
+    const previous = pendingByElement.get(item.element)
+    return previous ? { ...item, rect: previous.rect, inlineStyle: previous.inlineStyle } : item
+  })
+}
+
+const pendingLayoutFlips = new WeakMap<ParentNode, LayoutFlipSnapshot>()
+
+function readRect(element: HTMLElement): GroupRect {
+  const rect = element.getBoundingClientRect()
+  return { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+}
+
+export function captureGroupLayout(elements: readonly HTMLElement[]): GroupLayoutSnapshot[] {
+  const groupSet = new Set(elements)
+  return elements.map(element => ({
+    element,
+    parent: findGroupParent(element, groupSet),
+    rect: readRect(element),
+  }))
+}
+
+function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement>): HTMLElement | null {
+  let parent = element.parentElement
+  while (parent) {
+    if (groupSet.has(parent)) return parent
+    parent = parent.parentElement
+  }
+  return null
+}
+
+/**
+ * Relative FLIP：节点（组或卡片叶）的屏幕位移减去直接父节点的屏幕位移，
+ * 只播放它在父布局内真正产生的局部位移。父组 transform 会自然带动局部
+ * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
+ */
+export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING): void {
+  resetActiveFlip(before.map(item => item.element))
+  const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
+
+  for (const item of before) {
+    const next = readRect(item.element)
+    viewportDeltas.set(item.element, {
+      x: item.rect.left - next.left,
+      y: item.rect.top - next.top,
+    })
+  }
+
+  for (const item of before) {
+    const delta = viewportDeltas.get(item.element)!
+    const parentDelta = item.parent ? viewportDeltas.get(item.parent) : undefined
+    const dx = delta.x - (parentDelta?.x ?? 0)
+    const dy = delta.y - (parentDelta?.y ?? 0)
+    if (
+      item.element.dataset.runtimeProxy === 'true'
+      || item.element.dataset.runtimePlaceholder === 'true'
+      || item.element.dataset.runtimeActive === 'true'
+      || (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5)
+    ) continue
+    item.element.style.transform = `translate(${dx}px, ${dy}px)`
+    item.element.style.transition = 'none'
+    const token = String(Number(item.element.dataset.runtimeFlipToken ?? '0') + 1)
+    item.element.dataset.runtimeFlip = 'true'
+    item.element.dataset.runtimeFlipToken = token
+    requestAnimationFrame(() => {
+      if (item.element.dataset.runtimeFlipToken !== token) return
+      item.element.style.transition = `transform ${duration}ms ${easing}`
+      item.element.style.transform = ''
+    })
+    window.setTimeout(() => {
+      if (item.element.dataset.runtimeFlipToken !== token) return
+      item.element.style.transition = ''
+      item.element.style.transform = ''
+      delete item.element.dataset.runtimeFlip
+    }, duration + 40)
+  }
+}
+
+export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING): void {
+  const currentHeight = element.getBoundingClientRect().height
+  element.style.overflow = 'hidden'
+  element.style.height = `${currentHeight}px`
+  element.style.transition = `height ${duration}ms ${easing}`
+  requestAnimationFrame(() => { element.style.height = `${Math.max(0, targetHeight)}px` })
+  window.setTimeout(() => { element.style.height = ''; element.style.overflow = ''; element.style.transition = '' }, duration + 40)
+}
+
+/** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
+export function captureSurfaceLayout(elements: readonly HTMLElement[]): SurfaceLayoutSnapshot[] {
+  return elements.map(element => ({
+    element,
+    rect: readRect(element),
+    // 事务被打断时，当前 inline height 是 Runtime 上一笔动画写入的临时值，
+    // 不能把它错当成业务样式保存，否则取消落点后会永久留下旧高度。
+    inlineStyle: surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element),
+  }))
+}
+
+/**
+ * Surface 的高度变化属于 resize，不是位移 FLIP。先冻结旧边框盒高度，再过渡到
+ * 已经由业务渲染出的最终高度；内部组/卡片继续按自己的 Relative FLIP 运动。
+ */
+export function playSurfaceResize(
+  before: readonly SurfaceLayoutSnapshot[],
+  duration = FLIP_DURATION,
+  easing = FLIP_EASING,
+): void {
+  resetActiveSurfaceResize(before)
+  const plans = before
+    .filter(item => item.element.isConnected)
+    .map(item => {
+      const next = readRect(item.element)
+      return {
+        item,
+        next,
+        fromHeight: toCssHeight(item.element, item.rect.height),
+        toHeight: toCssHeight(item.element, next.height),
+      }
+    })
+    .filter(({ item, next }) => Math.abs(item.rect.height - next.height) >= 0.5)
+
+  for (const { item, fromHeight } of plans) {
+    const style = item.element.style
+    const state = {
+      baseStyle: surfaceResizeStates.get(item.element)?.baseStyle ?? item.inlineStyle,
+      // 不能从 DOM dataset 递增：打断会清 dataset，旧 rAF 可能与新事务
+      // 重新拿到相同 token，进而错误写入新高度。
+      token: String(++surfaceResizeSequence),
+    }
+    surfaceResizeStates.set(item.element, state)
+    style.overflow = 'hidden'
+    style.transition = 'none'
+    style.height = `${fromHeight}px`
+    item.element.dataset.runtimeSurfaceResize = 'true'
+    item.element.dataset.runtimeSurfaceResizeToken = state.token
+  }
+
+  requestAnimationFrame(() => {
+    for (const { item, toHeight } of plans) {
+      const style = item.element.style
+      const state = surfaceResizeStates.get(item.element)
+      if (!state || item.element.dataset.runtimeSurfaceResizeToken !== state.token) continue
+      const token = state.token
+      style.transition = `height ${duration}ms ${easing}`
+      style.height = `${toHeight}px`
+      window.setTimeout(() => {
+        if (item.element.dataset.runtimeSurfaceResizeToken !== token) return
+        const state = surfaceResizeStates.get(item.element)
+        if (!state || state.token !== token) return
+        restoreSurfaceInlineStyle(item.element, state.baseStyle)
+        surfaceResizeStates.delete(item.element)
+        delete item.element.dataset.runtimeSurfaceResize
+      }, duration + 40)
+    }
+  })
+}
+
+function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): void {
+  const active = before.filter(item => item.element.dataset.runtimeSurfaceResize === 'true')
+  if (active.length === 0) return
+  for (const { element } of active) {
+    const state = surfaceResizeStates.get(element)
+    if (!state) continue
+    // 先恢复自然高度再测量新布局；删 token 让旧 timeout 不能覆盖新事务。
+    restoreSurfaceInlineStyle(element, state.baseStyle)
+    surfaceResizeStates.delete(element)
+    delete element.dataset.runtimeSurfaceResize
+    delete element.dataset.runtimeSurfaceResizeToken
+  }
+  void active[0].element.offsetHeight
+}
+
+type SurfaceInlineStyle = SurfaceLayoutSnapshot['inlineStyle']
+
+interface SurfaceResizeState {
+  readonly baseStyle: SurfaceInlineStyle
+  readonly token: string
+}
+
+const surfaceResizeStates = new WeakMap<HTMLElement, SurfaceResizeState>()
+let surfaceResizeSequence = 0
+
+function readSurfaceInlineStyle(element: HTMLElement): SurfaceInlineStyle {
+  return {
+    height: element.style.height,
+    overflow: element.style.overflow,
+    transition: element.style.transition,
+  }
+}
+
+function restoreSurfaceInlineStyle(element: HTMLElement, style: SurfaceInlineStyle): void {
+  element.style.height = style.height
+  element.style.overflow = style.overflow
+  element.style.transition = style.transition
+}
+
+/** 将测量到的边框盒高度转换为当前 box-sizing 下可直接写入 style.height 的值。 */
+function toCssHeight(element: HTMLElement, borderBoxHeight: number): number {
+  const style = getComputedStyle(element)
+  if (style.boxSizing === 'border-box') return borderBoxHeight
+  const extras =
+    Number.parseFloat(style.paddingTop)
+    + Number.parseFloat(style.paddingBottom)
+    + Number.parseFloat(style.borderTopWidth)
+    + Number.parseFloat(style.borderBottomWidth)
+  return Math.max(0, borderBoxHeight - extras)
+}
+
+export function captureScroll(container: HTMLElement): ScrollSnapshot {
+  const max = Math.max(0, container.scrollHeight - container.clientHeight)
+  const anchor = container.scrollTop <= 1 ? 'top' : (max - container.scrollTop <= 1 ? 'bottom' : 'middle')
+  return { top: container.scrollTop, height: container.scrollHeight, clientHeight: container.clientHeight, anchor }
+}
+
+export function restoreScroll(container: HTMLElement, snapshot: ScrollSnapshot): void {
+  const max = Math.max(0, container.scrollHeight - container.clientHeight)
+  if (snapshot.anchor === 'top') container.scrollTop = 0
+  else if (snapshot.anchor === 'bottom') container.scrollTop = max
+  else container.scrollTop = Math.min(snapshot.top, max)
+}

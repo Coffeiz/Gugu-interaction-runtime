@@ -1,5 +1,10 @@
-import { reactive } from 'vue'
 import type { ObjectItem } from './ObjectItem'
+import { Emitter } from '../core/Emitter'
+
+export type ObjectStoreEvent =
+  | { type: 'object-added'; id: string }
+  | { type: 'object-removed'; id: string }
+  | { type: 'object-changed'; id: string }
 
 /**
  * 注册表本身是 reactive 的：Vue 模板/computed 读取 surfaceId、abilities
@@ -7,14 +12,18 @@ import type { ObjectItem } from './ObjectItem'
  * controlled Map 是同一个思路）。
  */
 export class ObjectStore {
-  private items = reactive(new Map<string, ObjectItem>())
+  private items = new Map<string, ObjectItem>()
+  private readonly events = new Emitter<ObjectStoreEvent>()
 
-  register(item: ObjectItem) {
+  register(item: ObjectItem): void {
     this.items.set(item.id, item)
+    this.events.emit({ type: 'object-added', id: item.id })
   }
 
-  unregister(id: string) {
-    this.items.delete(id)
+  unregister(id: string): boolean {
+    const removed = this.items.delete(id)
+    if (removed) this.events.emit({ type: 'object-removed', id })
+    return removed
   }
 
   get(id: string): ObjectItem | undefined {
@@ -25,17 +34,35 @@ export class ObjectStore {
     return this.items.has(id)
   }
 
+  values(): IterableIterator<ObjectItem> {
+    return this.items.values()
+  }
+
+  snapshot(): ObjectItem[] {
+    return [...this.items.values()]
+  }
+
+  subscribe(listener: (event: ObjectStoreEvent) => void): () => void {
+    return this.events.subscribe(listener)
+  }
+
   hasAbility(id: string, ability: string): boolean {
     return this.items.get(id)?.abilities.includes(ability) ?? false
   }
 
   setElement(id: string, element: HTMLElement | null) {
     const item = this.items.get(id)
-    if (item) item.element = element
+    if (item && item.element !== element) {
+      item.element = element
+      this.events.emit({ type: 'object-changed', id })
+    }
   }
 
   setSurface(id: string, surfaceId: string) {
     const item = this.items.get(id)
-    if (item && item.surfaceId !== surfaceId) item.surfaceId = surfaceId
+    if (item && item.surfaceId !== surfaceId) {
+      item.surfaceId = surfaceId
+      this.events.emit({ type: 'object-changed', id })
+    }
   }
 }

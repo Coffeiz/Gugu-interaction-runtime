@@ -1,4 +1,4 @@
-import { computed, type ComputedRef } from 'vue'
+import { computed, ref, onUnmounted, type ComputedRef } from 'vue'
 import { runtime } from '../Runtime'
 
 /**
@@ -7,6 +7,14 @@ import { runtime } from '../Runtime'
  * Vue 的 Transition/TransitionGroup 必须整体关闭，不能只是"尽量不冲突"。
  */
 export function useRuntimeTransition(surfaceId: string): { controlled: ComputedRef<boolean> } {
-  const controlled = computed(() => runtime.owner.isControlled(surfaceId))
+  const version = ref(0)
+  const stop = runtime.owner.subscribe(id => {
+    if (id === surfaceId) version.value += 1
+  })
+  onUnmounted(stop)
+  const controlled = computed(() => {
+    version.value
+    return runtime.owner.isControlled(surfaceId)
+  })
   return { controlled }
 }

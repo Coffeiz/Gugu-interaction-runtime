@@ -1,7 +1,23 @@
 import type { Owner, Lease } from '../owner/Owner'
 import { Cleanup } from '../cleanup/Cleanup'
 
-export type SessionState = 'active' | 'landing' | 'handoff' | 'done' | 'cancelled'
+export type SessionState =
+  | 'prepare' | 'active' | 'release' | 'landing' | 'saving'
+  | 'handoff' | 'rollback' | 'interrupt' | 'done' | 'cancelled' | 'disposed'
+
+const allowedTransitions: Record<SessionState, SessionState[]> = {
+  prepare: ['active', 'cancelled'],
+  active: ['release', 'landing', 'interrupt', 'cancelled'],
+  release: ['landing', 'saving', 'interrupt', 'cancelled'],
+  landing: ['saving', 'handoff', 'done', 'interrupt', 'cancelled'],
+  saving: ['handoff', 'rollback', 'interrupt', 'cancelled'],
+  handoff: ['done', 'cancelled'],
+  rollback: ['done', 'cancelled'],
+  interrupt: ['active', 'disposed', 'cancelled'],
+  done: ['disposed'],
+  cancelled: ['disposed'],
+  disposed: [],
+}
 
 let nextSessionId = 1
 
@@ -12,12 +28,21 @@ let nextSessionId = 1
  */
 export class Session {
   readonly id: string
-  state: SessionState = 'active'
+  state: SessionState = 'prepare'
   readonly cleanup = new Cleanup()
   private leases: Lease[] = []
 
-  constructor(readonly type: string, private owner: Owner) {
+  constructor(readonly type: string, readonly objectId: string, private owner: Owner) {
     this.id = `session-${nextSessionId++}`
+    this.transition('active')
+  }
+
+  transition(next: SessionState): void {
+    if (this.state === next) return
+    if (!allowedTransitions[this.state].includes(next)) {
+      throw new Error(`Invalid session transition: ${this.state} -> ${next}`)
+    }
+    this.state = next
   }
 
   takeObject(objectId: string) {
@@ -30,18 +55,34 @@ export class Session {
 
   /** 交还 Vue 是显式阶段，不是 release 之后自动生效——见规则 6/7。 */
   handoff() {
-    this.state = 'handoff'
+    this.transition('handoff')
   }
 
   dispose() {
-    this.state = 'done'
+    if (this.state === 'disposed') return
+    // interrupt 是一个已经完成语义的终止态，不能再强行走
+    // interrupt → done；该边界会让 regrab 直接抛非法状态转换异常。
+    if (this.state === 'interrupt') {
+      this.transition('disposed')
+    } else {
+      if (this.state !== 'done' && this.state !== 'cancelled') this.transition('done')
+      this.transition('disposed')
+    }
     this.leases.forEach(lease => lease.release())
     this.leases = []
     this.cleanup.disposeAll()
   }
 
   cancel() {
-    this.state = 'cancelled'
+    if (this.state === 'disposed') return
+    if (this.state !== 'cancelled') this.transition('cancelled')
+    this.dispose()
+  }
+
+  interrupt() {
+    if (this.state === 'active' || this.state === 'release' || this.state === 'landing' || this.state === 'saving') {
+      this.transition('interrupt')
+    }
     this.dispose()
   }
 }

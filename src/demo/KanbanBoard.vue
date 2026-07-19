@@ -4,24 +4,43 @@
     <label><input type="radio" value="detach" v-model="strategy" /> detach 策略（全程一个对象）</label>
   </div>
   <div class="kb-board">
-    <div v-for="col in columns" :key="col.id" class="kb-column" :data-column="col.id" :ref="el => setColumnRef(col.id, el as HTMLElement | null)">
+    <div v-for="col in columns" :key="col.id" class="kb-column" :data-column="col.id" data-layout-surface data-surface-type="kanban-column" :ref="el => setColumnRef(col.id, el as HTMLElement | null)">
       <div class="kb-column-title">{{ col.title }}<span>{{ col.cardIds.length }}</span></div>
 
       <template v-if="col.id === 'done'">
-        <div v-for="group in doneGroups" :key="group.name" class="kb-done-group">
-          <div class="kb-done-group-title">{{ group.name }}</div>
-          <TransitionGroup tag="div" class="kb-card-list" name="kb-card" :css="!columnControlled[col.id]">
-            <Teleport v-for="cardId in group.cardIds" :key="cardId" to="body" :disabled="!isDetached(cardId)">
-              <div
-                class="kb-card kb-card-done"
-                :class="{ 'kb-card-locked': isLocked(cardId) }"
-                :data-card="cardId"
-                @pointerdown="onCardPointerDown($event, cardId)"
-              >
-                {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
+        <div v-for="year in doneGroups" :key="year.key" class="kb-year-group" data-layout-group>
+          <button class="kb-year-title" @click="toggleGroup('year', year.key)">
+            <svg
+              class="kb-year-chevron" :class="{ open: openYears.has(year.key) }"
+              width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            ><path d="M2 3.5l3 3 3-3" /></svg>
+            {{ year.label }}<span>{{ year.cardIds.length }}</span>
+          </button>
+          <div class="kb-year-content" :ref="el => setGroupContentRef(yearContentRefs, year.key, el as HTMLElement | null)">
+            <div v-for="month in year.months" :key="month.key" class="kb-month-group" data-layout-group>
+              <button class="kb-month-title" @click="toggleGroup('month', month.key)">
+                <svg
+                  class="kb-month-chevron" :class="{ open: openMonths.has(month.key) }"
+                  width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                ><path d="M2 3.5l3 3 3-3" /></svg>
+                {{ month.label }}<span>{{ month.cardIds.length }}</span>
+              </button>
+              <div class="kb-month-content" :ref="el => setGroupContentRef(monthContentRefs, month.key, el as HTMLElement | null)">
+                <TransitionGroup tag="div" class="kb-card-list" name="kb-card" :css="!columnControlled[col.id]">
+                  <Teleport v-for="cardId in month.cardIds" :key="cardId" to="body" :disabled="!isDetached(cardId)">
+                    <div
+                      class="kb-card kb-card-done"
+                      :class="{ 'kb-card-locked': isLocked(cardId) }"
+                      :data-card="cardId"
+                      @pointerdown="onCardPointerDown($event, cardId)"
+                    >
+                      {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
+                    </div>
+                  </Teleport>
+                </TransitionGroup>
               </div>
-            </Teleport>
-          </TransitionGroup>
+            </div>
+          </div>
         </div>
       </template>
 
@@ -48,15 +67,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watchEffect } from 'vue'
-import { columns, cards } from './store'
+import { computed, reactive, ref, watchEffect, onUnmounted } from 'vue'
+import { columns, cards, moveCard } from './store'
+import { buildDoneGroups } from './doneGrouping'
 import { startCardDrag } from './kanbanDrag'
 import { startCardDragDetach } from './kanbanDragDetach'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
 import { useSurface } from '../vue/useSurface'
 import { runtime } from '../Runtime'
+import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 
 const strategy = ref<'clone' | 'detach'>('clone')
+
+// 阶段 D：业务数据怎么变，由业务层订阅 Runtime 的 Action 通道自己决定，
+// 不是 kanbanDrag.ts/kanbanDragDetach.ts 直接调 moveCard——这两个文件现在
+// 只负责生成"发生了什么"（Action），不负责"这意味着业务数据要怎么改"。
+const stopActionSubscription = runtime.onAction(action => {
+  if (action.type !== 'move') return
+  const toColumnId = action.toSurfaceId.replace(/^column:/, '')
+  moveCard(action.objectId, toColumnId, action.toIndex ?? 0)
+})
+onUnmounted(stopActionSubscription)
 
 // 三个列数量固定、组件全程只挂载一次，属于合法的"静态次数"composable 调用
 // （不是在 v-for 里动态调用）。每个列注册成一个 Surface，只接受
@@ -102,23 +133,84 @@ const columnControlled = reactive(
   Object.fromEntries(columns.map(col => [col.id, useRuntimeTransition(`column:${col.id}`).controlled])),
 )
 
+// Owner 已属于框架无关 Core，不能再依赖直接读取 Map 触发 Vue 更新。
+// 这里由 Vue adapter 订阅对象级 ownership 变化，驱动 Teleport 的 disabled 状态。
+const ownershipVersion = ref(0)
+const stopOwnershipSubscription = runtime.owner.subscribe(() => {
+  ownershipVersion.value += 1
+})
+onUnmounted(stopOwnershipSubscription)
+
 // detach 策略专用：这个对象当前是不是被 Runtime 接管了，接管了就要被
 // <Teleport> 搬去 body。直接读 Owner 而不额外包一层 computed——Owner 内部
 // 是 reactive(Map)，模板渲染时读取会被 Vue 的响应式系统正常追踪到。
 function isDetached(cardId: string): boolean {
+  ownershipVersion.value
   return runtime.owner.isControlled(cardId)
 }
 
 const doneColumn = computed(() => columns.find(col => col.id === 'done')!)
-const doneGroups = computed(() => {
-  const groups = new Map<string, string[]>()
-  for (const cardId of doneColumn.value.cardIds) {
-    const name = cards[cardId].doneGroup ?? '其它'
-    if (!groups.has(name)) groups.set(name, [])
-    groups.get(name)!.push(cardId)
+// 完成列按"年 > 月"两层分组，对应咕咕真实的多层分组结构（不是单层的
+// "本周/上周"标签）。分组本身由 doneGrouping.ts 从真实日期推导。
+const doneGroups = computed(() => buildDoneGroups(doneColumn.value.cardIds, cards))
+
+// 年组、月组的展开/收起共用同一套逻辑——两层分组都是"内容全程留在 DOM
+// 里（不用 v-if 卸载），折叠只是把 height 收到 0"，区别只是各自的
+// ref 表和展开状态 Set 分开存，key 互不冲突（年份 key 和 'YYYY-MM' 月份
+// key 本身不会撞）。默认全部展开。
+const openYears = ref(new Set<string>(doneGroups.value.map(y => y.key)))
+const openMonths = ref(new Set<string>(doneGroups.value.flatMap(y => y.months.map(m => m.key))))
+const yearContentRefs: Record<string, HTMLElement | null> = {}
+const monthContentRefs: Record<string, HTMLElement | null> = {}
+function setGroupContentRef(refs: Record<string, HTMLElement | null>, key: string, el: HTMLElement | null) {
+  refs[key] = el
+}
+
+function toggleGroup(level: 'year' | 'month', key: string) {
+  const refs = level === 'year' ? yearContentRefs : monthContentRefs
+  const openSet = level === 'year' ? openYears : openMonths
+  const el = refs[key]
+  const opening = !openSet.value.has(key)
+  const next = new Set(openSet.value)
+  if (opening) next.add(key)
+  else next.delete(key)
+  openSet.value = next
+  if (!el) return
+  const duration = FLIP_DURATION
+  const easing = FLIP_EASING
+  const current = el.getBoundingClientRect().height
+  el.style.height = `${current}px`
+  el.style.overflow = 'hidden'
+  void el.offsetHeight
+  if (opening) {
+    requestAnimationFrame(() => {
+      const target = el.scrollHeight
+      el.style.transition = `height ${duration}ms ${easing}`
+      el.style.height = `${target}px`
+    })
+    // 展开方向的终点就是内容的自然高度，动画结束后把内联样式还原成空
+    // 是安全的空操作——跟 Gugu-web flipCoordinator.ts 里 isOpening 分支
+    // 同一个道理。
+    window.setTimeout(() => {
+      el.style.height = ''
+      el.style.overflow = ''
+      el.style.transition = ''
+    }, duration + 40)
+  } else {
+    requestAnimationFrame(() => {
+      el.style.transition = `height ${duration}ms ${easing}`
+      el.style.height = '0px'
+    })
+    // 收起方向动画结束后不能把 height 复位成空字符串：内容其实还挂在
+    // DOM 里（没有被卸载），复位成 auto 会让它瞬间弹回自然高度、再次
+    // "收起"——这正是这次会话里在 Gugu-web 抽屉状态组上踩过、后来专门
+    // 修掉的"高度闪回"bug 的同一个根因，这里从一开始就不踩这个坑：
+    // height:0/overflow:hidden 一直钉到下次展开为止。
+    window.setTimeout(() => {
+      el.style.transition = ''
+    }, duration + 40)
   }
-  return Array.from(groups, ([name, cardIds]) => ({ name, cardIds }))
-})
+}
 
 function onCardPointerDown(event: PointerEvent, cardId: string) {
   const el = (event.currentTarget as HTMLElement) ?? null
@@ -133,12 +225,35 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
 .kb-board { display: flex; gap: 16px; padding: 24px; align-items: flex-start; font-family: system-ui, sans-serif; }
 .kb-column {
   width: 220px; background: #f4f5f7; border-radius: 10px; padding: 10px;
-  display: flex; flex-direction: column; gap: 8px; min-height: 80px;
+  display: flex; flex-direction: column; gap: 8px; min-height: 80px; overflow: hidden;
 }
 .kb-column-title { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; color: #444; padding: 2px 4px; }
 .kb-card-list { display: flex; flex-direction: column; gap: 8px; min-height: 4px; }
-.kb-done-group { display: flex; flex-direction: column; gap: 8px; }
-.kb-done-group-title { font-size: 11px; color: #888; padding: 0 4px; }
+.kb-year-group { display: flex; flex-direction: column; overflow: visible; }
+.kb-year-title {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: none; border: none; padding: 4px; margin: 0;
+  font: 600 12px system-ui, sans-serif; color: #555; cursor: pointer; text-align: left;
+  border-radius: 6px;
+}
+.kb-year-title:hover { background: rgba(0,0,0,.04); }
+.kb-year-title > span { margin-left: auto; font-size: 10px; font-weight: 400; color: rgba(0,0,0,.38); }
+.kb-year-chevron { flex-shrink: 0; color: rgba(0,0,0,.3); transform: rotate(0deg); transition: transform .2s cubic-bezier(.34,1.1,.64,1); }
+.kb-year-chevron.open { transform: rotate(180deg); }
+.kb-year-content { display: flex; flex-direction: column; gap: 10px; overflow: visible; }
+.kb-month-group { display: flex; flex-direction: column; gap: 8px; padding-left: 4px; overflow: visible; }
+.kb-month-title {
+  display: flex; align-items: center; gap: 5px; width: 100%;
+  background: none; border: none; padding: 3px 4px; margin: 0;
+  font: 500 11px system-ui, sans-serif; color: #999; cursor: pointer; text-align: left;
+  border-radius: 5px;
+}
+.kb-month-title:hover { background: rgba(0,0,0,.03); }
+.kb-month-title > span { margin-left: auto; font-size: 10px; color: rgba(0,0,0,.3); }
+.kb-month-chevron { flex-shrink: 0; color: rgba(0,0,0,.25); transform: rotate(0deg); transition: transform .2s cubic-bezier(.34,1.1,.64,1); }
+.kb-month-chevron.open { transform: rotate(180deg); }
+.kb-month-content { display: flex; flex-direction: column; overflow: visible; }
+.kb-month-content .kb-card-list { padding-top: 6px; }
 .kb-card {
   box-sizing: border-box;
   background: #fff; border-radius: 8px; padding: 10px 12px; font-size: 13px;
@@ -147,7 +262,7 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
 .kb-card-done { background: #f0f6ff; }
 .kb-card-locked { cursor: not-allowed; opacity: .6; }
 .kb-lock-hint { font-size: 11px; color: #999; }
-.kb-card-dragging-source { opacity: .35; }
+.kb-card-dragging-source { opacity: .35; visibility: hidden; }
 .kb-card-move { transition: transform .22s cubic-bezier(.22,1,.36,1); }
 .kb-card-enter-active, .kb-card-leave-active { transition: opacity .18s ease; }
 .kb-card-enter-from, .kb-card-leave-to { opacity: 0; }

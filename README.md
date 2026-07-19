@@ -11,7 +11,9 @@ Vue 的响应式更新循环中分离出来，验证一套独立的 Runtime 是�
   [docs/INTEGRATION.md](docs/INTEGRATION.md)；两套视觉策略（clone /
   detach）的能力对比见 [docs/VISUAL_STRATEGIES.md](docs/VISUAL_STRATEGIES.md)。
 
-当前阶段：阶段 0（本仓库内最小骨架 demo），尚未接入 Gugu-web。demo 页面
+当前阶段：阶段 0.5（Core 与 `MoveBehavior` 执行层已完成），尚未接入
+Gugu-web。Runtime 负责 Session、移动事务、landing/reveal 时机和清理；clone/
+detach 的 proxy/本体视觉实现通过 driver 注入。下一步先在 demo 页面
 顶部可以切换两种视觉策略实时对比。
 
 ```

@@ -35,7 +35,122 @@ Interaction Runtime
   负责交互过程、临时视觉对象和动画
 ```
 
-一句话：**Runtime 管过程，Vue 管界面，Store/API 管事实。**
+一句话：**Core 管事务，DOM 层管视觉，框架适配层管界面，Store/API 管事实。**
+
+Core 不依赖 Vue，也不使用 `reactive`。Vue 和 React 通过订阅/快照适配同一个
+Runtime；DOM 层依赖浏览器，但不依赖具体 UI 框架。
+
+浏览器相关实现通过 `src/dom/index.ts` 统一导出；Core 只依赖 Hit/Visual 等
+接口，迁移期间旧模块路径保留兼容，避免一次性移动文件造成业务侧大面积改动。
+
+Hit 通过 `runtime.setHitResolver()` 注入。Runtime/Behavior 只消费统一的
+`findSurface`、`findTarget`、`findIndex` 结果，不依赖项目卡或某一种 DOM 结构。
+
+多组展开/收起属于独立的 `GroupLayout` 能力，不并入 `MoveBehavior`：它负责组
+高度测量、组级 FLIP、Surface resize 和滚动锚点；框架适配层只保存展开状态并
+触发事务请求。
+
+组级 FLIP 使用 Relative FLIP：Runtime 捕获所有 `data-layout-group` 节点的
+前后屏幕位移，并从每个节点（组或卡片叶）的位移中减去直接父组位移。只有
+剩余局部位移才写入 transform；因此父组整体移动时，内部月组/卡片会自然随
+父级移动而不重复动画，同一月内真正重排的兄弟卡片仍会播放 FLIP。业务只标注
+布局组节点，不把“年组”“月组”等领域名称传入 Runtime。
+
+卡片进出导致容器高度变化时，`GroupLayout` 以 `data-layout-surface` 标记的
+Surface 捕获前后边框盒高度，播放 height resize；不尝试用 transform 伪造尺寸
+变化。一次布局事务可以同时包含组的 Relative FLIP 与 Surface resize。
+
+Surface 的运动所有权属于 Runtime：它负责 before/after 测量、位置/尺寸补间、
+中断重定向和 transition 清理。业务只声明节点所属的 Surface 类型与策略，不能
+在同一节点上自行写竞争性的 `height`、`width`、`transform` 或 `transition`。
+建议的声明接口如下，具体 registry 在第二类 Surface（例如 Drawer）接入时实现：
+
+```ts
+runtime.registerSurfaceLayout('kanban-column', {
+  resize: {
+    enabled: true,
+    properties: ['height'],
+    duration: 220,
+    easing: 'cubic-bezier(.22,1,.36,1)',
+  },
+})
+```
+
+业务模板只需标注：
+
+```html
+<div data-layout-surface data-surface-type="kanban-column">...</div>
+```
+
+### 裁剪边界与临时视觉层
+
+裁剪不是由某个动画临时猜测，而是固定的层级契约：Surface 是真实内容的裁剪
+边界；Group 根与正常展开的内容层必须 `overflow: visible`，因此内部 Relative
+FLIP 不会被年/月容器截断。只有折叠中的内容包装层可以临时写
+`overflow: hidden`。
+
+proxy 和 landing visual 不属于真实内容树。包括 detach 策略在松手后的短暂
+交接 visual，Runtime DOM 层都通过
+`mountVisualOverlay()` 将它们挂到 `document.documentElement` 下的固定 overlay，
+永远绕过 Surface、应用壳和 Group 裁剪；业务不需要也不应把临时 proxy 插入自己
+的列表容器。
+
+### 视觉适配器与状态交接
+
+Runtime 不固化具体卡片的颜色、圆角或阴影，而是由业务适配器提供视觉实现，
+Runtime 统一保存状态并编排本体与 proxy 的交接：
+
+```ts
+type VisualPhase =
+  | 'idle'
+  | 'pressed'
+  | 'dragging'
+  | 'landing'
+  | 'revealing'
+
+interface VisualState {
+  phase: VisualPhase
+  hovered: boolean
+  selected: boolean
+  grabbed: boolean
+}
+
+interface VisualAdapter {
+  getSourceElement?(): HTMLElement | null
+  createProxy?(snapshot: VisualSnapshot): HTMLElement
+  applyState?(element: HTMLElement, state: VisualState): void
+  captureStyle?(element: HTMLElement): VisualSnapshot
+}
+
+interface VisualSnapshot {
+  rect: DOMRect
+  borderRadius: string
+  boxShadow: string
+  background: string
+  opacity: string
+  transform: string
+}
+```
+
+适配器是可选覆盖，不是每种对象都必须实现的完整生命周期接口。没有注册适配器
+时，Runtime 使用默认的 source/target DOM 解析、计算样式快照和状态 class；注册后只覆盖业务
+明确提供的字段，其余行为仍回退到默认实现。
+
+落地时由 Runtime 从目标节点当前计算样式生成一次快照；因此目标处于 hover 时，代理会
+继续使用 hover 阴影、背景和圆角，直到本体接管。Runtime 不重新监听代理上的
+ pointer 事件，也不在交接中重新推断 hover。
+
+业务层负责 `VisualAdapter` 和各状态的具体 CSS；Runtime 负责：
+
+- 保存唯一的 `VisualState`，让本体与 proxy 消费同一份 hover/抓取状态；
+- 在 landing/reveal 阶段同步阴影、缩放、圆角和 hover 状态；
+- 编排 proxy → 本体的渐变交接、清理和取消；
+- 确保同一时刻只有一个视觉主体拥有控制权。
+
+因此 hover 判定可以由业务层提交，但代理和本体不能各自监听 pointer 或独立
+计算 hover。运动参数（速度、阻尼、弹簧强度）属于 Runtime 的 motion profile；
+颜色、阴影、圆角、背景等纯视觉样式属于业务适配器。接入方可以自由替换这些
+样式，而不需要重新实现生命周期。
 
 ## 核心原则
 
@@ -104,7 +219,9 @@ done → disposed
 ```
 
 任何阶段都可能转向"非正常结束"分支，这些分支不是事后补丁，是设计一开始
-就该留的出口：
+就该留的出口。`interrupt` 是已经完成取消语义的终止态，清理时必须直接进入
+`disposed`，不能再经过 `done`；`done` 只表示正常完成的事务，避免 regrab
+触发非法的 `interrupt → done` 状态转换：
 
 - `active → cancel`：松手时没有命中任何有效 Surface，回到抓起前的位置，
   不生成 Action。
@@ -182,6 +299,49 @@ interface Session {
 6. Runtime 完成交接后，先清除临时视觉样式，再恢复 Vue 控制。
 7. Vue 恢复控制的那一帧不得再次执行 enter/move 动画——这是最容易漏掉、
    也是最容易复现"落地完成后又补播一次"的一条。
+
+### 5. Runtime 是执行层，不只是 Service Container
+
+Runtime 对外接收完整交互请求，由 `Behavior` 负责具体编排：
+
+```ts
+runtime.start({ type: 'move', objectId, input })
+runtime.update(sessionId, input)
+runtime.release(sessionId, input)
+runtime.cancel(sessionId, reason)
+runtime.interrupt(sessionId, reason)
+```
+
+`MoveBehavior` 负责 proxy、placeholder、命中、布局、落地和 handoff；Runtime
+负责 Session 调度、状态转换、能力校验和 Action 输出。页面不应再自行拼接这些步骤。
+
+
+Behavior 执行期间通过上下文取得本次对象的能力：
+
+```ts
+interface BehaviorContext {
+  session: Session
+  visual?: VisualAdapter
+  hit?: HitResolver | null
+  emitAction?: (action: Action) => void
+}
+```
+
+这些依赖按 Session 注入，不能在 Behavior 内保存全局可变对象；Session 结束后
+对应的对象映射和视觉/命中上下文一并失效。
+
+### 6. 分层边界
+
+```text
+interaction/
+├── core/   # 框架无关：Runtime、Session、Store、Owner、Behavior、Action
+├── dom/    # 浏览器相关：Input、Measure、Hit、Visual、Motion、Layout
+├── vue/    # Vue 响应式与 Transition 接入
+└── react/  # 未来的 React adapter
+```
+
+Core 可以依赖 TypeScript、Map/Set 和 AbortController；DOM 层可以依赖
+`HTMLElement`、`requestAnimationFrame` 和浏览器事件，但 Core/DOM 不应反向依赖 Vue。
 
 ## 非目标
 

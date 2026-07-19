@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { Emitter } from '../core/Emitter'
 
 /**
  * 对象级总闸：Vue 的 Transition/TransitionGroup 不会向 Runtime 申请 channel，
@@ -25,14 +25,20 @@ interface ControlEntry {
  * 两层都要有：只做 1 挡不住 Motion/Layout 互相打架，只做 2 挡不住 Vue。
  */
 export class Owner {
-  private controlled = reactive(new Map<string, ControlEntry>())
+  private controlled = new Map<string, ControlEntry>()
   private channelOwners = new Map<string, Map<Channel, string>>()
+  private readonly events = new Emitter<string>()
+
+  subscribe(listener: (id: string) => void): () => void {
+    return this.events.subscribe(listener)
+  }
 
   takeObject(id: string, sessionId: string): Lease {
     // 新 Session 可以直接抢占（例如 regrab 中途重新抓起）；旧 Session 手上的
     // Lease 之后 release 时会发现 ownerSessionId 已经不是自己，不会误清这里
     // 的状态——见规则 5。
     this.controlled.set(id, { mode: 'runtime', ownerSessionId: sessionId })
+    this.events.emit(id)
     let released = false
     return {
       release: () => {
@@ -43,6 +49,7 @@ export class Owner {
         // 接管的样式——见规则 5。
         if (current?.ownerSessionId === sessionId) {
           this.controlled.set(id, { mode: 'vue', ownerSessionId: null })
+          this.events.emit(id)
         }
       },
     }

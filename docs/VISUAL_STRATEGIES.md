@@ -16,7 +16,7 @@
 | 跨容器（跨列）时节点是否真的是"同一个" | 不适用（proxy 本来就是临时的） | **否**——见下面"已知限制" |
 
 代码位置：
-- clone：[`kanbanDrag.ts`](../src/demo/kanbanDrag.ts) + [`Visual.ts`](../src/visual/Visual.ts) 的 `createDragProxy`
+- clone：[`kanbanDrag.ts`](../src/demo/kanbanDrag.ts) + [`Visual.ts`](../src/dom/Visual.ts) 的 `createDragProxy`
 - detach：[`kanbanDragDetach.ts`](../src/demo/kanbanDragDetach.ts) + `Visual.ts` 的 `applyFloatingStyle`/`clearFloatingStyle`
 
 ## clone 策略：能力与接入
