@@ -6,6 +6,17 @@ import { columns, moveCard } from './store'
 const LANDING_DURATION = 220
 
 /**
+ * 落地飞行期间，"这个对象正在被哪个 Session 接管、regrab 入口在哪"的登记表。
+ * 只有 proxy 自己的 pointerdown 知道这件事是不够的——用户完全可能直接点本体
+ * 卡片（这时本体其实是 visibility:hidden，但布局位置还在，摸得到），如果
+ * 那次 pointerdown 走的是 startCardDrag 的常规入口，会绕开 regrab 直接另起
+ * 一个 Session，新 Session 从本体（隐藏态）的位置起步而不是接上 proxy 当前
+ * 飞到哪儿了，视觉上会跳一下。所以 startCardDrag 自己的入口也要先查一下这张
+ * 卡是不是正在被别的 Session 接管，是的话转发成一次 regrab。
+ */
+const landingRegrabs = new Map<string, (event: PointerEvent) => void>()
+
+/**
  * 一次卡片拖拽 = 一个 Session。接管范围覆盖"这条交互会联动布局的一切"——
  * 三个列的 Surface 全部接管，而不是只接管被拖动的卡片本身，对应
  * docs/DESIGN.md 原则 2（否则会出现新模型接管卡片、旧模型还在控制列容器
@@ -18,6 +29,11 @@ const LANDING_DURATION = 220
  */
 export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTMLElement, fromRect?: DOMRect) {
   event.preventDefault()
+  const activeRegrab = landingRegrabs.get(cardId)
+  if (activeRegrab) {
+    activeRegrab(event)
+    return
+  }
   const session = runtime.startSession('kanban-card-move')
   session.takeObject(cardId)
   columns.forEach(col => session.takeSurface(`column:${col.id}`))
@@ -84,6 +100,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   function beginLanding() {
     session.state = 'landing'
     sourceEl.classList.remove('kb-card-dragging-source')
+    landingRegrabs.set(cardId, onRegrab)
     requestAnimationFrame(() => {
       const targetEl = document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
       if (!targetEl || session.state !== 'landing') {
@@ -103,16 +120,22 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
 
   function finish() {
     if (session.state === 'done' || session.state === 'cancelled') return
+    if (landingRegrabs.get(cardId) === onRegrab) landingRegrabs.delete(cardId)
     const targetEl = document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
     if (targetEl) targetEl.style.visibility = ''
     destroyDragProxy(proxy)
     landing(session)
   }
 
-  /** regrab：落地飞行途中重新抓起这张卡片，起点是代理当前的插值位置。 */
+  /**
+   * regrab：落地飞行途中重新抓起这张卡片，起点是代理当前的插值位置。
+   * 入口既可能是 proxy 自己的 pointerdown，也可能是 startCardDrag 顶部
+   * 查表转发过来的（用户直接点了本体卡片）。
+   */
   function onRegrab(regrabEvent: PointerEvent) {
     if (session.state !== 'landing') return
     regrabEvent.stopPropagation()
+    landingRegrabs.delete(cardId)
     const proxyRect = proxy.getBoundingClientRect()
     // 旧 Session 只清理自己的东西：这里不调用 finish()/landing()，只是让旧
     // Session 直接结束（跳过它自己的落地收尾），新 Session 接管同一个视觉
