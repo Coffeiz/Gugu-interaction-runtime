@@ -33,3 +33,38 @@ export function moveDragProxy(proxy: HTMLElement, x: number, y: number, offsetX:
 export function destroyDragProxy(proxy: HTMLElement) {
   proxy.remove()
 }
+
+/**
+ * "detach" 策略专用：不克隆，直接让本体自己脱离文档流、用 position:fixed
+ * 跟手。配合 Vue 的 <Teleport :disabled="!controlled"> 使用——本体在被
+ * Runtime 接管期间会被 Teleport 搬到 body，这里只负责钉住视觉位置，不碰
+ * DOM 树结构（DOM 搬运交给 Vue 自己做，Runtime 不做手工 reparent，见
+ * docs/DESIGN.md 对"手工挪动 Vue 追踪的节点"的风险提示）。
+ */
+const floatingSnapshots = new WeakMap<HTMLElement, { style: string }>()
+
+export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
+  floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
+  el.style.position = 'fixed'
+  el.style.left = `${rect.left}px`
+  el.style.top = `${rect.top}px`
+  el.style.width = `${rect.width}px`
+  el.style.height = `${rect.height}px`
+  el.style.margin = '0'
+  el.style.zIndex = '1000'
+  el.style.boxSizing = 'border-box'
+  el.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  el.style.transform = 'scale(1.03)'
+  el.style.transition = 'transform .15s ease, box-shadow .15s ease'
+}
+
+export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: number, offsetY: number) {
+  el.style.left = `${x - offsetX}px`
+  el.style.top = `${y - offsetY}px`
+}
+
+export function clearFloatingStyle(el: HTMLElement) {
+  const snapshot = floatingSnapshots.get(el)
+  el.setAttribute('style', snapshot?.style ?? '')
+  floatingSnapshots.delete(el)
+}

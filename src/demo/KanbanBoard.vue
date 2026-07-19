@@ -1,4 +1,8 @@
 <template>
+  <div class="kb-strategy-switch">
+    <label><input type="radio" value="clone" v-model="strategy" /> clone 策略（proxy + 隐藏本体）</label>
+    <label><input type="radio" value="detach" v-model="strategy" /> detach 策略（全程一个对象）</label>
+  </div>
   <div class="kb-board">
     <div v-for="col in columns" :key="col.id" class="kb-column" :data-column="col.id">
       <div class="kb-column-title">{{ col.title }}<span>{{ col.cardIds.length }}</span></div>
@@ -7,15 +11,15 @@
         <div v-for="group in doneGroups" :key="group.name" class="kb-done-group">
           <div class="kb-done-group-title">{{ group.name }}</div>
           <TransitionGroup tag="div" class="kb-card-list" name="kb-card" :css="!columnControlled[col.id]">
-            <div
-              v-for="cardId in group.cardIds"
-              :key="cardId"
-              class="kb-card kb-card-done"
-              :data-card="cardId"
-              @pointerdown="onCardPointerDown($event, cardId)"
-            >
-              {{ cards[cardId].title }}
-            </div>
+            <Teleport v-for="cardId in group.cardIds" :key="cardId" to="body" :disabled="!isDetached(cardId)">
+              <div
+                class="kb-card kb-card-done"
+                :data-card="cardId"
+                @pointerdown="onCardPointerDown($event, cardId)"
+              >
+                {{ cards[cardId].title }}
+              </div>
+            </Teleport>
           </TransitionGroup>
         </div>
       </template>
@@ -27,31 +31,42 @@
         name="kb-card"
         :css="!columnControlled[col.id]"
       >
-        <div
-          v-for="cardId in col.cardIds"
-          :key="cardId"
-          class="kb-card"
-          :data-card="cardId"
-          @pointerdown="onCardPointerDown($event, cardId)"
-        >
-          {{ cards[cardId].title }}
-        </div>
+        <Teleport v-for="cardId in col.cardIds" :key="cardId" to="body" :disabled="!isDetached(cardId)">
+          <div
+            class="kb-card"
+            :data-card="cardId"
+            @pointerdown="onCardPointerDown($event, cardId)"
+          >
+            {{ cards[cardId].title }}
+          </div>
+        </Teleport>
       </TransitionGroup>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { columns, cards } from './store'
 import { startCardDrag } from './kanbanDrag'
+import { startCardDragDetach } from './kanbanDragDetach'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
+import { runtime } from '../Runtime'
+
+const strategy = ref<'clone' | 'detach'>('clone')
 
 // reactive() 让模板里 columnControlled[col.id] 能自动解包内部的 computed ref，
 // 否则模板拿到的是 ref 对象本身而不是它的值。
 const columnControlled = reactive(
   Object.fromEntries(columns.map(col => [col.id, useRuntimeTransition(`column:${col.id}`).controlled])),
 )
+
+// detach 策略专用：这个对象当前是不是被 Runtime 接管了，接管了就要被
+// <Teleport> 搬去 body。直接读 Owner 而不额外包一层 computed——Owner 内部
+// 是 reactive(Map)，模板渲染时读取会被 Vue 的响应式系统正常追踪到。
+function isDetached(cardId: string): boolean {
+  return runtime.owner.isControlled(cardId)
+}
 
 const doneColumn = computed(() => columns.find(col => col.id === 'done')!)
 const doneGroups = computed(() => {
@@ -67,11 +82,13 @@ const doneGroups = computed(() => {
 function onCardPointerDown(event: PointerEvent, cardId: string) {
   const el = (event.currentTarget as HTMLElement) ?? null
   if (!el) return
-  startCardDrag(event, cardId, el)
+  if (strategy.value === 'detach') startCardDragDetach(event, cardId, el)
+  else startCardDrag(event, cardId, el)
 }
 </script>
 
 <style scoped>
+.kb-strategy-switch { display: flex; gap: 16px; padding: 12px 24px 0; font-family: system-ui, sans-serif; font-size: 13px; }
 .kb-board { display: flex; gap: 16px; padding: 24px; align-items: flex-start; font-family: system-ui, sans-serif; }
 .kb-column {
   width: 220px; background: #f4f5f7; border-radius: 10px; padding: 10px;
