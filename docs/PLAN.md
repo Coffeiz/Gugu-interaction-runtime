@@ -1,7 +1,8 @@
 # Interaction Runtime · 分层结构与执行计划
 
 设计动机见 [DESIGN.md](./DESIGN.md)。本文件是具体的模块划分、目录结构和
-分阶段执行计划。
+分阶段执行计划——写给自己看的架构/进度文档。如果你是要接入这套 Runtime
+的使用者，看 [INTEGRATION.md](./INTEGRATION.md) 就够了，不用读这份。
 
 ## 一、三层职责
 
@@ -145,6 +146,29 @@ src/
       的极端情况下，靠 Owner 的 `ownerSessionId` 校验也不会互相清理）
 - [x] 所有监听器和 RAF 都能在 dispose 后验证确实清空——`Cleanup` 模块
       维护全局活跃计数，5 次快速连续拖拽压力测试后计数归零
+
+### 阶段 0.5：把完整生命周期状态机和 Object 模型的坑位占上
+
+在扩大接管范围之前先补的几个缺口（见 DESIGN.md 原则 3/4 的完整状态机和
+Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部分：
+
+- [ ] `Session` 状态机补上 `prepare`/`release`/`saving`/`interrupt`/
+      `rollback`（目前只有 `active/landing/handoff/done/cancelled`）
+- [ ] "抓起即视为脱离所有 Surface"（悬空态），而不是"命中新 Surface 才
+      离开旧 Surface"——`moveCard` 目前是命中即插入，起点仍然是"待在原
+      Surface 里"
+- [ ] 松手时没有命中任何有效 Surface → 触发 `cancel`，回到抓起前的位置
+      （`Session.cancel()` 现在是从没被调用过的空壳）
+- [ ] `ObjectStore`/`SurfaceStore` 最小实现 + `abilities` 声明，替代现在
+      `session.takeObject(cardId)` 直接吃裸字符串、没有注册表的做法
+- [ ] `hitTest` 从 `kanbanDrag.ts`/`kanbanDragDetach.ts` 里的两份重复代码
+      抽成公共的 `Hit` 模块
+
+这几项做完，[INTEGRATION.md](./INTEGRATION.md) 里"未来目标 API"那节列的
+`useObject`/`useSurface`/`runtime.start()`/`runtime.onAction()` 才有地基
+可以立。`Motion`（速度延续、物理运动、飞行中重新瞄准目标）暂不在这批里，
+单独排期——现在的落地动画是借用 `Layout` 的 `playFlip` 顶替的，见
+[VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
 
 ### 阶段 1：迁移 Gugu-web 抽屉链路（试点，不是看板项目卡）
 
