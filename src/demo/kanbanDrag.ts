@@ -200,6 +200,9 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
         targetRadius: targetSnapshot?.borderRadius ?? targetStyle.borderRadius,
         targetBackground: targetSnapshot?.background ?? targetStyle.backgroundColor,
         targetOpacity: targetSnapshot?.opacity ?? targetStyle.opacity,
+        // 落点内容本身可能跟源不一样（比如"已完成"列多一个徽章）——纯样式
+        // 插值解决不了这种真实 DOM 结构差异，交给内容交叉淡变。
+        targetContent: targetEl,
       }).then(() => {
         // landing 的完成必须以 proxy 的真实几何位置为准。此前独立 timer 会
         // 在 CSS transition 尚未抵达目标时提前 reveal，造成二次吸入或闪现。

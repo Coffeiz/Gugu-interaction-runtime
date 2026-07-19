@@ -35,6 +35,7 @@
                       @pointerdown="onCardPointerDown($event, cardId)"
                     >
                       {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
+                      <span class="kb-done-badge">✓ 完成</span>
                     </div>
                   </Teleport>
                 </TransitionGroup>
@@ -262,6 +263,12 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
 .kb-card-done { background: #f0f6ff; }
 .kb-card-locked { cursor: not-allowed; opacity: .6; }
 .kb-lock-hint { font-size: 11px; color: #999; }
+.kb-done-badge {
+  display: inline-flex; align-items: center; margin-left: 6px;
+  font-size: 10px; font-weight: 700; color: #3a8870;
+  background: rgba(90,158,136,.12); border-radius: 20px; padding: 0 6px;
+  box-shadow: inset 0 0 0 1px rgba(90,158,136,.35);
+}
 .kb-card-dragging-source { opacity: .35; visibility: hidden; }
 .kb-card-move { transition: transform .22s cubic-bezier(.22,1,.36,1); }
 .kb-card-enter-active, .kb-card-leave-active { transition: opacity .18s ease; }

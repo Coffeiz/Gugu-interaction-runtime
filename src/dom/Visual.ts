@@ -70,6 +70,41 @@ export interface LandingVisualOptions {
   targetRadius?: string
   targetBackground?: string
   targetOpacity?: string
+  /**
+   * 落点内容本身会变化时用（比如落点比源多/少某个子元素——徽章、按钮这类
+   * 真实 DOM 结构差异，不是纯样式差异，插值 background/box-shadow 这类
+   * 数值属性解决不了）。传入落点真实渲染出的节点，这里会把代理现有内容
+   * 包一层、克隆一份目标内容叠在上面，两层内容做 opacity 交叉淡变；
+   * 位置/尺寸/容器级样式（背景、阴影等，见上面几个 target* 选项）仍由
+   * 外层代理统一插值，两套机制独立生效、互不干扰。不传时完全不建这层，
+   * 内容不变的场景维持原来更轻量的路径。
+   */
+  targetContent?: HTMLElement
+}
+
+/**
+ * 把代理现有内容和目标内容各包一层、绝对定位叠在一起，返回两层供调用方
+ * 做 opacity 交叉淡变。代理本身（position:fixed）天然就是这两层的定位
+ * 上下文，不需要额外包一层容器。
+ */
+function wrapContentForMorph(proxy: HTMLElement, toContent: HTMLElement): { fromLayer: HTMLElement; toLayer: HTMLElement } {
+  const fromLayer = document.createElement('div')
+  Object.assign(fromLayer.style, { position: 'absolute', inset: '0', opacity: '1' })
+  while (proxy.firstChild) fromLayer.appendChild(proxy.firstChild)
+  proxy.appendChild(fromLayer)
+
+  const toLayer = toContent.cloneNode(true) as HTMLElement
+  // cloneNode 会带走 toContent 当下的内联样式——调用方传进来的目标节点常常
+  // 这一刻正被业务代码隐藏（等着落地动画接管），克隆下来若不显式复位
+  // visibility/display，这一层永远显示不出来，交叉淡变会变成"淡入了一层
+  // 看不见的东西"。
+  Object.assign(toLayer.style, {
+    position: 'absolute', inset: '0', opacity: '0', margin: '0',
+    visibility: 'visible', display: '',
+  })
+  proxy.appendChild(toLayer)
+
+  return { fromLayer, toLayer }
 }
 
 /**
@@ -88,6 +123,11 @@ export function landDragProxy(
   const targetRadius = options.targetRadius
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
+  const contentLayers = options.targetContent ? wrapContentForMorph(proxy, options.targetContent) : null
+  if (contentLayers) {
+    contentLayers.fromLayer.style.transition = `opacity ${duration}ms ease`
+    contentLayers.toLayer.style.transition = `opacity ${duration}ms ease`
+  }
 
   return new Promise(resolve => {
     let settled = false
@@ -137,6 +177,10 @@ export function landDragProxy(
       if (targetRadius != null) proxy.style.borderRadius = targetRadius
       if (targetBackground != null) proxy.style.background = targetBackground
       if (targetOpacity != null) proxy.style.opacity = targetOpacity
+      if (contentLayers) {
+        contentLayers.fromLayer.style.opacity = '0'
+        contentLayers.toLayer.style.opacity = '1'
+      }
     })
     const waitForTarget = () => {
       if (settled) return
