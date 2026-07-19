@@ -204,12 +204,19 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         timestamp: Date.now(),
       })
     }
-    clearFloatingStyle(sourceEl)
     delete sourceEl.dataset.runtimeActive
     // 只放开这一个对象的 Lease：Vue 下一帧会把它摆回真实列表位置。
     // Surface 的 Lease（TransitionGroup 总闸）留到落地动画结束才一起释放。
     objectLease.release()
     landingPlan = () => requestAnimationFrame(() => {
+      // clearFloatingStyle 不能在 onUp() 里同步调用：那样会在这一帧同步抹掉
+      // sourceEl 的抬起阴影/位置样式，但接管视觉的落地代理要等到这个 rAF 才
+      // 创建——中间至少有一帧，浏览器会先画出"样式已经被清空、但代理还没
+      // 顶上"的本体，表现为松手瞬间样式突然跳变、阴影没有过渡直接消失。
+      // position:fixed 元素的渲染位置只认内联 left/top，不受 Teleport 换父级
+      // 影响，所以拖到这里才清也不会看见位置跳动——延后清除跟延后隐藏必须
+      // 在同一个 rAF 里完成，才能让"跟手样式"和"落地代理"无缝衔接。
+      clearFloatingStyle(sourceEl)
       // 注意：这里不能继续用闭包里的 sourceEl。同列内重排时 Vue 确实会
       // 复用同一个节点（同一个 v-for 数组内 diff），但跨列拖拽时源列和
       // 目标列是两个独立的 v-for/TransitionGroup 实例，Vue 只能在源列里

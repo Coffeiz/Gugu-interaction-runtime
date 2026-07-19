@@ -121,17 +121,22 @@ export function landDragProxy(
       `background-color ${duration}ms ease`,
       `opacity ${duration}ms ease`,
     ].join(', ')
-    if (targetShadow != null) proxy.style.boxShadow = targetShadow
-    if (targetRadius != null) proxy.style.borderRadius = targetRadius
-    if (targetBackground != null) proxy.style.background = targetBackground
-    if (targetOpacity != null) proxy.style.opacity = targetOpacity
-
+    // box-shadow/border-radius/background/opacity 起点值（dragSnapshot）是调用方在这个
+    // proxy 刚创建、还没被浏览器画过一帧的时候同步写上去的——如果在这里（设置 transition
+    // 的同一个同步块里）就把它们改成目标值，浏览器压根没机会先画一帧"起点样子"，只会在
+    // 第一次真正渲染时直接看到目标值，没有过渡可言（表现为松手瞬间阴影直接跳变/消失，
+    // 而不是渐变）。跟 left/top/width/height/transform 一样，必须等到下一帧、起点样式已经
+    // 被画过一次之后，再改成目标值，过渡才有起点可插值。
     requestAnimationFrame(() => {
       proxy.style.left = `${target.left}px`
       proxy.style.top = `${target.top}px`
       proxy.style.width = `${target.width}px`
       proxy.style.height = `${target.height}px`
       proxy.style.transform = 'scale(1)'
+      if (targetShadow != null) proxy.style.boxShadow = targetShadow
+      if (targetRadius != null) proxy.style.borderRadius = targetRadius
+      if (targetBackground != null) proxy.style.background = targetBackground
+      if (targetOpacity != null) proxy.style.opacity = targetOpacity
     })
     const waitForTarget = () => {
       if (settled) return
