@@ -159,8 +159,13 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
       Surface 里"
 - [ ] 松手时没有命中任何有效 Surface → 触发 `cancel`，回到抓起前的位置
       （`Session.cancel()` 现在是从没被调用过的空壳）
-- [ ] `ObjectStore`/`SurfaceStore` 最小实现 + `abilities` 声明，替代现在
-      `session.takeObject(cardId)` 直接吃裸字符串、没有注册表的做法
+- [x] `ObjectStore`/`SurfaceStore` 最小实现 + `abilities` 声明，替代现在
+      `session.takeObject(cardId)` 直接吃裸字符串、没有注册表的做法。
+      `useObject`/`useSurface` composable 也补上了；demo 里列（Surface）
+      用 `useSurface` 正常接了，卡片（Object）因为没有各自独立的组件，
+      暂时用 `ObjectStore` 原始 API + 一个 `watchEffect` 同步，等有了
+      per-card 组件再切换成 `useObject`。`hasAbility` 已经接进两条拖拽
+      入口，demo 里"补充测试用例"这张卡故意不给 `move` 能力做了验证。
 - [ ] `hitTest` 从 `kanbanDrag.ts`/`kanbanDragDetach.ts` 里的两份重复代码
       抽成公共的 `Hit` 模块
 

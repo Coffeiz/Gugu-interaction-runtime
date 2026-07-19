@@ -4,7 +4,7 @@
     <label><input type="radio" value="detach" v-model="strategy" /> detach 策略（全程一个对象）</label>
   </div>
   <div class="kb-board">
-    <div v-for="col in columns" :key="col.id" class="kb-column" :data-column="col.id">
+    <div v-for="col in columns" :key="col.id" class="kb-column" :data-column="col.id" :ref="el => setColumnRef(col.id, el as HTMLElement | null)">
       <div class="kb-column-title">{{ col.title }}<span>{{ col.cardIds.length }}</span></div>
 
       <template v-if="col.id === 'done'">
@@ -14,10 +14,11 @@
             <Teleport v-for="cardId in group.cardIds" :key="cardId" to="body" :disabled="!isDetached(cardId)">
               <div
                 class="kb-card kb-card-done"
+                :class="{ 'kb-card-locked': isLocked(cardId) }"
                 :data-card="cardId"
                 @pointerdown="onCardPointerDown($event, cardId)"
               >
-                {{ cards[cardId].title }}
+                {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
               </div>
             </Teleport>
           </TransitionGroup>
@@ -34,10 +35,11 @@
         <Teleport v-for="cardId in col.cardIds" :key="cardId" to="body" :disabled="!isDetached(cardId)">
           <div
             class="kb-card"
+            :class="{ 'kb-card-locked': isLocked(cardId) }"
             :data-card="cardId"
             @pointerdown="onCardPointerDown($event, cardId)"
           >
-            {{ cards[cardId].title }}
+            {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
           </div>
         </Teleport>
       </TransitionGroup>
@@ -46,14 +48,53 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watchEffect } from 'vue'
 import { columns, cards } from './store'
 import { startCardDrag } from './kanbanDrag'
 import { startCardDragDetach } from './kanbanDragDetach'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
+import { useSurface } from '../vue/useSurface'
 import { runtime } from '../Runtime'
 
 const strategy = ref<'clone' | 'detach'>('clone')
+
+// 三个列数量固定、组件全程只挂载一次，属于合法的"静态次数"composable 调用
+// （不是在 v-for 里动态调用）。每个列注册成一个 Surface，只接受
+// 'kanban-card' 类型的对象——见 docs/DESIGN.md 原则 4、docs/PLAN.md 阶段 0.5。
+const columnSurfaces = Object.fromEntries(
+  columns.map(col => [col.id, useSurface({ id: `column:${col.id}`, type: 'list', accepts: ['kanban-card'] })]),
+)
+function setColumnRef(colId: string, el: HTMLElement | null) {
+  columnSurfaces[colId].elementRef.value = el
+}
+
+// 卡片没有各自独立的组件（demo 里所有卡片共用这一个模板渲染），没法像
+// useObject 设计的那样"在拥有 DOM 的组件里调用一次"。这里退而求其次，
+// 直接用 ObjectStore 的原始 API 做一次性注册 + 一个 watchEffect 保持
+// surfaceId 跟着 columns 数据同步——真正接入业务时，每张卡片如果有自己
+// 的组件，应该改成在那个组件里调用 useObject，而不是照抄这段。
+// c3（"补充测试用例"）故意不给 'move' 能力，用来验证这条门禁是真的在
+// 生效，不是摆设——demo 里它应该完全拖不动，pointerdown 直接被拒绝。
+Object.keys(cards).forEach(cardId => {
+  runtime.objects.register({
+    id: cardId,
+    type: 'kanban-card',
+    surfaceId: '',
+    element: null,
+    abilities: cardId === 'c3' ? [] : ['move', 'sort'],
+  })
+})
+
+function isLocked(cardId: string): boolean {
+  return !runtime.objects.hasAbility(cardId, 'move')
+}
+watchEffect(() => {
+  for (const col of columns) {
+    for (const cardId of col.cardIds) {
+      runtime.objects.setSurface(cardId, `column:${col.id}`)
+    }
+  }
+})
 
 // reactive() 让模板里 columnControlled[col.id] 能自动解包内部的 computed ref，
 // 否则模板拿到的是 ref 对象本身而不是它的值。
@@ -104,6 +145,8 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
   box-shadow: 0 1px 3px rgba(0,0,0,.08); cursor: grab; user-select: none;
 }
 .kb-card-done { background: #f0f6ff; }
+.kb-card-locked { cursor: not-allowed; opacity: .6; }
+.kb-lock-hint { font-size: 11px; color: #999; }
 .kb-card-dragging-source { opacity: .35; }
 .kb-card-move { transition: transform .22s cubic-bezier(.22,1,.36,1); }
 .kb-card-enter-active, .kb-card-leave-active { transition: opacity .18s ease; }

@@ -4,30 +4,70 @@
 需要做什么。不假设你了解 Runtime 内部怎么实现——原理和设计取舍见
 [DESIGN.md](./DESIGN.md)。
 
-> **现状提示**：`useObject`/`useSurface`/`Action` 这套统一入口目前**还没有
-> 实现**，是接下来要做的目标 API。现在能实际接入的方式是直接调用
-> demo 里的拖拽编排函数（`startCardDrag`/`startCardDragDetach`）。本文档
-> 分两部分：先讲现在真的能怎么接，再讲将来的目标是什么样子，两部分不要
-> 混着读。
+> **现状提示**：`ObjectStore`/`SurfaceStore`/`useObject`/`useSurface` 已经
+> 实现了，`abilities` 门禁也是真的在生效（不是摆设）。但 `runtime.start()`/
+> `runtime.onAction()` 这套"按类型统一分发交互、统一收 Action"的入口还
+> **没有**实现——现在还是直接调用 demo 里的拖拽编排函数
+> （`startCardDrag`/`startCardDragDetach`），业务数据变化也是直接写在这
+> 两个文件里调 `moveCard()`，没有抽成独立的 `Action` 层。本文档分两部分：
+> 先讲现在真的能怎么接，再讲 `runtime.start`/`onAction` 这部分还差什么。
 
-## 现在能怎么接（demo 阶段的真实用法）
+## 现在能怎么接
 
-以 [`KanbanBoard.vue`](../src/demo/KanbanBoard.vue) 为例，接入一个可拖拽
-对象要做四件事：
+以 [`KanbanBoard.vue`](../src/demo/KanbanBoard.vue) 为例。
 
-**1. 给对象打上可识别的标记**
+**1. 注册这个对象**
+
+如果这个对象有自己独立的 Vue 组件（每个对象一个组件实例），在该组件的
+`setup` 里调用 `useObject`：
+
+```ts
+import { useObject } from '{path-to}/vue/useObject'
+
+const { elementRef } = useObject({
+  id: `project:${project.id}`,
+  type: 'project-card',
+  surface: () => `column:${project.status}`,  // getter，随业务数据变化
+  abilities: ['move', 'sort'],
+})
+```
+
+```html
+<div ref="elementRef" class="my-card" :data-card="cardId" @pointerdown="...">
+```
+
+如果像 demo 里那样，所有同类对象共用一份模板渲染（没有各自独立的组件
+实例），`useObject` 不适用（它假定"一个组件实例对应一个对象"）——退而
+求其次，直接用 `runtime.objects` 的原始 API 做一次性注册 + 一个
+`watchEffect` 同步 `surfaceId`（见 `KanbanBoard.vue` 里的写法）。这是
+目前 demo 采用的方式，不是推荐的最终形态；真正接入业务时，如果对象有
+自己的组件，应该用 `useObject`。
+
+**2. 注册它所在的容器（Surface）**
+
+```ts
+import { useSurface } from '{path-to}/vue/useSurface'
+
+const { elementRef } = useSurface({
+  id: `column:${status}`,
+  type: 'list',
+  accepts: ['project-card'],  // 空数组表示不限制类型
+})
+```
+
+```html
+<div :ref="el => elementRef = el" class="my-column">
+```
+
+**3. 给对象打上可识别的标记**（供 hit test 用，见"已知限制"）
 
 ```html
 <div class="my-card" :data-card="cardId" @pointerdown="onPointerDown(cardId, $event)">
 ```
 
-`data-card` 是拖拽逻辑用来做 hit test（`document.querySelectorAll('[data-card]')`）
-的约定，不是 Runtime 强制的协议，目前是 demo 自己定的约定。
-
-**2. 选一种视觉策略，调用对应的拖拽函数**
+**4. 选一种视觉策略，调用对应的拖拽函数**
 
 ```ts
-// 路径按实际项目结构调整，这两个函数目前都在 src/demo/ 下
 import { startCardDrag } from '{path-to}/kanbanDrag'          // clone 策略
 import { startCardDragDetach } from '{path-to}/kanbanDragDetach' // detach 策略
 
@@ -37,9 +77,12 @@ function onPointerDown(cardId: string, event: PointerEvent) {
 }
 ```
 
-两种策略的选择依据见 [VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
+这两个函数入口处都会先查 `runtime.objects.hasAbility(cardId, 'move')`，
+没有这个能力直接拒绝——对象只要注册时不声明 `'move'`，就自动拖不动，不
+需要在业务组件里另外判断"这个能不能拖"。两种策略的选择依据见
+[VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
 
-**3.（仅 detach 策略需要）模板里包一层 `<Teleport>`**
+**5.（仅 detach 策略需要）模板里包一层 `<Teleport>`**
 
 ```html
 <Teleport to="body" :disabled="!isDetached(cardId)">
@@ -56,7 +99,7 @@ function isDetached(cardId: string) {
 }
 ```
 
-**4. 让容器的 `TransitionGroup` 在被接管期间关闭**
+**6. 让容器的 `TransitionGroup` 在被接管期间关闭**
 
 ```html
 <TransitionGroup :css="!controlled">
@@ -67,12 +110,12 @@ import { useRuntimeTransition } from '{path-to}/vue/useRuntimeTransition'
 const { controlled } = useRuntimeTransition(`column:${columnId}`)
 ```
 
-这四步做完，这个对象就能参与"拖拽 + 跨容器移动 + 落地 + regrab + 清理"
-这一整套流程，不需要再写一遍 proxy/FLIP/清理逻辑——但目前"业务数据怎么
-变"（对应下面目标 API 里的 `Action`）是直接写在 `kanbanDrag.ts`/
-`kanbanDragDetach.ts` 里的 `moveCard()` 调用，没有独立成一层，接入一个
-新对象类型目前还是要照着这两个文件抄一份拖拽编排逻辑，只是不用重新
-发明 Owner/Session/Cleanup 这些底层机制。
+这几步做完，这个对象就能参与"拖拽 + 跨容器移动 + 落地 + regrab + 能力
+门禁 + 清理"这一整套流程，不需要再写一遍 proxy/FLIP/清理逻辑——但目前
+"业务数据怎么变"是直接写在 `kanbanDrag.ts`/`kanbanDragDetach.ts` 里的
+`moveCard()` 调用，没有独立成 `Action` 层，接入一个新对象类型目前还是
+要照着这两个文件抄一份拖拽编排逻辑，只是不用重新发明 Owner/Session/
+Cleanup/ObjectStore 这些底层机制。
 
 ## 已知的接入限制
 
@@ -87,43 +130,15 @@ const { controlled } = useRuntimeTransition(`column:${columnId}`)
 - **`hitTest`（判断命中哪个容器、第几个位置）目前在两份拖拽编排文件里
   各写了一份**，还没有抽成公共的 `Hit` 模块，接入新对象类型时这段逻辑
   大概率要照抄。
+- **`useObject` 假定"一个组件实例对应一个对象"**，如果你的场景跟 demo
+  一样是"一份模板渲染一整个列表"，需要照 demo 里的方式退化成
+  `runtime.objects` 原始 API + `watchEffect`。
 
-## 未来目标 API（还没有实现）
-
-下面这套是接下来要做的目标形态，写在这里是为了让现在的接入方式和将来
-的方向不互相矛盾——今天照"现在能怎么接"那节做的接入，将来迁移到这套
-API 时改动应该是收敛（删掉手写的 Owner/Session 调用，换成注册），而不是
-推倒重来。
-
-**注册一个对象**：
-
-```ts
-const card = useObject({
-  id: `project:${project.id}`,
-  type: 'project-card',
-  surface: `column:${project.status}`,
-  abilities: ['move', 'sort'],
-})
-```
-
-**注册一个容器**：
-
-```ts
-const column = useSurface({
-  id: `column:${status}`,
-  type: 'list',
-  accepts: ['project-card'],
-})
-```
-
-**开始一次交互**（不用自己调 `startCardDrag`，Runtime 按对象的 `abilities`
-和这里的 `type` 决定要不要接、怎么接）：
+## `runtime.start`/`onAction` 还差什么（未来目标 API）
 
 ```ts
 runtime.start({ type: 'move', objectId: card.id, input: event })
 ```
-
-**接收业务结果**（Runtime 只输出 `Action`，不直接碰 Store/API）：
 
 ```ts
 runtime.onAction(async action => {
@@ -131,19 +146,16 @@ runtime.onAction(async action => {
 })
 ```
 
-组件里不需要再自己写：
+目标是组件里完全不需要自己调 `startCardDrag`/`startCardDragDetach`，
+Runtime 根据 `runtime.objects.get(objectId).abilities` 和 `type` 自己决定
+要不要接、接了走哪套流程；业务层只订阅 `onAction`，不直接调
+`moveCard()`。
 
-```
-createProxy / removePlaceholder / requestAnimationFrame / springTo
-runFlip / pointerCapture / style.transform / hitTest
-```
-
-这些全部收在 Runtime 内部，一个对象注册一次，就具备参与"移动/排序/缩放/
-连线"等各种 Session 类型的资格，不需要为每种交互类型各写一遍完整流程。
-
-这套 API 现在没做的原因：`ObjectStore`/`SurfaceStore`/`Hit`/`Action` 这几个
-模块都还是空的（见 [PLAN.md](./PLAN.md) 目录结构一节），需要先在真实场景
-（阶段 1：迁移 Gugu-web 抽屉链路）里把 `Session` 的多参与者模型和完整
-生命周期状态机（见 [DESIGN.md](./DESIGN.md) 原则 3/4）跑实，再抽象成这套
-统一入口——过早把这套 API 做出来，大概率会做错，等真实接入场景多了之后
-再抽会更准。
+现在没做的原因：这需要先把"一次 Session 该收编哪些参与者、对象与视觉
+策略怎么绑定"这套分发逻辑想清楚——`kanbanDrag.ts`/`kanbanDragDetach.ts`
+现在是业务代码直接选一个函数调用，`runtime.start()` 要把这个选择逻辑
+挪进 Runtime 内部，还需要 `Action` 是什么形状（`MoveAction`？还是更通用
+的 `{ type, objectId, patch }`？）没有定论。等阶段 1（迁移 Gugu-web
+抽屉链路）把 `Session` 的多参与者模型和完整生命周期状态机（见
+[DESIGN.md](./DESIGN.md) 原则 3/4）在真实场景里跑实，这套分发逻辑会更
+容易想清楚——过早抽象大概率会抽错。

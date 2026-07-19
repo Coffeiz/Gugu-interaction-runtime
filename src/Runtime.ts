@@ -1,5 +1,7 @@
 import { Owner } from './owner/Owner'
 import { Session } from './session/Session'
+import { ObjectStore } from './object/ObjectStore'
+import { SurfaceStore } from './surface/SurfaceStore'
 
 /**
  * Runtime 只组织其余模块，不写具体项目逻辑——具体的拖拽流程（Hit test、
@@ -8,6 +10,8 @@ import { Session } from './session/Session'
  */
 export class Runtime {
   readonly owner = new Owner()
+  readonly objects = new ObjectStore()
+  readonly surfaces = new SurfaceStore()
   private sessions = new Map<string, Session>()
 
   startSession(type: string): Session {

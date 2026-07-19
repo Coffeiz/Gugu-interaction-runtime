@@ -28,7 +28,11 @@ const landingRegrabs = new Map<string, (event: PointerEvent) => void>()
  * 的样式"这条规则。
  */
 export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTMLElement, fromRect?: DOMRect) {
+  // 对象声明了自己不能参与 'move' 类型的 Session，直接拒绝——不需要
+  // 业务组件自己判断"这张卡能不能拖"，注册的时候声明一次就够了。
+  if (!runtime.objects.hasAbility(cardId, 'move')) return
   event.preventDefault()
+  runtime.objects.setElement(cardId, sourceEl)
   const activeRegrab = landingRegrabs.get(cardId)
   if (activeRegrab) {
     activeRegrab(event)

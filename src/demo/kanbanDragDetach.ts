@@ -18,7 +18,10 @@ const LANDING_DURATION = 220
  * 是"正在跟手"还是"正在 FLIP 回弹"。
  */
 export function startCardDragDetach(event: PointerEvent, cardId: string, sourceEl: HTMLElement) {
+  // 对象声明了自己不能参与 'move' 类型的 Session，直接拒绝。
+  if (!runtime.objects.hasAbility(cardId, 'move')) return
   event.preventDefault()
+  runtime.objects.setElement(cardId, sourceEl)
   // 如果这张卡此刻正在做落地 FLIP 回弹（transform/transition 还没播完，
   // 但已经不受 Runtime 控制），把残留的过渡状态清掉再开始新的一轮。
   sourceEl.style.transition = 'none'
