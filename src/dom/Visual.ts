@@ -50,6 +50,8 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   proxy.style.visibility = 'visible'
   proxy.style.display = 'block'
   proxy.dataset.runtimeProxy = 'true'
+  // 拖拽期间就用 0 0 原点，避免 landing 时从 center 跳变到 0 0 导致内容偏移。
+  proxy.style.transformOrigin = '0 0'
   proxy.style.transform = 'scale(1.03)'
   proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
   proxy.style.transition = 'transform .15s ease, box-shadow .15s ease'
@@ -82,29 +84,112 @@ export interface LandingVisualOptions {
   targetContent?: HTMLElement
 }
 
+/** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
+ * 徽章、按钮这类会增减的子元素文字内容本身就是区分度最高的信息，不需要真的做
+ * 一整套 DOM diff。 */
+function childSignature(el: HTMLElement): string {
+  return `${el.tagName}:${(el.textContent ?? '').trim()}`
+}
+
 /**
- * 把代理现有内容和目标内容各包一层、绝对定位叠在一起，返回两层供调用方
- * 做 opacity 交叉淡变。代理本身（position:fixed）天然就是这两层的定位
- * 上下文，不需要额外包一层容器。
+ * 把一个容器的直接子节点统一整理成"每个可见内容都是一个可以单独设置 opacity
+ * 的元素"——裸文本节点（比如卡片标题，模板里直接插值、没包元素）包一层 span
+ * 才能像徽章那样单独控制显隐；纯空白文本节点和 Vue 的 v-if 占位注释节点直接
+ * 丢弃，不参与后面的匹配。
  */
-function wrapContentForMorph(proxy: HTMLElement, toContent: HTMLElement): { fromLayer: HTMLElement; toLayer: HTMLElement } {
-  const fromLayer = document.createElement('div')
-  Object.assign(fromLayer.style, { position: 'absolute', inset: '0', opacity: '1' })
-  while (proxy.firstChild) fromLayer.appendChild(proxy.firstChild)
-  proxy.appendChild(fromLayer)
+function normalizeToElements(container: HTMLElement): HTMLElement[] {
+  const result: HTMLElement[] = []
+  for (const node of Array.from(container.childNodes)) {
+    if (node.nodeType === Node.COMMENT_NODE) {
+      node.remove()
+      continue
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!(node.textContent ?? '').trim()) { node.remove(); continue }
+      const span = document.createElement('span')
+      span.textContent = node.textContent
+      node.replaceWith(span)
+      result.push(span)
+      continue
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) result.push(node as HTMLElement)
+  }
+  return result
+}
 
-  const toLayer = toContent.cloneNode(true) as HTMLElement
+/**
+ * 之前的做法是把源内容和目标内容各包一层完整克隆，整体做 opacity 交叉淡变——
+ * 结果是没有变化的部分（比如标题文字）也被拆成两份各 50% 透明度叠在一起，两层
+ * 半透明黑字叠加的视觉密度天然低于一份纯黑字（alpha 合成：0.5 叠 0.5 约等于
+ * 0.75，不是 1），过渡途中共同内容会显得发虚、发浅。
+ *
+ * 第一次改用"目标结构渲染一份 + 新增子元素单独淡入 + 消失的子元素单独摘进
+ * 一个空容器淡出"的方案时，又踩了另一个坑：摘出来的"消失的子元素"（比如
+ * 徽章）失去了原本靠"跟在标题文字后面"撑住的相对位置，脱离兄弟节点后独自
+ * 摆在一个空 div 里，会缩到容器左上角（截图/录屏里的"内容全跑到左上角"）。
+ *
+ * 现在的做法：完整保留"抓起时的结构"作为一层（beforeLayer），把里面"落地
+ * 后依然存在"的子节点隐藏（opacity:0，但保留占位，不从文档流摘除），只让
+ * "落地后真的消失"的子节点保持可见并参与淡出——徽章依然靠着（视觉不可见
+ * 但仍占位的）标题文字撑住正确的相对位置。目标结构整份渲染成另一层
+ * （contentLayer，全程可见），新增的子节点在这一层里单独设 opacity:0 再
+ * 淡入，同样靠自己在目标结构里的原生相对位置排布，不需要额外撑位。
+ */
+function wrapContentForMorph(
+  proxy: HTMLElement,
+  toContent: HTMLElement,
+): { enteringEls: HTMLElement[]; leavingEls: HTMLElement[] } {
+  // 读取目标卡的 padding，让 contentLayer/beforeLayer 从目标卡 content area
+  // （padding 内部）开始定位——否则 inset:0 定位到 padding box 边缘，子节点
+  // 会偏移到卡片的视觉左上角。从 toContent 读而不是从 proxy 读：源卡和
+  // 目标卡的 padding 可能不同，内容层展示的是目标结构，必须匹配目标。
+  const targetStyle = getComputedStyle(toContent)
+  const pt = parseFloat(targetStyle.paddingTop) || 0
+  const pr = parseFloat(targetStyle.paddingRight) || 0
+  const pb = parseFloat(targetStyle.paddingBottom) || 0
+  const pl = parseFloat(targetStyle.paddingLeft) || 0
+  const layerStyle = {
+    position: 'absolute' as const,
+    left: `${pl}px`,
+    top: `${pt}px`,
+    right: `${pr}px`,
+    bottom: `${pb}px`,
+    pointerEvents: 'none' as const,
+  }
+
+  const beforeLayer = document.createElement('div')
+  Object.assign(beforeLayer.style, { ...layerStyle })
+  while (proxy.firstChild) beforeLayer.appendChild(proxy.firstChild)
+  const fromEls = normalizeToElements(beforeLayer)
+  const fromSignatures = new Set(fromEls.map(childSignature))
+
+  const contentLayer = document.createElement('div')
+  Object.assign(contentLayer.style, { ...layerStyle, pointerEvents: '' })
   // cloneNode 会带走 toContent 当下的内联样式——调用方传进来的目标节点常常
-  // 这一刻正被业务代码隐藏（等着落地动画接管），克隆下来若不显式复位
-  // visibility/display，这一层永远显示不出来，交叉淡变会变成"淡入了一层
-  // 看不见的东西"。
-  Object.assign(toLayer.style, {
-    position: 'absolute', inset: '0', opacity: '0', margin: '0',
-    visibility: 'visible', display: '',
-  })
-  proxy.appendChild(toLayer)
+  // 这一刻正被业务代码隐藏（等着落地动画接管），得先复位再搬子节点。
+  const toContentClone = toContent.cloneNode(true) as HTMLElement
+  toContentClone.style.visibility = 'visible'
+  toContentClone.style.display = ''
+  // 只搬运 toContent 的子节点，不带它自己的外壳（class/padding）——padding
+  // 已经在 contentLayer 的 left/top/right/bottom 里补偿了，contentLayer 如果
+  // 带上 toContent 自己那份 padding，内容会被缩进两次，跟 proxy 对不上。
+  while (toContentClone.firstChild) contentLayer.appendChild(toContentClone.firstChild)
+  const toEls = normalizeToElements(contentLayer)
+  const toSignatures = new Set(toEls.map(childSignature))
 
-  return { fromLayer, toLayer }
+  const enteringEls = toEls.filter(el => !fromSignatures.has(childSignature(el)))
+  for (const el of enteringEls) el.style.opacity = '0'
+
+  const leavingEls = fromEls.filter(el => !toSignatures.has(childSignature(el)))
+  const leavingSet = new Set(leavingEls)
+  for (const el of fromEls) {
+    if (!leavingSet.has(el)) el.style.opacity = '0'
+  }
+
+  proxy.appendChild(contentLayer)
+  if (leavingEls.length > 0) proxy.appendChild(beforeLayer)
+
+  return { enteringEls, leavingEls }
 }
 
 /**
@@ -125,9 +210,38 @@ export function landDragProxy(
   const targetOpacity = options.targetOpacity
   const contentLayers = options.targetContent ? wrapContentForMorph(proxy, options.targetContent) : null
   if (contentLayers) {
-    contentLayers.fromLayer.style.transition = `opacity ${duration}ms ease`
-    contentLayers.toLayer.style.transition = `opacity ${duration}ms ease`
+    // 缓动曲线必须跟下面容器 transform 用的是同一条（easing，不是硬编码 ease）——
+    // 两条速度曲线不一致时，中途会出现"容器已经飞到大半、新增内容才淡了不到
+    // 三分之一"这种视觉上的运动不同步（探针测过，delta 峰值能到 0.38）。
+    for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
+    for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
   }
+
+  // 位置用 transform（translate），尺寸用真实 width/height——两者分开处理：
+  // 位置纯粹是视觉位移，跟内容排版无关，走 transform 不触发重排最省；但尺寸
+  // 如果也用 scale 视觉缩放，容器整体缩放会连带把里面的真实文字一起横向/纵向
+  // 拉伸变形（源列和目标列卡片宽度不一致时最明显，比如跨列拖拽宽度差几十
+  // px，文字会在飞行途中肉眼可见地变胖变瘦）——内容层没有反向抵消这个缩放，
+  // 之前踩过这个坑。改回真实 width/height 过渡，文字每一帧都按当前实际宽度
+  // 自然重排，不会被视觉拉伸；代价是中文文字在宽度连续变化期间理论上可能有
+  // 轻微的换行/字距重算抖动，但这个副作用没有实测验证过有多明显，两害相权
+  // 先保证文字不变形。
+  //
+  // 代理此刻的渲染框（可能已经带着调用方设置的抬起 scale）先原样换算成
+  // "相对左上角的 translate" 表达式 + 当前真实宽高，视觉上不产生任何跳变，
+  // 强制一次回流后再让浏览器画一帧，下一帧再把这套表达式过渡到目标框——跟
+  // 前面 box-shadow 那批属性一样，起点和终点必须隔一帧写，过渡才有起点可插值。
+  const layoutLeft = parseFloat(proxy.style.left) || 0
+  const layoutTop = parseFloat(proxy.style.top) || 0
+  const startRect = proxy.getBoundingClientRect()
+  proxy.style.transition = 'none'
+  proxy.style.width = `${startRect.width.toFixed(2)}px`
+  proxy.style.height = `${startRect.height.toFixed(2)}px`
+  proxy.style.transform =
+    `translate3d(${(startRect.left - layoutLeft).toFixed(2)}px, ${(startRect.top - layoutTop).toFixed(2)}px, 0)`
+  void proxy.offsetWidth
+  const targetTransform =
+    `translate3d(${(target.left - layoutLeft).toFixed(2)}px, ${(target.top - layoutTop).toFixed(2)}px, 0)`
 
   return new Promise(resolve => {
     let settled = false
@@ -146,16 +260,16 @@ export function landDragProxy(
       resolve()
     }
     const onEnd = (event: TransitionEvent) => {
-      if (event.target === proxy && (event.propertyName === 'left' || event.propertyName === 'top') && isAtTarget()) settle()
+      if (event.target === proxy
+        && (event.propertyName === 'transform' || event.propertyName === 'width' || event.propertyName === 'height')
+        && isAtTarget()) settle()
     }
 
     proxy.addEventListener('transitionend', onEnd)
     proxy.style.transition = [
-      `left ${duration}ms ${easing}`,
-      `top ${duration}ms ${easing}`,
+      `transform ${duration}ms ${easing}`,
       `width ${duration}ms ${easing}`,
       `height ${duration}ms ${easing}`,
-      `transform ${duration}ms ${easing}`,
       `box-shadow ${duration}ms ease`,
       `border-radius ${duration}ms ease`,
       `background-color ${duration}ms ease`,
@@ -165,21 +279,19 @@ export function landDragProxy(
     // proxy 刚创建、还没被浏览器画过一帧的时候同步写上去的——如果在这里（设置 transition
     // 的同一个同步块里）就把它们改成目标值，浏览器压根没机会先画一帧"起点样子"，只会在
     // 第一次真正渲染时直接看到目标值，没有过渡可言（表现为松手瞬间阴影直接跳变/消失，
-    // 而不是渐变）。跟 left/top/width/height/transform 一样，必须等到下一帧、起点样式已经
-    // 被画过一次之后，再改成目标值，过渡才有起点可插值。
+    // 而不是渐变）。跟 transform 一样，必须等到下一帧、起点样式已经被画过一次之后，
+    // 再改成目标值，过渡才有起点可插值。
     requestAnimationFrame(() => {
-      proxy.style.left = `${target.left}px`
-      proxy.style.top = `${target.top}px`
-      proxy.style.width = `${target.width}px`
-      proxy.style.height = `${target.height}px`
-      proxy.style.transform = 'scale(1)'
+      proxy.style.transform = targetTransform
+      proxy.style.width = `${target.width.toFixed(2)}px`
+      proxy.style.height = `${target.height.toFixed(2)}px`
       if (targetShadow != null) proxy.style.boxShadow = targetShadow
       if (targetRadius != null) proxy.style.borderRadius = targetRadius
       if (targetBackground != null) proxy.style.background = targetBackground
       if (targetOpacity != null) proxy.style.opacity = targetOpacity
       if (contentLayers) {
-        contentLayers.fromLayer.style.opacity = '0'
-        contentLayers.toLayer.style.opacity = '1'
+        for (const el of contentLayers.enteringEls) el.style.opacity = '1'
+        for (const el of contentLayers.leavingEls) el.style.opacity = '0'
       }
     })
     const waitForTarget = () => {
