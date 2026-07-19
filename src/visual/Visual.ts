@@ -2,8 +2,7 @@
  * proxy：跟随指针的临时视觉对象，随 Session 创建/销毁，不属于 Vue 管理
  * 的真实 DOM——见 docs/DESIGN.md "Vue 创建真实 DOM，Runtime 创建临时 DOM"。
  */
-export function createDragProxy(source: HTMLElement): HTMLElement {
-  const rect = source.getBoundingClientRect()
+export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getBoundingClientRect()): HTMLElement {
   const proxy = source.cloneNode(true) as HTMLElement
   proxy.style.position = 'fixed'
   proxy.style.left = `${rect.left}px`

@@ -1,4 +1,5 @@
 import type { Owner, Lease } from '../owner/Owner'
+import { Cleanup } from '../cleanup/Cleanup'
 
 export type SessionState = 'active' | 'landing' | 'handoff' | 'done' | 'cancelled'
 
@@ -12,6 +13,7 @@ let nextSessionId = 1
 export class Session {
   readonly id: string
   state: SessionState = 'active'
+  readonly cleanup = new Cleanup()
   private leases: Lease[] = []
 
   constructor(readonly type: string, private owner: Owner) {
@@ -35,6 +37,7 @@ export class Session {
     this.state = 'done'
     this.leases.forEach(lease => lease.release())
     this.leases = []
+    this.cleanup.disposeAll()
   }
 
   cancel() {
