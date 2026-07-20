@@ -1,5 +1,5 @@
 import { runtime } from '../Runtime'
-import { createDragPlaceholder, createDragProxy, destroyAllDragProxies, destroyDragPlaceholder, destroyDragProxy, landDragProxy, moveDragProxy } from '../dom/Visual'
+import { createDragPlaceholder, createDragProxy, destroyAllDragProxies, destroyDragPlaceholder, destroyDragProxy, landDragProxy, moveDragProxy, setVisualOverlayInteractive } from '../dom/Visual'
 import { preserveProxyVisualContext } from '../dom/ProxyVisualContext'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
@@ -174,6 +174,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
 
   function beginLanding() {
     session.transition('landing')
+    setVisualOverlayInteractive(true)
+    proxy.style.pointerEvents = 'auto'
     sourceEl.classList.remove('kb-card-dragging-source')
     delete sourceEl.dataset.runtimeActive
     hideLiveCard(cardId)
@@ -241,6 +243,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   function finish() {
     if (session.state === 'done' || session.state === 'cancelled') return
     runtime.clearRegrab(cardId, onRegrab)
+    setVisualOverlayInteractive(false)
+    proxy.style.pointerEvents = 'none'
     showLiveCard(cardId)
     delete sourceEl.dataset.runtimeActive
     sourceEl.style.display = ''
@@ -255,6 +259,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
    */
   function onRegrab(regrabEvent: PointerEvent) {
     if (session.state !== 'landing') return
+    setVisualOverlayInteractive(false)
     regrabEvent.stopPropagation()
     runtime.clearRegrab(cardId)
     const proxyRect = proxy.getBoundingClientRect()
