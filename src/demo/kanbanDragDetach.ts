@@ -6,13 +6,14 @@ import {
   destroyDragProxy,
   landDragProxy,
   moveFloating,
+  settleFloatingLayout,
 } from '../dom/Visual'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
 
-const LANDING_DURATION = 220
+const LANDING_DURATION = 3000
 
 /**
  * detach 跟手阶段只有一个真实对象；但松手后它必须回到 Vue 的真实列表，因而
@@ -38,6 +39,7 @@ function createDetachLandingVisual(
   const dispose = () => {
     if (disposed) return
     disposed = true
+    targetResizeObserver?.disconnect()
     target.style.visibility = previousVisibility
     destroyDragProxy(proxy)
   }
@@ -51,16 +53,38 @@ function createDetachLandingVisual(
     proxy.style.transform = dragSnapshot.transform || 'scale(1.03)'
   }
   target.style.visibility = 'hidden'
-  const finished = landDragProxy(proxy, targetRect, {
+  const { finished: landed, retarget } = landDragProxy(proxy, targetRect, {
     duration,
     targetShadow: targetSnapshot?.boxShadow,
     targetRadius: targetSnapshot?.borderRadius,
     targetBackground: targetSnapshot?.background,
     targetOpacity: targetSnapshot?.opacity,
     targetContent: target,
-  }).finally(() => {
+  })
+  const finished = landed.finally(() => {
     dispose()
   })
+  // target 全程 visibility:hidden，不会真的从文档流摘除，getBoundingClientRect
+  // 依然准确——如果落地这几秒内又有一次不相关的布局事务（比如紧接着又落地了
+  // 另一张卡，兄弟卡跟着重新排位、容器跟着长高），target 的实际落点会跟着变，
+  // 但 landDragProxy 一开始拿到的 targetRect 只是那一刻的快照，不会自己更新。
+  // 用 ResizeObserver 连它带整条祖先链一起盯着（跟 Gugu-web morphLifecycle.ts
+  // 的 retarget 机制同一个思路），谁的布局一变就重新量一次 target 真实位置，
+  // 变了就喂给 retarget()，让还在飞的代理跟着改航向，而不是飞向一个已经
+  // 过期的坐标。
+  let targetResizeObserver: ResizeObserver | null = null
+  if (typeof ResizeObserver !== 'undefined') {
+    targetResizeObserver = new ResizeObserver(() => {
+      if (disposed) return
+      retarget(target.getBoundingClientRect())
+    })
+    targetResizeObserver.observe(target)
+    let ancestor = target.parentElement
+    while (ancestor && ancestor !== document.body) {
+      targetResizeObserver.observe(ancestor)
+      ancestor = ancestor.parentElement
+    }
+  }
   return { finished, dispose }
 }
 const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
@@ -216,6 +240,12 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         timestamp: Date.now(),
       })
     }
+    // 必须在 scheduleLayoutFlip 实际测量之前解除——本体此刻仍是
+    // applyFloatingStyle 设的 position:fixed，不占父级正常布局空间，
+    // 不解除的话 surface 高度动画会算出"少一张卡"的错误目标（见
+    // dom/Visual.ts settleFloatingLayout 的注释）。保持不可见，真正的
+    // 揭示仍然留给下面 landingPlan 里的 clearFloatingStyle。
+    settleFloatingLayout(sourceEl)
     delete sourceEl.dataset.runtimeActive
     // 只放开这一个对象的 Lease：Vue 下一帧会把它摆回真实列表位置。
     // Surface 的 Lease（TransitionGroup 总闸）留到落地动画结束才一起释放。
@@ -286,10 +316,27 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       revealPlan = null
     },
   })
-  session.cleanup.trackListener(window, 'pointermove', event => {
+  // 这两个监听器挂在 window 上，只在"这次拖拽还没松手"这段窗口里有意义——
+  // 一次拖拽只会真正松手一次。之前用 session.cleanup.trackListener 登记，
+  // 移除时机绑定在 session 完全 dispose（要等落地动画播完才会发生，detach
+  // 策略甚至要等到好几秒后）；这段等待期里监听器一直挂在 window 上，如果
+  // 这期间页面上发生了任何一次不相关的 pointerup（比如又拖了另一张卡、
+  // 松了另一次手），会重新触发这个本该已经结束的 session 的 release()——
+  // 它的 onUp() 这时候必然判定"没有有效落点"，把还在飞行中的落地代理
+  // 提前 cancel/dispose 掉，表现为代理动画播到一半突然消失。松手这一刻
+  // 起，这两个监听器就该立刻移除，不用等到 session 真正 dispose。
+  const onWindowPointerMove = (event: PointerEvent) => {
     runtime.update(session.id, { kind: 'pointermove', event })
-  })
-  session.cleanup.trackListener(window, 'pointerup', event => {
+  }
+  const onWindowPointerUp = (event: PointerEvent) => {
+    window.removeEventListener('pointermove', onWindowPointerMove)
+    window.removeEventListener('pointerup', onWindowPointerUp)
     void runtime.release(session.id, { kind: 'pointerup', event })
+  }
+  window.addEventListener('pointermove', onWindowPointerMove)
+  window.addEventListener('pointerup', onWindowPointerUp)
+  session.cleanup.track(() => {
+    window.removeEventListener('pointermove', onWindowPointerMove)
+    window.removeEventListener('pointerup', onWindowPointerUp)
   })
 }

@@ -6,6 +6,11 @@ let visualOverlay: HTMLElement | null = null
  */
 export function mountVisualOverlay(): HTMLElement {
   if (!visualOverlay || !visualOverlay.isConnected) {
+    console.log('[proxy-removal-probe] overlay (re)created', JSON.stringify({
+      t: performance.now().toFixed(1),
+      hadPrevious: !!visualOverlay,
+      previousChildCount: visualOverlay?.children.length ?? 0,
+    }))
     visualOverlay = document.createElement('div')
     visualOverlay.dataset.runtimeOverlay = 'true'
     Object.assign(visualOverlay.style, {
@@ -15,6 +20,20 @@ export function mountVisualOverlay(): HTMLElement {
       pointerEvents: 'none',
       zIndex: '2147483647',
     })
+    // 针对性探针：谁把代理从这个容器里摘掉的，直接盯 childList 变更打出来，
+    // 不用再猜是哪段代码干的。
+    new MutationObserver(mutations => {
+      for (const m of mutations) {
+        for (const node of Array.from(m.removedNodes)) {
+          if (!(node instanceof HTMLElement)) continue
+          if (node.dataset.runtimeProxy !== 'true') continue
+          console.log('[proxy-removal-probe] proxy removed from overlay', JSON.stringify({
+            t: performance.now().toFixed(1),
+            card: node.dataset.card,
+          }))
+        }
+      }
+    }).observe(visualOverlay, { childList: true })
   }
   // body 常被应用壳设置 overflow/transform；把 overlay 直接作为 html 的
   // 子节点，才是 Runtime 能保证不受任何业务 Surface 裁剪的最外层位置。
@@ -192,16 +211,20 @@ function wrapContentForMorph(
   return { enteringEls, leavingEls }
 }
 
+type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
+
 /**
- * 把代理从当前帧交接到最终目标。目标只提供一次几何/视觉快照，后续
- * 不再依赖目标 DOM 的生命周期；这样 Vue 在 landing 期间重建节点也不会
- * 改写代理的运动目标。
+ * 把代理从当前帧交接到最终目标。目标默认只提供一次几何快照——但调用方
+ * 可以用返回值里的 retarget() 持续纠正：如果落地途中又有一次不相关的
+ * 布局事务把目标的实际落点挪了（比如紧接着又落地了另一张卡，兄弟卡跟着
+ * 重新排位），飞行终点会跟着更新，而不是飞向一个已经过期的坐标。不调用
+ * retarget 的调用方行为不变，仍然是"一次性快照、不追踪"。
  */
 export function landDragProxy(
   proxy: HTMLElement,
-  target: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  target: LandingRect,
   options: LandingVisualOptions = {},
-): Promise<void> {
+): { finished: Promise<void>; retarget: (nextTarget: LandingRect) => void } {
   const duration = options.duration ?? 280
   const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
   const targetShadow = options.targetShadow
@@ -226,46 +249,58 @@ export function landDragProxy(
   // 自然重排，不会被视觉拉伸；代价是中文文字在宽度连续变化期间理论上可能有
   // 轻微的换行/字距重算抖动，但这个副作用没有实测验证过有多明显，两害相权
   // 先保证文字不变形。
-  //
-  // 代理此刻的渲染框（可能已经带着调用方设置的抬起 scale）先原样换算成
-  // "相对左上角的 translate" 表达式 + 当前真实宽高，视觉上不产生任何跳变，
-  // 强制一次回流后再让浏览器画一帧，下一帧再把这套表达式过渡到目标框——跟
-  // 前面 box-shadow 那批属性一样，起点和终点必须隔一帧写，过渡才有起点可插值。
   const layoutLeft = parseFloat(proxy.style.left) || 0
   const layoutTop = parseFloat(proxy.style.top) || 0
-  const startRect = proxy.getBoundingClientRect()
-  proxy.style.transition = 'none'
-  proxy.style.width = `${startRect.width.toFixed(2)}px`
-  proxy.style.height = `${startRect.height.toFixed(2)}px`
-  proxy.style.transform =
-    `translate3d(${(startRect.left - layoutLeft).toFixed(2)}px, ${(startRect.top - layoutTop).toFixed(2)}px, 0)`
-  void proxy.offsetWidth
-  const targetTransform =
-    `translate3d(${(target.left - layoutLeft).toFixed(2)}px, ${(target.top - layoutTop).toFixed(2)}px, 0)`
 
-  return new Promise(resolve => {
-    let settled = false
-    const startedAt = performance.now()
-    const isAtTarget = () => {
-      const rect = proxy.getBoundingClientRect()
-      return Math.abs(rect.left - target.left) < 2
-        && Math.abs(rect.top - target.top) < 2
-        && Math.abs(rect.width - target.width) < 2
-        && Math.abs(rect.height - target.height) < 2
-    }
-    const settle = () => {
-      if (settled) return
-      settled = true
-      proxy.removeEventListener('transitionend', onEnd)
-      resolve()
-    }
-    const onEnd = (event: TransitionEvent) => {
-      if (event.target === proxy
-        && (event.propertyName === 'transform' || event.propertyName === 'width' || event.propertyName === 'height')
-        && isAtTarget()) settle()
-    }
+  let settled = false
+  let currentTarget = target
+  const startedAt = performance.now()
+  let onEnd: (event: TransitionEvent) => void = () => undefined
+  let resolveFinished: () => void = () => undefined
+  const finished = new Promise<void>(resolve => { resolveFinished = resolve })
 
-    proxy.addEventListener('transitionend', onEnd)
+  const isAtTarget = () => {
+    const rect = proxy.getBoundingClientRect()
+    return Math.abs(rect.left - currentTarget.left) < 2
+      && Math.abs(rect.top - currentTarget.top) < 2
+      && Math.abs(rect.width - currentTarget.width) < 2
+      && Math.abs(rect.height - currentTarget.height) < 2
+  }
+  const settle = (via: string) => {
+    if (settled) return
+    settled = true
+    proxy.removeEventListener('transitionend', onEnd)
+    resolveFinished()
+  }
+  const waitForTarget = () => {
+    if (settled) return
+    if (isAtTarget()) {
+      settle('waitForTarget:isAtTarget')
+      return
+    }
+    if (performance.now() - startedAt >= duration + 500) {
+      settle('waitForTarget:timeout')
+      return
+    }
+    window.requestAnimationFrame(waitForTarget)
+  }
+
+  // 起点和终点必须隔一帧写，过渡才有起点可插值——不管是首次起飞还是中途
+  // 被 retarget，都是同一套"冻结当前视觉状态 → 强制回流 → 下一帧过渡到
+  // 新终点"手法，只是首次起飞时终点写的是初始 target，retarget 时终点
+  // 换成新坐标。
+  const flyTo = (nextTarget: LandingRect) => {
+    currentTarget = nextTarget
+    const startRect = proxy.getBoundingClientRect()
+    proxy.style.transition = 'none'
+    proxy.style.width = `${startRect.width.toFixed(2)}px`
+    proxy.style.height = `${startRect.height.toFixed(2)}px`
+    proxy.style.transform =
+      `translate3d(${(startRect.left - layoutLeft).toFixed(2)}px, ${(startRect.top - layoutTop).toFixed(2)}px, 0)`
+    void proxy.offsetWidth
+    const targetTransform =
+      `translate3d(${(nextTarget.left - layoutLeft).toFixed(2)}px, ${(nextTarget.top - layoutTop).toFixed(2)}px, 0)`
+
     proxy.style.transition = [
       `transform ${duration}ms ${easing}`,
       `width ${duration}ms ${easing}`,
@@ -283,8 +318,8 @@ export function landDragProxy(
     // 再改成目标值，过渡才有起点可插值。
     requestAnimationFrame(() => {
       proxy.style.transform = targetTransform
-      proxy.style.width = `${target.width.toFixed(2)}px`
-      proxy.style.height = `${target.height.toFixed(2)}px`
+      proxy.style.width = `${nextTarget.width.toFixed(2)}px`
+      proxy.style.height = `${nextTarget.height.toFixed(2)}px`
       if (targetShadow != null) proxy.style.boxShadow = targetShadow
       if (targetRadius != null) proxy.style.borderRadius = targetRadius
       if (targetBackground != null) proxy.style.background = targetBackground
@@ -294,25 +329,50 @@ export function landDragProxy(
         for (const el of contentLayers.leavingEls) el.style.opacity = '0'
       }
     })
-    const waitForTarget = () => {
-      if (settled) return
-      if (isAtTarget() || performance.now() - startedAt >= duration + 500) {
-        settle()
-        return
-      }
-      window.requestAnimationFrame(waitForTarget)
-    }
-    window.setTimeout(waitForTarget, duration + 40)
-  })
+  }
+
+  onEnd = (event: TransitionEvent) => {
+    if (event.target !== proxy) return
+    const relevant = event.propertyName === 'transform' || event.propertyName === 'width' || event.propertyName === 'height'
+    if (!relevant) return
+    if (isAtTarget()) settle(`transitionend:${event.propertyName}`)
+  }
+  proxy.addEventListener('transitionend', onEnd)
+  flyTo(target)
+  window.setTimeout(waitForTarget, duration + 40)
+
+  const retarget = (nextTarget: LandingRect) => {
+    if (settled) return
+    const dx = Math.abs(nextTarget.left - currentTarget.left)
+    const dy = Math.abs(nextTarget.top - currentTarget.top)
+    const dw = Math.abs(nextTarget.width - currentTarget.width)
+    const dh = Math.abs(nextTarget.height - currentTarget.height)
+    if (dx < 0.5 && dy < 0.5 && dw < 0.5 && dh < 0.5) return
+    flyTo(nextTarget)
+  }
+
+  return { finished, retarget }
 }
 
 export function destroyDragProxy(proxy: HTMLElement) {
+  console.log('[proxy-removal-probe] destroyDragProxy', JSON.stringify({
+    t: performance.now().toFixed(1),
+    card: proxy.dataset.card,
+    stack: new Error().stack?.split('\n').slice(1, 6).join(' | '),
+  }))
   activeDragProxies.delete(proxy)
   proxy.remove()
 }
 
 /** 清理 demo 中上一次异常中断留下的代理节点。 */
 export function destroyAllDragProxies(): void {
+  if (activeDragProxies.size > 0) {
+    console.log('[proxy-removal-probe] destroyAllDragProxies', JSON.stringify({
+      t: performance.now().toFixed(1),
+      cards: Array.from(activeDragProxies).map(el => el.dataset.card),
+      stack: new Error().stack?.split('\n').slice(1, 6).join(' | '),
+    }))
+  }
   for (const proxy of activeDragProxies) proxy.remove()
   activeDragProxies.clear()
   document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]').forEach(proxy => proxy.remove())
@@ -351,6 +411,28 @@ export function clearFloatingStyle(el: HTMLElement) {
   const snapshot = floatingSnapshots.get(el)
   el.setAttribute('style', snapshot?.style ?? '')
   floatingSnapshots.delete(el)
+}
+
+/**
+ * 松手后本体虽然已经被 Vue/Teleport 插回真实列表 DOM，但只要还是
+ * applyFloatingStyle 设的 position:fixed，就不占父级正常布局的空间——
+ * 兄弟卡 FLIP、容器高度动画这类"量一下最终布局有多高"的计算，测到的
+ * 还是"这张卡不存在"的旧高度，跟真实卡数对不上。不能直接调用完整的
+ * clearFloatingStyle 提前复位：那样本体会立刻跳回正常位置可见，抢在
+ * 落地代理（接管视觉的那个临时对象）还没接管完成前露出来，表现为闪一下。
+ * 这里只解除影响布局的几个属性，同时用 visibility:hidden 保持不可见——
+ * 布局计算立刻能测到正确高度，视觉上依旧交给落地代理，等真正落地完成
+ * 再由 clearFloatingStyle 整体恢复。
+ */
+export function settleFloatingLayout(el: HTMLElement): void {
+  el.style.position = ''
+  el.style.left = ''
+  el.style.top = ''
+  el.style.width = ''
+  el.style.height = ''
+  el.style.margin = ''
+  el.style.transform = ''
+  el.style.visibility = 'hidden'
 }
 const activeDragProxies = new Set<HTMLElement>()
 
