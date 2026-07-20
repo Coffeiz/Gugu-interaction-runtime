@@ -1,5 +1,6 @@
 import { runtime } from '../Runtime'
 import { createDragPlaceholder, createDragProxy, destroyAllDragProxies, destroyDragPlaceholder, destroyDragProxy, landDragProxy, moveDragProxy } from '../dom/Visual'
+import { preserveProxyVisualContext } from '../dom/ProxyVisualContext'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver, type HitResult } from '../dom/Hit'
 import { columns } from './store'
@@ -63,6 +64,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   const placeholder = createDragPlaceholder(sourceEl, rect)
   sourceEl.style.display = 'none'
   const proxy = createDragProxy(sourceEl, rect)
+  preserveProxyVisualContext(sourceEl, proxy)
   visualAdapter.applyState?.(proxy, {
     phase: 'dragging',
     hovered: sourceEl.matches(':hover'),
