@@ -372,13 +372,13 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 3. 解除旧 session — interrupt('regrab') 跳过视觉 cleanup
     runtime.interrupt(session.id, 'regrab')
 
-    // 4. 新 session 先接管视觉位置（proxy 还在 DOM 中，新 session 直接复用）
-    startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
-
-    // 5. 新 session 接管完成后销毁旧 proxy
+    // 4. 手动销毁旧 landing proxy（interrupt 跳过了 cleanup）
     if (landingProxy) {
       destroyDragProxy(landingProxy)
     }
+
+    // 5. 新 session 接管
+    startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
   }
   // 这两个监听器挂在 window 上，只在"这次拖拽还没松手"这段窗口里有意义——
   // 一次拖拽只会真正松手一次。之前用 session.cleanup.trackListener 登记，
