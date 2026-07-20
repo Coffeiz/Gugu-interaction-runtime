@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { getActiveCleanupCount } from './cleanup/Cleanup'
 import { runtime } from './Runtime'
+import './demo/proxyTypography.css'
 
 createApp(App).mount('#app')
 
