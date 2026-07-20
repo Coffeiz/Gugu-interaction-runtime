@@ -336,6 +336,14 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     reveal: () => {
       runtime.clearRegrab(cardId, onRegrab)
       if (landingProxy) setProxyInteractive(landingProxy, false)
+      console.log('[height-probe] detach reveal', JSON.stringify({
+        cardId,
+        landingProxyHeight: landingProxy?.getBoundingClientRect().height,
+        landingProxyStyleHeight: landingProxy?.style.height,
+        liveCard: document.querySelectorAll<HTMLElement>(`[data-card="${cardId}"]`).length,
+        liveCardHeight: document.querySelector<HTMLElement>(`[data-card="${cardId}"]:not([data-runtime-proxy="true"])`)?.getBoundingClientRect().height,
+        liveCardStyleHeight: document.querySelector<HTMLElement>(`[data-card="${cardId}"]:not([data-runtime-proxy="true"])`)?.style.height,
+      }))
       revealPlan?.()
       revealPlan = null
     },
