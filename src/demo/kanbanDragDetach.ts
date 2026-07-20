@@ -306,27 +306,33 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     return pendingDrop
   }
 
-  runtime.bindMoveSession(session.id, {
-    update: (_context, input) => {
-      if (input.event instanceof PointerEvent) onMove(input.event)
+  runtime.orchestrateMoveSession({
+    type: 'move',
+    objectId: cardId,
+    input: { kind: 'pointerdown', event },
+  }, {
+    driver: {
+      update: (_context, input) => {
+        if (input.event instanceof PointerEvent) onMove(input.event)
+      },
+      release: () => {
+        // Action 已经在 onUp() 里、moveCard 原本被调用的那一行原地发出去了。
+        const drop = onUp()
+        return drop ? { accepted: true, destination: drop } : { accepted: false }
+      },
     },
-    release: () => {
-      // Action 已经在 onUp() 里、moveCard 原本被调用的那一行原地发出去了。
-      const drop = onUp()
-      return drop ? { accepted: true, destination: drop } : { accepted: false }
-    },
-  })
-  runtime.bindMoveLifecycle(session.id, {
-    landing: () => new Promise<void>(resolve => {
-      resolveLanding = resolve
-      landingPlan?.()
-      landingPlan = null
-    }),
-    reveal: () => {
-      runtime.clearRegrab(cardId, onRegrab)
-      if (landingProxy) setProxyInteractive(landingProxy, false)
-      revealPlan?.()
-      revealPlan = null
+    lifecycle: {
+      landing: () => new Promise<void>(resolve => {
+        resolveLanding = resolve
+        landingPlan?.()
+        landingPlan = null
+      }),
+      reveal: () => {
+        runtime.clearRegrab(cardId, onRegrab)
+        if (landingProxy) setProxyInteractive(landingProxy, false)
+        revealPlan?.()
+        revealPlan = null
+      },
     },
   })
 
@@ -370,6 +376,4 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 5. 新 session 接管
     startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
   }
-  // Runtime 负责 window pointermove/pointerup 的安装、松手立即解绑和 Cleanup 兜底。
-  runtime.bindPointerSessionInput(session.id)
 }

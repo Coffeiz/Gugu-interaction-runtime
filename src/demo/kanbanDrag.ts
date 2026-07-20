@@ -256,29 +256,33 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     startCardDrag(regrabEvent, cardId, sourceEl, proxyRect)
   }
 
-  runtime.bindMoveSession(session.id, {
-    update: (_context, input) => {
-      if (input.event instanceof PointerEvent) onMove(input.event)
+  runtime.orchestrateMoveSession({
+    type: 'move',
+    objectId: cardId,
+    input: { kind: 'pointerdown', event },
+  }, {
+    driver: {
+      update: (_context, input) => {
+        if (input.event instanceof PointerEvent) onMove(input.event)
+      },
+      release: () => {
+        // Action 已经在 onUp() 里、moveCard 原本被调用的那一行原地发出去了
+        // （见那边的注释）——这里不再重复发一次。
+        const drop = onUp()
+        return drop ? { accepted: true, destination: drop } : { accepted: false }
+      },
     },
-    release: () => {
-      // Action 已经在 onUp() 里、moveCard 原本被调用的那一行原地发出去了
-      // （见那边的注释）——这里不再重复发一次。
-      const drop = onUp()
-      return drop ? { accepted: true, destination: drop } : { accepted: false }
+    lifecycle: {
+      landing: () => new Promise<void>(resolve => {
+        resolveLanding = resolve
+        beginLanding()
+      }),
+      reveal: () => {
+        revealPlan?.()
+        revealPlan = null
+      },
     },
   })
-  runtime.bindMoveLifecycle(session.id, {
-    landing: () => new Promise<void>(resolve => {
-      resolveLanding = resolve
-      beginLanding()
-    }),
-    reveal: () => {
-      revealPlan?.()
-      revealPlan = null
-    },
-  })
-  // Runtime 负责 window pointermove/pointerup 的安装、松手立即解绑和 Cleanup 兜底。
-  runtime.bindPointerSessionInput(session.id)
   proxy.addEventListener('pointerdown', onRegrab)
   session.cleanup.track(() => proxy.removeEventListener('pointerdown', onRegrab))
 }
