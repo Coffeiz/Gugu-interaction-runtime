@@ -156,12 +156,11 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   const offsetY = fromRect ? startY - rect.top : moveContext.dragOffset.y
   if (fromRect) {
     moveContext.dragOffset = { x: offsetX, y: offsetY }
-    applyFloatingStyle(sourceEl, rect)
-    sourceEl.style.transition = 'none'
-  } else {
-    applyFloatingStyle(sourceEl, rect)
   }
   applyFloatingStyle(sourceEl, rect)
+  if (fromRect) {
+    sourceEl.style.transition = 'none'
+  }
   visualAdapter.applyState?.(sourceEl, {
     phase: 'dragging',
     hovered: sourceEl.matches(':hover'),
@@ -347,19 +346,28 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
    */
   function onRegrab(regrabEvent: PointerEvent) {
     if (session.state !== 'landing') return
-    setProxyInteractive(landingProxy!, false)
     regrabEvent.stopPropagation()
-    runtime.clearRegrab(cardId)
-    const proxyRect = landingProxy!.getBoundingClientRect()
-    // 旧 Session 只清理自己的东西：不调用 finish()/landing()，只是让旧
-    // Session 直接结束（跳过它自己的落地收尾），新 Session 接管同一个视觉
-    // 位置继续。
-    landingProxy = null
-    runtime.interrupt(session.id, 'regrab')
-    // sourceEl 可能已被 Vue 从 DOM 中移除（跨列场景），重新查询当前有效节点。
+
+    const proxy = landingProxy
+    if (!proxy) return
+
+    // 1. 先捕获视觉状态
+    const proxyRect = proxy.getBoundingClientRect()
+
+    // 2. interrupt 前获取有效 source
     const liveEl = visualAdapter.resolveTarget?.(cardId, pendingDrop)
       ?? document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
-      ?? sourceEl
+    if (!liveEl) return
+
+    if (landingProxy) {
+      setProxyInteractive(landingProxy, false)
+    }
+    runtime.clearRegrab(cardId)
+
+    // 3. 解除旧 session
+    runtime.interrupt(session.id, 'regrab')
+
+    // 4. 新 session 接管
     startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
   }
   // 这两个监听器挂在 window 上，只在"这次拖拽还没松手"这段窗口里有意义——
