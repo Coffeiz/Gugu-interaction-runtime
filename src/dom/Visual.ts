@@ -43,9 +43,38 @@ export function mountVisualOverlay(): HTMLElement {
   return visualOverlay
 }
 
-export function setVisualOverlayInteractive(enabled: boolean): void {
+export function setProxyInteractive(
+  proxy: HTMLElement,
+  enabled: boolean,
+): void {
   const overlay = mountVisualOverlay()
   overlay.style.pointerEvents = enabled ? 'auto' : 'none'
+  proxy.style.pointerEvents = enabled ? 'auto' : 'none'
+}
+
+export interface ProxyVisualState {
+  transform: string
+  boxShadow: string
+  opacity: string
+}
+
+export function captureProxyVisualState(
+  proxy: HTMLElement,
+): ProxyVisualState {
+  return {
+    transform: proxy.style.transform,
+    boxShadow: proxy.style.boxShadow,
+    opacity: proxy.style.opacity,
+  }
+}
+
+export function restoreProxyVisualState(
+  proxy: HTMLElement,
+  state: ProxyVisualState,
+): void {
+  proxy.style.transform = state.transform
+  proxy.style.boxShadow = state.boxShadow
+  proxy.style.opacity = state.opacity
 }
 
 /**
