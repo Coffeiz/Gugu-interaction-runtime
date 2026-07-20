@@ -129,6 +129,29 @@ function testEscapeCancel() {
   assertCleanupReturnsTo(baseline, cleanup, target, 'escape')
 }
 
+function testLostPointerCaptureInterrupt() {
+  const baseline = getActiveCleanupCount()
+  const cleanup = new Cleanup()
+  const target = new FakeWindowTarget()
+  const captureTarget = new FakeWindowTarget()
+  const { sink, calls } = createSink()
+
+  bindPointerSessionInput(sink, 'session-lost-capture', cleanup, {
+    target,
+    captureTarget,
+    pointerId: 6,
+  })
+  captureTarget.dispatch('lostpointercapture', { pointerId: 2 })
+  assert(calls.interrupts.length === 0, 'foreign lostpointercapture must be ignored')
+  captureTarget.dispatch('lostpointercapture', { pointerId: 6 })
+  assert(calls.interrupts.length === 1, 'matching lostpointercapture should interrupt once')
+  assert(calls.interrupts[0].reason === 'lost-pointer-capture', 'lost capture reason should be stable')
+  assert(target.listenerCount() === 0, 'lost capture should remove window listeners immediately')
+  assert(captureTarget.listenerCount() === 0, 'lost capture should remove capture-target listener immediately')
+  cleanup.disposeAll()
+  assert(getActiveCleanupCount() === baseline, 'lost capture cleanup count should return to baseline')
+}
+
 function testLandingTargetMovement() {
   const originalGlobals = {
     window: globalThis.window,
@@ -208,6 +231,7 @@ testPointerIdentityAndRelease()
 testPointerCancel()
 testBlurInterrupt()
 testEscapeCancel()
+testLostPointerCaptureInterrupt()
 testLandingTargetMovement()
 
 console.log('runtime regression: ok')
