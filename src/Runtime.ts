@@ -285,6 +285,16 @@ export class Runtime {
       return
     }
 
+    // commit 阶段：执行业务变更（emitAction + FLIP + 清理跟手样式）
+    try {
+      await behavior.commit(this.createBehaviorContext(session), destination)
+    } catch (error) {
+      this.cancel(session.id, error instanceof Error ? error.message : 'commit-failed')
+      return
+    }
+
+    if (this.sessions.get(session.id) !== session) return
+
     try {
       const landingResult = await behavior.landing(this.createBehaviorContext(session), destination)
       const liveSession = this.sessions.get(session.id)

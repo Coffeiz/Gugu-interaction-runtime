@@ -315,10 +315,14 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       update: (_context, input) => {
         if (input.event instanceof PointerEvent) onMove(input.event)
       },
-      release: () => {
-        // Action 已经在 onUp() 里、moveCard 原本被调用的那一行原地发出去了。
+      resolveDestination: () => {
         const drop = onUp()
         return drop ? { accepted: true, destination: drop } : { accepted: false }
+      },
+      commit: () => {
+        // onUp() 中的 emitAction + FLIP + 清理逻辑已由 resolveDestination
+        // 中的 onUp() 执行完毕，commit 阶段无需额外操作。
+        // 后续迁移可将 onUp() 中的业务变更逻辑移至此处。
       },
     },
     lifecycle: {
