@@ -2,6 +2,7 @@ import {
   Cleanup,
   bindPointerSessionInput,
   getActiveCleanupCount,
+  trackLandingTarget,
 } from '../dist-lib/index.js'
 
 function assert(condition, message) {
@@ -128,9 +129,85 @@ function testEscapeCancel() {
   assertCleanupReturnsTo(baseline, cleanup, target, 'escape')
 }
 
+function testLandingTargetMovement() {
+  const originalGlobals = {
+    window: globalThis.window,
+    document: globalThis.document,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    cancelAnimationFrame: globalThis.cancelAnimationFrame,
+    ResizeObserver: globalThis.ResizeObserver,
+  }
+
+  const fakeWindow = new FakeWindowTarget()
+  const frameCallbacks = new Map()
+  let nextFrameId = 1
+  const resizeObservers = []
+
+  class FakeResizeObserver {
+    constructor(callback) {
+      this.callback = callback
+      this.disconnected = false
+      resizeObservers.push(this)
+    }
+    observe() {}
+    disconnect() { this.disconnected = true }
+  }
+
+  try {
+    globalThis.window = fakeWindow
+    globalThis.document = { body: {} }
+    globalThis.requestAnimationFrame = callback => {
+      const id = nextFrameId++
+      frameCallbacks.set(id, callback)
+      return id
+    }
+    globalThis.cancelAnimationFrame = id => frameCallbacks.delete(id)
+    globalThis.ResizeObserver = FakeResizeObserver
+
+    const baseline = getActiveCleanupCount()
+    const cleanup = new Cleanup()
+    let currentRect = { left: 0, top: 0, width: 100, height: 40 }
+    const target = {
+      isConnected: true,
+      parentElement: null,
+      getBoundingClientRect: () => ({ ...currentRect }),
+    }
+    const retargets = []
+
+    trackLandingTarget(target, rect => retargets.push(rect), { cleanup })
+    assert(frameCallbacks.size === 1, 'landing tracker should schedule a geometry frame')
+
+    currentRect = { ...currentRect, left: 24 }
+    const [firstFrameId, firstFrame] = frameCallbacks.entries().next().value
+    frameCallbacks.delete(firstFrameId)
+    firstFrame()
+    assert(retargets.length === 1, 'frame movement should retarget without a resize')
+
+    currentRect = { ...currentRect, top: 32 }
+    fakeWindow.dispatch('scroll')
+    assert(retargets.length === 2, 'scroll movement should retarget without a resize')
+
+    currentRect = { ...currentRect, width: 120 }
+    resizeObservers[0].callback()
+    assert(retargets.length === 3, 'resize should continue to retarget')
+
+    cleanup.disposeAll()
+    assert(fakeWindow.listenerCount() === 0, 'landing tracker should remove scroll listener')
+    assert(frameCallbacks.size === 0, 'landing tracker should cancel pending frame')
+    assert(resizeObservers[0].disconnected, 'landing tracker should disconnect ResizeObserver')
+    assert(getActiveCleanupCount() === baseline, 'landing tracker cleanup count should return to baseline')
+  } finally {
+    for (const [key, value] of Object.entries(originalGlobals)) {
+      if (value === undefined) delete globalThis[key]
+      else globalThis[key] = value
+    }
+  }
+}
+
 testPointerIdentityAndRelease()
 testPointerCancel()
 testBlurInterrupt()
 testEscapeCancel()
+testLandingTargetMovement()
 
-console.log('runtime input regression: ok')
+console.log('runtime regression: ok')
