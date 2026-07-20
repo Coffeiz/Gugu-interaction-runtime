@@ -17,6 +17,8 @@ export type {
 export type { Behavior, BehaviorContext } from './behavior/Behavior'
 export { ObjectStore } from './object/ObjectStore'
 export { SurfaceStore } from './surface/SurfaceStore'
+export { Cleanup, getActiveCleanupCount } from './cleanup/Cleanup'
+export type { Disposer } from './cleanup/Cleanup'
 export type { VisualAdapter, VisualAdapterRegistry } from './dom/VisualAdapter'
 export { DefaultVisualAdapter, VisualAdapters } from './dom/VisualAdapter'
 export type { VisualPhase, VisualState, VisualSnapshot } from './dom/VisualAdapterTypes'
