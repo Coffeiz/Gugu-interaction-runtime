@@ -168,13 +168,25 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         left: sourceEl.style.left,
         top: sourceEl.style.top,
         transform: sourceEl.style.transform,
+        display: sourceEl.style.display,
+        visibility: sourceEl.style.visibility,
       },
+      sourceElComputed: {
+        display: getComputedStyle(sourceEl).display,
+        visibility: getComputedStyle(sourceEl).visibility,
+      },
+      sourceElParent: sourceEl.parentElement?.tagName ?? null,
+      sourceElParentIsBody: sourceEl.parentElement === document.body,
       eventClientXY: { x: event.clientX, y: event.clientY },
       offsetXY: { x: offsetX, y: offsetY },
       computedLeft: startX - offsetX,
       computedTop: startY - offsetY,
     }))
     moveContext.dragOffset = { x: offsetX, y: offsetY }
+    applyFloatingStyle(sourceEl, rect)
+    sourceEl.style.transition = 'none'
+  } else {
+    applyFloatingStyle(sourceEl, rect)
   }
   applyFloatingStyle(sourceEl, rect)
   visualAdapter.applyState?.(sourceEl, {
