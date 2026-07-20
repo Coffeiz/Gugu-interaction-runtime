@@ -378,29 +378,10 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     //     只设 position:fixed 不改 visibility，元素仍不可见
     liveEl.style.visibility = ''
 
-    console.log('[regrab-probe] before destroy', JSON.stringify({
-      cardId,
-      hasLandingProxy: !!landingProxy,
-      proxyInDOM: landingProxy?.isConnected,
-      proxyStyle: landingProxy ? { display: landingProxy.style.display, visibility: landingProxy.style.visibility, position: landingProxy.style.position, left: landingProxy.style.left, top: landingProxy.style.top } : null,
-      liveElInDOM: liveEl.isConnected,
-      liveElStyle: { display: liveEl.style.display, visibility: liveEl.style.visibility, position: liveEl.style.position },
-      liveElParent: liveEl.parentElement?.tagName ?? null,
-      liveElParentIsBody: liveEl.parentElement === document.body,
-      liveElBBox: { left: liveEl.getBoundingClientRect().left, top: liveEl.getBoundingClientRect().top, width: liveEl.getBoundingClientRect().width, height: liveEl.getBoundingClientRect().height },
-    }))
-
     // 4. 手动销毁旧 landing proxy（interrupt 跳过了 cleanup）
     if (landingProxy) {
       destroyDragProxy(landingProxy)
     }
-
-    console.log('[regrab-probe] after destroy, before startCardDragDetach', JSON.stringify({
-      liveElInDOM: liveEl.isConnected,
-      liveElStyle: { display: liveEl.style.display, visibility: liveEl.style.visibility, position: liveEl.style.position },
-      liveElBBox: { left: liveEl.getBoundingClientRect().left, top: liveEl.getBoundingClientRect().top, width: liveEl.getBoundingClientRect().width, height: liveEl.getBoundingClientRect().height },
-      proxyRect,
-    }))
 
     // 5. 新 session 接管
     startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
