@@ -10,6 +10,8 @@ export interface PointerSessionInputSink {
 
 export interface PointerSessionInputOptions {
   readonly target?: Window
+  /** 可选的 pointer capture 所属节点；默认由 MoveContext.sourceElement 推导。 */
+  readonly captureTarget?: HTMLElement
   /** 只响应启动这次 Session 的 pointer，避免多指/触控笔串扰。 */
   readonly pointerId?: number
   readonly moveKind?: string
@@ -17,8 +19,10 @@ export interface PointerSessionInputOptions {
   readonly pointerCancelReason?: string
   readonly blurReason?: string
   readonly escapeReason?: string
+  readonly lostCaptureReason?: string
   readonly cancelOnEscape?: boolean
   readonly interruptOnBlur?: boolean
+  readonly interruptOnLostPointerCapture?: boolean
 }
 
 /**
@@ -26,7 +30,7 @@ export interface PointerSessionInputOptions {
  *
  * - pointerup 后立即解绑，Session dispose 时再幂等兜底；
  * - 只接受同一个 pointerId，避免另一个手指/笔错误释放当前 Session；
- * - pointercancel / Escape 走 cancel，窗口失焦走 interrupt。
+ * - pointercancel / Escape 走 cancel；窗口失焦和意外丢失 pointer capture 走 interrupt。
  */
 export function bindPointerSessionInput(
   sink: PointerSessionInputSink,
@@ -37,10 +41,17 @@ export function bindPointerSessionInput(
   const target = options.target ?? (typeof window !== 'undefined' ? window : undefined)
   if (!target) return () => undefined
 
+  const captureTarget = options.captureTarget
   let disposed = false
   const matchesPointer = (event: PointerEvent) => (
     options.pointerId === undefined || event.pointerId === options.pointerId
   )
+
+  const interrupt = (reason: string) => {
+    dispose()
+    if (sink.interrupt) sink.interrupt(sessionId, reason)
+    else sink.cancel?.(sessionId, reason)
+  }
 
   const onMove = (event: PointerEvent) => {
     if (disposed || !matchesPointer(event)) return
@@ -59,11 +70,14 @@ export function bindPointerSessionInput(
     sink.cancel?.(sessionId, options.pointerCancelReason ?? 'pointer-cancelled')
   }
 
+  const onLostPointerCapture = (event: PointerEvent) => {
+    if (disposed || options.interruptOnLostPointerCapture === false || !matchesPointer(event)) return
+    interrupt(options.lostCaptureReason ?? 'lost-pointer-capture')
+  }
+
   const onBlur = () => {
     if (disposed || options.interruptOnBlur === false) return
-    dispose()
-    if (sink.interrupt) sink.interrupt(sessionId, options.blurReason ?? 'window-blur')
-    else sink.cancel?.(sessionId, options.blurReason ?? 'window-blur')
+    interrupt(options.blurReason ?? 'window-blur')
   }
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -80,6 +94,7 @@ export function bindPointerSessionInput(
     target.removeEventListener('pointercancel', onPointerCancel)
     target.removeEventListener('blur', onBlur)
     target.removeEventListener('keydown', onKeyDown)
+    captureTarget?.removeEventListener('lostpointercapture', onLostPointerCapture)
   }
 
   target.addEventListener('pointermove', onMove)
@@ -87,6 +102,7 @@ export function bindPointerSessionInput(
   target.addEventListener('pointercancel', onPointerCancel)
   target.addEventListener('blur', onBlur)
   target.addEventListener('keydown', onKeyDown)
+  captureTarget?.addEventListener('lostpointercapture', onLostPointerCapture)
   cleanup.track(dispose)
   return dispose
 }
