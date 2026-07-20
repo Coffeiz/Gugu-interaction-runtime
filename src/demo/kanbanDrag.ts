@@ -97,6 +97,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   // 在任何 dragging state 覆写之前先固化文本视觉上下文，避免字体、字重、
   // 行高等继承属性变化，导致字符（例如完成徽章的 ✓）与本体长得不一样。
   preserveProxyVisualContext(sourceEl, proxy)
+
   visualAdapter.applyState?.(proxy, {
     phase: 'dragging',
     hovered: sourceEl.matches(':hover'),

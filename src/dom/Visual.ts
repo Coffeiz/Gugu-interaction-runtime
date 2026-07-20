@@ -217,6 +217,16 @@ function wrapContentForMorph(
   // 已经在 contentLayer 的 left/top/right/bottom 里补偿了，contentLayer 如果
   // 带上 toContent 自己那份 padding，内容会被缩进两次，跟 proxy 对不上。
   while (toContentClone.firstChild) contentLayer.appendChild(toContentClone.firstChild)
+  // contentLayer 被挂到 overlay 下的 proxy 中，脱离了 toContent 的原始 DOM
+  // 上下文，字体/颜色等继承属性会丢失（探针实测 fontFamily 和 color 为空）。
+  // 从 toContent 捕获并固化到 contentLayer，确保 ✅ 等字符渲染一致。
+  const toStyle = getComputedStyle(toContent)
+  contentLayer.style.fontFamily = toStyle.fontFamily
+  contentLayer.style.color = toStyle.color
+  contentLayer.style.fontSize = toStyle.fontSize
+  contentLayer.style.fontWeight = toStyle.fontWeight
+  contentLayer.style.lineHeight = toStyle.lineHeight
+  contentLayer.style.letterSpacing = toStyle.letterSpacing
   const toEls = normalizeToElements(contentLayer)
   const toSignatures = new Set(toEls.map(childSignature))
 
