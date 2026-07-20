@@ -6,8 +6,10 @@ import {
   destroyDragProxy,
   landDragProxy,
   moveFloating,
+  setProxyInteractive,
   settleFloatingLayout,
 } from '../dom/Visual'
+import { preserveProxyVisualContext } from '../dom/ProxyVisualContext'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
@@ -26,14 +28,16 @@ function createDetachLandingVisual(
   dragSnapshot: VisualSnapshot | undefined,
   targetSnapshot: VisualSnapshot | undefined,
   beforeContent: HTMLElement,
+  sourceEl: HTMLElement,
   duration = LANDING_DURATION,
-): { readonly finished: Promise<void>; readonly dispose: () => void } {
+): {
+  readonly finished: Promise<void>
+  readonly dispose: () => void
+  readonly proxy: HTMLElement
+} {
   const targetRect = target.getBoundingClientRect()
-  // 代理内容克隆自抓起时冻结的快照，不是 target 此刻（已经按新状态重渲染过）
-  // 的内容——否则落地代理从第一帧起就已经是"新内容"，没有旧内容可供交叉
-  // 淡变，表现为落进已完成列时徽章瞬间出现、没有过渡（拖出来也是反过来
-  // 瞬间消失）。真正的内容渐变交给下面 landDragProxy 的 targetContent。
   const proxy = createDragProxy(beforeContent, beforeRect)
+  preserveProxyVisualContext(sourceEl, proxy)
   const previousVisibility = target.style.visibility
   let disposed = false
   const dispose = () => {
@@ -68,10 +72,8 @@ function createDetachLandingVisual(
   // 依然准确——如果落地这几秒内又有一次不相关的布局事务（比如紧接着又落地了
   // 另一张卡，兄弟卡跟着重新排位、容器跟着长高），target 的实际落点会跟着变，
   // 但 landDragProxy 一开始拿到的 targetRect 只是那一刻的快照，不会自己更新。
-  // 用 ResizeObserver 连它带整条祖先链一起盯着（跟 Gugu-web morphLifecycle.ts
-  // 的 retarget 机制同一个思路），谁的布局一变就重新量一次 target 真实位置，
-  // 变了就喂给 retarget()，让还在飞的代理跟着改航向，而不是飞向一个已经
-  // 过期的坐标。
+  // 用 ResizeObserver 连它带整条祖先链一起盯着，谁的布局一变就重新量一次
+  // target 真实位置，变了就喂给 retarget()，让还在飞的代理跟着改航向。
   let targetResizeObserver: ResizeObserver | null = null
   if (typeof ResizeObserver !== 'undefined') {
     targetResizeObserver = new ResizeObserver(() => {
@@ -85,7 +87,7 @@ function createDetachLandingVisual(
       ancestor = ancestor.parentElement
     }
   }
-  return { finished, dispose }
+  return { finished, dispose, proxy }
 }
 const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
 runtime.setHitResolver(kanbanHitResolver)
@@ -102,10 +104,16 @@ runtime.setHitResolver(kanbanHitResolver)
  * getBoundingClientRect() 拿到的天然就是它当前的视觉位置——不管这个位置
  * 是"正在跟手"还是"正在 FLIP 回弹"。
  */
-export function startCardDragDetach(event: PointerEvent, cardId: string, sourceEl: HTMLElement) {
+export function startCardDragDetach(event: PointerEvent, cardId: string, sourceEl: HTMLElement, fromRect?: DOMRect) {
   // 对象声明了自己不能参与 'move' 类型的 Session，直接拒绝。
   if (!runtime.objects.hasAbility(cardId, 'move')) return
   event.preventDefault()
+  // 检查是否有正在飞行中的 regrab 登记。
+  const activeRegrab = runtime.getRegrab(cardId)
+  if (activeRegrab) {
+    activeRegrab(event)
+    return
+  }
   // 落地代理要能从"抓起时的内容"渐变到"落点的内容"（比如落进已完成列多一个
   // 徽章、拖出来少一个徽章）——detach 全程只有这一个真实节点，proxy 迟早要
   // 克隆它，但如果落地时才克隆，克隆到的已经是 Vue 按新位置/新状态重渲染过
@@ -139,12 +147,16 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
 
   // sourceElement/dragOffset 的常规算法已经在 MoveBehavior.prepare() 里
   // 统一算好了（阶段 B）——detach 没有 clone 那种 regrab 特殊起点，直接用。
+  // regrab 场景（fromRect 存在）例外：起点是代理飞到一半的插值位置。
   const moveContext = runtime.getMoveContext(session.id)
-  const rect = sourceEl.getBoundingClientRect()
+  const rect = fromRect ?? sourceEl.getBoundingClientRect()
   const startX = event.clientX
   const startY = event.clientY
-  const offsetX = moveContext.dragOffset.x
-  const offsetY = moveContext.dragOffset.y
+  const offsetX = fromRect ? startX - rect.left : moveContext.dragOffset.x
+  const offsetY = fromRect ? startY - rect.top : moveContext.dragOffset.y
+  if (fromRect) {
+    moveContext.dragOffset = { x: offsetX, y: offsetY }
+  }
   applyFloatingStyle(sourceEl, rect)
   visualAdapter.applyState?.(sourceEl, {
     phase: 'dragging',
@@ -184,6 +196,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   let landingPlan: (() => void) | null = null
   let resolveLanding: (() => void) | null = null
   let revealPlan: (() => void) | null = null
+  let landingProxy: HTMLElement | null = null
 
   function findColumnIdOf(id: string) {
     return columns.find(col => col.cardIds.includes(id))?.id
@@ -283,8 +296,14 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         draggingSnapshot,
         targetSnapshot,
         beforeContent,
+        sourceEl,
       )
+      landingProxy = landingVisual.proxy
       session.cleanup.track(landingVisual.dispose)
+      setProxyInteractive(landingVisual.proxy, true)
+      runtime.registerRegrab(cardId, onRegrab)
+      landingVisual.proxy.addEventListener('pointerdown', onRegrab)
+      session.cleanup.track(() => landingVisual.proxy.removeEventListener('pointerdown', onRegrab))
       void landingVisual.finished.then(() => {
         if (session.state !== 'landing') return
         resolveLanding?.()
@@ -312,10 +331,33 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       landingPlan = null
     }),
     reveal: () => {
+      runtime.clearRegrab(cardId, onRegrab)
+      if (landingProxy) setProxyInteractive(landingProxy, false)
       revealPlan?.()
       revealPlan = null
     },
   })
+
+  /**
+   * regrab：落地飞行途中重新抓起这张卡片，起点是代理当前的插值位置。
+   */
+  function onRegrab(regrabEvent: PointerEvent) {
+    if (session.state !== 'landing') return
+    setProxyInteractive(landingProxy!, false)
+    regrabEvent.stopPropagation()
+    runtime.clearRegrab(cardId)
+    const proxyRect = landingProxy!.getBoundingClientRect()
+    // 旧 Session 只清理自己的东西：不调用 finish()/landing()，只是让旧
+    // Session 直接结束（跳过它自己的落地收尾），新 Session 接管同一个视觉
+    // 位置继续。
+    landingProxy = null
+    runtime.interrupt(session.id, 'regrab')
+    startCardDragDetach(new PointerEvent('pointerdown', {
+      clientX: proxyRect.left + proxyRect.width / 2,
+      clientY: proxyRect.top + proxyRect.height / 2,
+      bubbles: true,
+    }), cardId, sourceEl, proxyRect)
+  }
   // 这两个监听器挂在 window 上，只在"这次拖拽还没松手"这段窗口里有意义——
   // 一次拖拽只会真正松手一次。之前用 session.cleanup.trackListener 登记，
   // 移除时机绑定在 session 完全 dispose（要等落地动画播完才会发生，detach
