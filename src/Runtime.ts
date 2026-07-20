@@ -108,7 +108,14 @@ export class Runtime {
     options.surfaceIds?.forEach(surfaceId => session.takeSurface(surfaceId))
     this.moveBehavior.bindSession(sessionId, options.driver)
     if (options.lifecycle) this.moveBehavior.bindLifecycle(sessionId, options.lifecycle)
-    if (options.pointerInput !== false) this.bindPointerInput(sessionId, options.pointerInput ?? {})
+    if (options.pointerInput !== false) {
+      const moveContext = this.moveBehavior.getContext(sessionId)
+      const pointerInput = options.pointerInput ?? {}
+      this.bindPointerInput(sessionId, {
+        ...pointerInput,
+        pointerId: pointerInput.pointerId ?? moveContext.pointerId,
+      })
+    }
   }
 
   bindPointerInput(sessionId: string, options: PointerSessionInputOptions = {}): () => void {
