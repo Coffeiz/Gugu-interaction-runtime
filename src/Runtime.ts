@@ -113,6 +113,7 @@ export class Runtime {
       const pointerInput = options.pointerInput ?? {}
       this.bindPointerInput(sessionId, {
         ...pointerInput,
+        captureTarget: pointerInput.captureTarget ?? moveContext.sourceElement ?? undefined,
         pointerId: pointerInput.pointerId ?? moveContext.pointerId,
       })
     }
