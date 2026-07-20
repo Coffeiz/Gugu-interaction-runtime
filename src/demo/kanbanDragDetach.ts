@@ -293,6 +293,13 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         grabbed: false,
       })
       const targetSnapshot = visualAdapter.captureVisualState?.(landedEl)
+      console.log('[height-probe] detach landing start', JSON.stringify({
+        cardId,
+        beforeRectHeight: beforeRect.height,
+        landedElHeight: landedEl.getBoundingClientRect().height,
+        landedElStyleHeight: landedEl.style.height,
+        targetSnapshotRectHeight: targetSnapshot?.rect.height,
+      }))
       const landingVisual = createDetachLandingVisual(
         landedEl,
         beforeRect,
