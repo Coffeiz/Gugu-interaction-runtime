@@ -1,5 +1,6 @@
 import { runtime } from '../Runtime'
 import { createDragPlaceholder, createDragProxy, destroyAllDragProxies, destroyDragPlaceholder, destroyDragProxy, landDragProxy, moveDragProxy } from '../dom/Visual'
+import { preserveProxyVisualContext } from '../dom/ProxyVisualContext'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import { columns } from './store'
@@ -92,6 +93,10 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   const placeholder = createDragPlaceholder(sourceEl, rect)
   sourceEl.style.display = 'none'
   const proxy = createDragProxy(sourceEl, rect)
+  // proxy 被挂到 documentElement 下的 Runtime overlay 后会脱离原祖先继承链。
+  // 在任何 dragging state 覆写之前先固化文本视觉上下文，避免字体、字重、
+  // 行高等继承属性变化，导致字符（例如完成徽章的 ✓）与本体长得不一样。
+  preserveProxyVisualContext(sourceEl, proxy)
   visualAdapter.applyState?.(proxy, {
     phase: 'dragging',
     hovered: sourceEl.matches(':hover'),
@@ -312,6 +317,6 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
  * 显式 handoff：业务状态已经稳定（moveCard 已经落定），下一帧再把控制权
  * 交还 Vue，避免 Vue 在恢复的这一帧又补播一次 enter/move 动画——见规则 7。
  */
-  function landing(session: ReturnType<typeof runtime.startSession>) {
-    session.handoff()
-  }
+function landing(session: ReturnType<typeof runtime.startSession>) {
+  session.handoff()
+}

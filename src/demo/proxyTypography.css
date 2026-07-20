@@ -1,7 +1,0 @@
-/*
- * clone proxy 会被移到 documentElement 下的 Runtime overlay，脱离 .kb-board
- * 的字体继承链。把卡片的文本环境收口到卡片自身，保证 proxy 与真实卡片一致。
- */
-.kb-card {
-  font-family: system-ui, sans-serif;
-}
