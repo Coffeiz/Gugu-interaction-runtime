@@ -436,6 +436,27 @@ export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
   el.style.transition = 'transform .15s ease, box-shadow .15s ease'
 }
 
+/**
+ * regrab 专用：直接把 proxy 的 viewport rect 接管给 floating source。
+ * 不走 getBoundingClientRect()，因为 sourceEl 此时可能还在 Vue 列表中
+ * （Teleport 尚未重新搬走），getBoundingClientRect() 返回的是列表中的
+ * 位置而非 proxy 的视觉位置。
+ */
+export function applyFloatingStyleFromProxy(el: HTMLElement, proxyRect: DOMRect) {
+  floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
+  el.style.position = 'fixed'
+  el.style.left = `${proxyRect.left}px`
+  el.style.top = `${proxyRect.top}px`
+  el.style.width = `${proxyRect.width}px`
+  el.style.height = `${proxyRect.height}px`
+  el.style.margin = '0'
+  el.style.zIndex = '1000'
+  el.style.boxSizing = 'border-box'
+  el.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  el.style.transform = 'scale(1.03)'
+  el.style.transition = 'none'
+}
+
 export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: number, offsetY: number) {
   el.style.left = `${x - offsetX}px`
   el.style.top = `${y - offsetY}px`
