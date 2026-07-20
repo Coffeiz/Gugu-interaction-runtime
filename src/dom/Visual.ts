@@ -379,6 +379,7 @@ export function landDragProxy(
 }
 
 export function destroyDragProxy(proxy: HTMLElement) {
+  if (!activeDragProxies.has(proxy)) return
   activeDragProxies.delete(proxy)
   proxy.remove()
 }
@@ -393,6 +394,10 @@ export function destroyAllDragProxies(): void {
 export function destroyDragProxiesByCardId(cardId: string): void {
   for (const proxy of Array.from(activeDragProxies)) {
     if (proxy.dataset.card !== cardId) continue
+    if (!proxy.isConnected) {
+      activeDragProxies.delete(proxy)
+      continue
+    }
     destroyDragProxy(proxy)
   }
 }

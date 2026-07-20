@@ -268,8 +268,8 @@ destroyDragProxiesByCardId(cardId)
     // 注意：不调 showLiveCard——保持 source hidden，新 session 接管后
     // 自己管理 visibility，避免中间一帧 source 闪现。
     delete sourceEl.dataset.runtimeActive
-    destroyDragProxy(proxy)
     runtime.interrupt(session.id, 'regrab')
+    destroyDragProxy(proxy)
     startCardDrag(regrabEvent, cardId, sourceEl, proxyRect)
   }
 
