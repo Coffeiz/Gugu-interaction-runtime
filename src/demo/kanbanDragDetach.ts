@@ -383,7 +383,11 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 位置继续。
     landingProxy = null
     runtime.interrupt(session.id, 'regrab')
-    startCardDragDetach(regrabEvent, cardId, sourceEl, proxyRect)
+    // sourceEl 可能已被 Vue 从 DOM 中移除（跨列场景），重新查询当前有效节点。
+    const liveEl = visualAdapter.resolveTarget?.(cardId, pendingDrop)
+      ?? document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
+      ?? sourceEl
+    startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
   }
   // 这两个监听器挂在 window 上，只在"这次拖拽还没松手"这段窗口里有意义——
   // 一次拖拽只会真正松手一次。之前用 session.cleanup.trackListener 登记，
