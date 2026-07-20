@@ -9,12 +9,25 @@ import { BehaviorStore } from './behavior/BehaviorStore'
 import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle } from './behavior/MoveBehavior'
 import { DefaultVisualAdapter, VisualAdapters, type VisualAdapter } from './dom/VisualAdapter'
 import type { HitResolver } from './dom/Hit'
+import {
+  trackLandingTarget as observeLandingTarget,
+  type LandingTargetTrackerOptions,
+} from './dom/LandingTargetTracker'
+import {
+  bindPointerSessionInput as attachPointerSessionInput,
+  type PointerSessionInputOptions,
+} from './input/PointerSessionInput'
 import type { Action } from './action/Action'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
   | { type: 'surface-added' | 'surface-removed' | 'surface-changed'; id: string }
   | { type: 'ownership-changed'; id: string }
+
+export type RuntimeLandingTargetOptions = Omit<
+  LandingTargetTrackerOptions,
+  'cleanup' | 'target' | 'retarget'
+>
 
 export class Runtime {
   readonly owner = new Owner()
@@ -101,6 +114,38 @@ export class Runtime {
 
   clearRegrab(objectId: string, handler?: (event: PointerEvent) => void): void {
     this.moveBehavior.clearRegrab(objectId, handler)
+  }
+
+  /**
+   * 绑定 active 阶段的全局 pointer 输入。pointerup 会先立即解绑监听器，再把
+   * release 交回 Runtime；cancel/interrupt 时由 Session Cleanup 兜底。
+   */
+  bindPointerSessionInput(
+    sessionId: string,
+    options: PointerSessionInputOptions = {},
+  ): () => void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return () => undefined
+    return attachPointerSessionInput(this, session, options)
+  }
+
+  /**
+   * landing 期间追踪真实目标及其祖先的布局变化，并自动登记到 Session Cleanup。
+   */
+  trackLandingTarget(
+    sessionId: string,
+    target: HTMLElement,
+    retarget: (rect: DOMRect) => void,
+    options: RuntimeLandingTargetOptions = {},
+  ): () => void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return () => undefined
+    return observeLandingTarget({
+      ...options,
+      cleanup: session.cleanup,
+      target,
+      retarget,
+    })
   }
 
   start(request: StartRequest): SessionHandle {
