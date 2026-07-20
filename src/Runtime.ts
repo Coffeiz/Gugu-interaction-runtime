@@ -271,7 +271,7 @@ export class Runtime {
     }
   }
 
-  interrupt(sessionId: string, reason = 'interrupted'): void {
+  interrupt(sessionId: string, reason: string = 'cancel'): void {
     const session = this.sessions.get(sessionId)
     if (!session) return
     const behavior = this.behaviors.get(session.type)
@@ -283,7 +283,7 @@ export class Runtime {
       console.error('Behavior interrupt failed', error)
     } finally {
       try {
-        session.interrupt()
+        session.interrupt(reason === 'regrab' ? 'regrab' : 'cancel')
       } finally {
         this.disposeBehavior(behavior, context)
         this.sessions.delete(session.id)

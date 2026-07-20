@@ -6,11 +6,6 @@ let visualOverlay: HTMLElement | null = null
  */
 export function mountVisualOverlay(): HTMLElement {
   if (!visualOverlay || !visualOverlay.isConnected) {
-    console.log('[proxy-removal-probe] overlay (re)created', JSON.stringify({
-      t: performance.now().toFixed(1),
-      hadPrevious: !!visualOverlay,
-      previousChildCount: visualOverlay?.children.length ?? 0,
-    }))
     visualOverlay = document.createElement('div')
     visualOverlay.dataset.runtimeOverlay = 'true'
     Object.assign(visualOverlay.style, {
@@ -20,17 +15,11 @@ export function mountVisualOverlay(): HTMLElement {
       pointerEvents: 'none',
       zIndex: '2147483647',
     })
-    // 针对性探针：谁把代理从这个容器里摘掉的，直接盯 childList 变更打出来，
-    // 不用再猜是哪段代码干的。
     new MutationObserver(mutations => {
       for (const m of mutations) {
         for (const node of Array.from(m.removedNodes)) {
           if (!(node instanceof HTMLElement)) continue
           if (node.dataset.runtimeProxy !== 'true') continue
-          console.log('[proxy-removal-probe] proxy removed from overlay', JSON.stringify({
-            t: performance.now().toFixed(1),
-            card: node.dataset.card,
-          }))
         }
       }
     }).observe(visualOverlay, { childList: true })
@@ -41,6 +30,41 @@ export function mountVisualOverlay(): HTMLElement {
     document.documentElement.appendChild(visualOverlay)
   }
   return visualOverlay
+}
+
+export function setProxyInteractive(
+  proxy: HTMLElement,
+  enabled: boolean,
+): void {
+  // 只控制 proxy 本身的 pointerEvents，不碰 overlay。
+  // overlay pointerEvents 保持 none，让事件穿透到下方 DOM，
+  // 其他卡片的拖拽不受影响。只有当前 proxy 可点击。
+  proxy.style.pointerEvents = enabled ? 'auto' : 'none'
+}
+
+export interface ProxyVisualState {
+  transform: string
+  boxShadow: string
+  opacity: string
+}
+
+export function captureProxyVisualState(
+  proxy: HTMLElement,
+): ProxyVisualState {
+  return {
+    transform: proxy.style.transform,
+    boxShadow: proxy.style.boxShadow,
+    opacity: proxy.style.opacity,
+  }
+}
+
+export function restoreProxyVisualState(
+  proxy: HTMLElement,
+  state: ProxyVisualState,
+): void {
+  proxy.style.transform = state.transform
+  proxy.style.boxShadow = state.boxShadow
+  proxy.style.opacity = state.opacity
 }
 
 /**
@@ -289,7 +313,10 @@ export function landDragProxy(
   // 被 retarget，都是同一套"冻结当前视觉状态 → 强制回流 → 下一帧过渡到
   // 新终点"手法，只是首次起飞时终点写的是初始 target，retarget 时终点
   // 换成新坐标。
-  const flyTo = (nextTarget: LandingRect) => {
+  // retarget 时用剩余时间而非完整 duration：如果目标位置因另一张卡落地而
+  // 频繁变化，每次都用完整 duration 会导致动画被无限延长（探针实测 flyTo
+  // 被调用了 55 次，总时长远超预期的 3s）。
+  const flyTo = (nextTarget: LandingRect, animDuration = duration) => {
     currentTarget = nextTarget
     const startRect = proxy.getBoundingClientRect()
     proxy.style.transition = 'none'
@@ -302,13 +329,13 @@ export function landDragProxy(
       `translate3d(${(nextTarget.left - layoutLeft).toFixed(2)}px, ${(nextTarget.top - layoutTop).toFixed(2)}px, 0)`
 
     proxy.style.transition = [
-      `transform ${duration}ms ${easing}`,
-      `width ${duration}ms ${easing}`,
-      `height ${duration}ms ${easing}`,
-      `box-shadow ${duration}ms ease`,
-      `border-radius ${duration}ms ease`,
-      `background-color ${duration}ms ease`,
-      `opacity ${duration}ms ease`,
+      `transform ${animDuration}ms ${easing}`,
+      `width ${animDuration}ms ${easing}`,
+      `height ${animDuration}ms ${easing}`,
+      `box-shadow ${animDuration}ms ease`,
+      `border-radius ${animDuration}ms ease`,
+      `background-color ${animDuration}ms ease`,
+      `opacity ${animDuration}ms ease`,
     ].join(', ')
     // box-shadow/border-radius/background/opacity 起点值（dragSnapshot）是调用方在这个
     // proxy 刚创建、还没被浏览器画过一帧的时候同步写上去的——如果在这里（设置 transition
@@ -348,34 +375,36 @@ export function landDragProxy(
     const dw = Math.abs(nextTarget.width - currentTarget.width)
     const dh = Math.abs(nextTarget.height - currentTarget.height)
     if (dx < 0.5 && dy < 0.5 && dw < 0.5 && dh < 0.5) return
-    flyTo(nextTarget)
+    // 用剩余时间而非完整 duration：retarget 只是修正航向，不应重置动画时钟。
+    const remaining = Math.max(80, duration - (performance.now() - startedAt))
+    flyTo(nextTarget, remaining)
   }
 
   return { finished, retarget }
 }
 
 export function destroyDragProxy(proxy: HTMLElement) {
-  console.log('[proxy-removal-probe] destroyDragProxy', JSON.stringify({
-    t: performance.now().toFixed(1),
-    card: proxy.dataset.card,
-    stack: new Error().stack?.split('\n').slice(1, 6).join(' | '),
-  }))
+  if (!activeDragProxies.has(proxy)) return
   activeDragProxies.delete(proxy)
   proxy.remove()
 }
 
 /** 清理 demo 中上一次异常中断留下的代理节点。 */
 export function destroyAllDragProxies(): void {
-  if (activeDragProxies.size > 0) {
-    console.log('[proxy-removal-probe] destroyAllDragProxies', JSON.stringify({
-      t: performance.now().toFixed(1),
-      cards: Array.from(activeDragProxies).map(el => el.dataset.card),
-      stack: new Error().stack?.split('\n').slice(1, 6).join(' | '),
-    }))
-  }
   for (const proxy of activeDragProxies) proxy.remove()
   activeDragProxies.clear()
   document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]').forEach(proxy => proxy.remove())
+}
+
+export function destroyDragProxiesByCardId(cardId: string): void {
+  for (const proxy of Array.from(activeDragProxies)) {
+    if (proxy.dataset.card !== cardId) continue
+    if (!proxy.isConnected) {
+      activeDragProxies.delete(proxy)
+      continue
+    }
+    destroyDragProxy(proxy)
+  }
 }
 
 /**

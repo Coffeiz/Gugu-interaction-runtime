@@ -1,5 +1,6 @@
 import { runtime } from '../Runtime'
-import { createDragPlaceholder, createDragProxy, destroyAllDragProxies, destroyDragPlaceholder, destroyDragProxy, landDragProxy, moveDragProxy } from '../dom/Visual'
+import { createDragPlaceholder, createDragProxy, destroyAllDragProxies, destroyDragPlaceholder, destroyDragProxy, destroyDragProxiesByCardId, landDragProxy, moveDragProxy, setProxyInteractive } from '../dom/Visual'
+import { preserveProxyVisualContext } from '../dom/ProxyVisualContext'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import { columns } from './store'
@@ -58,7 +59,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     activeRegrab(event)
     return
   }
-  destroyAllDragProxies()
+  destroyDragProxiesByCardId(cardId)
   const handle = runtime.start({
     type: 'move',
     objectId: cardId,
@@ -92,6 +93,10 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   const placeholder = createDragPlaceholder(sourceEl, rect)
   sourceEl.style.display = 'none'
   const proxy = createDragProxy(sourceEl, rect)
+  // proxy 被挂到 documentElement 下的 Runtime overlay 后会脱离原祖先继承链。
+  // 在任何 dragging state 覆写之前先固化文本视觉上下文，避免字体、字重、
+  // 行高等继承属性变化，导致字符（例如完成徽章的 ✓）与本体长得不一样。
+  preserveProxyVisualContext(sourceEl, proxy)
   visualAdapter.applyState?.(proxy, {
     phase: 'dragging',
     hovered: sourceEl.matches(':hover'),
@@ -169,6 +174,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
 
   function beginLanding() {
     session.transition('landing')
+    setProxyInteractive(proxy, true)
     sourceEl.classList.remove('kb-card-dragging-source')
     delete sourceEl.dataset.runtimeActive
     hideLiveCard(cardId)
@@ -221,6 +227,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   function finish() {
     if (session.state === 'done' || session.state === 'cancelled') return
     runtime.clearRegrab(cardId, onRegrab)
+    setProxyInteractive(proxy, false)
     showLiveCard(cardId)
     delete sourceEl.dataset.runtimeActive
     sourceEl.style.display = ''
@@ -235,17 +242,16 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
    */
   function onRegrab(regrabEvent: PointerEvent) {
     if (session.state !== 'landing') return
+    setProxyInteractive(proxy, false)
     regrabEvent.stopPropagation()
     runtime.clearRegrab(cardId)
+    // 1. 先捕获视觉状态
     const proxyRect = proxy.getBoundingClientRect()
-    // 旧 Session 只清理自己的东西：这里不调用 finish()/landing()，只是让旧
-    // Session 直接结束（跳过它自己的落地收尾），新 Session 接管同一个视觉
-    // 位置继续——不能让旧 Session 的收尾逻辑在新 Session 已经接管之后，还
-    // 反过来清掉新 Session 正在用的样式（规则 5）。
-    showLiveCard(cardId)
-    delete sourceEl.dataset.runtimeActive
-    destroyDragProxy(proxy)
+    // 2. interrupt('regrab') — 跳过视觉 cleanup，只释放 leases
     runtime.interrupt(session.id, 'regrab')
+    // 3. 手动销毁旧 proxy
+    destroyDragProxy(proxy)
+    // 4. 新 session 接管
     startCardDrag(regrabEvent, cardId, sourceEl, proxyRect)
   }
 
@@ -280,6 +286,6 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
  * 显式 handoff：业务状态已经稳定（moveCard 已经落定），下一帧再把控制权
  * 交还 Vue，避免 Vue 在恢复的这一帧又补播一次 enter/move 动画——见规则 7。
  */
-  function landing(session: ReturnType<typeof runtime.startSession>) {
-    session.handoff()
-  }
+function landing(session: ReturnType<typeof runtime.startSession>) {
+  session.handoff()
+}
