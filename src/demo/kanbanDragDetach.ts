@@ -155,6 +155,25 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   const offsetX = fromRect ? startX - rect.left : moveContext.dragOffset.x
   const offsetY = fromRect ? startY - rect.top : moveContext.dragOffset.y
   if (fromRect) {
+    console.log('[regrab-probe] fromRect', JSON.stringify({
+      fromRect,
+      sourceElGetBBox: {
+        left: sourceEl.getBoundingClientRect().left,
+        top: sourceEl.getBoundingClientRect().top,
+        width: sourceEl.getBoundingClientRect().width,
+        height: sourceEl.getBoundingClientRect().height,
+      },
+      sourceElStyle: {
+        position: sourceEl.style.position,
+        left: sourceEl.style.left,
+        top: sourceEl.style.top,
+        transform: sourceEl.style.transform,
+      },
+      eventClientXY: { x: event.clientX, y: event.clientY },
+      offsetXY: { x: offsetX, y: offsetY },
+      computedLeft: startX - offsetX,
+      computedTop: startY - offsetY,
+    }))
     moveContext.dragOffset = { x: offsetX, y: offsetY }
   }
   applyFloatingStyle(sourceEl, rect)
