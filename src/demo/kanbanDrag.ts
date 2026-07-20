@@ -204,32 +204,17 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
         // 插值解决不了这种真实 DOM 结构差异，交给内容交叉淡变。
         targetContent: targetEl,
       })
-      // targetEl 全程 visibility:hidden，不会真的从文档流摘除，
-      // getBoundingClientRect 依然准确——如果落地这段时间内又有一次不相关
-      // 的布局事务把 targetEl 的实际落点挪了（比如紧接着又落地了另一张卡，
-      // 兄弟卡跟着重新排位），这里量到的新位置会喂给 retarget()，让还在飞
-      // 的代理跟着改航向，不会飞向一个已经过期的坐标。
-      let targetResizeObserver: ResizeObserver | null = null
-      if (typeof ResizeObserver !== 'undefined') {
-        targetResizeObserver = new ResizeObserver(() => {
-          retarget(targetEl.getBoundingClientRect())
-        })
-        targetResizeObserver.observe(targetEl)
-        let ancestor = targetEl.parentElement
-        while (ancestor && ancestor !== document.body) {
-          targetResizeObserver.observe(ancestor)
-          ancestor = ancestor.parentElement
-        }
-      }
+      // 目标和祖先链的 ResizeObserver/retarget 由 Runtime 统一登记进 Cleanup；
+      // 动画正常完成时主动停止，中断/regrab 时由 Session dispose 兜底。
+      const stopTargetTracking = runtime.trackLandingTarget(session.id, targetEl, retarget)
       void finished.then(() => {
         // landing 的完成必须以 proxy 的真实几何位置为准。此前独立 timer 会
         // 在 CSS transition 尚未抵达目标时提前 reveal，造成二次吸入或闪现。
-        targetResizeObserver?.disconnect()
         if (session.state !== 'landing') return
         resolveLanding?.()
         resolveLanding = null
         revealPlan = finish
-      })
+      }).finally(stopTargetTracking)
     })
   }
 
@@ -285,25 +270,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
       revealPlan = null
     },
   })
-  // 落地飞行期间这个 session 还没 dispose（要等飞完），如果这两个监听器
-  // 一直挂在 window 上，中途只要页面上发生任何一次不相关的 pointerup
-  // （比如又拖了另一张卡），就会重新触发这个本该已经结束的 session 的
-  // release()，把还在飞的落地代理提前 cancel 掉——见 kanbanDragDetach.ts
-  // 同名注释。松手这一刻起立刻移除，不等 session 真正 dispose。
-  const onWindowPointerMove = (event: PointerEvent) => {
-    runtime.update(session.id, { kind: 'pointermove', event })
-  }
-  const onWindowPointerUp = (event: PointerEvent) => {
-    window.removeEventListener('pointermove', onWindowPointerMove)
-    window.removeEventListener('pointerup', onWindowPointerUp)
-    void runtime.release(session.id, { kind: 'pointerup', event })
-  }
-  window.addEventListener('pointermove', onWindowPointerMove)
-  window.addEventListener('pointerup', onWindowPointerUp)
-  session.cleanup.track(() => {
-    window.removeEventListener('pointermove', onWindowPointerMove)
-    window.removeEventListener('pointerup', onWindowPointerUp)
-  })
+  // Runtime 负责 window pointermove/pointerup 的安装、松手立即解绑和 Cleanup 兜底。
+  runtime.bindPointerSessionInput(session.id)
   proxy.addEventListener('pointerdown', onRegrab)
   session.cleanup.track(() => proxy.removeEventListener('pointerdown', onRegrab))
 }
