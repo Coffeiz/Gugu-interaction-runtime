@@ -179,7 +179,9 @@ export class Runtime {
 
     try {
       const landingResult = await behavior.landing(this.createBehaviorContext(session), destination)
-      if (this.sessions.get(session.id) !== session || session.state === 'disposed' || session.state === 'interrupt') return
+      const liveSession = this.sessions.get(session.id)
+      if (liveSession !== session) return
+      if (liveSession.state === 'disposed' || liveSession.state === 'interrupt') return
       if (landingResult && !landingResult.completed) {
         this.cancel(session.id, landingResult.reason ?? 'landing-failed')
         return
