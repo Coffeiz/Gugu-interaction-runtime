@@ -1,18 +1,12 @@
 import { runtime } from '../Runtime'
 import { createDragPlaceholder, createDragProxy, destroyAllDragProxies, destroyDragPlaceholder, destroyDragProxy, landDragProxy, moveDragProxy } from '../dom/Visual'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
-import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
+import { createDomHitResolver, hitWithResolver, type HitResult } from '../dom/Hit'
 import { columns } from './store'
 
 const LANDING_DURATION = 220
 const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
 runtime.setHitResolver(kanbanHitResolver)
-
-// regrab 登记表（落地飞行期间"这个对象正在被谁接管、入口在哪"）阶段 E
-// 已经搬进 Runtime/MoveBehavior 了（runtime.registerRegrab/getRegrab/
-// clearRegrab），不再是这个文件自己的模块级变量——原因见那边的注释：
-// 只有 proxy 自己的 pointerdown 知道这件事是不够的，startCardDrag 自己的
-// 入口也要先查一下这张卡是不是正在被接管，是的话转发成一次 regrab。
 
 function hideLiveCard(cardId: string): void {
   document.querySelectorAll<HTMLElement>(`[data-card="${cardId}"]`).forEach(el => {
@@ -36,28 +30,18 @@ function resolveLiveCard(cardId: string): HTMLElement | null {
     }) ?? null
 }
 
-/**
- * 一次卡片拖拽 = 一个 Session。接管范围覆盖"这条交互会联动布局的一切"——
- * 三个列的 Surface 全部接管，而不是只接管被拖动的卡片本身，对应
- * docs/DESIGN.md 原则 2（否则会出现新模型接管卡片、旧模型还在控制列容器
- * 的混合态）。
- *
- * 落地（landing）不是瞬间发生的：松手后代理还要飞回真实卡片的位置，这段
- * 飞行期间允许被重新抓起（regrab）——这正是 Gugu-web clone2 落地中途被
- * 重新抓起那类 bug 的最小复现场景，用来验证"旧 Session 不会清理新 Session
- * 的样式"这条规则。
- */
+/** clone 策略只提供视觉实现与 Action 提交；输入、命中结果保存和阶段时序由 Runtime 编排。 */
 export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTMLElement, fromRect?: DOMRect) {
-  // 对象声明了自己不能参与 'move' 类型的 Session，直接拒绝——不需要
-  // 业务组件自己判断"这张卡能不能拖"，注册的时候声明一次就够了。
   if (!runtime.objects.hasAbility(cardId, 'move')) return
   event.preventDefault()
   runtime.objects.setElement(cardId, sourceEl)
+
   const activeRegrab = runtime.getRegrab(cardId)
   if (activeRegrab) {
     activeRegrab(event)
     return
   }
+
   destroyAllDragProxies()
   const handle = runtime.start({
     type: 'move',
@@ -66,25 +50,12 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   })
   const session = runtime.getSession(handle.id)!
   const visualAdapter = runtime.getVisualAdapter(runtime.objects.get(cardId)?.type ?? 'project-card')
-  // clone 策略的源卡片仍由 Vue 留在列表中（仅隐藏并由 placeholder
-  // 保留布局）；只有 detach 策略才通过对象 Lease 触发 Teleport。这里
-  // 不能接管 object，否则 Vue 会把源卡片搬到 body，落地目标会变成一张
-  // 宽度撑满页面的异常节点。
-  columns.forEach(col => session.takeSurface(`column:${col.id}`))
-
-  // sourceElement/dragOffset 的常规算法已经在 MoveBehavior.prepare() 里
-  // 统一算好了（阶段 B），这里不用重复读 DOM/算一遍——除了 regrab
-  // （fromRect 存在）这一种例外：起点不是本体当前的 DOM 位置，是代理飞
-  // 到一半的插值位置，这个偏移量只有这里知道，driver 自己算。
   const moveContext = runtime.getMoveContext(session.id)
   const rect = fromRect ?? sourceEl.getBoundingClientRect()
   const startX = event.clientX
   const startY = event.clientY
   const offsetX = fromRect ? startX - rect.left : moveContext.dragOffset.x
   const offsetY = fromRect ? startY - rect.top : moveContext.dragOffset.y
-  // regrab 场景下真实偏移量跟 MoveBehavior.prepare() 算出来的不一样（起点
-  // 是代理插值位置，不是本体当前 DOM 位置）——写回去，MoveBehavior.update()
-  // 里统一做的跟手定位才会用对偏移量，不会在 regrab 时跳一下。
   moveContext.dragOffset = { x: offsetX, y: offsetY }
 
   sourceEl.classList.add('kb-card-dragging-source')
@@ -100,15 +71,17 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   })
   session.cleanup.track(() => destroyDragProxy(proxy))
   session.cleanup.track(() => destroyDragPlaceholder(placeholder))
+  session.cleanup.track(() => {
+    runtime.clearRegrab(cardId, onRegrab)
+    sourceEl.classList.remove('kb-card-dragging-source')
+    delete sourceEl.dataset.runtimeActive
+    sourceEl.style.display = ''
+    showLiveCard(cardId)
+  })
   moveDragProxy(proxy, startX, startY, offsetX, offsetY)
-  // 阶段 C：往后每次 pointermove 的跟手定位由 MoveBehavior.update() 统一
-  // 做（读这里写的 followElement + dragOffset），onMove 只剩命中判定。
   moveContext.followElement = proxy
 
-  let currentColumnId = findColumnIdOf(cardId)
-  const initialColumnId = currentColumnId
-  let currentIndex = -1
-  let pendingDrop: { columnId: string; index: number } | null = null
+  const initialColumnId = findColumnIdOf(cardId)
   let resolveLanding: (() => void) | null = null
   let revealPlan: (() => void) | null = null
 
@@ -116,74 +89,55 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     return columns.find(col => col.cardIds.includes(id))?.id
   }
 
-  function onMove(moveEvent: PointerEvent) {
-    if (session.state !== 'active') return
-    // 跟手定位已经在 MoveBehavior.update() 里做过了（读 followElement +
-    // dragOffset），这里只做命中判定。
-    const hit = hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, moveEvent.clientX, moveEvent.clientY, cardId)
-    if (!hit) return
-    if (hit.columnId === currentColumnId && hit.index === currentIndex) return
-    currentColumnId = hit.columnId
-    currentIndex = hit.index
-
-    pendingDrop = hit
+  function resolveDestination(input: { event?: Event }): HitResult | undefined {
+    const moveEvent = input.event
+    if (!(moveEvent instanceof PointerEvent)) return undefined
+    return hitWithResolver(
+      runtime.getHitResolver() ?? kanbanHitResolver,
+      moveEvent.clientX,
+      moveEvent.clientY,
+      cardId,
+    ) ?? undefined
   }
 
-  function onUp(): { columnId: string; index: number } | null {
-    if (session.state !== 'active' && session.state !== 'release') return null
-    if (!pendingDrop) {
-      runtime.cancel(session.id, 'no-valid-drop')
-      sourceEl.style.display = ''
-      sourceEl.classList.remove('kb-card-dragging-source')
-      delete sourceEl.dataset.runtimeActive
-      showLiveCard(cardId)
-      destroyDragProxy(proxy)
-      return null
-    }
+  function commitDrop(destination: unknown): void {
+    const drop = destination as HitResult
     const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
       .filter(el => el.dataset.card !== cardId && el !== proxy && el.dataset.runtimeProxy !== 'true')
     const before = captureLayoutFlip(cards)
     destroyDragPlaceholder(placeholder)
-    // 同列重排时 Vue 可能复用当前 sourceEl；如果它仍是 display:none，
-    // 复用后的 landing target 会得到 0×0 rect，代理就会飞到左上角。
     sourceEl.style.display = ''
-    // 阶段 D：不直接调 moveCard——业务数据变化统一走 Action，这里只负责
-    // 生成语义化的落点结果。emitAction 是同步的（Emitter.emit 内部就是
-    // 一个同步 forEach），订阅方（KanbanBoard.vue）会在这一行原地同步执行
-    // moveCard，所以下面 captureRects/playFlip 的时序跟以前直接调
-    // moveCard 完全一样，不会因为改走 Action 而错位。
+
     if (initialColumnId) {
       runtime.emitAction({
         type: 'move',
         objectId: cardId,
         fromSurfaceId: `column:${initialColumnId}`,
-        toSurfaceId: `column:${pendingDrop.columnId}`,
-        toIndex: pendingDrop.index,
+        toSurfaceId: `column:${drop.columnId}`,
+        toIndex: drop.index,
         timestamp: Date.now(),
       })
     }
     hideLiveCard(cardId)
     scheduleLayoutFlip(before)
-    return pendingDrop
   }
 
-  function beginLanding() {
-    session.transition('landing')
+  function beginLanding(destination: unknown) {
+    const drop = destination as HitResult
     sourceEl.classList.remove('kb-card-dragging-source')
     delete sourceEl.dataset.runtimeActive
     hideLiveCard(cardId)
     runtime.registerRegrab(cardId, onRegrab)
+
     requestAnimationFrame(() => {
-      const targetEl = visualAdapter.resolveTarget?.(cardId, pendingDrop) ?? resolveLiveCard(cardId)
+      const targetEl = visualAdapter.resolveTarget?.(cardId, drop) ?? resolveLiveCard(cardId)
       if (!targetEl || session.state !== 'landing') {
         resolveLanding?.()
         resolveLanding = null
         revealPlan = finish
         return
       }
-      // 兄弟 FLIP 和 Vue 的同步更新可能在 release 后才完成；松手瞬间捕获的
-      // rect 可能仍是旧布局。landing 开始时 target 已经是当前可见布局，必须
-      // 以这一帧的真实 rect 为准，否则 proxy 会先吸到旧位置再回到新位置。
+
       const targetRect = targetEl.getBoundingClientRect()
       visualAdapter.applyState?.(targetEl, {
         phase: 'landing',
@@ -200,31 +154,12 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
         targetRadius: targetSnapshot?.borderRadius ?? targetStyle.borderRadius,
         targetBackground: targetSnapshot?.background ?? targetStyle.backgroundColor,
         targetOpacity: targetSnapshot?.opacity ?? targetStyle.opacity,
-        // 落点内容本身可能跟源不一样（比如"已完成"列多一个徽章）——纯样式
-        // 插值解决不了这种真实 DOM 结构差异，交给内容交叉淡变。
         targetContent: targetEl,
       })
-      // targetEl 全程 visibility:hidden，不会真的从文档流摘除，
-      // getBoundingClientRect 依然准确——如果落地这段时间内又有一次不相关
-      // 的布局事务把 targetEl 的实际落点挪了（比如紧接着又落地了另一张卡，
-      // 兄弟卡跟着重新排位），这里量到的新位置会喂给 retarget()，让还在飞
-      // 的代理跟着改航向，不会飞向一个已经过期的坐标。
-      let targetResizeObserver: ResizeObserver | null = null
-      if (typeof ResizeObserver !== 'undefined') {
-        targetResizeObserver = new ResizeObserver(() => {
-          retarget(targetEl.getBoundingClientRect())
-        })
-        targetResizeObserver.observe(targetEl)
-        let ancestor = targetEl.parentElement
-        while (ancestor && ancestor !== document.body) {
-          targetResizeObserver.observe(ancestor)
-          ancestor = ancestor.parentElement
-        }
-      }
+      const stopTracking = runtime.trackLandingTarget(session.id, targetEl, retarget)
+
       void finished.then(() => {
-        // landing 的完成必须以 proxy 的真实几何位置为准。此前独立 timer 会
-        // 在 CSS transition 尚未抵达目标时提前 reveal，造成二次吸入或闪现。
-        targetResizeObserver?.disconnect()
+        stopTracking()
         if (session.state !== 'landing') return
         resolveLanding?.()
         resolveLanding = null
@@ -240,23 +175,13 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     delete sourceEl.dataset.runtimeActive
     sourceEl.style.display = ''
     destroyDragProxy(proxy)
-    landing(session)
   }
 
-  /**
-   * regrab：落地飞行途中重新抓起这张卡片，起点是代理当前的插值位置。
-   * 入口既可能是 proxy 自己的 pointerdown，也可能是 startCardDrag 顶部
-   * 查表转发过来的（用户直接点了本体卡片）。
-   */
   function onRegrab(regrabEvent: PointerEvent) {
     if (session.state !== 'landing') return
     regrabEvent.stopPropagation()
     runtime.clearRegrab(cardId)
     const proxyRect = proxy.getBoundingClientRect()
-    // 旧 Session 只清理自己的东西：这里不调用 finish()/landing()，只是让旧
-    // Session 直接结束（跳过它自己的落地收尾），新 Session 接管同一个视觉
-    // 位置继续——不能让旧 Session 的收尾逻辑在新 Session 已经接管之后，还
-    // 反过来清掉新 Session 正在用的样式（规则 5）。
     showLiveCard(cardId)
     delete sourceEl.dataset.runtimeActive
     destroyDragProxy(proxy)
@@ -264,54 +189,24 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     startCardDrag(regrabEvent, cardId, sourceEl, proxyRect)
   }
 
-  runtime.bindMoveSession(session.id, {
-    update: (_context, input) => {
-      if (input.event instanceof PointerEvent) onMove(input.event)
+  runtime.orchestrateMoveSession(session.id, {
+    surfaceIds: columns.map(col => `column:${col.id}`),
+    driver: {
+      resolveDestination: (_context, input) => resolveDestination(input),
+      commit: (_context, destination) => commitDrop(destination),
     },
-    release: () => {
-      // Action 已经在 onUp() 里、moveCard 原本被调用的那一行原地发出去了
-      // （见那边的注释）——这里不再重复发一次。
-      const drop = onUp()
-      return drop ? { accepted: true, destination: drop } : { accepted: false }
-    },
-  })
-  runtime.bindMoveLifecycle(session.id, {
-    landing: () => new Promise<void>(resolve => {
-      resolveLanding = resolve
-      beginLanding()
-    }),
-    reveal: () => {
-      revealPlan?.()
-      revealPlan = null
+    lifecycle: {
+      landing: (_context, destination) => new Promise<void>(resolve => {
+        resolveLanding = resolve
+        beginLanding(destination)
+      }),
+      reveal: () => {
+        revealPlan?.()
+        revealPlan = null
+      },
     },
   })
-  // 落地飞行期间这个 session 还没 dispose（要等飞完），如果这两个监听器
-  // 一直挂在 window 上，中途只要页面上发生任何一次不相关的 pointerup
-  // （比如又拖了另一张卡），就会重新触发这个本该已经结束的 session 的
-  // release()，把还在飞的落地代理提前 cancel 掉——见 kanbanDragDetach.ts
-  // 同名注释。松手这一刻起立刻移除，不等 session 真正 dispose。
-  const onWindowPointerMove = (event: PointerEvent) => {
-    runtime.update(session.id, { kind: 'pointermove', event })
-  }
-  const onWindowPointerUp = (event: PointerEvent) => {
-    window.removeEventListener('pointermove', onWindowPointerMove)
-    window.removeEventListener('pointerup', onWindowPointerUp)
-    void runtime.release(session.id, { kind: 'pointerup', event })
-  }
-  window.addEventListener('pointermove', onWindowPointerMove)
-  window.addEventListener('pointerup', onWindowPointerUp)
-  session.cleanup.track(() => {
-    window.removeEventListener('pointermove', onWindowPointerMove)
-    window.removeEventListener('pointerup', onWindowPointerUp)
-  })
+
   proxy.addEventListener('pointerdown', onRegrab)
   session.cleanup.track(() => proxy.removeEventListener('pointerdown', onRegrab))
 }
-
-/**
- * 显式 handoff：业务状态已经稳定（moveCard 已经落定），下一帧再把控制权
- * 交还 Vue，避免 Vue 在恢复的这一帧又补播一次 enter/move 动画——见规则 7。
- */
-  function landing(session: ReturnType<typeof runtime.startSession>) {
-    session.handoff()
-  }
