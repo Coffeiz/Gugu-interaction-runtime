@@ -352,11 +352,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 位置继续。
     landingProxy = null
     runtime.interrupt(session.id, 'regrab')
-    startCardDragDetach(new PointerEvent('pointerdown', {
-      clientX: proxyRect.left + proxyRect.width / 2,
-      clientY: proxyRect.top + proxyRect.height / 2,
-      bubbles: true,
-    }), cardId, sourceEl, proxyRect)
+    startCardDragDetach(regrabEvent, cardId, sourceEl, proxyRect)
   }
   // 这两个监听器挂在 window 上，只在"这次拖拽还没松手"这段窗口里有意义——
   // 一次拖拽只会真正松手一次。之前用 session.cleanup.trackListener 登记，
