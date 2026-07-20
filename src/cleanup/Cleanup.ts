@@ -1,8 +1,4 @@
-/**
- * 统一登记一个 Session 用掉的监听器/RAF/临时 DOM，dispose 时一次性清空。
- * 同时维护一个全局活跃计数，方便 demo/测试里验证"dispose 之后真的清空了"，
- * 而不是靠肉眼确认——见 PLAN.md 阶段 0 验收标准。
- */
+/** 统一登记一个 Session 使用的监听器、RAF 和临时 DOM 清理函数。 */
 export type Disposer = () => void
 
 let activeCount = 0
@@ -15,7 +11,7 @@ export class Cleanup {
   private disposers: Disposer[] = []
   private disposed = false
 
-  track(disposer: Disposer) {
+  track(disposer: Disposer): void {
     if (this.disposed) {
       disposer()
       return
@@ -28,21 +24,36 @@ export class Cleanup {
     target: Window,
     type: K,
     listener: (event: WindowEventMap[K]) => void,
-  ) {
+  ): void {
     target.addEventListener(type, listener)
     this.track(() => target.removeEventListener(type, listener))
   }
 
-  trackRaf(id: number) {
+  trackRaf(id: number): void {
     this.track(() => cancelAnimationFrame(id))
   }
 
-  disposeAll() {
+  disposeAll(): void {
     if (this.disposed) return
     this.disposed = true
+
     const disposers = this.disposers
     this.disposers = []
-    activeCount -= disposers.length
-    disposers.forEach(dispose => dispose())
+    const errors: unknown[] = []
+
+    // 清理顺序与登记顺序相反，更符合临时资源的依赖栈。
+    for (const dispose of disposers.reverse()) {
+      try {
+        dispose()
+      } catch (error) {
+        errors.push(error)
+      } finally {
+        activeCount--
+      }
+    }
+
+    if (errors.length > 0) {
+      console.error('Cleanup disposal failed', errors)
+    }
   }
 }

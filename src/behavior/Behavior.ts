@@ -19,4 +19,6 @@ export interface Behavior {
   release?(context: BehaviorContext, input: RuntimeInput): unknown | Promise<unknown>
   cancel?(context: BehaviorContext, reason: string): void
   interrupt?(context: BehaviorContext, reason: string): void
+  /** 无论成功、取消还是打断都会调用一次，用于释放 Behavior 自己保存的 Session 状态。 */
+  dispose?(context: BehaviorContext): void
 }

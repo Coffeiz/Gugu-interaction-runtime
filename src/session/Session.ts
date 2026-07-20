@@ -6,7 +6,7 @@ export type SessionState =
   | 'handoff' | 'rollback' | 'interrupt' | 'done' | 'cancelled' | 'disposed'
 
 const allowedTransitions: Record<SessionState, SessionState[]> = {
-  prepare: ['active', 'cancelled'],
+  prepare: ['active', 'interrupt', 'cancelled'],
   active: ['release', 'landing', 'interrupt', 'cancelled'],
   release: ['landing', 'saving', 'interrupt', 'cancelled'],
   landing: ['saving', 'handoff', 'done', 'interrupt', 'cancelled'],
@@ -22,9 +22,8 @@ const allowedTransitions: Record<SessionState, SessionState[]> = {
 let nextSessionId = 1
 
 /**
- * 一次完整交互。Session 自己声明"接管范围"——不只是被拖动的对象，还包括
- * 会被联动布局影响到的 Surface（源列、目标列），否则会出现新模型接管了
- * 卡片、旧模型还在控制它所在容器的混合态。见 docs/DESIGN.md 原则 2。
+ * 一次完整交互。Session 自己声明“接管范围”——不只是被拖动的对象，还包括
+ * 会被联动布局影响到的 Surface（源列、目标列）。
  */
 export class Session {
   readonly id: string
@@ -34,7 +33,6 @@ export class Session {
 
   constructor(readonly type: string, readonly objectId: string, private owner: Owner) {
     this.id = `session-${nextSessionId++}`
-    this.transition('active')
   }
 
   transition(next: SessionState): void {
@@ -53,15 +51,12 @@ export class Session {
     this.leases.push(this.owner.takeSurface(surfaceId, this.id))
   }
 
-  /** 交还 Vue 是显式阶段，不是 release 之后自动生效——见规则 6/7。 */
   handoff() {
     this.transition('handoff')
   }
 
   dispose() {
     if (this.state === 'disposed') return
-    // interrupt 是一个已经完成语义的终止态，不能再强行走
-    // interrupt → done；该边界会让 regrab 直接抛非法状态转换异常。
     if (this.state === 'interrupt') {
       this.transition('disposed')
     } else {
@@ -80,7 +75,13 @@ export class Session {
   }
 
   interrupt() {
-    if (this.state === 'active' || this.state === 'release' || this.state === 'landing' || this.state === 'saving') {
+    if (
+      this.state === 'prepare'
+      || this.state === 'active'
+      || this.state === 'release'
+      || this.state === 'landing'
+      || this.state === 'saving'
+    ) {
       this.transition('interrupt')
     }
     this.dispose()
