@@ -6,6 +6,7 @@ export interface MoveContext {
   sourceElement: HTMLElement | null
   dragOffset: { x: number; y: number }
   initialized?: boolean
+  pointerId?: number
   followElement?: HTMLElement | null
   visualSnapshot?: VisualSnapshot
   destination?: unknown
@@ -96,7 +97,7 @@ export class MoveBehavior implements Behavior {
   }
 
   /**
-   * DOM source 与抓取偏移是 start() 返回后视觉策略立即要读的同步数据；
+   * DOM source、抓取偏移和 pointerId 是 start() 返回后策略立即要读的同步数据；
    * driver.prepare 仍留在异步 prepare 阶段，允许调用方先绑定 session driver。
    */
   initialize(context: BehaviorContext, request: StartRequest): void {
@@ -105,7 +106,10 @@ export class MoveBehavior implements Behavior {
     moveContext.initialized = true
     const sourceElement = context.visual?.resolveSource?.(request.objectId) ?? null
     moveContext.sourceElement = sourceElement
-    const pointerEvent = request.input.event instanceof PointerEvent ? request.input.event : null
+    const pointerEvent = typeof PointerEvent !== 'undefined' && request.input.event instanceof PointerEvent
+      ? request.input.event
+      : null
+    if (pointerEvent) moveContext.pointerId = pointerEvent.pointerId
     if (sourceElement && pointerEvent) {
       const rect = sourceElement.getBoundingClientRect()
       moveContext.dragOffset = {
@@ -127,7 +131,9 @@ export class MoveBehavior implements Behavior {
   update(context: BehaviorContext, input: RuntimeInput): void {
     if (context.session.state !== 'active') return
     const moveContext = this.getContext(context.session.id)
-    const pointerEvent = input.event instanceof PointerEvent ? input.event : null
+    const pointerEvent = typeof PointerEvent !== 'undefined' && input.event instanceof PointerEvent
+      ? input.event
+      : null
     if (pointerEvent && moveContext.followElement) {
       moveContext.followElement.style.left = `${pointerEvent.clientX - moveContext.dragOffset.x}px`
       moveContext.followElement.style.top = `${pointerEvent.clientY - moveContext.dragOffset.y}px`
