@@ -36,8 +36,9 @@ export function setProxyInteractive(
   proxy: HTMLElement,
   enabled: boolean,
 ): void {
-  const overlay = mountVisualOverlay()
-  overlay.style.pointerEvents = enabled ? 'auto' : 'none'
+  // 只控制 proxy 本身的 pointerEvents，不碰 overlay。
+  // overlay pointerEvents 保持 none，让事件穿透到下方 DOM，
+  // 其他卡片的拖拽不受影响。只有当前 proxy 可点击。
   proxy.style.pointerEvents = enabled ? 'auto' : 'none'
 }
 
