@@ -1,7 +1,6 @@
 import { runtime } from '../Runtime'
 import {
   applyFloatingStyle,
-  applyFloatingStyleFromProxy,
   clearFloatingStyle,
   createDragProxy,
   destroyDragProxy,
@@ -157,10 +156,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   const offsetY = fromRect ? startY - rect.top : moveContext.dragOffset.y
   if (fromRect) {
     moveContext.dragOffset = { x: offsetX, y: offsetY }
-    applyFloatingStyleFromProxy(sourceEl, fromRect)
-  } else {
-    applyFloatingStyle(sourceEl, rect)
   }
+  applyFloatingStyle(sourceEl, rect)
   visualAdapter.applyState?.(sourceEl, {
     phase: 'dragging',
     hovered: sourceEl.matches(':hover'),
