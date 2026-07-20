@@ -261,6 +261,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     objectId: cardId,
     input: { kind: 'pointerdown', event },
   }, {
+    sessionId: session.id,
     driver: {
       update: (_context, input) => {
         if (input.event instanceof PointerEvent) onMove(input.event)
