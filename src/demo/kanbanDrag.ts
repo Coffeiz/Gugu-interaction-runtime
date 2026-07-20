@@ -59,7 +59,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     activeRegrab(event)
     return
   }
-  destroyAllDragProxies()
+  // 只清理当前 cardId 的 proxy，不碰其他 session 的 landing proxy。
+  document.querySelectorAll<HTMLElement>(`[data-card="${cardId}"][data-runtime-proxy="true"]`).forEach(el => el.remove())
   const handle = runtime.start({
     type: 'move',
     objectId: cardId,
@@ -273,7 +274,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     // Session 直接结束（跳过它自己的落地收尾），新 Session 接管同一个视觉
     // 位置继续——不能让旧 Session 的收尾逻辑在新 Session 已经接管之后，还
     // 反过来清掉新 Session 正在用的样式（规则 5）。
-    showLiveCard(cardId)
+    // 注意：不调 showLiveCard——保持 source hidden，新 session 接管后
+    // 自己管理 visibility，避免中间一帧 source 闪现。
     delete sourceEl.dataset.runtimeActive
     destroyDragProxy(proxy)
     runtime.interrupt(session.id, 'regrab')
