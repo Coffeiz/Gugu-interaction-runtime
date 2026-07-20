@@ -38,6 +38,11 @@ function createDetachLandingVisual(
   const targetRect = target.getBoundingClientRect()
   const proxy = createDragProxy(beforeContent, beforeRect)
   preserveProxyVisualContext(sourceEl, proxy)
+  // beforeContent 克隆自抓起瞬间的高度，与落地时 target 的真实高度可能
+  // 有 1-2px 差异（浏览器子像素舍入、内容重排等）。用 target 当前 rect
+  // 覆盖 proxy 的宽高，避免松手瞬间 proxy 高度跳变。
+  proxy.style.width = `${targetRect.width}px`
+  proxy.style.height = `${targetRect.height}px`
   const previousVisibility = target.style.visibility
   let disposed = false
   const dispose = () => {
