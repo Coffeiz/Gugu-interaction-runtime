@@ -372,6 +372,12 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 3. 解除旧 session — interrupt('regrab') 跳过视觉 cleanup
     runtime.interrupt(session.id, 'regrab')
 
+    // 3.5 恢复 liveEl 可见性 — interrupt('regrab') 跳过 cleanup，
+    //     旧 session 的 createDetachLandingVisual 设置了 visibility:hidden，
+    //     必须在此手动恢复，否则 startCardDragDetach 的 applyFloatingStyle
+    //     只设 position:fixed 不改 visibility，元素仍不可见
+    liveEl.style.visibility = ''
+
     console.log('[regrab-probe] before destroy', JSON.stringify({
       cardId,
       hasLandingProxy: !!landingProxy,
