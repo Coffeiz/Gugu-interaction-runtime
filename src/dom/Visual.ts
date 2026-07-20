@@ -6,11 +6,6 @@ let visualOverlay: HTMLElement | null = null
  */
 export function mountVisualOverlay(): HTMLElement {
   if (!visualOverlay || !visualOverlay.isConnected) {
-    console.log('[proxy-removal-probe] overlay (re)created', JSON.stringify({
-      t: performance.now().toFixed(1),
-      hadPrevious: !!visualOverlay,
-      previousChildCount: visualOverlay?.children.length ?? 0,
-    }))
     visualOverlay = document.createElement('div')
     visualOverlay.dataset.runtimeOverlay = 'true'
     Object.assign(visualOverlay.style, {
@@ -20,17 +15,11 @@ export function mountVisualOverlay(): HTMLElement {
       pointerEvents: 'none',
       zIndex: '2147483647',
     })
-    // 针对性探针：谁把代理从这个容器里摘掉的，直接盯 childList 变更打出来，
-    // 不用再猜是哪段代码干的。
     new MutationObserver(mutations => {
       for (const m of mutations) {
         for (const node of Array.from(m.removedNodes)) {
           if (!(node instanceof HTMLElement)) continue
           if (node.dataset.runtimeProxy !== 'true') continue
-          console.log('[proxy-removal-probe] proxy removed from overlay', JSON.stringify({
-            t: performance.now().toFixed(1),
-            card: node.dataset.card,
-          }))
         }
       }
     }).observe(visualOverlay, { childList: true })
@@ -389,24 +378,12 @@ export function landDragProxy(
 }
 
 export function destroyDragProxy(proxy: HTMLElement) {
-  console.log('[proxy-removal-probe] destroyDragProxy', JSON.stringify({
-    t: performance.now().toFixed(1),
-    card: proxy.dataset.card,
-    stack: new Error().stack?.split('\n').slice(1, 6).join(' | '),
-  }))
   activeDragProxies.delete(proxy)
   proxy.remove()
 }
 
 /** 清理 demo 中上一次异常中断留下的代理节点。 */
 export function destroyAllDragProxies(): void {
-  if (activeDragProxies.size > 0) {
-    console.log('[proxy-removal-probe] destroyAllDragProxies', JSON.stringify({
-      t: performance.now().toFixed(1),
-      cards: Array.from(activeDragProxies).map(el => el.dataset.card),
-      stack: new Error().stack?.split('\n').slice(1, 6).join(' | '),
-    }))
-  }
   for (const proxy of activeDragProxies) proxy.remove()
   activeDragProxies.clear()
   document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]').forEach(proxy => proxy.remove())
