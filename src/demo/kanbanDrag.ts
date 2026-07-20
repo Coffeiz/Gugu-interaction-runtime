@@ -244,6 +244,14 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     runtime.clearRegrab(cardId, onRegrab)
     setProxyInteractive(proxy, false)
     showLiveCard(cardId)
+    console.log('[height-probe] finish', JSON.stringify({
+      cardId,
+      proxyHeight: proxy.getBoundingClientRect().height,
+      proxyStyleHeight: proxy.style.height,
+      liveCard: document.querySelectorAll<HTMLElement>(`[data-card="${cardId}"]`).length,
+      liveCardHeight: document.querySelector<HTMLElement>(`[data-card="${cardId}"]:not([data-runtime-proxy="true"])`)?.getBoundingClientRect().height,
+      liveCardStyleHeight: document.querySelector<HTMLElement>(`[data-card="${cardId}"]:not([data-runtime-proxy="true"])`)?.style.height,
+    }))
     delete sourceEl.dataset.runtimeActive
     sourceEl.style.display = ''
     destroyDragProxy(proxy)
