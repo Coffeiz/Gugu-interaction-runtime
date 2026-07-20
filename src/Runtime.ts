@@ -29,6 +29,22 @@ export type RuntimeLandingTargetOptions = Omit<
   'cleanup' | 'target' | 'retarget'
 >
 
+export interface OrchestrateMoveSessionOptions {
+  /** 跟手阶段的行为驱动。 */
+  driver?: MoveBehaviorDriver
+  /** 落地/揭示阶段的视觉生命周期。 */
+  lifecycle?: MoveVisualLifecycle
+  /** PointerSessionInput 选项。 */
+  pointerInput?: PointerSessionInputOptions
+}
+
+export interface MoveSessionHandle extends SessionHandle {
+  /** 当前 session 的 MoveContext。 */
+  readonly moveContext: MoveContext
+  /** 解绑 pointer 输入并清理。 */
+  dispose(): void
+}
+
 export class Runtime {
   readonly owner = new Owner()
   readonly objects = new ObjectStore()
@@ -183,6 +199,43 @@ export class Runtime {
       get state() { return session.state },
       cancel: reason => this.cancel(session.id, reason ?? 'cancelled'),
       interrupt: reason => this.interrupt(session.id, reason ?? 'interrupted'),
+    }
+  }
+
+  /**
+   * 编排一次完整的 move Session：start → bind driver → bind lifecycle →
+   * bind pointer input，一步到位。
+   *
+   * 调用方只需提供 driver（跟手阶段的行为）和 lifecycle（落地/揭示阶段的
+   * 视觉逻辑），不需要手动调用 bindMoveSession/bindMoveLifecycle/
+   * bindPointerSessionInput。
+   *
+   * 返回的 handle 包含 session id、moveContext、state 以及 dispose() 方法。
+   */
+  orchestrateMoveSession(
+    request: StartRequest,
+    options: OrchestrateMoveSessionOptions = {},
+  ): MoveSessionHandle {
+    const handle = this.start(request)
+    const session = this.sessions.get(handle.id)!
+    const moveContext = this.getMoveContext(handle.id)
+
+    if (options.driver) {
+      this.bindMoveSession(handle.id, options.driver)
+    }
+    if (options.lifecycle) {
+      this.bindMoveLifecycle(handle.id, options.lifecycle)
+    }
+
+    const stopPointerInput = this.bindPointerSessionInput(handle.id, options.pointerInput)
+
+    return {
+      id: handle.id,
+      get state() { return session.state },
+      get moveContext() { return moveContext },
+      cancel: reason => this.cancel(handle.id, reason ?? 'cancelled'),
+      interrupt: reason => this.interrupt(handle.id, reason ?? 'interrupted'),
+      dispose: () => { stopPointerInput() },
     }
   }
 
