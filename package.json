@@ -25,6 +25,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "build:lib": "vue-tsc --noEmit && vite build --config vite.lib.config.ts",
     "typecheck": "vue-tsc --noEmit",
+    "test:runtime": "npm run build:lib && node scripts/runtime-input-regression.mjs",
+    "verify": "npm run build && npm run test:runtime",
     "prepare": "npm run build:lib"
   },
   "peerDependencies": {
