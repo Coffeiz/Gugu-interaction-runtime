@@ -59,7 +59,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     activeRegrab(event)
     return
   }
-destroyDragProxiesByCardId(cardId)
+  destroyDragProxiesByCardId(cardId)
   const handle = runtime.start({
     type: 'move',
     objectId: cardId,
