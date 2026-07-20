@@ -110,18 +110,28 @@ export class Runtime {
     const session = this.startSession(request.type, request.objectId)
     const context = this.createBehaviorContext(session)
 
-    Promise.resolve()
-      .then(() => behavior.prepare?.(context, request))
-      .then(() => {
-        if (this.sessions.get(session.id) === session && session.state === 'prepare') {
-          session.transition('active')
-        }
-      })
-      .catch(error => {
-        if (this.sessions.get(session.id) === session) {
-          this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
-        }
-      })
+    // prepare 必须同步执行：业务侧（demo/kanbanDrag.ts 等）紧接着从
+    // getMoveContext() 读 sourceElement/dragOffset 算 proxy 起点位置，
+    // 推迟到 microtask 会让这些字段在读时还没被填（→ proxy 跑到
+    // 浏览器左上角）。prepare 如果返回 Promise（异步清理/动画初始化），
+    // 错误走异步 catch，但同步的 transition('active') 不等它——demo
+    // 需要在 start() 返回那一刻 MoveContext 已是可用状态。
+    try {
+      const result = behavior.prepare?.(context, request)
+      if (result && typeof (result as { then?: unknown }).then === 'function') {
+        (result as Promise<void>).catch(error => {
+          if (this.sessions.get(session.id) === session) {
+            this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
+          }
+        })
+      }
+    } catch (error) {
+      this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
+    }
+
+    if (this.sessions.get(session.id) === session && session.state === 'prepare') {
+      session.transition('active')
+    }
 
     return {
       id: session.id,
