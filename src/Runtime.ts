@@ -9,12 +9,21 @@ import { BehaviorStore } from './behavior/BehaviorStore'
 import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle } from './behavior/MoveBehavior'
 import { DefaultVisualAdapter, VisualAdapters, type VisualAdapter } from './dom/VisualAdapter'
 import type { HitResolver } from './dom/Hit'
+import { trackLandingTarget as createLandingTargetTracker } from './dom/LandingTargetTracker'
+import { bindPointerSessionInput, type PointerSessionInputOptions } from './input/PointerSessionInput'
 import type { Action } from './action/Action'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
   | { type: 'surface-added' | 'surface-removed' | 'surface-changed'; id: string }
   | { type: 'ownership-changed'; id: string }
+
+export interface MoveSessionOrchestration {
+  readonly driver: MoveBehaviorDriver
+  readonly lifecycle?: MoveVisualLifecycle
+  readonly surfaceIds?: readonly string[]
+  readonly pointerInput?: false | PointerSessionInputOptions
+}
 
 export class Runtime {
   readonly owner = new Owner()
@@ -87,6 +96,41 @@ export class Runtime {
     this.moveBehavior.bindLifecycle(sessionId, lifecycle)
   }
 
+  /**
+   * 把一次 move 的 Surface 接管、driver/lifecycle 注册和 pointer 输入监听收敛
+   * 为一个入口。具体命中数据与视觉策略仍由调用方注入，Runtime 只负责时序。
+   */
+  orchestrateMoveSession(sessionId: string, options: MoveSessionOrchestration): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) throw new Error(`Unknown session: ${sessionId}`)
+    if (session.type !== 'move') throw new Error(`Session ${sessionId} is not a move session`)
+
+    options.surfaceIds?.forEach(surfaceId => session.takeSurface(surfaceId))
+    this.moveBehavior.bindSession(sessionId, options.driver)
+    if (options.lifecycle) this.moveBehavior.bindLifecycle(sessionId, options.lifecycle)
+    if (options.pointerInput !== false) this.bindPointerInput(sessionId, options.pointerInput ?? {})
+  }
+
+  bindPointerInput(sessionId: string, options: PointerSessionInputOptions = {}): () => void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return () => undefined
+    return bindPointerSessionInput(this, sessionId, session.cleanup, options)
+  }
+
+  trackLandingTarget(
+    sessionId: string,
+    target: HTMLElement,
+    retarget: (rect: DOMRect) => void,
+    observeAncestors = true,
+  ): () => void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return () => undefined
+    return createLandingTargetTracker(target, retarget, {
+      cleanup: session.cleanup,
+      observeAncestors,
+    })
+  }
+
   getMoveContext(sessionId: string): MoveContext {
     return this.moveBehavior.getContext(sessionId)
   }
@@ -109,29 +153,20 @@ export class Runtime {
 
     const session = this.startSession(request.type, request.objectId)
     const context = this.createBehaviorContext(session)
+    if (behavior instanceof MoveBehavior) behavior.initialize(context, request)
 
-    // prepare 必须同步执行：业务侧（demo/kanbanDrag.ts 等）紧接着从
-    // getMoveContext() 读 sourceElement/dragOffset 算 proxy 起点位置，
-    // 推迟到 microtask 会让这些字段在读时还没被填（→ proxy 跑到
-    // 浏览器左上角）。prepare 如果返回 Promise（异步清理/动画初始化），
-    // 错误走异步 catch，但同步的 transition('active') 不等它——demo
-    // 需要在 start() 返回那一刻 MoveContext 已是可用状态。
-    try {
-      const result = behavior.prepare?.(context, request)
-      if (result && typeof (result as { then?: unknown }).then === 'function') {
-        (result as Promise<void>).catch(error => {
-          if (this.sessions.get(session.id) === session) {
-            this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
-          }
-        })
-      }
-    } catch (error) {
-      this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
-    }
-
-    if (this.sessions.get(session.id) === session && session.state === 'prepare') {
-      session.transition('active')
-    }
+    Promise.resolve()
+      .then(() => behavior.prepare?.(context, request))
+      .then(() => {
+        if (this.sessions.get(session.id) === session && session.state === 'prepare') {
+          session.transition('active')
+        }
+      })
+      .catch(error => {
+        if (this.sessions.get(session.id) === session) {
+          this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
+        }
+      })
 
     return {
       id: session.id,
@@ -197,7 +232,9 @@ export class Runtime {
         return
       }
       if (behavior.reveal) await behavior.reveal(this.createBehaviorContext(session), destination)
-      if (this.sessions.get(session.id) !== session) return
+      const revealedSession = this.sessions.get(session.id)
+      if (revealedSession !== session) return
+      if (revealedSession.state === 'landing') revealedSession.handoff()
       this.endSession(session)
     } catch (error) {
       if (this.sessions.get(session.id) === session) {
