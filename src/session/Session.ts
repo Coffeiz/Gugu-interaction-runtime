@@ -5,6 +5,8 @@ export type SessionState =
   | 'prepare' | 'active' | 'release' | 'landing' | 'saving'
   | 'handoff' | 'rollback' | 'interrupt' | 'done' | 'cancelled' | 'disposed'
 
+export type SessionEndReason = 'cancel' | 'finish' | 'regrab'
+
 const allowedTransitions: Record<SessionState, SessionState[]> = {
   prepare: ['active', 'interrupt', 'cancelled'],
   active: ['release', 'landing', 'interrupt', 'cancelled'],
@@ -28,6 +30,7 @@ let nextSessionId = 1
 export class Session {
   readonly id: string
   state: SessionState = 'prepare'
+  endReason: SessionEndReason = 'finish'
   readonly cleanup = new Cleanup()
   private leases: Lease[] = []
 
@@ -74,7 +77,18 @@ export class Session {
     this.dispose()
   }
 
-  interrupt() {
+  interrupt(reason: SessionEndReason = 'cancel') {
+    this.endReason = reason
+    if (reason === 'regrab') {
+      // regrab 时跳过视觉 cleanup：proxy/landing visual 由新 session 接管。
+      // 直接 done → disposed，不经过 interrupt 状态，只释放 leases。
+      if (this.state === 'disposed') return
+      if (this.state !== 'done' && this.state !== 'cancelled') this.transition('done')
+      this.transition('disposed')
+      this.leases.forEach(lease => lease.release())
+      this.leases = []
+      return
+    }
     if (
       this.state === 'prepare'
       || this.state === 'active'

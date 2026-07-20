@@ -369,10 +369,15 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     }
     runtime.clearRegrab(cardId)
 
-    // 3. 解除旧 session
+    // 3. 解除旧 session — interrupt('regrab') 跳过视觉 cleanup
     runtime.interrupt(session.id, 'regrab')
 
-    // 4. 新 session 接管
+    // 4. 手动销毁旧 landing proxy（interrupt 跳过了 cleanup）
+    if (landingProxy) {
+      destroyDragProxy(landingProxy)
+    }
+
+    // 5. 新 session 接管
     startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
   }
   // 这两个监听器挂在 window 上，只在"这次拖拽还没松手"这段窗口里有意义——

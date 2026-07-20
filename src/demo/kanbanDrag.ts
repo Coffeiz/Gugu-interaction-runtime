@@ -260,16 +260,13 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     setProxyInteractive(proxy, false)
     regrabEvent.stopPropagation()
     runtime.clearRegrab(cardId)
+    // 1. 先捕获视觉状态
     const proxyRect = proxy.getBoundingClientRect()
-    // 旧 Session 只清理自己的东西：这里不调用 finish()/landing()，只是让旧
-    // Session 直接结束（跳过它自己的落地收尾），新 Session 接管同一个视觉
-    // 位置继续——不能让旧 Session 的收尾逻辑在新 Session 已经接管之后，还
-    // 反过来清掉新 Session 正在用的样式（规则 5）。
-    // 注意：不调 showLiveCard——保持 source hidden，新 session 接管后
-    // 自己管理 visibility，避免中间一帧 source 闪现。
-    delete sourceEl.dataset.runtimeActive
+    // 2. interrupt('regrab') — 跳过视觉 cleanup，只释放 leases
     runtime.interrupt(session.id, 'regrab')
+    // 3. 手动销毁旧 proxy
     destroyDragProxy(proxy)
+    // 4. 新 session 接管
     startCardDrag(regrabEvent, cardId, sourceEl, proxyRect)
   }
 
