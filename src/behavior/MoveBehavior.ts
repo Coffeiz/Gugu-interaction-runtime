@@ -5,6 +5,7 @@ import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 export interface MoveContext {
   sourceElement: HTMLElement | null
   dragOffset: { x: number; y: number }
+  initialized?: boolean
   followElement?: HTMLElement | null
   visualSnapshot?: VisualSnapshot
   destination?: unknown
@@ -16,6 +17,14 @@ export interface MoveContext {
 
 export interface MoveBehaviorDriver {
   prepare?(context: BehaviorContext, request: StartRequest): void | Promise<void>
+  /**
+   * 把 pointer 输入转换成空间落点。返回 undefined 表示沿用上一次有效落点，
+   * null 表示显式清空，其余值写入 MoveContext.destination。
+   */
+  resolveDestination?(context: BehaviorContext, input: RuntimeInput): unknown | null | undefined
+  /** 命中结果已经稳定后提交 Action / 布局事务；不直接负责 landing 视觉。 */
+  commit?(context: BehaviorContext, destination: unknown, input: RuntimeInput): void | Promise<void>
+  /** legacy 兼容入口；存在时优先于 resolveDestination + commit。 */
   update?(context: BehaviorContext, input: RuntimeInput): void
   release?(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void>
   cancel?(context: BehaviorContext, reason: string): void
@@ -86,12 +95,14 @@ export class MoveBehavior implements Behavior {
     return context
   }
 
-  private driverFor(sessionId: string): MoveBehaviorDriver {
-    return this.sessionDrivers.get(sessionId) ?? this.driver
-  }
-
-  prepare(context: BehaviorContext, request: StartRequest): void | Promise<void> {
+  /**
+   * DOM source 与抓取偏移是 start() 返回后视觉策略立即要读的同步数据；
+   * driver.prepare 仍留在异步 prepare 阶段，允许调用方先绑定 session driver。
+   */
+  initialize(context: BehaviorContext, request: StartRequest): void {
     const moveContext = this.getContext(context.session.id)
+    if (moveContext.initialized) return
+    moveContext.initialized = true
     const sourceElement = context.visual?.resolveSource?.(request.objectId) ?? null
     moveContext.sourceElement = sourceElement
     const pointerEvent = request.input.event instanceof PointerEvent ? request.input.event : null
@@ -102,6 +113,14 @@ export class MoveBehavior implements Behavior {
         y: pointerEvent.clientY - rect.top,
       }
     }
+  }
+
+  private driverFor(sessionId: string): MoveBehaviorDriver {
+    return this.sessionDrivers.get(sessionId) ?? this.driver
+  }
+
+  prepare(context: BehaviorContext, request: StartRequest): void | Promise<void> {
+    this.initialize(context, request)
     return this.driverFor(context.session.id).prepare?.(context, request)
   }
 
@@ -113,17 +132,33 @@ export class MoveBehavior implements Behavior {
       moveContext.followElement.style.left = `${pointerEvent.clientX - moveContext.dragOffset.x}px`
       moveContext.followElement.style.top = `${pointerEvent.clientY - moveContext.dragOffset.y}px`
     }
-    this.driverFor(context.session.id).update?.(context, input)
+
+    const driver = this.driverFor(context.session.id)
+    const destination = driver.resolveDestination?.(context, input)
+    if (destination === null) moveContext.destination = undefined
+    else if (destination !== undefined) moveContext.destination = destination
+
+    driver.update?.(context, input)
   }
 
   release(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void> {
-    const result = this.driverFor(context.session.id).release?.(context, input)
-    return Promise.resolve(result).then(releaseResult => {
-      if (releaseResult?.accepted && releaseResult.destination !== undefined) {
-        this.getContext(context.session.id).destination = releaseResult.destination
-      }
-      return releaseResult
-    })
+    const driver = this.driverFor(context.session.id)
+    if (driver.release) {
+      const result = driver.release(context, input)
+      return Promise.resolve(result).then(releaseResult => {
+        if (releaseResult?.accepted && releaseResult.destination !== undefined) {
+          this.getContext(context.session.id).destination = releaseResult.destination
+        }
+        return releaseResult
+      })
+    }
+
+    const destination = this.getContext(context.session.id).destination
+    if (destination === undefined) return { accepted: false }
+    return Promise.resolve(driver.commit?.(context, destination, input)).then(() => ({
+      accepted: true,
+      destination,
+    }))
   }
 
   cancel(context: BehaviorContext, reason: string): void {
