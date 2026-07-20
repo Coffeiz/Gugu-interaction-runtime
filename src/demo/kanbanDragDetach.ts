@@ -23,6 +23,7 @@ const LANDING_DURATION = 3000
  * visual proxy，本体全程由 Vue 管理且保持隐藏，动画结束后再揭示本体。
  */
 function createDetachLandingVisual(
+  sessionId: string,
   target: HTMLElement,
   beforeRect: DOMRect,
   dragSnapshot: VisualSnapshot | undefined,
@@ -44,11 +45,12 @@ function createDetachLandingVisual(
   proxy.style.width = `${targetRect.width}px`
   proxy.style.height = `${targetRect.height}px`
   const previousVisibility = target.style.visibility
+  let stopTargetTracking = (): void => undefined
   let disposed = false
   const dispose = () => {
     if (disposed) return
     disposed = true
-    targetResizeObserver?.disconnect()
+    stopTargetTracking()
     target.style.visibility = previousVisibility
     destroyDragProxy(proxy)
   }
@@ -70,28 +72,9 @@ function createDetachLandingVisual(
     targetOpacity: targetSnapshot?.opacity,
     targetContent: target,
   })
-  const finished = landed.finally(() => {
-    dispose()
-  })
-  // target 全程 visibility:hidden，不会真的从文档流摘除，getBoundingClientRect
-  // 依然准确——如果落地这几秒内又有一次不相关的布局事务（比如紧接着又落地了
-  // 另一张卡，兄弟卡跟着重新排位、容器跟着长高），target 的实际落点会跟着变，
-  // 但 landDragProxy 一开始拿到的 targetRect 只是那一刻的快照，不会自己更新。
-  // 用 ResizeObserver 连它带整条祖先链一起盯着，谁的布局一变就重新量一次
-  // target 真实位置，变了就喂给 retarget()，让还在飞的代理跟着改航向。
-  let targetResizeObserver: ResizeObserver | null = null
-  if (typeof ResizeObserver !== 'undefined') {
-    targetResizeObserver = new ResizeObserver(() => {
-      if (disposed) return
-      retarget(target.getBoundingClientRect())
-    })
-    targetResizeObserver.observe(target)
-    let ancestor = target.parentElement
-    while (ancestor && ancestor !== document.body) {
-      targetResizeObserver.observe(ancestor)
-      ancestor = ancestor.parentElement
-    }
-  }
+  // Runtime 统一维护目标和祖先链的 ResizeObserver，并绑定到 Session Cleanup。
+  stopTargetTracking = runtime.trackLandingTarget(sessionId, target, retarget)
+  const finished = landed.finally(dispose)
   return { finished, dispose, proxy }
 }
 const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
@@ -299,6 +282,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       })
       const targetSnapshot = visualAdapter.captureVisualState?.(landedEl)
       const landingVisual = createDetachLandingVisual(
+        session.id,
         landedEl,
         beforeRect,
         draggingSnapshot,
@@ -386,27 +370,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 5. 新 session 接管
     startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
   }
-  // 这两个监听器挂在 window 上，只在"这次拖拽还没松手"这段窗口里有意义——
-  // 一次拖拽只会真正松手一次。之前用 session.cleanup.trackListener 登记，
-  // 移除时机绑定在 session 完全 dispose（要等落地动画播完才会发生，detach
-  // 策略甚至要等到好几秒后）；这段等待期里监听器一直挂在 window 上，如果
-  // 这期间页面上发生了任何一次不相关的 pointerup（比如又拖了另一张卡、
-  // 松了另一次手），会重新触发这个本该已经结束的 session 的 release()——
-  // 它的 onUp() 这时候必然判定"没有有效落点"，把还在飞行中的落地代理
-  // 提前 cancel/dispose 掉，表现为代理动画播到一半突然消失。松手这一刻
-  // 起，这两个监听器就该立刻移除，不用等到 session 真正 dispose。
-  const onWindowPointerMove = (event: PointerEvent) => {
-    runtime.update(session.id, { kind: 'pointermove', event })
-  }
-  const onWindowPointerUp = (event: PointerEvent) => {
-    window.removeEventListener('pointermove', onWindowPointerMove)
-    window.removeEventListener('pointerup', onWindowPointerUp)
-    void runtime.release(session.id, { kind: 'pointerup', event })
-  }
-  window.addEventListener('pointermove', onWindowPointerMove)
-  window.addEventListener('pointerup', onWindowPointerUp)
-  session.cleanup.track(() => {
-    window.removeEventListener('pointermove', onWindowPointerMove)
-    window.removeEventListener('pointerup', onWindowPointerUp)
-  })
+  // Runtime 负责 window pointermove/pointerup 的安装、松手立即解绑和 Cleanup 兜底。
+  runtime.bindPointerSessionInput(session.id)
 }

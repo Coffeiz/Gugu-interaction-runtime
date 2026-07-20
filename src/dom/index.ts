@@ -2,6 +2,7 @@
 export * from './Hit'
 export * from './Flip'
 export * from './GroupLayout'
+export * from './LandingTargetTracker'
 export * from './Visual'
 export * from './VisualAdapter'
 export * from './VisualAdapterTypes'
