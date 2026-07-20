@@ -390,6 +390,13 @@ export function destroyAllDragProxies(): void {
   document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]').forEach(proxy => proxy.remove())
 }
 
+export function destroyDragProxiesByCardId(cardId: string): void {
+  for (const proxy of Array.from(activeDragProxies)) {
+    if (proxy.dataset.card !== cardId) continue
+    destroyDragProxy(proxy)
+  }
+}
+
 /**
  * "detach" 策略专用：不克隆，直接让本体自己脱离文档流、用 position:fixed
  * 跟手。配合 Vue 的 <Teleport :disabled="!controlled"> 使用——本体在被
