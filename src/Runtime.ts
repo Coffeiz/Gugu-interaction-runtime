@@ -401,6 +401,10 @@ export class Runtime {
     const moveContext = behavior instanceof MoveBehavior
       ? behavior.getContext(session.id)
       : null
+    this.moveBehavior.getLifecycle(session.id)?.beforeAction?.(
+      this.createBehaviorContext(session),
+      destination,
+    )
     if (moveContext && this.emitMoveAction(session.objectId, moveContext.destination, moveContext.transaction)) {
       // Action 已由 Runtime 统一发出；视觉 driver 的 commit 仍负责布局和样式，
       // 但不再需要重复提交业务动作。

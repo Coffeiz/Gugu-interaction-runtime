@@ -51,6 +51,8 @@ export interface MoveBehaviorDriver {
 export interface MoveVisualLifecycle {
   layout?: MoveLayoutLifecycle
   beginDrag?(context: BehaviorContext): void | Promise<void>
+  /** Action 触发 Vue 重渲染前，保持当前对象的所有 live source 隐藏。 */
+  beforeAction?(context: BehaviorContext, destination: unknown): void
   landing?(context: BehaviorContext, destination: unknown): LandingResult | void | Promise<LandingResult | void>
   reveal?(context: BehaviorContext, destination: unknown): void | Promise<void>
   cancel?(context: BehaviorContext, reason: string): void
@@ -107,6 +109,10 @@ export class MoveBehavior implements Behavior {
 
   bindLifecycle(sessionId: string, lifecycle: MoveVisualLifecycle): void {
     this.sessionLifecycles.set(sessionId, lifecycle)
+  }
+
+  getLifecycle(sessionId: string): MoveVisualLifecycle | undefined {
+    return this.sessionLifecycles.get(sessionId)
   }
 
   captureLayout(context: BehaviorContext): void {
