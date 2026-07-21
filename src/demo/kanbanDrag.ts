@@ -264,6 +264,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
       },
     },
     visualStrategy: {
+      beforeAction: () => hideLiveCard(cardId),
       layout: {
         capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
           .filter(el => el.dataset.card !== cardId && el !== proxy && el.dataset.runtimeProxy !== 'true')),

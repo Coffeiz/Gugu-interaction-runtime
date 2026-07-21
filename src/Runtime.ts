@@ -70,7 +70,6 @@ export class Runtime {
   private readonly events = new Emitter<RuntimeEvent>()
   private readonly actions = new Emitter<Action>()
   private readonly visualStrategies = new Map<string, MoveVisualStrategy>()
-  private readonly hiddenObjectObservers = new Map<string, MutationObserver>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
@@ -402,7 +401,10 @@ export class Runtime {
     const moveContext = behavior instanceof MoveBehavior
       ? behavior.getContext(session.id)
       : null
-    this.setObjectVisualHidden(session.objectId, true)
+    this.moveBehavior.getLifecycle(session.id)?.beforeAction?.(
+      this.createBehaviorContext(session),
+      destination,
+    )
     if (moveContext && this.emitMoveAction(session.objectId, moveContext.destination, moveContext.transaction)) {
       // Action 已由 Runtime 统一发出；视觉 driver 的 commit 仍负责布局和样式，
       // 但不再需要重复提交业务动作。
@@ -423,7 +425,6 @@ export class Runtime {
       session.handoff()
       if (behavior.reveal) await behavior.reveal(this.createBehaviorContext(session), destination)
       if (this.sessions.get(session.id) !== session) return
-      this.setObjectVisualHidden(session.objectId, false)
       this.endSession(session)
     } catch (error) {
       if (this.sessions.get(session.id) === session) {
@@ -469,30 +470,11 @@ export class Runtime {
     }
   }
 
-  private setObjectVisualHidden(objectId: string, hidden: boolean): void {
-    if (typeof document === 'undefined') return
-    const apply = () => document.querySelectorAll<HTMLElement>(`[data-card="${objectId}"]`)
-      .forEach(element => {
-        if (element.dataset.runtimeProxy !== 'true') element.dataset.runtimeVisualHidden = hidden ? 'true' : 'false'
-      })
-    apply()
-    if (hidden) {
-      if (this.hiddenObjectObservers.has(objectId)) return
-      const observer = new MutationObserver(apply)
-      observer.observe(document.body, { childList: true, subtree: true })
-      this.hiddenObjectObservers.set(objectId, observer)
-    } else {
-      this.hiddenObjectObservers.get(objectId)?.disconnect()
-      this.hiddenObjectObservers.delete(objectId)
-    }
-  }
-
   cancel(sessionId: string, reason = 'cancelled'): void {
     const session = this.sessions.get(sessionId)
     if (!session) return
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
-    this.setObjectVisualHidden(session.objectId, false)
 
     try {
       if (behavior instanceof MoveBehavior) behavior.cancelLayout(context, reason)
@@ -514,7 +496,6 @@ export class Runtime {
     if (!session) return
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
-    this.setObjectVisualHidden(session.objectId, false)
 
     try {
       if (behavior instanceof MoveBehavior) behavior.cancelLayout(context, reason)
