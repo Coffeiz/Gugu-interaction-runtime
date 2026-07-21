@@ -280,8 +280,9 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
       },
     },
   })
-  proxy.addEventListener('pointerdown', onRegrab)
-  session.cleanup.trackTargetListener(proxy, 'pointerdown', onRegrab as EventListener)
+  const dispatchRegrab = (event: PointerEvent) => { runtime.regrab(cardId, event) }
+  proxy.addEventListener('pointerdown', dispatchRegrab)
+  session.cleanup.trackTargetListener(proxy, 'pointerdown', dispatchRegrab as EventListener)
 }
 
 /**
