@@ -120,9 +120,10 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   // 不会先播一笔收束再瞬间清空。
   scheduleLayoutFlip(beforePickup)
   runtime.objects.setElement(cardId, sourceEl)
-  // 如果这张卡此刻正在做落地 FLIP 回弹（transform/transition 还没播完，
-  // 但已经不受 Runtime 控制），把残留的过渡状态清掉再开始新的一轮。
-  sourceEl.style.transition = 'none'
+  // 如果这张卡此刻正在做落地 FLIP 回弹，先清掉残留的 transform。
+  // transition 不能在 applyFloatingStyle 前清除：那会把 transition:none
+  // 保存进浮动快照，落地恢复后 hover 就会失去过渡动画。regrab 场景的
+  // transition 清理放在 applyFloatingStyle 之后，见下方 fromRect 分支。
   sourceEl.style.transform = ''
 
   const handle = runtime.start({
@@ -286,7 +287,16 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         selected: landedEl.classList.contains('is-selected'),
         grabbed: false,
       })
+      // clearFloatingStyle 刚刚移除了抓起样式，但业务 transition 可能还在
+      // 播放“抓起阴影 → 普通阴影”。如果此刻直接 capture，读到的是中间帧，
+      // 会把抓起阴影误记成 landing 的终点，导致 proxy 落地后一直保留深阴影。
+      // 临时冻结 transition 并强制完成一次 layout，只捕获稳定的业务终态；
+      // 读取后恢复原 transition，真实本体揭示时仍保留正常 hover 过渡。
+      const targetTransition = landedEl.style.transition
+      landedEl.style.transition = 'none'
+      void landedEl.offsetWidth
       const targetSnapshot = visualAdapter.captureVisualState?.(landedEl)
+      landedEl.style.transition = targetTransition
       const landingVisual = createDetachLandingVisual(
         session.id,
         landedEl,
