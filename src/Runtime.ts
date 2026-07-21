@@ -131,6 +131,20 @@ export class Runtime {
     return this.moveBehavior.getContext(sessionId)
   }
 
+  resolveMoveTarget(
+    sessionId: string,
+    destination: unknown,
+    fallback?: () => HTMLElement | null,
+  ): HTMLElement | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) return null
+    const context = this.createBehaviorContext(session)
+    const target = context.visual?.resolveTarget?.(session.objectId, destination) ?? fallback?.() ?? null
+    if (!target || !target.isConnected) return null
+    this.moveBehavior.getContext(sessionId).transaction.target = target
+    return target
+  }
+
   registerRegrab(objectId: string, handler: (event: PointerEvent) => void): void {
     this.moveBehavior.registerRegrab(objectId, handler)
   }
