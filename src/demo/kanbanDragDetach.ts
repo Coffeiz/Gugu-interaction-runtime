@@ -241,7 +241,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 只放开这一个对象的 Lease：Vue 下一帧会把它摆回真实列表位置。
     // Surface 的 Lease（TransitionGroup 总闸）留到落地动画结束才一起释放。
     objectLease.release()
-    landingPlan = () => requestAnimationFrame(() => {
+    landingPlan = () => requestAnimationFrame(async () => {
       // clearFloatingStyle 不能在 onUp() 里同步调用：那样会在这一帧同步抹掉
       // sourceEl 的抬起阴影/位置样式，但接管视觉的落地代理要等到这个 rAF 才
       // 创建——中间至少有一帧，浏览器会先画出"样式已经被清空、但代理还没
@@ -258,7 +258,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       // 当前真正渲染出来的节点：同列场景下查到的就是 sourceEl 本身，跨列
       // 场景下查到的是目标列刚创建的新节点——不管是哪种，用它当 FLIP 的
       // "to"，看起来都是同一个对象飞过去。
-      const landedEl = runtime.resolveMoveTarget(
+      const landedEl = await runtime.waitForMoveTarget(
         session.id,
         pendingDrop,
         () => document.querySelector<HTMLElement>(`[data-card="${cardId}"]`) ?? sourceEl,

@@ -145,6 +145,39 @@ export class Runtime {
     return target
   }
 
+  waitForMoveTarget(
+    sessionId: string,
+    destination: unknown,
+    fallback?: () => HTMLElement | null,
+    options: { readonly maxFrames?: number } = {},
+  ): Promise<HTMLElement | null> {
+    const maxFrames = options.maxFrames ?? 30
+    return new Promise(resolve => {
+      let frame = 0
+      const poll = () => {
+        const session = this.sessions.get(sessionId)
+        if (!session || session.state === 'cancelled' || session.state === 'disposed') {
+          resolve(null)
+          return
+        }
+        const target = this.resolveMoveTarget(sessionId, destination, fallback)
+        if (target) {
+          const rect = target.getBoundingClientRect()
+          if (rect.width > 0 && rect.height > 0) {
+            resolve(target)
+            return
+          }
+        }
+        if (frame++ >= maxFrames) {
+          resolve(null)
+          return
+        }
+        requestAnimationFrame(poll)
+      }
+      requestAnimationFrame(poll)
+    })
+  }
+
   registerRegrab(objectId: string, handler: (event: PointerEvent) => void): void {
     this.moveBehavior.registerRegrab(objectId, handler)
   }

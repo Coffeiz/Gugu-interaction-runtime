@@ -257,7 +257,7 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 2. [x] 将 MoveAction 的生成收回 Runtime，业务端只订阅 `runtime.onAction()`；
 3. [x] 为事务提供统一的 Layout lifecycle（capture → play → cancel）接口，
    Runtime 在 commit 前后调用；demo 现有 FLIP driver 的迁移仍列在第 7 项；
-4. 将 source/target 解析、target 等待、zero-size 处理收回 Runtime；
+4. [x] 将 source/target 解析、target 等待、zero-size 处理收回 Runtime；
 5. 将 clone/detach 的视觉实现注册为 `VisualStrategy`，Runtime 只调用统一的
    `beginDrag/landing/reveal/cancel/dispose` 生命周期；
 6. 将 regrab、旧 token 失效和旧 session cleanup 收回 Runtime；
