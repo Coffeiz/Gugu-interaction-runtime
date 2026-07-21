@@ -139,9 +139,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
 
   function onUp(): { columnId: string; index: number } | null {
     if (session.state !== 'active' && session.state !== 'release') return null
-    // 松手时立即恢复其他卡片的 hover，不等落地动画结束
-    document.body.classList.remove('kb-dragging')
     if (!pendingDrop) {
+      document.body.classList.remove('kb-dragging')
       runtime.cancel(session.id, 'no-valid-drop')
       sourceEl.style.display = ''
       sourceEl.classList.remove('kb-card-dragging-source')
@@ -198,7 +197,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
       const targetRect = targetEl.getBoundingClientRect()
       visualAdapter.applyState?.(targetEl, {
         phase: 'landing',
-        hovered: targetEl.matches(':hover'),
+        hovered: false,
         selected: targetEl.classList.contains('is-selected'),
         grabbed: false,
       })
@@ -287,6 +286,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
         beginLanding()
       }),
       reveal: () => {
+        document.body.classList.remove('kb-dragging')
         revealPlan?.()
         revealPlan = null
       },

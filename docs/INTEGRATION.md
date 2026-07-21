@@ -181,8 +181,8 @@ Runtime 或适配器：
 
 **4.2（可选覆盖）视觉适配器**
 
-默认情况下 Runtime 会自动解析 source/target、读取目标计算样式、同步 hover
-状态并完成 proxy → 本体交接。业务端不需要手动调用落地动画。
+Runtime 会统一编排 source/target 解析所需的生命周期顺序、landing、handoff、reveal
+和清理；具体 proxy、样式交接和落地动画仍由当前 clone/detach 视觉 driver 实现。
 
 只有需要特殊视觉时才注册适配器：
 
@@ -197,12 +197,13 @@ runtime.registerVisualAdapter('project-card', {
 })
 ```
 
-适配器只覆盖提供的字段，source/target 解析、hover 接管、landing、reveal 和
-清理仍由 Runtime 负责。
+适配器只覆盖提供的字段；Runtime 负责 Session、landing/reveal 顺序、幂等和
+清理，source/target 的具体 DOM 操作仍由视觉 driver 负责。
 
-**4.3 Runtime 内部的落地交接**
+**4.3 视觉 driver 的落地交接**
 
-以下代码展示 Runtime 内部如何执行交接，业务端不应直接调用。目标只读取一次
+以下代码展示视觉 driver 如何执行交接；Runtime 负责在 landing 完成后调用
+reveal，业务端不应自行编排 Session。目标只读取一次
 几何和视觉快照，动画过程中不再反复读取目标 DOM：
 
 ```ts

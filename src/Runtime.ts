@@ -327,6 +327,10 @@ export class Runtime {
         this.cancel(session.id, landingResult.reason ?? 'landing-failed')
         return
       }
+      // landing 完成只代表临时视觉运动结束；先进入 handoff，等待视觉策略
+      // 把最终 DOM/样式交回业务节点，再允许 Session 正常结束。这样成功路径
+      // 与取消、regrab 的终态边界一致，也不会把 reveal 误认为 dispose。
+      session.handoff()
       if (behavior.reveal) await behavior.reveal(this.createBehaviorContext(session), destination)
       if (this.sessions.get(session.id) !== session) return
       this.endSession(session)

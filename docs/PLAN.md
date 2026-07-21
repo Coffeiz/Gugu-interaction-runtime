@@ -292,21 +292,21 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 
 VisualAdapter 已接入 clone/detach 的抓取初始状态、目标解析和视觉快照；`MoveBehavior`
 上下文现在按 Session 注入 `visual`、`hit` 和 `emitAction`，landing/reveal 的
-完整编排仍待迁移到 Behavior 内部。
+调用顺序、幂等保护和失败终态由 Runtime 编排，具体视觉交接仍由策略 driver 实现。
 
 Runtime 现在会在调用 `release` driver 前统一推进 `active → release`，业务 driver
 只负责落点判定和后续 landing，不再自行模拟 release 阶段。
 Runtime 在 driver 返回后会兼容旧编排：若仍处于 `release`，自动推进到 `landing`；
-待后续将 driver 改为显式返回结构化落点结果。
+成功 landing 后 Runtime 会进入 `handoff`，再调用一次性 reveal，最后统一 dispose。
 新 driver 的推荐返回值为 `{ accepted, destination }`；`accepted: false` 由
 Runtime 统一转为 cancel。
 `Runtime.release()` 也会统一捕获 driver 异常并转为 cancel，避免交互链路暴露
 未处理 Promise。
 
-`MoveBehavior` 已提供可替换 driver；迁移期间可以先把现有业务编排挂到
+`MoveBehavior` 已提供可替换 driver；业务编排可以挂到
 `runtime.setMoveDriver()`。需要同时支持多个视觉策略时，使用
 `runtime.bindMoveSession(sessionId, driver)` 按 Session 绑定，避免 clone/detach
-之间共享可变状态；再逐步把 proxy、landing 和 Action 移入 Behavior。
+之间共享可变状态。proxy、landing 和具体 tween 仍属于 driver，不在本轮收进 Runtime。
 
 Action 使用明确的行为联合类型，不使用与业务数据库字段耦合的通用 patch：
 
@@ -329,7 +329,7 @@ Store，后续迁移 Behavior 时再切换为 Action 输出。
 | --- | --- |
 | `flipCoordinator.ts` 的 `layoutOwners` WeakMap + token 判断 | `Owner`（升级为对象级 `ControlMode` + channel Lease 两层） |
 | `flipCoordinator.ts` 的 `FlipTransaction`/`createGroupLayoutTransaction`/`createDrawerLayoutTransaction` | `Layout` |
-| `morphLifecycle.ts` | `Motion` |
+| `morphLifecycle.ts` | 业务视觉 driver（暂不收编 Motion） |
 | `projectGroupsLayout.ts` 的 Session 编排（`requestLayout`/`measureAndPlay`） | `Session` |
 | 各处零散的 RAF/ResizeObserver/listener 清理 | `Cleanup` |
 
@@ -340,5 +340,5 @@ Store，后续迁移 Behavior 时再切换为 Action 输出。
 3. Vue 可以更新业务内容和 DOM 结构，但不能播放视觉过渡。
 4. 所有临时 transform/height/opacity/visibility 必须由 Runtime 统一恢复。
 5. 旧 Session 只能释放自己的 Lease，不能重置对象当前样式。
-6. Runtime 完成交接后，先清除临时视觉样式，再恢复 Vue 控制。
+6. Runtime 只编排交接时机；具体临时视觉样式由当前 driver 清除，再恢复 Vue 控制。
 7. Vue 恢复控制的那一帧不得再次执行 enter/move 动画。

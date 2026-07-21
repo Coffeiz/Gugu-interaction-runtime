@@ -214,9 +214,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
 
   function onUp(): { columnId: string; index: number } | null {
     if (session.state !== 'active' && session.state !== 'release') return null
-    // 松手时立即恢复其他卡片的 hover，不等落地动画结束
-    document.body.classList.remove('kb-dragging')
     if (!pendingDrop) {
+      document.body.classList.remove('kb-dragging')
       // 本列原位松手不是“不需要布局动画”：抓起时本体已经被 Teleport
       // 移出列表，兄弟卡正处于收束 FLIP。恢复本体前必须捕获这一帧的视觉
       // 位置，恢复后再反向 FLIP，否则旧 transform 被清空时会瞬间展开。
@@ -283,7 +282,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         ?? sourceEl
       visualAdapter.applyState?.(landedEl, {
         phase: 'revealing',
-        hovered: landedEl.matches(':hover'),
+        hovered: false,
         selected: landedEl.classList.contains('is-selected'),
         grabbed: false,
       })
@@ -350,6 +349,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         landingPlan = null
       }),
       reveal: () => {
+        document.body.classList.remove('kb-dragging')
         runtime.clearRegrab(cardId, onRegrab)
         if (landingProxy) setProxyInteractive(landingProxy, false)
         revealPlan?.()
