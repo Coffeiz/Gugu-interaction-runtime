@@ -51,6 +51,23 @@ describe('Runtime move orchestration', () => {
     expect(handler).toHaveBeenCalledWith(event)
   })
 
+  it('按对象类型自动绑定 VisualStrategy 生命周期', async () => {
+    const runtime = createRuntime()
+    const events: string[] = []
+    runtime.registerVisualStrategy('project-card', {
+      beginDrag: () => { events.push('begin') },
+      landing: () => { events.push('landing'); return { completed: true } },
+      reveal: () => { events.push('reveal') },
+      dispose: () => { events.push('dispose') },
+    })
+    const handle = runtime.start(createRequest())
+    runtime.bindMoveSession(handle.id, createDriver(() => undefined))
+
+    await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
+
+    expect(events).toEqual(['begin', 'landing', 'reveal', 'dispose'])
+  })
+
   it('由 Runtime 为移动目标生成一次 MoveAction', async () => {
     const runtime = createRuntime()
     const actions: unknown[] = []

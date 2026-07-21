@@ -334,7 +334,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         // 后续迁移可将 onUp() 中的业务变更逻辑移至此处。
       },
     },
-    lifecycle: {
+    visualStrategy: {
       layout: {
         capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')),

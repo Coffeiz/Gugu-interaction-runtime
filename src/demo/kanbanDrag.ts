@@ -263,7 +263,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
         // 后续迁移可将 onUp() 中的业务变更逻辑移至此处。
       },
     },
-    lifecycle: {
+    visualStrategy: {
       layout: {
         capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
           .filter(el => el.dataset.card !== cardId && el !== proxy && el.dataset.runtimeProxy !== 'true')),

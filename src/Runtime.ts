@@ -6,7 +6,7 @@ import { Emitter } from './core/Emitter'
 import type { RuntimeInput, SessionHandle, StartRequest } from './core/Interaction'
 import type { Behavior, BehaviorContext } from './behavior/Behavior'
 import { BehaviorStore } from './behavior/BehaviorStore'
-import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle } from './behavior/MoveBehavior'
+import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle, type MoveVisualStrategy } from './behavior/MoveBehavior'
 import { DefaultVisualAdapter, VisualAdapters, type VisualAdapter } from './dom/VisualAdapter'
 import type { HitResolver } from './dom/Hit'
 import {
@@ -35,6 +35,8 @@ export interface OrchestrateMoveSessionOptions {
   driver?: MoveBehaviorDriver
   /** 落地/揭示阶段的视觉生命周期。 */
   lifecycle?: MoveVisualLifecycle
+  /** 可选的对象视觉策略；未传时按对象类型从 Runtime 注册表解析。 */
+  visualStrategy?: MoveVisualStrategy
   /** PointerSessionInput 选项。 */
   pointerInput?: PointerSessionInputOptions
   /**
@@ -67,6 +69,7 @@ export class Runtime {
   private sessions = new Map<string, Session>()
   private readonly events = new Emitter<RuntimeEvent>()
   private readonly actions = new Emitter<Action>()
+  private readonly visualStrategies = new Map<string, MoveVisualStrategy>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
@@ -78,6 +81,10 @@ export class Runtime {
 
   registerVisualAdapter(type: string, adapter: VisualAdapter): void {
     this.visuals.register(type, adapter)
+  }
+
+  registerVisualStrategy(type: string, strategy: MoveVisualStrategy): void {
+    this.visualStrategies.set(type, strategy)
   }
 
   getVisualAdapter(type: string): VisualAdapter {
@@ -234,6 +241,9 @@ export class Runtime {
     if (!behavior) throw new Error(`Unknown interaction behavior: ${request.type}`)
 
     const session = this.startSession(request.type, request.objectId)
+    const object = this.objects.get(request.objectId)
+    const strategy = object ? this.visualStrategies.get(object.type) : undefined
+    if (strategy) this.moveBehavior.bindLifecycle(session.id, strategy)
     const context = this.createBehaviorContext(session)
 
     // prepare 必须同步执行：业务侧（demo/kanbanDrag.ts 等）紧接着从
@@ -303,6 +313,8 @@ export class Runtime {
     }
     if (options.lifecycle) {
       this.bindMoveLifecycle(session.id, options.lifecycle)
+    } else if (options.visualStrategy) {
+      this.bindMoveLifecycle(session.id, options.visualStrategy)
     }
 
     const stopPointerInput = this.bindPointerSessionInput(session.id, options.pointerInput)
