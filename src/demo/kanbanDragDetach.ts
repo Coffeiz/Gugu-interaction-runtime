@@ -153,7 +153,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   applyFloatingStyle(sourceEl, rect)
   // 拖动期间禁用其他卡片的 hover 效果
   document.body.classList.add('kb-dragging')
-  session.cleanup.track(() => document.body.classList.remove('kb-dragging'))
   if (fromRect) {
     sourceEl.style.transition = 'none'
   }
@@ -214,6 +213,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
 
   function onUp(): { columnId: string; index: number } | null {
     if (session.state !== 'active' && session.state !== 'release') return null
+    // 松手时立即恢复其他卡片的 hover，不等落地动画结束
+    document.body.classList.remove('kb-dragging')
     if (!pendingDrop) {
       // 本列原位松手不是“不需要布局动画”：抓起时本体已经被 Teleport
       // 移出列表，兄弟卡正处于收束 FLIP。恢复本体前必须捕获这一帧的视觉

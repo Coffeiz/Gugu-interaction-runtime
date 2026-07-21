@@ -174,7 +174,12 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
       || item.element.dataset.runtimePlaceholder === 'true'
       || item.element.dataset.runtimeActive === 'true'
       || (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5)
-    ) continue
+    ) {
+      // resetActiveFlip 可能给这个元素设置了 transition: none，
+      // 如果跳过 FLIP，需要清除以免永久锁定 transition。
+      item.element.style.transition = ''
+      continue
+    }
     item.element.style.transform = `translate(${dx}px, ${dy}px)`
     item.element.style.transition = 'none'
     const token = String(Number(item.element.dataset.runtimeFlipToken ?? '0') + 1)

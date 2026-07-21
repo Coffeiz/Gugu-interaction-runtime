@@ -92,7 +92,6 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   sourceEl.dataset.runtimeActive = 'true'
   // 拖动期间禁用其他卡片的 hover 效果
   document.body.classList.add('kb-dragging')
-  session.cleanup.track(() => document.body.classList.remove('kb-dragging'))
   const placeholder = createDragPlaceholder(sourceEl, rect)
   sourceEl.style.display = 'none'
   const proxy = createDragProxy(sourceEl, rect)
@@ -140,6 +139,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
 
   function onUp(): { columnId: string; index: number } | null {
     if (session.state !== 'active' && session.state !== 'release') return null
+    // 松手时立即恢复其他卡片的 hover，不等落地动画结束
+    document.body.classList.remove('kb-dragging')
     if (!pendingDrop) {
       runtime.cancel(session.id, 'no-valid-drop')
       sourceEl.style.display = ''

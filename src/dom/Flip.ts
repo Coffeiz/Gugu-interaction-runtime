@@ -55,7 +55,12 @@ export function playFlip(
     const to = el.getBoundingClientRect()
     const dx = from.left - to.left
     const dy = from.top - to.top
-    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+      // resetActiveFlip 可能给这个元素设置了 transition: none !important，
+      // 如果跳过 FLIP，需要清除以免永久锁定 transition。
+      el.style.transition = ''
+      continue
+    }
     el.style.setProperty('transition', 'none', 'important')
     el.style.transform = `translate(${dx}px, ${dy}px)`
     const token = String(Number(el.dataset.runtimeFlipToken ?? '0') + 1)

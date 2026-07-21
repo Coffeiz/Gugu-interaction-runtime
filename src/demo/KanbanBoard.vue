@@ -275,7 +275,7 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
   box-shadow: inset 0 0 0 1px rgba(90,158,136,.35);
 }
 .kb-card-dragging-source { opacity: .35; visibility: hidden; }
-.kb-card-move { transition: transform .22s cubic-bezier(.22,1,.36,1); }
+.kb-card-move { transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .15s ease; }
 .kb-card-enter-active, .kb-card-leave-active { transition: opacity .18s ease; }
 .kb-card-enter-from, .kb-card-leave-to { opacity: 0; }
 /* 拖动期间禁用所有卡片 hover */
