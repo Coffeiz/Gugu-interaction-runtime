@@ -2,10 +2,13 @@ import { runtime } from '../Runtime'
 import {
   applyFloatingStyle,
   clearFloatingStyle,
+  concealElement,
   createDragProxy,
   destroyDragProxy,
   landDragProxy,
   moveFloating,
+  releaseVisibilityOwnership,
+  revealElement,
   setProxyInteractive,
   settleFloatingLayout,
 } from '../dom/Visual'
@@ -14,15 +17,6 @@ import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
-
-/**
- * visibility ownership guard：记录每个 DOM 元素当前 visibility 的 owner sessionId。
- * createDetachLandingVisual 隐藏 target 时登记，dispose 恢复时只允许当前 owner
- * 恢复。regrab 时旧 session 的 dispose 异步触发，但 owner 已被新 session 更新，
- * 跳过 visibility 恢复，避免旧 session 把 visibility 从 'hidden' 恢复为空而
- * 新 session 的落地动画还在进行中。
- */
-const visibilityOwner = new Map<HTMLElement, string>()
 
 const LANDING_DURATION = 3000
 
@@ -59,14 +53,10 @@ function createDetachLandingVisual(
   const dispose = () => {
     if (disposed) return
     disposed = true
-    const isOwner = visibilityOwner.get(target) === sessionId
     stopTargetTracking()
     // 只有当前 owner 才能恢复 visibility。regrab 后旧 session 的 dispose
     // 异步触发时 owner 已被新 session 更新，跳过恢复避免泄漏。
-    if (isOwner) {
-      target.style.visibility = previousVisibility
-      visibilityOwner.delete(target)
-    }
+    revealElement(target, sessionId)
     destroyDragProxy(proxy)
   }
 
@@ -78,8 +68,7 @@ function createDetachLandingVisual(
     proxy.style.opacity = dragSnapshot.opacity
     proxy.style.transform = dragSnapshot.transform || 'scale(1.03)'
   }
-  target.style.visibility = 'hidden'
-  visibilityOwner.set(target, sessionId)
+  concealElement(target, sessionId)
   const { finished: landed, retarget } = landDragProxy(proxy, targetRect, {
     duration,
     targetShadow: targetSnapshot?.boxShadow,
@@ -383,7 +372,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 3. 解除旧 session — interrupt('regrab') 跳过视觉 cleanup
     //     在 interrupt 之前解除 visibility ownership，这样旧 session 的
     //     dispose 异步触发时检查 owner 不匹配，跳过 visibility 恢复。
-    visibilityOwner.delete(liveEl)
+    releaseVisibilityOwnership(liveEl, session.id)
     runtime.interrupt(session.id, 'regrab')
 
     // 3.5 恢复 liveEl 可见性 — interrupt('regrab') 跳过 cleanup，

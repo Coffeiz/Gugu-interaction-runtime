@@ -538,6 +538,48 @@ export function settleFloatingLayout(el: HTMLElement): void {
 }
 const activeDragProxies = new Set<HTMLElement>()
 
+/**
+ * visibility ownership guard：记录每个 DOM 元素当前 visibility 的 owner sessionId。
+ * 用于 detach 策略中 landing 阶段隐藏本体时登记 owner，dispose 恢复时只允许当前
+ * owner 恢复。regrab 时旧 session 的 dispose 异步触发，但 owner 已被新 session
+ * 更新，跳过 visibility 恢复，避免旧 session 把 visibility 从 'hidden' 恢复为空
+ * 而新 session 的落地动画还在进行中。
+ */
+const visibilityOwner = new Map<HTMLElement, string>()
+
+/**
+ * 隐藏目标元素并登记 visibility ownership。
+ * 只有登记的 owner 才能通过 revealElement() 恢复可见性。
+ */
+export function concealElement(el: HTMLElement, ownerId: string): void {
+  visibilityOwner.set(el, ownerId)
+  el.style.visibility = 'hidden'
+}
+
+/**
+ * 恢复元素的可见性。只有当前 owner 才能恢复，非 owner 调用无效果。
+ * 返回是否实际执行了恢复操作。
+ */
+export function revealElement(el: HTMLElement, ownerId: string): boolean {
+  const isOwner = visibilityOwner.get(el) === ownerId
+  if (isOwner) {
+    el.style.visibility = ''
+    visibilityOwner.delete(el)
+  }
+  return isOwner
+}
+
+/**
+ * 解除 visibility ownership（不修改元素可见性）。
+ * 用于 regrab 场景：旧 session 的 dispose 异步触发时检查 owner 不匹配，
+ * 跳过 visibility 恢复。
+ */
+export function releaseVisibilityOwnership(el: HTMLElement, ownerId: string): void {
+  if (visibilityOwner.get(el) === ownerId) {
+    visibilityOwner.delete(el)
+  }
+}
+
 export function createDragPlaceholder(source: HTMLElement, rect: DOMRect): HTMLElement {
   const placeholder = document.createElement('div')
   placeholder.dataset.runtimePlaceholder = 'true'
