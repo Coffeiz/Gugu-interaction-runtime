@@ -300,7 +300,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       setProxyInteractive(landingVisual.proxy, true)
       runtime.registerRegrab(cardId, onRegrab)
       landingVisual.proxy.addEventListener('pointerdown', onRegrab)
-      session.cleanup.track(() => landingVisual.proxy.removeEventListener('pointerdown', onRegrab))
+      session.cleanup.trackTargetListener(landingVisual.proxy, 'pointerdown', onRegrab as EventListener)
       void landingVisual.finished.then(() => {
         if (session.state !== 'landing') return
         resolveLanding?.()

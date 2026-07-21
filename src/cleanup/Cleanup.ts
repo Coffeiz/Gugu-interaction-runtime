@@ -1,4 +1,4 @@
-/** 统一登记一个 Session 使用的监听器、RAF 和临时 DOM 清理函数。 */
+/** 统一登记一个 Session 使用的监听器、RAF、Timer 和临时 DOM 清理函数。 */
 export type Disposer = () => void
 
 let activeCount = 0
@@ -11,6 +11,11 @@ export class Cleanup {
   private disposers: Disposer[] = []
   private disposed = false
 
+  /** 是否已执行清理。 */
+  get isDisposed(): boolean {
+    return this.disposed
+  }
+
   track(disposer: Disposer): void {
     if (this.disposed) {
       disposer()
@@ -20,6 +25,10 @@ export class Cleanup {
     this.disposers.push(disposer)
   }
 
+  /**
+   * 登记 Window 事件监听器。
+   * 清理时自动 removeEventListener。
+   */
   trackListener<K extends keyof WindowEventMap>(
     target: Window,
     type: K,
@@ -29,8 +38,33 @@ export class Cleanup {
     this.track(() => target.removeEventListener(type, listener))
   }
 
+  /**
+   * 登记任意 EventTarget 上的事件监听器。
+   * 清理时自动 removeEventListener。
+   */
+  trackTargetListener(
+    target: EventTarget,
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: AddEventListenerOptions,
+  ): void {
+    target.addEventListener(type, listener, options)
+    this.track(() => target.removeEventListener(type, listener, options))
+  }
+
+  /** 登记 requestAnimationFrame ID，清理时自动 cancelAnimationFrame。 */
   trackRaf(id: number): void {
     this.track(() => cancelAnimationFrame(id))
+  }
+
+  /** 登记 setTimeout ID，清理时自动 clearTimeout。 */
+  trackTimeout(id: number): void {
+    this.track(() => clearTimeout(id))
+  }
+
+  /** 登记 setInterval ID，清理时自动 clearInterval。 */
+  trackInterval(id: number): void {
+    this.track(() => clearInterval(id))
   }
 
   disposeAll(): void {
