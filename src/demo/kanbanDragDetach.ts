@@ -261,6 +261,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       const landedEl = visualAdapter.resolveTarget?.(cardId, pendingDrop)
         ?? document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
         ?? sourceEl
+      runtime.getMoveContext(session.id).transaction.target = landedEl
       visualAdapter.applyState?.(landedEl, {
         phase: 'revealing',
         hovered: false,
