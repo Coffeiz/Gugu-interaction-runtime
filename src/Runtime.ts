@@ -29,6 +29,32 @@ export type RuntimeLandingTargetOptions = Omit<
   'cleanup' | 'target' | 'retarget'
 >
 
+export interface OrchestrateMoveSessionOptions {
+  /** 跟手阶段的行为驱动。 */
+  driver?: MoveBehaviorDriver
+  /** 落地/揭示阶段的视觉生命周期。 */
+  lifecycle?: MoveVisualLifecycle
+  /** PointerSessionInput 选项。 */
+  pointerInput?: PointerSessionInputOptions
+  /**
+   * 已存在的 sessionId。传入时跳过 start()，直接绑定到已有 session。
+   * 用于 demo 等需要在 start() 和 wiring 之间做初始化的场景。
+   */
+  sessionId?: string
+  /**
+   * 跟手定位的目标元素。设置后 MoveBehavior.update() 会自动更新该元素的
+   * left/top 实现跟手。业务层无需手动设置 moveContext.followElement。
+   */
+  followElement?: HTMLElement | null
+}
+
+export interface MoveSessionHandle extends SessionHandle {
+  /** 当前 session 的 MoveContext。 */
+  readonly moveContext: MoveContext
+  /** 解绑 pointer 输入并清理。 */
+  dispose(): void
+}
+
 export class Runtime {
   readonly owner = new Owner()
   readonly objects = new ObjectStore()
@@ -186,6 +212,56 @@ export class Runtime {
     }
   }
 
+  /**
+   * 编排一次完整的 move Session：start → bind driver → bind lifecycle →
+   * bind pointer input，一步到位。
+   *
+   * 调用方只需提供 driver（跟手阶段的行为）和 lifecycle（落地/揭示阶段的
+   * 视觉逻辑），不需要手动调用 bindMoveSession/bindMoveLifecycle/
+   * bindPointerSessionInput。
+   *
+   * 返回的 handle 包含 session id、moveContext、state 以及 dispose() 方法。
+   */
+  orchestrateMoveSession(
+    request: StartRequest,
+    options: OrchestrateMoveSessionOptions = {},
+  ): MoveSessionHandle {
+    // 如果传入了已存在的 sessionId，跳过 start() 直接绑定
+    let session: Session
+    if (options.sessionId) {
+      const existing = this.sessions.get(options.sessionId)
+      if (!existing) throw new Error(`Session not found: ${options.sessionId}`)
+      session = existing
+    } else {
+      const handle = this.start(request)
+      session = this.sessions.get(handle.id)!
+    }
+
+    const moveContext = this.getMoveContext(session.id)
+
+    if (options.followElement !== undefined) {
+      moveContext.followElement = options.followElement
+    }
+
+    if (options.driver) {
+      this.bindMoveSession(session.id, options.driver)
+    }
+    if (options.lifecycle) {
+      this.bindMoveLifecycle(session.id, options.lifecycle)
+    }
+
+    const stopPointerInput = this.bindPointerSessionInput(session.id, options.pointerInput)
+
+    return {
+      id: session.id,
+      get state() { return session.state },
+      get moveContext() { return moveContext },
+      cancel: reason => this.cancel(session.id, reason ?? 'cancelled'),
+      interrupt: reason => this.interrupt(session.id, reason ?? 'interrupted'),
+      dispose: () => { stopPointerInput() },
+    }
+  }
+
   update(sessionId: string, input: RuntimeInput): void {
     const session = this.sessions.get(sessionId)
     if (!session || session.state !== 'active') return
@@ -231,6 +307,16 @@ export class Runtime {
       this.cancel(session.id, 'invalid-release-result')
       return
     }
+
+    // commit 阶段：执行业务变更（emitAction + FLIP + 清理跟手样式）
+    try {
+      await behavior.commit(this.createBehaviorContext(session), destination)
+    } catch (error) {
+      this.cancel(session.id, error instanceof Error ? error.message : 'commit-failed')
+      return
+    }
+
+    if (this.sessions.get(session.id) !== session) return
 
     try {
       const landingResult = await behavior.landing(this.createBehaviorContext(session), destination)

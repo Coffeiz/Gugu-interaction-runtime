@@ -17,7 +17,20 @@ export interface MoveContext {
 export interface MoveBehaviorDriver {
   prepare?(context: BehaviorContext, request: StartRequest): void | Promise<void>
   update?(context: BehaviorContext, input: RuntimeInput): void
+  /** @deprecated 使用 resolveDestination + commit 替代。 */
   release?(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void>
+  /**
+   * 判定落点是否有效。纯函数，不修改 DOM/业务状态。
+   * 返回 accepted=false 时 session 被 cancel。
+   * 未实现时 fallback 到旧 release()。
+   */
+  resolveDestination?(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void>
+  /**
+   * 提交业务变更（emitAction + FLIP + 清理跟手样式）。
+   * 在 resolveDestination 返回 accepted=true 后调用。
+   * 未实现时 fallback 到旧 release()。
+   */
+  commit?(context: BehaviorContext, destination: unknown): void | Promise<void>
   cancel?(context: BehaviorContext, reason: string): void
   interrupt?(context: BehaviorContext, reason: string): void
 }
@@ -117,13 +130,32 @@ export class MoveBehavior implements Behavior {
   }
 
   release(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void> {
-    const result = this.driverFor(context.session.id).release?.(context, input)
+    const driver = this.driverFor(context.session.id)
+    // 优先使用新 resolveDestination 流程
+    if (driver.resolveDestination) {
+      return Promise.resolve(driver.resolveDestination(context, input)).then(result => {
+        if (result?.accepted && result.destination !== undefined) {
+          this.getContext(context.session.id).destination = result.destination
+        }
+        return result
+      })
+    }
+    // fallback: 旧 release
+    const result = driver.release?.(context, input)
     return Promise.resolve(result).then(releaseResult => {
       if (releaseResult?.accepted && releaseResult.destination !== undefined) {
         this.getContext(context.session.id).destination = releaseResult.destination
       }
       return releaseResult
     })
+  }
+
+  commit(context: BehaviorContext, destination: unknown): void | Promise<void> {
+    const driver = this.driverFor(context.session.id)
+    if (driver.commit) {
+      return driver.commit(context, destination)
+    }
+    // 没有 commit 实现时，旧 release 已经做了 commit 的工作，无需额外操作
   }
 
   cancel(context: BehaviorContext, reason: string): void {

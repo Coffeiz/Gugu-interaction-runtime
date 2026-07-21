@@ -2,10 +2,13 @@ import { runtime } from '../Runtime'
 import {
   applyFloatingStyle,
   clearFloatingStyle,
+  concealElement,
   createDragProxy,
   destroyDragProxy,
   landDragProxy,
   moveFloating,
+  releaseVisibilityOwnership,
+  revealElement,
   setProxyInteractive,
   settleFloatingLayout,
 } from '../dom/Visual'
@@ -51,7 +54,9 @@ function createDetachLandingVisual(
     if (disposed) return
     disposed = true
     stopTargetTracking()
-    target.style.visibility = previousVisibility
+    // 只有当前 owner 才能恢复 visibility。regrab 后旧 session 的 dispose
+    // 异步触发时 owner 已被新 session 更新，跳过恢复避免泄漏。
+    revealElement(target, sessionId)
     destroyDragProxy(proxy)
   }
 
@@ -63,7 +68,7 @@ function createDetachLandingVisual(
     proxy.style.opacity = dragSnapshot.opacity
     proxy.style.transform = dragSnapshot.transform || 'scale(1.03)'
   }
-  target.style.visibility = 'hidden'
+  concealElement(target, sessionId)
   const { finished: landed, retarget } = landDragProxy(proxy, targetRect, {
     duration,
     targetShadow: targetSnapshot?.boxShadow,
@@ -146,6 +151,9 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     moveContext.dragOffset = { x: offsetX, y: offsetY }
   }
   applyFloatingStyle(sourceEl, rect)
+  // 拖动期间禁用其他卡片的 hover 效果
+  document.body.classList.add('kb-dragging')
+  session.cleanup.track(() => document.body.classList.remove('kb-dragging'))
   if (fromRect) {
     sourceEl.style.transition = 'none'
   }
@@ -174,11 +182,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   sourceEl.dataset.runtimeActive = 'true'
   moveFloating(sourceEl, startX, startY, offsetX, offsetY)
   // 阶段 C：往后每次 pointermove 的跟手定位由 MoveBehavior.update() 统一
-  // 做（读这里写的 followElement + dragOffset）。detach 的跟手对象就是
-  // 本体自己。
-  moveContext.followElement = sourceEl
-  // Teleport 会在 ownership 更新后把本体移出列表；已登记的事务会在下一帧
-  // 用接管前快照补上平滑收束，或被同帧的放下事务接管。
+  // 做（通过 orchestrateMoveSession 的 followElement 选项 + dragOffset）。
+  // detach 的跟手对象就是本体自己。
 
   let currentColumnId = findColumnIdOf(cardId)
   const initialColumnId = currentColumnId
@@ -295,7 +300,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       setProxyInteractive(landingVisual.proxy, true)
       runtime.registerRegrab(cardId, onRegrab)
       landingVisual.proxy.addEventListener('pointerdown', onRegrab)
-      session.cleanup.track(() => landingVisual.proxy.removeEventListener('pointerdown', onRegrab))
+      session.cleanup.trackTargetListener(landingVisual.proxy, 'pointerdown', onRegrab as EventListener)
       void landingVisual.finished.then(() => {
         if (session.state !== 'landing') return
         resolveLanding?.()
@@ -306,27 +311,39 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     return pendingDrop
   }
 
-  runtime.bindMoveSession(session.id, {
-    update: (_context, input) => {
-      if (input.event instanceof PointerEvent) onMove(input.event)
+  runtime.orchestrateMoveSession({
+    type: 'move',
+    objectId: cardId,
+    input: { kind: 'pointerdown', event },
+  }, {
+    sessionId: session.id,
+    followElement: sourceEl,
+    driver: {
+      update: (_context, input) => {
+        if (input.event instanceof PointerEvent) onMove(input.event)
+      },
+      resolveDestination: () => {
+        const drop = onUp()
+        return drop ? { accepted: true, destination: drop } : { accepted: false }
+      },
+      commit: () => {
+        // onUp() 中的 emitAction + FLIP + 清理逻辑已由 resolveDestination
+        // 中的 onUp() 执行完毕，commit 阶段无需额外操作。
+        // 后续迁移可将 onUp() 中的业务变更逻辑移至此处。
+      },
     },
-    release: () => {
-      // Action 已经在 onUp() 里、moveCard 原本被调用的那一行原地发出去了。
-      const drop = onUp()
-      return drop ? { accepted: true, destination: drop } : { accepted: false }
-    },
-  })
-  runtime.bindMoveLifecycle(session.id, {
-    landing: () => new Promise<void>(resolve => {
-      resolveLanding = resolve
-      landingPlan?.()
-      landingPlan = null
-    }),
-    reveal: () => {
-      runtime.clearRegrab(cardId, onRegrab)
-      if (landingProxy) setProxyInteractive(landingProxy, false)
-      revealPlan?.()
-      revealPlan = null
+    lifecycle: {
+      landing: () => new Promise<void>(resolve => {
+        resolveLanding = resolve
+        landingPlan?.()
+        landingPlan = null
+      }),
+      reveal: () => {
+        runtime.clearRegrab(cardId, onRegrab)
+        if (landingProxy) setProxyInteractive(landingProxy, false)
+        revealPlan?.()
+        revealPlan = null
+      },
     },
   })
 
@@ -354,6 +371,9 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     runtime.clearRegrab(cardId)
 
     // 3. 解除旧 session — interrupt('regrab') 跳过视觉 cleanup
+    //     在 interrupt 之前解除 visibility ownership，这样旧 session 的
+    //     dispose 异步触发时检查 owner 不匹配，跳过 visibility 恢复。
+    releaseVisibilityOwnership(liveEl, session.id)
     runtime.interrupt(session.id, 'regrab')
 
     // 3.5 恢复 liveEl 可见性 — interrupt('regrab') 跳过 cleanup，
@@ -370,6 +390,4 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 5. 新 session 接管
     startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
   }
-  // Runtime 负责 window pointermove/pointerup 的安装、松手立即解绑和 Cleanup 兜底。
-  runtime.bindPointerSessionInput(session.id)
 }

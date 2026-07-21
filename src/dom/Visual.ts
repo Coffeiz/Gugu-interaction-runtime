@@ -1,4 +1,72 @@
+import type { VisualContext } from './VisualAdapterTypes'
+
 let visualOverlay: HTMLElement | null = null
+
+/**
+ * 从元素捕获 CSS 继承属性上下文。
+ * 用于在元素被移动到 overlay 等脱离原 DOM 树的位置时，
+ * 保持文本渲染与原位置一致。
+ */
+export function captureInheritedStyleContext(element: HTMLElement): VisualContext {
+  const style = getComputedStyle(element)
+  return {
+    fontFamily: style.fontFamily,
+    color: style.color,
+    fontSize: style.fontSize,
+    fontWeight: style.fontWeight,
+    lineHeight: style.lineHeight,
+    letterSpacing: style.letterSpacing,
+    textAlign: style.textAlign,
+    direction: style.direction,
+    wordSpacing: style.wordSpacing,
+    whiteSpace: style.whiteSpace,
+    textIndent: style.textIndent,
+  }
+}
+
+/**
+ * 将捕获的视觉上下文应用到目标元素。
+ */
+export function applyInheritedStyleContext(target: HTMLElement, context: VisualContext): void {
+  target.style.fontFamily = context.fontFamily
+  target.style.color = context.color
+  target.style.fontSize = context.fontSize
+  target.style.fontWeight = context.fontWeight
+  target.style.lineHeight = context.lineHeight
+  target.style.letterSpacing = context.letterSpacing
+  target.style.textAlign = context.textAlign
+  target.style.direction = context.direction
+  target.style.wordSpacing = context.wordSpacing
+  target.style.whiteSpace = context.whiteSpace
+  target.style.textIndent = context.textIndent
+}
+
+/**
+ * 回归验证：检查 source → proxy 的视觉上下文一致性。
+ * 返回不一致的属性列表，空数组表示全部一致。
+ */
+export function verifyVisualContextConsistency(
+  source: HTMLElement,
+  proxy: HTMLElement,
+): string[] {
+  const sourceCtx = captureInheritedStyleContext(source)
+  const proxyCtx = captureInheritedStyleContext(proxy)
+  const mismatches: string[] = []
+  
+  const keys: (keyof VisualContext)[] = [
+    'fontFamily', 'color', 'fontSize', 'fontWeight',
+    'lineHeight', 'letterSpacing', 'textAlign',
+    'direction', 'wordSpacing', 'whiteSpace', 'textIndent',
+  ]
+  
+  for (const key of keys) {
+    if (sourceCtx[key] !== proxyCtx[key]) {
+      mismatches.push(`${key}: source=${sourceCtx[key]}, proxy=${proxyCtx[key]}`)
+    }
+  }
+  
+  return mismatches
+}
 
 /**
  * Runtime 的临时视觉层。proxy/landing visual 必须脱离 Surface、应用壳和
@@ -217,6 +285,11 @@ function wrapContentForMorph(
   // 已经在 contentLayer 的 left/top/right/bottom 里补偿了，contentLayer 如果
   // 带上 toContent 自己那份 padding，内容会被缩进两次，跟 proxy 对不上。
   while (toContentClone.firstChild) contentLayer.appendChild(toContentClone.firstChild)
+  // contentLayer 被挂到 overlay 下的 proxy 中，脱离了 toContent 的原始 DOM
+  // 上下文，字体/颜色等继承属性会丢失。从 toContent 捕获视觉上下文并固化到
+  // contentLayer，确保文本渲染一致。
+  const visualContext = captureInheritedStyleContext(toContent)
+  applyInheritedStyleContext(contentLayer, visualContext)
   const toEls = normalizeToElements(contentLayer)
   const toSignatures = new Set(toEls.map(childSignature))
 
@@ -464,6 +537,48 @@ export function settleFloatingLayout(el: HTMLElement): void {
   el.style.visibility = 'hidden'
 }
 const activeDragProxies = new Set<HTMLElement>()
+
+/**
+ * visibility ownership guard：记录每个 DOM 元素当前 visibility 的 owner sessionId。
+ * 用于 detach 策略中 landing 阶段隐藏本体时登记 owner，dispose 恢复时只允许当前
+ * owner 恢复。regrab 时旧 session 的 dispose 异步触发，但 owner 已被新 session
+ * 更新，跳过 visibility 恢复，避免旧 session 把 visibility 从 'hidden' 恢复为空
+ * 而新 session 的落地动画还在进行中。
+ */
+const visibilityOwner = new Map<HTMLElement, string>()
+
+/**
+ * 隐藏目标元素并登记 visibility ownership。
+ * 只有登记的 owner 才能通过 revealElement() 恢复可见性。
+ */
+export function concealElement(el: HTMLElement, ownerId: string): void {
+  visibilityOwner.set(el, ownerId)
+  el.style.visibility = 'hidden'
+}
+
+/**
+ * 恢复元素的可见性。只有当前 owner 才能恢复，非 owner 调用无效果。
+ * 返回是否实际执行了恢复操作。
+ */
+export function revealElement(el: HTMLElement, ownerId: string): boolean {
+  const isOwner = visibilityOwner.get(el) === ownerId
+  if (isOwner) {
+    el.style.visibility = ''
+    visibilityOwner.delete(el)
+  }
+  return isOwner
+}
+
+/**
+ * 解除 visibility ownership（不修改元素可见性）。
+ * 用于 regrab 场景：旧 session 的 dispose 异步触发时检查 owner 不匹配，
+ * 跳过 visibility 恢复。
+ */
+export function releaseVisibilityOwnership(el: HTMLElement, ownerId: string): void {
+  if (visibilityOwner.get(el) === ownerId) {
+    visibilityOwner.delete(el)
+  }
+}
 
 export function createDragPlaceholder(source: HTMLElement, rect: DOMRect): HTMLElement {
   const placeholder = document.createElement('div')

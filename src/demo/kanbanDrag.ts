@@ -90,6 +90,9 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
 
   sourceEl.classList.add('kb-card-dragging-source')
   sourceEl.dataset.runtimeActive = 'true'
+  // 拖动期间禁用其他卡片的 hover 效果
+  document.body.classList.add('kb-dragging')
+  session.cleanup.track(() => document.body.classList.remove('kb-dragging'))
   const placeholder = createDragPlaceholder(sourceEl, rect)
   sourceEl.style.display = 'none'
   const proxy = createDragProxy(sourceEl, rect)
@@ -97,6 +100,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   // 在任何 dragging state 覆写之前先固化文本视觉上下文，避免字体、字重、
   // 行高等继承属性变化，导致字符（例如完成徽章的 ✓）与本体长得不一样。
   preserveProxyVisualContext(sourceEl, proxy)
+
   visualAdapter.applyState?.(proxy, {
     phase: 'dragging',
     hovered: sourceEl.matches(':hover'),
@@ -107,8 +111,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   session.cleanup.track(() => destroyDragPlaceholder(placeholder))
   moveDragProxy(proxy, startX, startY, offsetX, offsetY)
   // 阶段 C：往后每次 pointermove 的跟手定位由 MoveBehavior.update() 统一
-  // 做（读这里写的 followElement + dragOffset），onMove 只剩命中判定。
-  moveContext.followElement = proxy
+  // 做（通过 orchestrateMoveSession 的 followElement 选项 + dragOffset），
+  // onMove 只剩命中判定。
 
   let currentColumnId = findColumnIdOf(cardId)
   const initialColumnId = currentColumnId
@@ -255,31 +259,40 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     startCardDrag(regrabEvent, cardId, sourceEl, proxyRect)
   }
 
-  runtime.bindMoveSession(session.id, {
-    update: (_context, input) => {
-      if (input.event instanceof PointerEvent) onMove(input.event)
+  runtime.orchestrateMoveSession({
+    type: 'move',
+    objectId: cardId,
+    input: { kind: 'pointerdown', event },
+  }, {
+    sessionId: session.id,
+    followElement: proxy,
+    driver: {
+      update: (_context, input) => {
+        if (input.event instanceof PointerEvent) onMove(input.event)
+      },
+      resolveDestination: () => {
+        const drop = onUp()
+        return drop ? { accepted: true, destination: drop } : { accepted: false }
+      },
+      commit: () => {
+        // onUp() 中的 emitAction + FLIP + 清理逻辑已由 resolveDestination
+        // 中的 onUp() 执行完毕，commit 阶段无需额外操作。
+        // 后续迁移可将 onUp() 中的业务变更逻辑移至此处。
+      },
     },
-    release: () => {
-      // Action 已经在 onUp() 里、moveCard 原本被调用的那一行原地发出去了
-      // （见那边的注释）——这里不再重复发一次。
-      const drop = onUp()
-      return drop ? { accepted: true, destination: drop } : { accepted: false }
+    lifecycle: {
+      landing: () => new Promise<void>(resolve => {
+        resolveLanding = resolve
+        beginLanding()
+      }),
+      reveal: () => {
+        revealPlan?.()
+        revealPlan = null
+      },
     },
   })
-  runtime.bindMoveLifecycle(session.id, {
-    landing: () => new Promise<void>(resolve => {
-      resolveLanding = resolve
-      beginLanding()
-    }),
-    reveal: () => {
-      revealPlan?.()
-      revealPlan = null
-    },
-  })
-  // Runtime 负责 window pointermove/pointerup 的安装、松手立即解绑和 Cleanup 兜底。
-  runtime.bindPointerSessionInput(session.id)
   proxy.addEventListener('pointerdown', onRegrab)
-  session.cleanup.track(() => proxy.removeEventListener('pointerdown', onRegrab))
+  session.cleanup.trackTargetListener(proxy, 'pointerdown', onRegrab as EventListener)
 }
 
 /**
