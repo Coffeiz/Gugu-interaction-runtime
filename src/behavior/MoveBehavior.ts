@@ -229,6 +229,7 @@ export class MoveBehavior implements Behavior {
     const transaction = this.getContext(context.session.id).transaction
     transaction.invalidate()
     transaction.setPhase('cancelled')
+    this.sessionLifecycles.get(context.session.id)?.cancel?.(context, reason)
     this.driverFor(context.session.id).interrupt?.(context, reason)
   }
 
