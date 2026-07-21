@@ -40,6 +40,17 @@ function createRequest() {
 }
 
 describe('Runtime move orchestration', () => {
+  it('通过 Runtime 统一转发 regrab handler', () => {
+    const runtime = createRuntime()
+    const handler = vi.fn()
+    runtime.registerRegrab('card-1', handler)
+    const event = new PointerEvent('pointerdown')
+
+    expect(runtime.regrab('card-1', event)).toBe(true)
+    expect(runtime.regrab('missing', event)).toBe(false)
+    expect(handler).toHaveBeenCalledWith(event)
+  })
+
   it('由 Runtime 为移动目标生成一次 MoveAction', async () => {
     const runtime = createRuntime()
     const actions: unknown[] = []

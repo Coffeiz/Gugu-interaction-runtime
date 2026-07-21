@@ -139,6 +139,13 @@ export class Runtime {
     return this.moveBehavior.getRegrab(objectId)
   }
 
+  regrab(objectId: string, event: PointerEvent): boolean {
+    const handler = this.moveBehavior.getRegrab(objectId)
+    if (!handler) return false
+    handler(event)
+    return true
+  }
+
   clearRegrab(objectId: string, handler?: (event: PointerEvent) => void): void {
     this.moveBehavior.clearRegrab(objectId, handler)
   }
