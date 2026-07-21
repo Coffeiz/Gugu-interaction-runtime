@@ -7,6 +7,8 @@ export type { RuntimeEvent, RuntimeLandingTargetOptions } from './Runtime'
 export { Session } from './session/Session'
 export type { SessionState } from './session/Session'
 export { MoveBehavior } from './behavior/MoveBehavior'
+export { MoveTransaction } from './behavior/MoveTransaction'
+export type { MoveTransactionPhase, MoveActionDestination } from './behavior/MoveTransaction'
 export type {
   MoveContext,
   MoveBehaviorDriver,

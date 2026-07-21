@@ -130,6 +130,15 @@ src/
 
 ## 五、执行计划
 
+### 当前冻结基线
+
+Runtime demo 当前冻结于提交 `2153600`（`feat: 收口Runtime移动事务编排`）。
+该基线已经完成 Session、MoveBehavior、Action、landing/reveal 顺序和清理编排，
+clone/detach 两种视觉策略保持现状，浏览器回归暂不继续扩大范围。
+
+后续功能请从新分支开始，不直接改变冻结基线；MotionController、CardVisualHost、
+file/canvas/drawer/multi 接入均不属于当前冻结版本。
+
 ### 阶段 0：本仓库内的最小骨架（demo，不接业务）
 
 > 说明：demo 只用于验证 Runtime 核心协议，不承担 Gugu-web 的完整业务迁移。
@@ -235,38 +244,64 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 单独排期——现在的落地动画是借用 `Layout` 的 `playFlip` 顶替的，见
 [VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
 
-### 阶段 1：迁移 Gugu-web 抽屉链路（试点，不是看板项目卡）
+### 阶段 0.7：Runtime 纯 API 接入收口（当前优先）
 
-选择理由：这条链路（抽屉项目卡 → 状态组折叠 → `projectGroupsLayout` FLIP
-→ `DrawerViewport` 高度 → TransitionGroup 挂载/卸载）已经暴露过全部三类
-真实 bug（重叠事务、二次 FLIP、合成层未重绘），有现成的回归场景，不需要
-凭空构造测试用例。
+目标是让业务端只注册 Object、Surface、HitResolver、Action 订阅和视觉策略，
+不再手动编排 Session、FLIP、target、landing、reveal 或 regrab。运动数学仍由
+业务侧现有视觉实现提供，本阶段不新增 MotionController，也不引入 CardVisualHost。
 
-只做三件事：
+执行顺序固定为：
 
-1. 给抽屉相关 `Transition`/`TransitionGroup` 加 `controlled` 开关
+1. [x] 新增 `MoveTransaction`，统一保存 source、destination、target、phase 和
+   异步 token；
+2. [x] 将 MoveAction 的生成收回 Runtime，业务端只订阅 `runtime.onAction()`；
+3. 将 pickup/drop 的 Layout capture、FLIP 调度和取消恢复收回事务；
+4. 将 source/target 解析、target 等待、zero-size 处理收回 Runtime；
+5. 将 clone/detach 的视觉实现注册为 `VisualStrategy`，Runtime 只调用统一的
+   `beginDrag/landing/reveal/cancel/dispose` 生命周期；
+6. 将 regrab、旧 token 失效和旧 session cleanup 收回 Runtime；
+7. 删除 demo 中重复的 Session、Action、FLIP、target 和 regrab 编排。
+
+验收标准：
+
+- 业务入口不再直接调用 `captureLayoutFlip`、`scheduleLayoutFlip`、
+  `createDragProxy`、`landDragProxy`、`registerRegrab` 或 `emitAction`；
+- 每个移动事务只产生一次 Action、landing 和 reveal；
+- commit/landing/reveal 失败都进入统一取消和清理路径；
+- interrupt 后旧 Promise、旧 listener 和旧 Lease 不再影响新 Session；
+- clone/detach 视觉行为不改变；
+- Runtime 不实现 MotionController，不保存业务 Store 状态。
+
+### 阶段 1：迁移 Gugu-web 看板项目卡
+
+首个真实接入目标改为看板项目卡。看板已有 clone/detach 两种视觉策略和
+完整的跨列、同列、落地中断回归场景，适合先验证 Runtime 纯 API 是否能收回
+业务侧的事务编排。
+
+1. 给看板相关 `Transition`/`TransitionGroup` 加 `controlled` 开关
    （`:css="!controlled"`）。
-2. 由 `InteractionRuntime` 的一个 Session 统一接管：组高度变化、兄弟组
-   位移（现有 `projectGroupsLayout`/`FlipTransaction` 收编进 `Layout`）、
-   抽屉高度事务（`createDrawerLayoutTransaction` 收编进 `Layout`）、
-   落地/交接（现有 `morphLifecycle` 收编进 `Motion`）。
-3. 保留 Vue 作为 DOM 创建/销毁工具，但关闭它对这些节点的自动
-   move/leave 动画。
+2. 由 Runtime 的一个 MoveTransaction 统一接管 Surface 命中、Action 提交、
+   兄弟布局 FLIP 调度、落地和交接顺序。
+3. 保留 clone/detach 的具体视觉实现，但业务入口只注册 API，不再直接编排
+   Session、target、landing/reveal 和 regrab。
+4. 保留 Vue 作为 DOM 创建/销毁工具，但关闭它对这些节点的自动 move/leave 动画。
 
-验收标准（直接覆盖 Gugu-web 已知过的真实 bug，见
-`Gugu-web/docs/devlog.md` 2026-07-17、2026-07-18 两条记录）：
+验收标准：
 
-- [ ] 状态组展开/收起不出现二次 FLIP
-- [ ] 抽屉滚动位置不跳
-- [ ] 组高度变化时不切卡片（不出现拖出底部卡片时被裁切的问题）
-- [ ] 卡片拖入/拖出时，组和容器高度同步收缩/展开，不留空位
-      （对应 2026-07-18 的合成层未重绘 bug）
-- [ ] 连续拖拽、中途中断（regrab）不残留 Vue transition class，也不
-      出现"旧事务把新事务的样式清掉"（对应重叠 FLIP 事务 bug）
+- [ ] 看板同列、跨列和无效落点都只产生一次 Action
+- [ ] clone/detach 的 landing、reveal、regrab 行为保持不变
+- [ ] 连续拖拽、中途中断不残留 Vue transition class，也不出现旧事务清理
+      新事务样式
+- [ ] 看板兄弟卡片和 Surface 布局由同一个事务调度，避免二次 FLIP 和空位
 
-### 阶段 2：视迁移效果决定是否推广到看板项目卡拖拽
+### 阶段 2：迁移 Gugu-web 文件卡
 
-不在本计划详细展开，等阶段 1 验收通过、真实跑一段时间没有回归后再定。
+阶段 1 验收通过并稳定运行后，复用同一套 Runtime API 接入文件卡视觉策略。
+
+### 阶段 3：迁移 Gugu-web 画布对象
+
+最后接入画布对象，保留 camera、连接点和吸入动效等业务专属行为，Runtime
+只负责事务和 Surface 边界。
 
 ### 阶段 2.5：多组布局与折叠
 

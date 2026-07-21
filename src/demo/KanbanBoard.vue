@@ -265,6 +265,10 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,.12);
 }
+.kb-card[data-runtime-landing-capture="true"]:hover {
+  transform: none !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08) !important;
+}
 .kb-card-done { background: #f0f6ff; }
 .kb-card-locked { cursor: not-allowed; opacity: .6; }
 .kb-lock-hint { font-size: 11px; color: #999; }

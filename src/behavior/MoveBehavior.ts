@@ -1,8 +1,10 @@
 import type { Behavior, BehaviorContext } from './Behavior'
 import type { RuntimeInput, StartRequest } from '../core/Interaction'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
+import { MoveTransaction } from './MoveTransaction'
 
 export interface MoveContext {
+  transaction: MoveTransaction
   sourceElement: HTMLElement | null
   dragOffset: { x: number; y: number }
   followElement?: HTMLElement | null
@@ -93,7 +95,11 @@ export class MoveBehavior implements Behavior {
   getContext(sessionId: string): MoveContext {
     let context = this.contexts.get(sessionId)
     if (!context) {
-      context = { sourceElement: null, dragOffset: { x: 0, y: 0 } }
+      context = {
+        transaction: new MoveTransaction(),
+        sourceElement: null,
+        dragOffset: { x: 0, y: 0 },
+      }
       this.contexts.set(sessionId, context)
     }
     return context
@@ -105,8 +111,10 @@ export class MoveBehavior implements Behavior {
 
   prepare(context: BehaviorContext, request: StartRequest): void | Promise<void> {
     const moveContext = this.getContext(context.session.id)
+    moveContext.transaction.setPhase('prepare')
     const sourceElement = context.visual?.resolveSource?.(request.objectId) ?? null
     moveContext.sourceElement = sourceElement
+    moveContext.transaction.source = sourceElement
     const pointerEvent = request.input.event instanceof PointerEvent ? request.input.event : null
     if (sourceElement && pointerEvent) {
       const rect = sourceElement.getBoundingClientRect()
@@ -121,6 +129,7 @@ export class MoveBehavior implements Behavior {
   update(context: BehaviorContext, input: RuntimeInput): void {
     if (context.session.state !== 'active') return
     const moveContext = this.getContext(context.session.id)
+    moveContext.transaction.setPhase('active')
     const pointerEvent = input.event instanceof PointerEvent ? input.event : null
     if (pointerEvent && moveContext.followElement) {
       moveContext.followElement.style.left = `${pointerEvent.clientX - moveContext.dragOffset.x}px`
@@ -130,12 +139,15 @@ export class MoveBehavior implements Behavior {
   }
 
   release(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void> {
+    const moveContext = this.getContext(context.session.id)
+    moveContext.transaction.setPhase('release')
     const driver = this.driverFor(context.session.id)
     // 优先使用新 resolveDestination 流程
     if (driver.resolveDestination) {
       return Promise.resolve(driver.resolveDestination(context, input)).then(result => {
         if (result?.accepted && result.destination !== undefined) {
-          this.getContext(context.session.id).destination = result.destination
+          moveContext.destination = result.destination
+          moveContext.transaction.destination = result.destination
         }
         return result
       })
@@ -144,13 +156,15 @@ export class MoveBehavior implements Behavior {
     const result = driver.release?.(context, input)
     return Promise.resolve(result).then(releaseResult => {
       if (releaseResult?.accepted && releaseResult.destination !== undefined) {
-        this.getContext(context.session.id).destination = releaseResult.destination
+        moveContext.destination = releaseResult.destination
+        moveContext.transaction.destination = releaseResult.destination
       }
       return releaseResult
     })
   }
 
   commit(context: BehaviorContext, destination: unknown): void | Promise<void> {
+    this.getContext(context.session.id).transaction.setPhase('landing')
     const driver = this.driverFor(context.session.id)
     if (driver.commit) {
       return driver.commit(context, destination)
@@ -159,19 +173,28 @@ export class MoveBehavior implements Behavior {
   }
 
   cancel(context: BehaviorContext, reason: string): void {
+    const transaction = this.getContext(context.session.id).transaction
+    transaction.invalidate()
+    transaction.setPhase('cancelled')
     this.driverFor(context.session.id).cancel?.(context, reason)
   }
 
   interrupt(context: BehaviorContext, reason: string): void {
+    const transaction = this.getContext(context.session.id).transaction
+    transaction.invalidate()
+    transaction.setPhase('cancelled')
     this.driverFor(context.session.id).interrupt?.(context, reason)
   }
 
   dispose(context: BehaviorContext): void {
+    const transaction = this.getContext(context.session.id).transaction
+    if (transaction.phase !== 'cancelled') transaction.setPhase('disposed')
     this.unbindSession(context.session.id)
   }
 
   landing(context: BehaviorContext, destination: unknown): LandingResult | void | Promise<LandingResult | void> {
     const moveContext = this.getContext(context.session.id)
+    moveContext.transaction.setPhase('landing')
     if (moveContext.landingStarted) {
       return moveContext.landingPromise ?? { completed: moveContext.landingCompleted === true }
     }
@@ -192,6 +215,7 @@ export class MoveBehavior implements Behavior {
     if (moveContext.revealCommitted) return
     if (moveContext.landingStarted && !moveContext.landingCompleted) return
     moveContext.revealCommitted = true
+    moveContext.transaction.setPhase('handoff')
     return this.sessionLifecycles.get(context.session.id)?.reveal?.(context, destination)
   }
 }
