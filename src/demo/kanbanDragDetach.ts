@@ -179,11 +179,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   sourceEl.dataset.runtimeActive = 'true'
   moveFloating(sourceEl, startX, startY, offsetX, offsetY)
   // 阶段 C：往后每次 pointermove 的跟手定位由 MoveBehavior.update() 统一
-  // 做（读这里写的 followElement + dragOffset）。detach 的跟手对象就是
-  // 本体自己。
-  moveContext.followElement = sourceEl
-  // Teleport 会在 ownership 更新后把本体移出列表；已登记的事务会在下一帧
-  // 用接管前快照补上平滑收束，或被同帧的放下事务接管。
+  // 做（通过 orchestrateMoveSession 的 followElement 选项 + dragOffset）。
+  // detach 的跟手对象就是本体自己。
 
   let currentColumnId = findColumnIdOf(cardId)
   const initialColumnId = currentColumnId
@@ -317,6 +314,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     input: { kind: 'pointerdown', event },
   }, {
     sessionId: session.id,
+    followElement: sourceEl,
     driver: {
       update: (_context, input) => {
         if (input.event instanceof PointerEvent) onMove(input.event)

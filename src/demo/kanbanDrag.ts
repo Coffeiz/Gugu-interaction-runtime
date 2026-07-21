@@ -108,8 +108,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   session.cleanup.track(() => destroyDragPlaceholder(placeholder))
   moveDragProxy(proxy, startX, startY, offsetX, offsetY)
   // 阶段 C：往后每次 pointermove 的跟手定位由 MoveBehavior.update() 统一
-  // 做（读这里写的 followElement + dragOffset），onMove 只剩命中判定。
-  moveContext.followElement = proxy
+  // 做（通过 orchestrateMoveSession 的 followElement 选项 + dragOffset），
+  // onMove 只剩命中判定。
 
   let currentColumnId = findColumnIdOf(cardId)
   const initialColumnId = currentColumnId
@@ -262,6 +262,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     input: { kind: 'pointerdown', event },
   }, {
     sessionId: session.id,
+    followElement: proxy,
     driver: {
       update: (_context, input) => {
         if (input.event instanceof PointerEvent) onMove(input.event)

@@ -41,6 +41,11 @@ export interface OrchestrateMoveSessionOptions {
    * 用于 demo 等需要在 start() 和 wiring 之间做初始化的场景。
    */
   sessionId?: string
+  /**
+   * 跟手定位的目标元素。设置后 MoveBehavior.update() 会自动更新该元素的
+   * left/top 实现跟手。业务层无需手动设置 moveContext.followElement。
+   */
+  followElement?: HTMLElement | null
 }
 
 export interface MoveSessionHandle extends SessionHandle {
@@ -233,6 +238,10 @@ export class Runtime {
     }
 
     const moveContext = this.getMoveContext(session.id)
+
+    if (options.followElement !== undefined) {
+      moveContext.followElement = options.followElement
+    }
 
     if (options.driver) {
       this.bindMoveSession(session.id, options.driver)
