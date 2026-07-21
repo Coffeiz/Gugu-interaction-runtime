@@ -174,11 +174,12 @@ describe('Runtime move orchestration', () => {
   it('landing 被 interrupt 后，旧 Promise 完成不能触发 reveal', async () => {
     const runtime = createRuntime()
     const reveal = vi.fn()
+    const cancel = vi.fn()
     let resolveLanding!: (result: { completed: boolean }) => void
     const landing = new Promise<{ completed: boolean }>(resolve => { resolveLanding = resolve })
     const handle = runtime.start(createRequest())
     runtime.bindMoveSession(handle.id, createDriver(() => undefined))
-    runtime.bindMoveLifecycle(handle.id, { landing: () => landing, reveal })
+    runtime.bindMoveLifecycle(handle.id, { landing: () => landing, reveal, cancel })
 
     const release = runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
     await Promise.resolve()
@@ -187,6 +188,7 @@ describe('Runtime move orchestration', () => {
     await release
 
     expect(reveal).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledWith(expect.anything(), 'regrab')
     expect(runtime.getSession(handle.id)).toBeUndefined()
   })
 })

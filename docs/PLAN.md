@@ -260,7 +260,7 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 4. [x] 将 source/target 解析、target 等待、zero-size 处理收回 Runtime；
 5. [x] 将 clone/detach 的视觉实现注册为 `VisualStrategy`，Runtime 只调用统一的
    `beginDrag/landing/reveal/cancel/dispose` 生命周期；
-6. 将 regrab、旧 token 失效和旧 session cleanup 收回 Runtime；
+6. [x] 将 regrab、旧 token 失效和旧 session cleanup 收回 Runtime；
 7. 删除 demo 中重复的 Session、Action、FLIP、target 和 regrab 编排（待看板接入）。
 
 验收标准：
