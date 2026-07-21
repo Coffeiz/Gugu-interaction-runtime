@@ -10,6 +10,8 @@ Vue 的响应式更新循环中分离出来，验证一套独立的 Runtime 是�
 - **给使用者看的接入文档**：怎么把一个新对象接进这套 Runtime，见
   [docs/INTEGRATION.md](docs/INTEGRATION.md)；两套视觉策略（clone /
   detach）的能力对比见 [docs/VISUAL_STRATEGIES.md](docs/VISUAL_STRATEGIES.md)。
+- **视觉连续性设计**：proxy/source 切换、Visual State、TransformCompositor
+  的设计原则见 [docs/VISUAL_STATE_DESIGN.md](docs/VISUAL_STATE_DESIGN.md)。
 
 当前阶段：阶段 0.5（Core 与 `MoveBehavior` 执行层已完成），尚未接入
 Gugu-web。Runtime 负责 Session、移动事务、landing/reveal 时机和清理；clone/
