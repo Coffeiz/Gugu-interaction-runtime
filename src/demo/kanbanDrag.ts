@@ -114,7 +114,6 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
   // onMove 只剩命中判定。
 
   let currentColumnId = findColumnIdOf(cardId)
-  const initialColumnId = currentColumnId
   let currentIndex = -1
   let pendingDrop: { columnId: string; index: number } | null = null
   let resolveLanding: (() => void) | null = null
@@ -153,21 +152,6 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     // 同列重排时 Vue 可能复用当前 sourceEl；如果它仍是 display:none，
     // 复用后的 landing target 会得到 0×0 rect，代理就会飞到左上角。
     sourceEl.style.display = ''
-    // 阶段 D：不直接调 moveCard——业务数据变化统一走 Action，这里只负责
-    // 生成语义化的落点结果。emitAction 是同步的（Emitter.emit 内部就是
-    // 一个同步 forEach），订阅方（KanbanBoard.vue）会在这一行原地同步执行
-    // moveCard，所以下面 captureRects/playFlip 的时序跟以前直接调
-    // moveCard 完全一样，不会因为改走 Action 而错位。
-    if (initialColumnId) {
-      runtime.emitAction({
-        type: 'move',
-        objectId: cardId,
-        fromSurfaceId: `column:${initialColumnId}`,
-        toSurfaceId: `column:${pendingDrop.columnId}`,
-        toIndex: pendingDrop.index,
-        timestamp: Date.now(),
-      })
-    }
     hideLiveCard(cardId)
     return pendingDrop
   }

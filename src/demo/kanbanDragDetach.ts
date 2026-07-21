@@ -186,7 +186,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   // detach 的跟手对象就是本体自己。
 
   let currentColumnId = findColumnIdOf(cardId)
-  const initialColumnId = currentColumnId
   let currentIndex = -1
   let pendingDrop: { columnId: string; index: number } | null = null
   let landingPlan: (() => void) | null = null
@@ -232,20 +231,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     const beforeRect = sourceEl.getBoundingClientRect()
     // 必须在提交业务状态前登记：若 pickup 的 rAF 尚未执行，这一笔会直接
     // 替换它并继承抓起前的视觉快照。
-    // 阶段 D：不直接调 moveCard，改走 Action——顺序不能变：必须在
-    // objectLease.release() 之前完成，因为 Teleport 重新插入本体时读的
-    // 是"此刻" columns 数据算出来的位置，emitAction 是同步的，订阅方会
-    // 在这一行原地同步执行 moveCard，跟直接调用时序一致。
-    if (initialColumnId) {
-      runtime.emitAction({
-        type: 'move',
-        objectId: cardId,
-        fromSurfaceId: `column:${initialColumnId}`,
-        toSurfaceId: `column:${pendingDrop.columnId}`,
-        toIndex: pendingDrop.index,
-        timestamp: Date.now(),
-      })
-    }
     // 必须在 scheduleLayoutFlip 实际测量之前解除——本体此刻仍是
     // applyFloatingStyle 设的 position:fixed，不占父级正常布局空间，
     // 不解除的话 surface 高度动画会算出"少一张卡"的错误目标（见
