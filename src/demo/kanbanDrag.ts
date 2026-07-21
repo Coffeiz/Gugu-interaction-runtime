@@ -149,9 +149,6 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
       destroyDragProxy(proxy)
       return null
     }
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
-      .filter(el => el.dataset.card !== cardId && el !== proxy && el.dataset.runtimeProxy !== 'true')
-    const before = captureLayoutFlip(cards)
     destroyDragPlaceholder(placeholder)
     // 同列重排时 Vue 可能复用当前 sourceEl；如果它仍是 display:none，
     // 复用后的 landing target 会得到 0×0 rect，代理就会飞到左上角。
@@ -172,7 +169,6 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
       })
     }
     hideLiveCard(cardId)
-    scheduleLayoutFlip(before)
     return pendingDrop
   }
 
@@ -284,6 +280,11 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
       },
     },
     lifecycle: {
+      layout: {
+        capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+          .filter(el => el.dataset.card !== cardId && el !== proxy && el.dataset.runtimeProxy !== 'true')),
+        play: (_context, snapshot) => scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>),
+      },
       landing: () => new Promise<void>(resolve => {
         resolveLanding = resolve
         beginLanding()

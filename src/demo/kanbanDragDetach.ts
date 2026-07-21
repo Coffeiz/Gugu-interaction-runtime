@@ -230,12 +230,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       return null
     }
     const beforeRect = sourceEl.getBoundingClientRect()
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
-      .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')
-    const before = captureLayoutFlip(cards)
     // 必须在提交业务状态前登记：若 pickup 的 rAF 尚未执行，这一笔会直接
     // 替换它并继承抓起前的视觉快照。
-    scheduleLayoutFlip(before)
     // 阶段 D：不直接调 moveCard，改走 Action——顺序不能变：必须在
     // objectLease.release() 之前完成，因为 Teleport 重新插入本体时读的
     // 是"此刻" columns 数据算出来的位置，emitAction 是同步的，订阅方会
@@ -345,6 +341,11 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       },
     },
     lifecycle: {
+      layout: {
+        capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+          .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')),
+        play: (_context, snapshot) => scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>),
+      },
       landing: () => new Promise<void>(resolve => {
         // 松手后立即恢复其它卡片 hover；landing 代理自身仍由视觉策略接管。
         document.body.classList.remove('kb-dragging')

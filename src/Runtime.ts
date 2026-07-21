@@ -280,6 +280,9 @@ export class Runtime {
     if (session.state !== 'release') return
 
     const behavior = this.behaviors.get(session.type)
+    if (behavior instanceof MoveBehavior) {
+      behavior.captureLayout(this.createBehaviorContext(session))
+    }
     let result: unknown
     try {
       result = await behavior?.release?.(this.createBehaviorContext(session), input)
@@ -311,8 +314,6 @@ export class Runtime {
 
     // 布局快照由 Runtime 在 commit 前统一捕获，避免业务 driver 自己编排
     // capture/schedule 与 Action、landing 产生竞态。
-    behavior.captureLayout(this.createBehaviorContext(session))
-
     // commit 阶段：执行业务变更（emitAction + FLIP + 清理跟手样式）
     try {
       await behavior.commit(this.createBehaviorContext(session), destination)
