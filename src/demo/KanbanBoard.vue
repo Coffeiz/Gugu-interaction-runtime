@@ -259,6 +259,11 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
   box-sizing: border-box;
   background: #fff; border-radius: 8px; padding: 10px 12px; font-size: 13px;
   box-shadow: 0 1px 3px rgba(0,0,0,.08); cursor: grab; user-select: none;
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.kb-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
 }
 .kb-card-done { background: #f0f6ff; }
 .kb-card-locked { cursor: not-allowed; opacity: .6; }
@@ -273,4 +278,9 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
 .kb-card-move { transition: transform .22s cubic-bezier(.22,1,.36,1); }
 .kb-card-enter-active, .kb-card-leave-active { transition: opacity .18s ease; }
 .kb-card-enter-from, .kb-card-leave-to { opacity: 0; }
+/* 拖动期间禁用所有卡片 hover */
+body.kb-dragging .kb-card:hover {
+  transform: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
 </style>

@@ -90,6 +90,9 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
 
   sourceEl.classList.add('kb-card-dragging-source')
   sourceEl.dataset.runtimeActive = 'true'
+  // 拖动期间禁用其他卡片的 hover 效果
+  document.body.classList.add('kb-dragging')
+  session.cleanup.track(() => document.body.classList.remove('kb-dragging'))
   const placeholder = createDragPlaceholder(sourceEl, rect)
   sourceEl.style.display = 'none'
   const proxy = createDragProxy(sourceEl, rect)

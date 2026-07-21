@@ -151,6 +151,9 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     moveContext.dragOffset = { x: offsetX, y: offsetY }
   }
   applyFloatingStyle(sourceEl, rect)
+  // 拖动期间禁用其他卡片的 hover 效果
+  document.body.classList.add('kb-dragging')
+  session.cleanup.track(() => document.body.classList.remove('kb-dragging'))
   if (fromRect) {
     sourceEl.style.transition = 'none'
   }
