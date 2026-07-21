@@ -15,7 +15,7 @@ const allowedTransitions: Record<SessionState, SessionState[]> = {
   saving: ['handoff', 'rollback', 'interrupt', 'cancelled'],
   handoff: ['done', 'cancelled'],
   rollback: ['done', 'cancelled'],
-  interrupt: ['active', 'disposed', 'cancelled'],
+  interrupt: ['disposed', 'cancelled'],
   done: ['disposed'],
   cancelled: ['disposed'],
   disposed: [],
