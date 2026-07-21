@@ -250,6 +250,9 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 不再手动编排 Session、FLIP、target、landing、reveal 或 regrab。运动数学仍由
 业务侧现有视觉实现提供，本阶段不新增 MotionController，也不引入 CardVisualHost。
 
+> 状态：已完成。后续看板回归属于阶段 1；视觉策略内部保留的 proxy/placeholder
+> DOM 操作不再向 Runtime 上移。
+
 执行顺序固定为：
 
 1. [x] 新增 `MoveTransaction`，统一保存 source、destination、target、phase 和
@@ -261,12 +264,15 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 5. [x] 将 clone/detach 的视觉实现注册为 `VisualStrategy`，Runtime 只调用统一的
    `beginDrag/landing/reveal/cancel/dispose` 生命周期；
 6. [x] 将 regrab、旧 token 失效和旧 session cleanup 收回 Runtime；
-7. 删除 demo 中重复的 Session、Action、FLIP、target 和 regrab 编排（待看板接入）。
+7. [x] 删除 demo 中重复的 Session、Action、落地 FLIP、target 和 regrab 编排；
+   pickup 阶段的 proxy/placeholder DOM 操作仍属于 clone/detach VisualStrategy，
+   不再视为 Runtime 事务编排。
 
 验收标准：
 
-- 业务入口不再直接调用 `captureLayoutFlip`、`scheduleLayoutFlip`、
-  `createDragProxy`、`landDragProxy`、`registerRegrab` 或 `emitAction`；
+- 业务入口不再直接调用 `scheduleLayoutFlip`、`registerRegrab` 或 `emitAction`；
+  `captureLayoutFlip`、`createDragProxy`、`landDragProxy` 仅允许出现在视觉策略
+  实现内部，不属于 Runtime 事务入口；
 - 每个移动事务只产生一次 Action、landing 和 reveal；
 - commit/landing/reveal 失败都进入统一取消和清理路径；
 - interrupt 后旧 Promise、旧 listener 和旧 Lease 不再影响新 Session；
