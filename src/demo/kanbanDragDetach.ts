@@ -258,10 +258,17 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       // 当前真正渲染出来的节点：同列场景下查到的就是 sourceEl 本身，跨列
       // 场景下查到的是目标列刚创建的新节点——不管是哪种，用它当 FLIP 的
       // "to"，看起来都是同一个对象飞过去。
-      const landedEl = visualAdapter.resolveTarget?.(cardId, pendingDrop)
-        ?? document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
-        ?? sourceEl
-      runtime.getMoveContext(session.id).transaction.target = landedEl
+      const landedEl = runtime.resolveMoveTarget(
+        session.id,
+        pendingDrop,
+        () => document.querySelector<HTMLElement>(`[data-card="${cardId}"]`) ?? sourceEl,
+      )
+      if (!landedEl) {
+        resolveLanding?.()
+        resolveLanding = null
+        revealPlan = () => undefined
+        return
+      }
       visualAdapter.applyState?.(landedEl, {
         phase: 'revealing',
         hovered: false,
