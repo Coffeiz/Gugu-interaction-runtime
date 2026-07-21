@@ -15,31 +15,6 @@ import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
 
-// --- probe panel ---
-const _probePanel = document.createElement('div')
-_probePanel.id = 'detach-probe-panel'
-_probePanel.style.cssText = 'position:fixed;top:0;right:0;z-index:99999;background:rgba(0,0,0,.8);color:#0f0;font:12px/1.4 monospace;padding:6px 10px;max-height:200px;overflow-y:auto;pointer-events:none;white-space:pre-wrap;width:420px'
-document.body.appendChild(_probePanel)
-let _probeBuf = ''
-function _probe(tag: string, msg = '') {
-  const t = Date.now()
-  const line = `${t} ${tag}${msg ? ` ${msg}` : ''}`
-  _probeBuf += line + '\n'
-  _probePanel.textContent = _probeBuf
-  console.log(`[detach-probe] ${line}`)
-  if (_probeBuf.length > 5000) _probeBuf = _probeBuf.slice(-3000)
-}
-// --- end probe panel ---
-
-/**
- * visibility ownership guard：记录每个 DOM 元素当前 visibility 的 owner sessionId。
- * createDetachLandingVisual 隐藏 target 时登记，dispose 恢复时只允许当前 owner
- * 恢复。regrab 时旧 session 的 dispose 异步触发，但 owner 已被新 session 更新，
- * 跳过 visibility 恢复，避免旧 session 把 visibility 从 'hidden' 恢复为空而
- * 新 session 的落地动画还在进行中。
- */
-const visibilityOwner = new Map<HTMLElement, string>()
-
 const LANDING_DURATION = 3000
 
 /**
@@ -75,15 +50,8 @@ function createDetachLandingVisual(
   const dispose = () => {
     if (disposed) return
     disposed = true
-    const isOwner = visibilityOwner.get(target) === sessionId
-    _probe('DISPOSE', `${sessionId} target.visibility=${target.style.visibility}->${previousVisibility} isOwner=${isOwner} disposed=${disposed}`)
     stopTargetTracking()
-    // 只有当前 owner 才能恢复 visibility。regrab 后旧 session 的 dispose
-    // 异步触发时 owner 已被新 session 更新，跳过恢复避免泄漏。
-    if (isOwner) {
-      target.style.visibility = previousVisibility
-      visibilityOwner.delete(target)
-    }
+    target.style.visibility = previousVisibility
     destroyDragProxy(proxy)
   }
 
@@ -96,8 +64,6 @@ function createDetachLandingVisual(
     proxy.style.transform = dragSnapshot.transform || 'scale(1.03)'
   }
   target.style.visibility = 'hidden'
-  visibilityOwner.set(target, sessionId)
-  _probe('HIDE_TARGET', `${sessionId} target.visibility=hidden owner=${visibilityOwner.get(target)}`)
   const { finished: landed, retarget } = landDragProxy(proxy, targetRect, {
     duration,
     targetShadow: targetSnapshot?.boxShadow,
@@ -127,18 +93,15 @@ runtime.setHitResolver(kanbanHitResolver)
  * 是"正在跟手"还是"正在 FLIP 回弹"。
  */
 export function startCardDragDetach(event: PointerEvent, cardId: string, sourceEl: HTMLElement, fromRect?: DOMRect) {
-  _probe('START', `${cardId} fromRect=${!!fromRect}`)
   // 对象声明了自己不能参与 'move' 类型的 Session，直接拒绝。
   if (!runtime.objects.hasAbility(cardId, 'move')) return
   event.preventDefault()
   // 检查是否有正在飞行中的 regrab 登记。
   const activeRegrab = runtime.getRegrab(cardId)
   if (activeRegrab) {
-    _probe('REGRAB', `${cardId} activeRegrab exists`)
     activeRegrab(event)
     return
   }
-  _probe('VISIBLE', `${cardId} visibility=${sourceEl.style.visibility} datasetActive=${sourceEl.dataset.runtimeActive}`)
   // 落地代理要能从"抓起时的内容"渐变到"落点的内容"（比如落进已完成列多一个
   // 徽章、拖出来少一个徽章）——detach 全程只有这一个真实节点，proxy 迟早要
   // 克隆它，但如果落地时才克隆，克隆到的已经是 Vue 按新位置/新状态重渲染过
@@ -292,8 +255,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // Surface 的 Lease（TransitionGroup 总闸）留到落地动画结束才一起释放。
     objectLease.release()
     landingPlan = () => requestAnimationFrame(() => {
-      _probe('LANDING_PLAN', `${cardId} sessionState=${session.state}`)
-      _probe('RAF', `${cardId} sourceEl.visibility=${sourceEl.style.visibility} datasetActive=${sourceEl.dataset.runtimeActive}`)
       // clearFloatingStyle 不能在 onUp() 里同步调用：那样会在这一帧同步抹掉
       // sourceEl 的抬起阴影/位置样式，但接管视觉的落地代理要等到这个 rAF 才
       // 创建——中间至少有一帧，浏览器会先画出"样式已经被清空、但代理还没
@@ -302,7 +263,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       // 影响，所以拖到这里才清也不会看见位置跳动——延后清除跟延后隐藏必须
       // 在同一个 rAF 里完成，才能让"跟手样式"和"落地代理"无缝衔接。
       clearFloatingStyle(sourceEl)
-      _probe('CLEAR_FLOATING', `${cardId} sourceEl.visibility=${sourceEl.style.visibility}`)
       // 注意：这里不能继续用闭包里的 sourceEl。同列内重排时 Vue 确实会
       // 复用同一个节点（同一个 v-for 数组内 diff），但跨列拖拽时源列和
       // 目标列是两个独立的 v-for/TransitionGroup 实例，Vue 只能在源列里
@@ -314,7 +274,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       const landedEl = visualAdapter.resolveTarget?.(cardId, pendingDrop)
         ?? document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
         ?? sourceEl
-      _probe('LANDED_EL', `${cardId} landedEl=${landedEl === sourceEl ? 'sourceEl' : 'other'} visibility=${landedEl.style.visibility}`)
       visualAdapter.applyState?.(landedEl, {
         phase: 'revealing',
         hovered: landedEl.matches(':hover'),
@@ -338,7 +297,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       landingVisual.proxy.addEventListener('pointerdown', onRegrab)
       session.cleanup.track(() => landingVisual.proxy.removeEventListener('pointerdown', onRegrab))
       void landingVisual.finished.then(() => {
-        _probe('MOTION_FINISH', `${cardId} sessionState=${session.state} willResolve=${session.state === 'landing'}`)
         if (session.state !== 'landing') return
         resolveLanding?.()
         resolveLanding = null
@@ -370,13 +328,11 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     },
     lifecycle: {
       landing: () => new Promise<void>(resolve => {
-        _probe('LANDING_START', `${cardId} sessionState=${session.state} pointerActive=${!!session.cleanup}`)
         resolveLanding = resolve
         landingPlan?.()
         landingPlan = null
       }),
       reveal: () => {
-        _probe('REVEAL', `${cardId} sessionState=${session.state} proxyExists=${!!landingProxy}`)
         runtime.clearRegrab(cardId, onRegrab)
         if (landingProxy) setProxyInteractive(landingProxy, false)
         revealPlan?.()
@@ -389,7 +345,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
    * regrab：落地飞行途中重新抓起这张卡片，起点是代理当前的插值位置。
    */
   function onRegrab(regrabEvent: PointerEvent) {
-    _probe('REGRAB', `${cardId} sessionState=${session.state}`)
     if (session.state !== 'landing') return
     regrabEvent.stopPropagation()
 
@@ -410,9 +365,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     runtime.clearRegrab(cardId)
 
     // 3. 解除旧 session — interrupt('regrab') 跳过视觉 cleanup
-    //     在 interrupt 之前解除 visibility ownership，这样旧 session 的
-    //     dispose 异步触发时检查 owner 不匹配，跳过 visibility 恢复。
-    visibilityOwner.delete(liveEl)
     runtime.interrupt(session.id, 'regrab')
 
     // 3.5 恢复 liveEl 可见性 — interrupt('regrab') 跳过 cleanup，
