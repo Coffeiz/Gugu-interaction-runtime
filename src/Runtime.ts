@@ -18,6 +18,7 @@ import {
   type PointerSessionInputOptions,
 } from './input/PointerSessionInput'
 import type { Action } from './action/Action'
+import type { MoveActionDestination } from './behavior/MoveTransaction'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -318,6 +319,14 @@ export class Runtime {
 
     if (this.sessions.get(session.id) !== session) return
 
+    const moveContext = behavior instanceof MoveBehavior
+      ? behavior.getContext(session.id)
+      : null
+    if (moveContext && this.emitMoveAction(session.objectId, moveContext.destination, moveContext.transaction)) {
+      // Action 已由 Runtime 统一发出；视觉 driver 的 commit 仍负责布局和样式，
+      // 但不再需要重复提交业务动作。
+    }
+
     try {
       const landingResult = await behavior.landing(this.createBehaviorContext(session), destination)
       const liveSession = this.sessions.get(session.id)
@@ -339,6 +348,25 @@ export class Runtime {
         this.cancel(session.id, error instanceof Error ? error.message : 'landing-failed')
       }
     }
+  }
+
+  private emitMoveAction(
+    objectId: string,
+    destination: unknown,
+    transaction: MoveContext['transaction'],
+  ): boolean {
+    if (transaction.actionEmitted || !isMoveActionDestination(destination)) return false
+    const action: Action = {
+      type: 'move',
+      objectId,
+      fromSurfaceId: destination.fromSurfaceId,
+      toSurfaceId: destination.toSurfaceId,
+      ...(destination.toIndex === undefined ? {} : { toIndex: destination.toIndex }),
+      timestamp: Date.now(),
+    }
+    transaction.actionEmitted = true
+    this.actions.emit(action)
+    return true
   }
 
   cancel(sessionId: string, reason = 'cancelled'): void {
@@ -422,3 +450,11 @@ export class Runtime {
 }
 
 export const runtime = new Runtime()
+
+function isMoveActionDestination(value: unknown): value is MoveActionDestination {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<MoveActionDestination>
+  return typeof candidate.fromSurfaceId === 'string'
+    && typeof candidate.toSurfaceId === 'string'
+    && (candidate.toIndex === undefined || typeof candidate.toIndex === 'number')
+}

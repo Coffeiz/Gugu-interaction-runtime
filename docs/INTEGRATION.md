@@ -9,6 +9,10 @@
 > Session、landing/reveal 时机和清理；业务端仍需要提供对象的命中、Action
 > 提交及 clone/detach 这类具体视觉策略。
 
+> **冻结基线**：当前 demo 基于提交 `2153600` 冻结。clone/detach 是已验证的
+> 两种视觉策略；MotionController、CardVisualHost 以及其他对象类型接入暂不在
+> 此基线内。需要扩展时请从新分支开始，避免改变现有回归行为。
+
 ## 现在能怎么接
 
 以 [`KanbanBoard.vue`](../src/demo/KanbanBoard.vue) 为例。

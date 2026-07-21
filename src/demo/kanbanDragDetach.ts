@@ -292,10 +292,12 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       // 临时冻结 transition 并强制完成一次 layout，只捕获稳定的业务终态；
       // 读取后恢复原 transition，真实本体揭示时仍保留正常 hover 过渡。
       const targetTransition = landedEl.style.transition
+      landedEl.dataset.runtimeLandingCapture = 'true'
       landedEl.style.transition = 'none'
       void landedEl.offsetWidth
       const targetSnapshot = visualAdapter.captureVisualState?.(landedEl)
       landedEl.style.transition = targetTransition
+      delete landedEl.dataset.runtimeLandingCapture
       const landingVisual = createDetachLandingVisual(
         session.id,
         landedEl,
@@ -344,12 +346,13 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     },
     lifecycle: {
       landing: () => new Promise<void>(resolve => {
+        // 松手后立即恢复其它卡片 hover；landing 代理自身仍由视觉策略接管。
+        document.body.classList.remove('kb-dragging')
         resolveLanding = resolve
         landingPlan?.()
         landingPlan = null
       }),
       reveal: () => {
-        document.body.classList.remove('kb-dragging')
         runtime.clearRegrab(cardId, onRegrab)
         if (landingProxy) setProxyInteractive(landingProxy, false)
         revealPlan?.()

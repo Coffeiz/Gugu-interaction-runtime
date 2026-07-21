@@ -178,6 +178,9 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
 
   function beginLanding() {
     session.transition('landing')
+    // 松手后代理仍继续落地，但其它真实卡片应立即恢复 hover；拖动态只
+    // 屏蔽 active 阶段，不能把整段 landing 也当成拖动。
+    document.body.classList.remove('kb-dragging')
     setProxyInteractive(proxy, true)
     sourceEl.classList.remove('kb-card-dragging-source')
     delete sourceEl.dataset.runtimeActive
@@ -286,7 +289,6 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
         beginLanding()
       }),
       reveal: () => {
-        document.body.classList.remove('kb-dragging')
         revealPlan?.()
         revealPlan = null
       },

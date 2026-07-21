@@ -19,7 +19,14 @@ function createRuntime() {
 
 function createDriver(commit: () => void | Promise<void>): MoveBehaviorDriver {
   return {
-    resolveDestination: () => ({ accepted: true, destination: { surfaceId: 'column:done', index: 0 } }),
+    resolveDestination: () => ({
+      accepted: true,
+      destination: {
+        fromSurfaceId: 'column:todo',
+        toSurfaceId: 'column:done',
+        toIndex: 0,
+      },
+    }),
     commit,
   }
 }
@@ -33,6 +40,24 @@ function createRequest() {
 }
 
 describe('Runtime move orchestration', () => {
+  it('由 Runtime 为移动目标生成一次 MoveAction', async () => {
+    const runtime = createRuntime()
+    const actions: unknown[] = []
+    runtime.onAction(action => actions.push(action))
+    const handle = runtime.start(createRequest())
+    runtime.bindMoveSession(handle.id, createDriver(() => undefined))
+
+    await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
+
+    expect(actions).toEqual([expect.objectContaining({
+      type: 'move',
+      objectId: 'card-1',
+      fromSurfaceId: 'column:todo',
+      toSurfaceId: 'column:done',
+      toIndex: 0,
+    })])
+  })
+
   it('成功路径按 landing → handoff → reveal → dispose 完成', async () => {
     const runtime = createRuntime()
     const events: string[] = []
