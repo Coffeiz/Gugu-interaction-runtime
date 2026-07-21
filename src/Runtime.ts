@@ -314,7 +314,15 @@ export class Runtime {
 
     // 布局快照由 Runtime 在 commit 前统一捕获，避免业务 driver 自己编排
     // capture/schedule 与 Action、landing 产生竞态。
-    // commit 阶段：执行业务变更（emitAction + FLIP + 清理跟手样式）
+    // Action 必须先于视觉 commit 发出：看板订阅会同步更新 Vue 列表，
+    // 视觉策略随后才能解析到跨列后的真实 target。Action 仍只由 Runtime
+    // 发出，但不能等 commit 完成后再发，否则目标 DOM 仍停留在旧列。
+    const moveContext = behavior instanceof MoveBehavior
+      ? behavior.getContext(session.id)
+      : null
+    if (moveContext) this.emitMoveAction(session.objectId, moveContext.destination, moveContext.transaction)
+
+    // commit 阶段：执行视觉策略的清理与布局准备
     try {
       await behavior.commit(this.createBehaviorContext(session), destination)
     } catch (error) {
@@ -325,14 +333,6 @@ export class Runtime {
     behavior.playLayout(this.createBehaviorContext(session))
 
     if (this.sessions.get(session.id) !== session) return
-
-    const moveContext = behavior instanceof MoveBehavior
-      ? behavior.getContext(session.id)
-      : null
-    if (moveContext && this.emitMoveAction(session.objectId, moveContext.destination, moveContext.transaction)) {
-      // Action 已由 Runtime 统一发出；视觉 driver 的 commit 仍负责布局和样式，
-      // 但不再需要重复提交业务动作。
-    }
 
     try {
       const landingResult = await behavior.landing(this.createBehaviorContext(session), destination)
