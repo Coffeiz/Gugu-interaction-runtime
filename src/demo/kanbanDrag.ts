@@ -174,6 +174,7 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
         revealPlan = finish
         return
       }
+      runtime.getMoveContext(session.id).transaction.target = targetEl
       // 兄弟 FLIP 和 Vue 的同步更新可能在 release 后才完成；松手瞬间捕获的
       // rect 可能仍是旧布局。landing 开始时 target 已经是当前可见布局，必须
       // 以这一帧的真实 rect 为准，否则 proxy 会先吸到旧位置再回到新位置。
