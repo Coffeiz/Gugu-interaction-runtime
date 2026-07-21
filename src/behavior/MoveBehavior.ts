@@ -111,10 +111,6 @@ export class MoveBehavior implements Behavior {
     this.sessionLifecycles.set(sessionId, lifecycle)
   }
 
-  getLifecycle(sessionId: string): MoveVisualLifecycle | undefined {
-    return this.sessionLifecycles.get(sessionId)
-  }
-
   captureLayout(context: BehaviorContext): void {
     const moveContext = this.getContext(context.session.id)
     const snapshot = this.sessionLifecycles.get(context.session.id)?.layout?.capture?.(context)

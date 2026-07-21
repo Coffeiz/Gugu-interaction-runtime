@@ -335,11 +335,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       },
     },
     visualStrategy: {
-      beforeAction: () => {
-        document.querySelectorAll<HTMLElement>(`[data-card="${cardId}"]`).forEach(el => {
-          if (el.dataset.runtimeProxy !== 'true') el.style.visibility = 'hidden'
-        })
-      },
       layout: {
         capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')),

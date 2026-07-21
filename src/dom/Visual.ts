@@ -144,6 +144,9 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   // 源节点在 clone 策略中会暂时使用隐藏类保留列表占位；代理必须是唯一可见
   // 的视觉主体，不能把源节点的隐藏状态一起复制过来。
   proxy.classList.remove('kb-card-dragging-source')
+  // identity hidden 是本体生命周期标记，不能随 clone 复制到 proxy；否则
+  // 松手交接时 proxy 也会被业务的隐藏规则盖住，表现为视觉主体瞬间消失。
+  delete proxy.dataset.runtimeVisualHidden
   proxy.style.position = 'fixed'
   proxy.style.left = `${rect.left}px`
   proxy.style.top = `${rect.top}px`

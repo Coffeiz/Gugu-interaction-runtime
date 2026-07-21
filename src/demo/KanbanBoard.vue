@@ -269,6 +269,7 @@ function onCardPointerDown(event: PointerEvent, cardId: string) {
   transform: none !important;
   box-shadow: 0 1px 3px rgba(0,0,0,.08) !important;
 }
+.kb-card[data-runtime-visual-hidden="true"] { visibility: hidden !important; }
 .kb-card-done { background: #f0f6ff; }
 .kb-card-locked { cursor: not-allowed; opacity: .6; }
 .kb-lock-hint { font-size: 11px; color: #999; }
