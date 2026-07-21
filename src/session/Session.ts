@@ -81,10 +81,15 @@ export class Session {
     this.endReason = reason
     if (reason === 'regrab') {
       // regrab 时跳过视觉 cleanup：proxy/landing visual 由新 session 接管。
-      // 直接 done → disposed，不经过 interrupt 状态，只释放 leases。
+      // 但仍必须经过 interrupt，不能把 release/landing 直接伪装成 done；
+      // 否则 release → done 不在合法转换表中，会让快速 regrab 抛异常。
       if (this.state === 'disposed') return
-      if (this.state !== 'done' && this.state !== 'cancelled') this.transition('done')
-      this.transition('disposed')
+      if (this.state !== 'interrupt' && this.state !== 'cancelled' && this.state !== 'done') {
+        this.transition('interrupt')
+      }
+      if (this.state === 'interrupt' || this.state === 'cancelled' || this.state === 'done') {
+        this.transition('disposed')
+      }
       this.leases.forEach(lease => lease.release())
       this.leases = []
       return
