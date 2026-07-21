@@ -13,6 +13,7 @@ export type {
   MoveContext,
   MoveBehaviorDriver,
   MoveVisualLifecycle,
+  MoveLayoutLifecycle,
   MoveReleaseResult,
   LandingResult,
 } from './behavior/MoveBehavior'

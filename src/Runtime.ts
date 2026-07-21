@@ -309,6 +309,10 @@ export class Runtime {
       return
     }
 
+    // 布局快照由 Runtime 在 commit 前统一捕获，避免业务 driver 自己编排
+    // capture/schedule 与 Action、landing 产生竞态。
+    behavior.captureLayout(this.createBehaviorContext(session))
+
     // commit 阶段：执行业务变更（emitAction + FLIP + 清理跟手样式）
     try {
       await behavior.commit(this.createBehaviorContext(session), destination)
@@ -316,6 +320,8 @@ export class Runtime {
       this.cancel(session.id, error instanceof Error ? error.message : 'commit-failed')
       return
     }
+
+    behavior.playLayout(this.createBehaviorContext(session))
 
     if (this.sessions.get(session.id) !== session) return
 
@@ -376,6 +382,7 @@ export class Runtime {
     const context = this.createBehaviorContext(session)
 
     try {
+      if (behavior instanceof MoveBehavior) behavior.cancelLayout(context, reason)
       behavior?.cancel?.(context, reason)
     } catch (error) {
       console.error('Behavior cancel failed', error)
@@ -396,6 +403,7 @@ export class Runtime {
     const context = this.createBehaviorContext(session)
 
     try {
+      if (behavior instanceof MoveBehavior) behavior.cancelLayout(context, reason)
       behavior?.interrupt?.(context, reason)
     } catch (error) {
       console.error('Behavior interrupt failed', error)
