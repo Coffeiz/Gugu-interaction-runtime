@@ -362,18 +362,36 @@ export class Runtime {
     destination: unknown,
     transaction: MoveContext['transaction'],
   ): boolean {
-    if (transaction.actionEmitted || !isMoveActionDestination(destination)) return false
+    if (transaction.actionEmitted) return false
+    const normalized = this.normalizeMoveDestination(objectId, destination)
+    if (!normalized) return false
     const action: Action = {
       type: 'move',
       objectId,
-      fromSurfaceId: destination.fromSurfaceId,
-      toSurfaceId: destination.toSurfaceId,
-      ...(destination.toIndex === undefined ? {} : { toIndex: destination.toIndex }),
+      fromSurfaceId: normalized.fromSurfaceId,
+      toSurfaceId: normalized.toSurfaceId,
+      ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }),
       timestamp: Date.now(),
     }
     transaction.actionEmitted = true
     this.actions.emit(action)
     return true
+  }
+
+  private normalizeMoveDestination(objectId: string, value: unknown): MoveActionDestination | null {
+    if (isMoveActionDestination(value)) return value
+    if (!value || typeof value !== 'object') return null
+    const candidate = value as { columnId?: unknown; index?: unknown }
+    if (typeof candidate.columnId !== 'string') return null
+    const fromSurfaceId = this.objects.get(objectId)?.surfaceId
+    if (!fromSurfaceId) return null
+    return {
+      fromSurfaceId,
+      toSurfaceId: candidate.columnId.startsWith('column:')
+        ? candidate.columnId
+        : `column:${candidate.columnId}`,
+      ...(typeof candidate.index === 'number' ? { toIndex: candidate.index } : {}),
+    }
   }
 
   cancel(sessionId: string, reason = 'cancelled'): void {

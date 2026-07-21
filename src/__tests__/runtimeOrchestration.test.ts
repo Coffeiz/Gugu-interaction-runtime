@@ -58,6 +58,25 @@ describe('Runtime move orchestration', () => {
     })])
   })
 
+  it('将业务侧 columnId/index 落点归一为 MoveAction', async () => {
+    const runtime = createRuntime()
+    const actions: unknown[] = []
+    runtime.onAction(action => actions.push(action))
+    const handle = runtime.start(createRequest())
+    runtime.bindMoveSession(handle.id, {
+      resolveDestination: () => ({ accepted: true, destination: { columnId: 'done', index: 0 } }),
+      commit: () => undefined,
+    })
+
+    await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
+
+    expect(actions).toEqual([expect.objectContaining({
+      fromSurfaceId: 'column:todo',
+      toSurfaceId: 'column:done',
+      toIndex: 0,
+    })])
+  })
+
   it('成功路径按 landing → handoff → reveal → dispose 完成', async () => {
     const runtime = createRuntime()
     const events: string[] = []
