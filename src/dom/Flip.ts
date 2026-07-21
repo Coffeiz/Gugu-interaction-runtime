@@ -41,6 +41,8 @@ export function playFlip(
   duration = FLIP_DURATION,
   easing = FLIP_EASING,
 ): void {
+  // 新 FLIP 必须先作废同一批元素上的旧 rAF、timeout 和 transitionend，
+  // 否则快速抓放会出现旧事务补写 transform，表现为二次让位或瞬间展开。
   resetActiveFlip(elements)
   for (const el of elements) {
     // Runtime 临时视觉对象和当前拖动对象不属于兄弟布局动画参与者。

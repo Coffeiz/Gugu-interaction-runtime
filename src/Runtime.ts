@@ -146,6 +146,8 @@ export class Runtime {
     const session = this.sessions.get(sessionId)
     if (!session) return null
     const context = this.createBehaviorContext(session)
+    // Vue 跨列会销毁旧节点并创建新节点；不能缓存 pointerdown 时的 source
+    // 或旧 target，必须按 objectId + destination 重新解析当前连接节点。
     const target = context.visual?.resolveTarget?.(session.objectId, destination) ?? fallback?.() ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
@@ -158,6 +160,8 @@ export class Runtime {
     fallback?: () => HTMLElement | null,
     options: { readonly maxFrames?: number } = {},
   ): Promise<HTMLElement | null> {
+    // Vue patch 中间帧可能返回 0×0；这份几何数据不能交给视觉 driver，
+    // 否则会出现飞到左上角。等待同时受 session 生命期和帧数限制，不能无限等。
     const maxFrames = options.maxFrames ?? 30
     return new Promise(resolve => {
       let frame = 0
@@ -380,7 +384,9 @@ export class Runtime {
 
     // 布局快照由 Runtime 在 commit 前统一捕获，避免业务 driver 自己编排
     // capture/schedule 与 Action、landing 产生竞态。
-    // commit 阶段：执行业务变更（emitAction + FLIP + 清理跟手样式）
+    // Action 由 Runtime 唯一输出。视觉 commit 不应再次改 Store，否则同一
+    // 事务会产生两次 move，并让 landing target 在错误的 DOM 帧上解析。
+    // commit 阶段只执行视觉策略的清理与布局准备。
     try {
       await behavior.commit(this.createBehaviorContext(session), destination)
     } catch (error) {

@@ -60,6 +60,8 @@ export class Session {
 
   dispose() {
     if (this.state === 'disposed') return
+    // interrupt 是独立的收尾路径，不能走“非 done/cancelled 就补 done”；
+    // 否则 landing 中 regrab 会触发非法 interrupt → done。
     if (this.state === 'interrupt') {
       this.transition('disposed')
     } else {
