@@ -13,6 +13,7 @@ export type {
   MoveContext,
   MoveBehaviorDriver,
   MoveVisualLifecycle,
+  MoveVisualStrategy,
   MoveLayoutLifecycle,
   MoveReleaseResult,
   LandingResult,

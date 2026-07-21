@@ -50,9 +50,14 @@ export interface MoveBehaviorDriver {
 
 export interface MoveVisualLifecycle {
   layout?: MoveLayoutLifecycle
+  beginDrag?(context: BehaviorContext): void | Promise<void>
   landing?(context: BehaviorContext, destination: unknown): LandingResult | void | Promise<LandingResult | void>
   reveal?(context: BehaviorContext, destination: unknown): void | Promise<void>
+  cancel?(context: BehaviorContext, reason: string): void
+  dispose?(context: BehaviorContext): void
 }
+
+export type MoveVisualStrategy = MoveVisualLifecycle
 
 export interface MoveReleaseResult {
   readonly accepted: boolean
@@ -158,7 +163,12 @@ export class MoveBehavior implements Behavior {
         y: pointerEvent.clientY - rect.top,
       }
     }
-    return this.driverFor(context.session.id).prepare?.(context, request)
+    const result = this.driverFor(context.session.id).prepare?.(context, request)
+    const lifecycle = this.sessionLifecycles.get(context.session.id)
+    if (result && typeof (result as { then?: unknown }).then === 'function') {
+      return Promise.resolve(result).then(async () => lifecycle?.beginDrag?.(context))
+    }
+    return lifecycle?.beginDrag?.(context)
   }
 
   update(context: BehaviorContext, input: RuntimeInput): void {
@@ -211,6 +221,7 @@ export class MoveBehavior implements Behavior {
     const transaction = this.getContext(context.session.id).transaction
     transaction.invalidate()
     transaction.setPhase('cancelled')
+    this.sessionLifecycles.get(context.session.id)?.cancel?.(context, reason)
     this.driverFor(context.session.id).cancel?.(context, reason)
   }
 
@@ -224,6 +235,7 @@ export class MoveBehavior implements Behavior {
   dispose(context: BehaviorContext): void {
     const transaction = this.getContext(context.session.id).transaction
     if (transaction.phase !== 'cancelled') transaction.setPhase('disposed')
+    this.sessionLifecycles.get(context.session.id)?.dispose?.(context)
     this.unbindSession(context.session.id)
   }
 
