@@ -75,6 +75,24 @@ describe('Runtime move orchestration', () => {
     expect(runtime.getSession(handle.id)).toBeUndefined()
   })
 
+  it('由 Runtime 在 commit 前后编排布局 capture/play', async () => {
+    const runtime = createRuntime()
+    const events: string[] = []
+    const handle = runtime.start(createRequest())
+    runtime.bindMoveSession(handle.id, createDriver(() => { events.push('commit') }))
+    runtime.bindMoveLifecycle(handle.id, {
+      layout: {
+        capture: () => { events.push('capture'); return { id: 'layout-1' } },
+        play: (_context, snapshot) => { events.push(`play:${(snapshot as { id: string }).id}`) },
+      },
+      landing: () => ({ completed: true }),
+    })
+
+    await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
+
+    expect(events).toEqual(['capture', 'commit', 'play:layout-1'])
+  })
+
   it('commit 失败时不进入 landing/reveal 且清理 session', async () => {
     const runtime = createRuntime()
     const landing = vi.fn()

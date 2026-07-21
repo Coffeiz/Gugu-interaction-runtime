@@ -14,6 +14,17 @@ export interface MoveContext {
   landingCompleted?: boolean
   revealCommitted?: boolean
   landingPromise?: Promise<LandingResult | void>
+  /** 由 Runtime 编排的布局快照，不包含业务数据。 */
+  layoutSnapshot?: unknown
+}
+
+export interface MoveLayoutLifecycle {
+  /** 在业务 commit 前捕获兄弟节点/Surface 的布局。 */
+  capture?(context: BehaviorContext): unknown
+  /** 在 commit 后播放或调度布局过渡。 */
+  play?(context: BehaviorContext, snapshot: unknown): void
+  /** 事务取消时清理尚未播放的布局事务。 */
+  cancel?(context: BehaviorContext, snapshot: unknown, reason: string): void
 }
 
 export interface MoveBehaviorDriver {
@@ -38,6 +49,7 @@ export interface MoveBehaviorDriver {
 }
 
 export interface MoveVisualLifecycle {
+  layout?: MoveLayoutLifecycle
   landing?(context: BehaviorContext, destination: unknown): LandingResult | void | Promise<LandingResult | void>
   reveal?(context: BehaviorContext, destination: unknown): void | Promise<void>
 }
@@ -90,6 +102,29 @@ export class MoveBehavior implements Behavior {
 
   bindLifecycle(sessionId: string, lifecycle: MoveVisualLifecycle): void {
     this.sessionLifecycles.set(sessionId, lifecycle)
+  }
+
+  captureLayout(context: BehaviorContext): void {
+    const moveContext = this.getContext(context.session.id)
+    const snapshot = this.sessionLifecycles.get(context.session.id)?.layout?.capture?.(context)
+    moveContext.layoutSnapshot = snapshot
+  }
+
+  playLayout(context: BehaviorContext): void {
+    const moveContext = this.getContext(context.session.id)
+    const lifecycle = this.sessionLifecycles.get(context.session.id)
+    if (moveContext.layoutSnapshot !== undefined) {
+      lifecycle?.layout?.play?.(context, moveContext.layoutSnapshot)
+    }
+  }
+
+  cancelLayout(context: BehaviorContext, reason: string): void {
+    const moveContext = this.getContext(context.session.id)
+    const snapshot = moveContext.layoutSnapshot
+    if (snapshot !== undefined) {
+      this.sessionLifecycles.get(context.session.id)?.layout?.cancel?.(context, snapshot, reason)
+    }
+    moveContext.layoutSnapshot = undefined
   }
 
   getContext(sessionId: string): MoveContext {
