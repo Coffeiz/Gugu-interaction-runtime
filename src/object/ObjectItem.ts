@@ -11,4 +11,8 @@ export interface ObjectItem {
   element: HTMLElement | null
   /** 'move' / 'sort' / 'resize' / 'link' ...——决定这个对象能参与哪些 Session 类型。 */
   abilities: string[]
+  /** 可选视觉适配器名；未提供时由对象类型默认配置决定。 */
+  visual?: string
+  /** 未提供时默认使用 detach。 */
+  visualMode?: string
 }

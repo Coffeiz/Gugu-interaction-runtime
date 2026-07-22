@@ -1,11 +1,35 @@
 import type { VisualState, VisualSnapshot } from './VisualAdapterTypes'
 
+export interface VisualLifecycleContext {
+  readonly objectId: string
+  readonly sessionId: string
+  readonly mode: string
+  readonly destination?: unknown
+  readonly sourceElement?: HTMLElement
+  /** 抓取开始时冻结的内容快照；仅供视觉代理使用，不承载业务状态。 */
+  readonly beforeContent?: HTMLElement
+  readonly targetElement?: HTMLElement
+  readonly sourceRect?: DOMRect
+  readonly visualSnapshot?: VisualSnapshot
+  readonly targetSnapshot?: VisualSnapshot
+}
+
+export interface VisualProxy {
+  readonly element: HTMLElement
+  dispose?(): void
+}
+
 /** 业务可选覆盖的视觉适配器；未提供的方法由 Runtime 默认实现补齐。 */
 export interface VisualAdapter {
   resolveSource?(objectId: string): HTMLElement | null
   resolveTarget?(objectId: string, destination: unknown): HTMLElement | null
   captureVisualState?(element: HTMLElement): VisualSnapshot
   applyState?(element: HTMLElement, state: VisualState): void
+  createProxy?(context: VisualLifecycleContext): VisualProxy
+  updateProxy?(proxy: VisualProxy, context: VisualLifecycleContext): void
+  land?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<{ completed: boolean; reason?: string }>
+  reveal?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<void>
+  dispose?(proxy: VisualProxy, context: VisualLifecycleContext): void
 }
 
 export interface VisualAdapterRegistry {

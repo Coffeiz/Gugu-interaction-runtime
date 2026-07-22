@@ -1,89 +1,87 @@
-import { runtime } from '../Runtime'
+import { runtime, type RuntimeCompletionGate } from '../Runtime'
 import {
   applyFloatingStyle,
   clearFloatingStyle,
-  concealElement,
-  createDragProxy,
   destroyDragProxy,
-  landDragProxy,
   moveFloating,
   releaseVisibilityOwnership,
-  revealElement,
   setProxyInteractive,
   settleFloatingLayout,
 } from '../dom/Visual'
-import { preserveProxyVisualContext } from '../dom/ProxyVisualContext'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
+import type { LandingResult, MoveBehaviorDriver } from '../behavior/MoveBehavior'
 
-const LANDING_DURATION = 3000
+function createDetachMoveDriver(
+  onMove: (event: PointerEvent) => void,
+  onUp: () => { columnId: string; index: number } | null,
+): MoveBehaviorDriver {
+  return {
+    update: (_context, input) => {
+      if (input.event instanceof PointerEvent) onMove(input.event)
+    },
+    resolveDestination: () => {
+      const drop = onUp()
+      return drop ? { accepted: true, destination: drop } : { accepted: false }
+    },
+    commit: () => undefined,
+  }
+}
+
+function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
+  return {
+    capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+      .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')),
+    play: (_context: unknown, snapshot: unknown) => {
+      scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
+    },
+  }
+}
+
+function createDetachVisualLifecycle(
+  objectId: string,
+  beginLanding: () => Promise<LandingResult>,
+  finishReveal: () => void,
+) {
+  return {
+    landing: () => beginLanding(),
+    reveal: () => {
+      runtime.clearRegrab(objectId)
+      finishReveal()
+    },
+  }
+}
 
 /**
  * detach 跟手阶段只有一个真实对象；但松手后它必须回到 Vue 的真实列表，因而
  * 会再次进入 Surface 的裁剪树。落地交接改用 Runtime overlay 中短暂存在的
  * visual proxy，本体全程由 Vue 管理且保持隐藏，动画结束后再揭示本体。
  */
-function createDetachLandingVisual(
-  sessionId: string,
-  target: HTMLElement,
-  beforeRect: DOMRect,
-  dragSnapshot: VisualSnapshot | undefined,
-  targetSnapshot: VisualSnapshot | undefined,
-  beforeContent: HTMLElement,
-  sourceEl: HTMLElement,
-  duration = LANDING_DURATION,
-): {
-  readonly finished: Promise<void>
-  readonly dispose: () => void
-  readonly proxy: HTMLElement
-} {
-  const targetRect = target.getBoundingClientRect()
-  const proxy = createDragProxy(beforeContent, beforeRect)
-  preserveProxyVisualContext(sourceEl, proxy)
-  // beforeContent 克隆自抓起瞬间的高度，与落地时 target 的真实高度可能
-  // 有 1-2px 差异（浏览器子像素舍入、内容重排等）。用 target 当前 rect
-  // 覆盖 proxy 的宽高，避免松手瞬间 proxy 高度跳变。
-  proxy.style.width = `${targetRect.width}px`
-  proxy.style.height = `${targetRect.height}px`
-  const previousVisibility = target.style.visibility
-  let stopTargetTracking = (): void => undefined
-  let disposed = false
-  const dispose = () => {
-    if (disposed) return
-    disposed = true
-    stopTargetTracking()
-    // 只有当前 owner 才能恢复 visibility。regrab 后旧 session 的 dispose
-    // 异步触发时 owner 已被新 session 更新，跳过恢复避免泄漏。
-    revealElement(target, sessionId)
-    destroyDragProxy(proxy)
-  }
-
-  proxy.style.transition = 'none'
-  if (dragSnapshot) {
-    proxy.style.boxShadow = dragSnapshot.boxShadow
-    proxy.style.borderRadius = dragSnapshot.borderRadius
-    proxy.style.backgroundColor = dragSnapshot.background
-    proxy.style.opacity = dragSnapshot.opacity
-    proxy.style.transform = dragSnapshot.transform || 'scale(1.03)'
-  }
-  concealElement(target, sessionId)
-  const { finished: landed, retarget } = landDragProxy(proxy, targetRect, {
-    duration,
-    targetShadow: targetSnapshot?.boxShadow,
-    targetRadius: targetSnapshot?.borderRadius,
-    targetBackground: targetSnapshot?.background,
-    targetOpacity: targetSnapshot?.opacity,
-    targetContent: target,
-  })
-  // Runtime 统一维护目标和祖先链的 ResizeObserver，并绑定到 Session Cleanup。
-  stopTargetTracking = runtime.trackLandingTarget(sessionId, target, retarget)
-  const finished = landed.finally(dispose)
-  return { finished, dispose, proxy }
-}
 const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
 runtime.setHitResolver(kanbanHitResolver)
+
+function performDetachRegrab(args: {
+  event: PointerEvent
+  cardId: string
+  sessionId: string
+  proxy: HTMLElement
+  source: HTMLElement
+  proxyRect: DOMRect
+  interrupt: () => void
+  clearRegrab: () => void
+  disposeProxy: () => void
+}): void {
+  args.event.stopPropagation()
+  setProxyInteractive(args.proxy, false)
+  args.clearRegrab()
+  releaseVisibilityOwnership(args.source, args.sessionId)
+  args.interrupt()
+  args.source.style.visibility = ''
+  args.disposeProxy()
+  startCardDragDetach(args.event, args.cardId, args.source, args.proxyRect)
+}
 
 /**
  * "detach" 策略：全程只有一个对象——不克隆 proxy，本体自己脱离文档流。
@@ -136,8 +134,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   // 对象的 Lease 单独持有（不放进 session 的 leases 数组）：落地时需要先
   // 单独释放它（触发 Teleport 把节点放回真实位置），同时继续拿着 Surface
   // 的 Lease 直到落地动画结束，让 Vue 的 TransitionGroup 全程保持关闭。
-  const objectLease = runtime.owner.takeObject(cardId, session.id)
-  columns.forEach(col => session.takeSurface(`column:${col.id}`))
+  const objectLease = runtime.acquireObject(session.id, cardId)
+  runtime.takeSurfaces(session.id, columns.map(col => `column:${col.id}`))
 
   // sourceElement/dragOffset 的常规算法已经在 MoveBehavior.prepare() 里
   // 统一算好了（阶段 B）——detach 没有 clone 那种 regrab 特殊起点，直接用。
@@ -189,8 +187,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   let currentIndex = -1
   let pendingDrop: { columnId: string; index: number } | null = null
   let landingPlan: (() => void) | null = null
-  let resolveLanding: (() => void) | null = null
-  let revealPlan: (() => void) | null = null
+  let landingGate: RuntimeCompletionGate<LandingResult> | null = null
   let landingProxy: HTMLElement | null = null
 
   function findColumnIdOf(id: string) {
@@ -224,7 +221,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       runtime.cancel(session.id, 'no-valid-drop')
       clearFloatingStyle(sourceEl)
       delete sourceEl.dataset.runtimeActive
-      objectLease.release()
+  objectLease?.release()
       scheduleLayoutFlip(returnBefore)
       return null
     }
@@ -240,7 +237,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     delete sourceEl.dataset.runtimeActive
     // 只放开这一个对象的 Lease：Vue 下一帧会把它摆回真实列表位置。
     // Surface 的 Lease（TransitionGroup 总闸）留到落地动画结束才一起释放。
-    objectLease.release()
+      objectLease?.release()
     landingPlan = () => requestAnimationFrame(() => {
       // clearFloatingStyle 不能在 onUp() 里同步调用：那样会在这一帧同步抹掉
       // sourceEl 的抬起阴影/位置样式，但接管视觉的落地代理要等到这个 rAF 才
@@ -264,9 +261,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         () => document.querySelector<HTMLElement>(`[data-card="${cardId}"]`) ?? sourceEl,
       )
       if (!landedEl) {
-        resolveLanding?.()
-        resolveLanding = null
-        revealPlan = () => undefined
+        landingGate?.complete({ completed: true, reason: '' })
+        landingGate = null
         return
       }
       visualAdapter.applyState?.(landedEl, {
@@ -287,27 +283,30 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       const targetSnapshot = visualAdapter.captureVisualState?.(landedEl)
       landedEl.style.transition = targetTransition
       delete landedEl.dataset.runtimeLandingCapture
-      const landingVisual = createDetachLandingVisual(
-        session.id,
-        landedEl,
-        beforeRect,
-        draggingSnapshot,
+      const visualContext = {
+        ...runtime.createVisualLifecycleContext(session.id, pendingDrop, landedEl, beforeContent),
+        sourceElement: sourceEl,
+        sourceRect: beforeRect,
+        visualSnapshot: draggingSnapshot,
         targetSnapshot,
-        beforeContent,
-        sourceEl,
-      )
-      landingProxy = landingVisual.proxy
-      session.cleanup.track(landingVisual.dispose)
-      setProxyInteractive(landingVisual.proxy, true)
-      runtime.registerRegrab(cardId, onRegrab)
-      const dispatchRegrab = (event: PointerEvent) => { runtime.regrab(cardId, event) }
-      landingVisual.proxy.addEventListener('pointerdown', dispatchRegrab)
-      session.cleanup.trackTargetListener(landingVisual.proxy, 'pointerdown', dispatchRegrab as EventListener)
-      void landingVisual.finished.then(() => {
+      }
+      const visualProxy = runtime.createVisualProxy(session.id, visualContext)
+      if (!visualProxy) {
+        landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' })
+        landingGate = null
+        return
+      }
+      landingProxy = visualProxy.element
+      setProxyInteractive(visualProxy.element, true)
+      runtime.bindRegrabTarget(session.id, cardId, visualProxy.element, onRegrab)
+      void runtime.landVisualProxy(session.id, landedEl, visualContext).then(landingResult => {
         if (session.state !== 'landing') return
-        resolveLanding?.()
-        resolveLanding = null
-        revealPlan = () => undefined
+        landingGate?.complete({
+          completed: landingResult.completed,
+          reason: landingResult.reason ?? '',
+          reveal: () => { void runtime.revealVisualProxy(session.id, landedEl, visualContext) },
+        })
+        landingGate = null
       })
     })
     return pendingDrop
@@ -320,39 +319,20 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   }, {
     sessionId: session.id,
     followElement: sourceEl,
-    driver: {
-      update: (_context, input) => {
-        if (input.event instanceof PointerEvent) onMove(input.event)
-      },
-      resolveDestination: () => {
-        const drop = onUp()
-        return drop ? { accepted: true, destination: drop } : { accepted: false }
-      },
-      commit: () => {
-        // onUp() 中的 emitAction + FLIP + 清理逻辑已由 resolveDestination
-        // 中的 onUp() 执行完毕，commit 阶段无需额外操作。
-        // 后续迁移可将 onUp() 中的业务变更逻辑移至此处。
-      },
-    },
+    driver: createDetachMoveDriver(onMove, onUp),
     visualStrategy: {
-      layout: {
-        capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
-          .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')),
-        play: (_context, snapshot) => scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>),
-      },
-      landing: () => new Promise<void>(resolve => {
+      layout: createDetachLayoutLifecycle(sourceEl),
+      ...createDetachVisualLifecycle(cardId, () => {
+        const gate = runtime.createCompletionGate(session.id, { completed: false, reason: 'landing-cancelled' })
         // 松手后立即恢复其它卡片 hover；landing 代理自身仍由视觉策略接管。
         document.body.classList.remove('kb-dragging')
-        resolveLanding = resolve
+        landingGate = gate
         landingPlan?.()
         landingPlan = null
-      }),
-      reveal: () => {
-        runtime.clearRegrab(cardId, onRegrab)
+        return gate.promise
+      }, () => {
         if (landingProxy) setProxyInteractive(landingProxy, false)
-        revealPlan?.()
-        revealPlan = null
-      },
+      }),
     },
   })
 
@@ -361,42 +341,27 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
    */
   function onRegrab(regrabEvent: PointerEvent) {
     if (session.state !== 'landing') return
-    regrabEvent.stopPropagation()
-
     const proxy = landingProxy
     if (!proxy) return
 
     // 1. 先捕获视觉状态
-    const proxyRect = proxy.getBoundingClientRect()
-
-    // 2. interrupt 前获取有效 source
     const liveEl = visualAdapter.resolveTarget?.(cardId, pendingDrop)
       ?? document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
     if (!liveEl) return
+    const regrabContext = runtime.createRegrabContext(session.id, regrabEvent, proxy, liveEl)
+    if (!regrabContext) return
+    const proxyRect = regrabContext.proxyRect
 
-    if (landingProxy) {
-      setProxyInteractive(landingProxy, false)
-    }
-    runtime.clearRegrab(cardId)
-
-    // 3. 解除旧 session — interrupt('regrab') 跳过视觉 cleanup
-    //     在 interrupt 之前解除 visibility ownership，这样旧 session 的
-    //     dispose 异步触发时检查 owner 不匹配，跳过 visibility 恢复。
-    releaseVisibilityOwnership(liveEl, session.id)
-    runtime.interrupt(session.id, 'regrab')
-
-    // 3.5 恢复 liveEl 可见性 — interrupt('regrab') 跳过 cleanup，
-    //     旧 session 的 createDetachLandingVisual 设置了 visibility:hidden，
-    //     必须在此手动恢复，否则 startCardDragDetach 的 applyFloatingStyle
-    //     只设 position:fixed 不改 visibility，元素仍不可见
-    liveEl.style.visibility = ''
-
-    // 4. 手动销毁旧 landing proxy（interrupt 跳过了 cleanup）
-    if (landingProxy) {
-      destroyDragProxy(landingProxy)
-    }
-
-    // 5. 新 session 接管
-    startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
+    performDetachRegrab({
+      event: regrabContext.event,
+      cardId,
+      sessionId: session.id,
+      proxy,
+      source: liveEl,
+      proxyRect,
+      interrupt: () => regrabContext.interrupt('regrab'),
+      clearRegrab: () => runtime.clearRegrab(cardId),
+      disposeProxy: () => destroyDragProxy(proxy),
+    })
   }
 }

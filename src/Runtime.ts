@@ -1,4 +1,5 @@
 import { Owner } from './owner/Owner'
+import type { Lease } from './owner/Owner'
 import { Session } from './session/Session'
 import { ObjectStore } from './object/ObjectStore'
 import { SurfaceStore } from './surface/SurfaceStore'
@@ -7,7 +8,8 @@ import type { RuntimeInput, SessionHandle, StartRequest } from './core/Interacti
 import type { Behavior, BehaviorContext } from './behavior/Behavior'
 import { BehaviorStore } from './behavior/BehaviorStore'
 import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle, type MoveVisualStrategy } from './behavior/MoveBehavior'
-import { DefaultVisualAdapter, VisualAdapters, type VisualAdapter } from './dom/VisualAdapter'
+import { DefaultVisualAdapter, VisualAdapters, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
+import type { VisualState } from './dom/VisualAdapterTypes'
 import type { HitResolver } from './dom/Hit'
 import {
   trackLandingTarget as observeLandingTarget,
@@ -58,6 +60,63 @@ export interface MoveSessionHandle extends SessionHandle {
   dispose(): void
 }
 
+export interface ObjectTypeRegistration {
+  defaultVisualMode: string
+  /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
+  visual?: ObjectVisualAdapter
+  /** 兼容旧 demo 的手动启动入口。 */
+  start?(context: { objectId: string; element: HTMLElement; event: PointerEvent; mode: string }): void
+  /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
+  createMove?(context: {
+    objectId: string
+    element: HTMLElement
+    event: PointerEvent
+    mode: string
+  }): {
+    request?: StartRequest
+    driver?: MoveBehaviorDriver
+    lifecycle?: MoveVisualLifecycle
+    pointerInput?: PointerSessionInputOptions
+  }
+}
+
+export interface ObjectVisualAdapter extends VisualAdapter {
+  /** 迁移阶段的视觉启动实现；最终由 createMove 替代。 */
+  legacyStart?(context: {
+    objectId: string
+    element: HTMLElement
+    event: PointerEvent
+    mode: string
+  }): void
+  createMove?(context: {
+    objectId: string
+    element: HTMLElement
+    event: PointerEvent
+    mode: string
+  }): {
+    request?: StartRequest
+    driver?: MoveBehaviorDriver
+    lifecycle?: MoveVisualLifecycle
+    pointerInput?: PointerSessionInputOptions
+  }
+}
+
+export interface RuntimeCompletionGate<T> {
+  readonly promise: Promise<T>
+  complete(value: T): void
+  fail(reason?: string): void
+}
+
+export interface RegrabContext {
+  readonly sessionId: string
+  readonly objectId: string
+  readonly event: PointerEvent
+  readonly proxyElement: HTMLElement
+  readonly sourceElement: HTMLElement
+  readonly proxyRect: DOMRect
+  interrupt(reason?: string): void
+}
+
 export class Runtime {
   readonly owner = new Owner()
   readonly objects = new ObjectStore()
@@ -70,11 +129,25 @@ export class Runtime {
   private readonly events = new Emitter<RuntimeEvent>()
   private readonly actions = new Emitter<Action>()
   private readonly visualStrategies = new Map<string, MoveVisualStrategy>()
+  private readonly objectTypes = new Map<string, ObjectTypeRegistration>()
+  private readonly objectPointerBindings = new WeakMap<HTMLElement, () => void>()
+  private readonly objectPointerDisposers = new Map<string, () => void>()
+  private readonly completionGates = new Map<string, Set<RuntimeCompletionGate<unknown>>>()
+  private readonly visualProxies = new Map<string, VisualProxy>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
     this.behaviors.register(this.moveBehavior)
-    this.objects.subscribe(event => this.events.emit(event))
+    this.objects.subscribe(event => {
+      this.events.emit(event)
+      if (event.type === 'object-added' || event.type === 'object-changed') {
+        this.syncObjectPointerBinding(event.id)
+      }
+      if (event.type === 'object-removed') {
+        this.objectPointerDisposers.get(event.id)?.()
+        this.objectPointerDisposers.delete(event.id)
+      }
+    })
     this.surfaces.subscribe(event => this.events.emit(event))
     this.owner.subscribe(id => this.events.emit({ type: 'ownership-changed', id }))
   }
@@ -87,8 +160,226 @@ export class Runtime {
     this.visualStrategies.set(type, strategy)
   }
 
+  registerObjectType(type: string, registration: ObjectTypeRegistration): void {
+    this.objectTypes.set(type, registration)
+    if (registration.visual) this.visuals.register(type, registration.visual)
+    for (const object of this.objects.values()) {
+      if (object.type === type || object.visual === type) this.syncObjectPointerBinding(object.id)
+    }
+  }
+
+  startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent): boolean {
+    const object = this.objects.get(objectId)
+    if (!object) return false
+    const registration = this.objectTypes.get(object.visual ?? object.type)
+    if (!registration) return false
+    if (object.element !== element) this.objects.setElement(objectId, element)
+    const context = {
+      objectId,
+      element,
+      event,
+      mode: object.visualMode ?? registration.defaultVisualMode,
+    }
+    const createMove = registration.visual?.createMove ?? registration.createMove
+    if (createMove) {
+      const move = createMove(context)
+      this.orchestrateMoveSession(
+        move.request ?? {
+          type: 'move',
+          objectId,
+          input: { kind: 'pointerdown', event },
+        },
+        {
+          driver: move.driver,
+          lifecycle: move.lifecycle,
+          pointerInput: move.pointerInput,
+          followElement: element,
+        },
+      )
+    } else if (registration.visual?.legacyStart) {
+      registration.visual.legacyStart(context)
+    } else {
+      registration.start?.(context)
+    }
+    return true
+  }
+
+  bindObjectPointer(objectId: string, element: HTMLElement): () => void {
+    const previous = this.objectPointerBindings.get(element)
+    previous?.()
+    const listener = (event: Event) => {
+      if (event instanceof PointerEvent) this.startObjectPointer(objectId, element, event)
+    }
+    element.addEventListener('pointerdown', listener)
+    const dispose = () => element.removeEventListener('pointerdown', listener)
+    this.objectPointerBindings.set(element, dispose)
+    return dispose
+  }
+
+  private syncObjectPointerBinding(objectId: string): void {
+    const object = this.objects.get(objectId)
+    this.objectPointerDisposers.get(objectId)?.()
+    this.objectPointerDisposers.delete(objectId)
+    if (!object?.element || !this.objectTypes.has(object.visual ?? object.type)) return
+    const dispose = this.bindObjectPointer(objectId, object.element)
+    this.objectPointerDisposers.set(objectId, dispose)
+  }
+
   getVisualAdapter(type: string): VisualAdapter {
     return this.visuals.get(type) ?? new DefaultVisualAdapter()
+  }
+
+  getObjectVisualAdapter(objectId: string): VisualAdapter {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.objectTypes.get(object.visual ?? object.type) : undefined
+    if (registration?.visual) return registration.visual
+    return this.getVisualAdapter(object?.visual ?? object?.type ?? '')
+  }
+
+  createVisualLifecycleContext(
+    sessionId: string,
+    destination?: unknown,
+    targetElement?: HTMLElement,
+    beforeContent?: HTMLElement,
+  ): VisualLifecycleContext {
+    const session = this.sessions.get(sessionId)
+    const object = session ? this.objects.get(session.objectId) : undefined
+    const sourceElement = object?.element ?? undefined
+    const adapter = session ? this.getObjectVisualAdapter(session.objectId) : new DefaultVisualAdapter()
+    const fallback = new DefaultVisualAdapter()
+    return {
+      objectId: session?.objectId ?? '',
+      sessionId,
+      mode: object?.visualMode ?? 'detach',
+      destination,
+      sourceElement,
+      beforeContent,
+      targetElement,
+      sourceRect: sourceElement?.getBoundingClientRect(),
+      visualSnapshot: sourceElement
+        ? (adapter.captureVisualState ?? fallback.captureVisualState)(sourceElement)
+        : undefined,
+      targetSnapshot: targetElement
+        ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
+        : undefined,
+    }
+  }
+
+  /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
+  createVisualProxy(
+    sessionId: string,
+    context: VisualLifecycleContext,
+  ): VisualProxy | undefined {
+    const session = this.sessions.get(sessionId)
+    if (!session) return undefined
+    const proxy = this.getObjectVisualAdapter(session.objectId).createProxy?.(context)
+    if (!proxy) return undefined
+    this.registerVisualProxy(sessionId, proxy)
+    return proxy
+  }
+
+  /** 调用当前对象适配器的 landing，并保证无代理时也有确定结果。 */
+  async landVisualProxy(
+    sessionId: string,
+    target: HTMLElement,
+    context?: VisualLifecycleContext,
+  ): Promise<{ completed: boolean; reason?: string }> {
+    const session = this.sessions.get(sessionId)
+    const proxy = this.visualProxies.get(sessionId)
+    if (!session || !proxy) return { completed: false, reason: 'visual-proxy-missing' }
+    const lifecycleContext = context ?? this.createVisualLifecycleContext(sessionId, undefined, target)
+    const result = await this.getObjectVisualAdapter(session.objectId).land?.(proxy, target, lifecycleContext)
+    return result ?? { completed: true }
+  }
+
+  /** 将跟手或重定位更新转发给当前 session 的视觉适配器。 */
+  updateVisualProxy(sessionId: string, context?: VisualLifecycleContext): void {
+    const session = this.sessions.get(sessionId)
+    const proxy = this.visualProxies.get(sessionId)
+    if (!session || !proxy) return
+    const lifecycleContext = context ?? this.createVisualLifecycleContext(sessionId)
+    this.getObjectVisualAdapter(session.objectId).updateProxy?.(proxy, lifecycleContext)
+  }
+
+  /** 通过对象 VisualAdapter 解析最终揭示目标，并过滤已断开的节点。 */
+  resolveVisualTarget(sessionId: string, destination: unknown): HTMLElement | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) return null
+    const adapter = this.getObjectVisualAdapter(session.objectId)
+    const target = adapter.resolveTarget?.(session.objectId, destination)
+      ?? new DefaultVisualAdapter().resolveTarget(session.objectId)
+    return target?.isConnected ? target : null
+  }
+
+  /** 将对象的生命周期视觉状态交给其适配器写入。 */
+  applyVisualState(objectId: string, element: HTMLElement, state: VisualState): void {
+    const adapter = this.getObjectVisualAdapter(objectId)
+    ;(adapter.applyState ?? new DefaultVisualAdapter().applyState)(element, state)
+  }
+
+  /** 获取对象当前视觉快照；未覆盖时使用默认 DOM 样式快照。 */
+  captureVisualState(objectId: string, element: HTMLElement) {
+    const adapter = this.getObjectVisualAdapter(objectId)
+    return (adapter.captureVisualState ?? new DefaultVisualAdapter().captureVisualState)(element)
+  }
+
+  /** 调用当前对象适配器的 reveal；交接只允许由 Runtime 触发。 */
+  async revealVisualProxy(
+    sessionId: string,
+    target: HTMLElement,
+    context?: VisualLifecycleContext,
+  ): Promise<void> {
+    const session = this.sessions.get(sessionId)
+    const proxy = this.visualProxies.get(sessionId)
+    if (!session || !proxy) return
+    const lifecycleContext = context ?? this.createVisualLifecycleContext(sessionId, undefined, target)
+    await this.getObjectVisualAdapter(session.objectId).reveal?.(proxy, target, lifecycleContext)
+  }
+
+  registerVisualProxy(sessionId: string, proxy: VisualProxy): void {
+    this.visualProxies.get(sessionId)?.dispose?.()
+    this.visualProxies.set(sessionId, proxy)
+  }
+
+  getVisualProxy(sessionId: string): VisualProxy | undefined {
+    return this.visualProxies.get(sessionId)
+  }
+
+  disposeVisualProxy(sessionId: string): void {
+    const proxy = this.visualProxies.get(sessionId)
+    if (!proxy) return
+    const session = this.sessions.get(sessionId)
+    if (session) {
+      const context = this.createVisualLifecycleContext(sessionId)
+      this.getObjectVisualAdapter(session.objectId).dispose?.(proxy, context)
+    }
+    proxy.dispose?.()
+    this.visualProxies.delete(sessionId)
+  }
+
+  createCompletionGate<T>(sessionId: string, failureValue: T): RuntimeCompletionGate<T> {
+    let settled = false
+    let resolvePromise!: (value: T) => void
+    const promise = new Promise<T>(resolve => { resolvePromise = resolve })
+    const gate: RuntimeCompletionGate<T> = {
+      promise,
+      complete: value => {
+        if (settled) return
+        settled = true
+        resolvePromise(value)
+        this.completionGates.get(sessionId)?.delete(gate as RuntimeCompletionGate<unknown>)
+      },
+      fail: () => {
+        if (settled) return
+        settled = true
+        resolvePromise(failureValue)
+        this.completionGates.get(sessionId)?.delete(gate as RuntimeCompletionGate<unknown>)
+      },
+    }
+    const gates = this.completionGates.get(sessionId) ?? new Set<RuntimeCompletionGate<unknown>>()
+    gates.add(gate as RuntimeCompletionGate<unknown>)
+    this.completionGates.set(sessionId, gates)
+    return gate
   }
 
   setHitResolver(resolver: HitResolver | null): void {
@@ -169,6 +460,42 @@ export class Runtime {
 
   clearRegrab(objectId: string, handler?: (event: PointerEvent) => void): void {
     this.moveBehavior.clearRegrab(objectId, handler)
+  }
+
+  /** 将落地代理的 regrab 监听与当前 Session 清理绑定。 */
+  bindRegrabTarget(
+    sessionId: string,
+    objectId: string,
+    target: HTMLElement,
+    handler: (event: PointerEvent) => void,
+  ): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    this.registerRegrab(objectId, handler)
+    const listener = (event: Event) => {
+      if (event instanceof PointerEvent) this.regrab(objectId, event)
+    }
+    target.addEventListener('pointerdown', listener)
+    session.cleanup.trackTargetListener(target, 'pointerdown', listener)
+  }
+
+  createRegrabContext(
+    sessionId: string,
+    event: PointerEvent,
+    proxyElement: HTMLElement,
+    sourceElement: HTMLElement,
+  ): RegrabContext | null {
+    const session = this.sessions.get(sessionId)
+    if (!session || session.state !== 'landing') return null
+    return {
+      sessionId,
+      objectId: session.objectId,
+      event,
+      proxyElement,
+      sourceElement,
+      proxyRect: proxyElement.getBoundingClientRect(),
+      interrupt: reason => this.interrupt(sessionId, reason ?? 'regrab'),
+    }
   }
 
   /**
@@ -305,6 +632,10 @@ export class Runtime {
   async release(sessionId: string, input: RuntimeInput): Promise<void> {
     const session = this.sessions.get(sessionId)
     if (!session) return
+    if (input.kind === 'pointercancel' || input.kind === 'blur' || input.kind === 'lostpointercapture') {
+      this.cancel(session.id, input.kind)
+      return
+    }
     if (session.state === 'prepare') {
       this.cancel(session.id, 'interaction-not-ready')
       return
@@ -362,9 +693,23 @@ export class Runtime {
     const moveContext = behavior instanceof MoveBehavior
       ? behavior.getContext(session.id)
       : null
+    const lifecycle = this.moveBehavior.getLifecycle(session.id)
+    const normalizedDestination = this.normalizeMoveDestination(session.objectId, destination)
+    if (normalizedDestination) {
+      await lifecycle?.surface?.leave?.(
+        this.createBehaviorContext(session),
+        normalizedDestination.fromSurfaceId,
+      )
+    }
     if (moveContext && this.emitMoveAction(session.objectId, moveContext.destination, moveContext.transaction)) {
       // Action 已由 Runtime 统一发出；视觉 driver 的 commit 仍负责布局和样式，
       // 但不再需要重复提交业务动作。
+    }
+    if (normalizedDestination) {
+      await lifecycle?.surface?.enter?.(
+        this.createBehaviorContext(session),
+        normalizedDestination.toSurfaceId,
+      )
     }
 
     try {
@@ -376,6 +721,7 @@ export class Runtime {
         this.cancel(session.id, landingResult.reason ?? 'landing-failed')
         return
       }
+      landingResult?.reveal?.()
       // landing 完成只代表临时视觉运动结束；先进入 handoff，等待视觉策略
       // 把最终 DOM/样式交回业务节点，再允许 Session 正常结束。这样成功路径
       // 与取消、regrab 的终态边界一致，也不会把 reveal 误认为 dispose。
@@ -439,6 +785,8 @@ export class Runtime {
     } catch (error) {
       console.error('Behavior cancel failed', error)
     } finally {
+      this.failCompletionGates(session.id)
+      this.disposeVisualProxy(session.id)
       try {
         session.cancel()
       } finally {
@@ -460,6 +808,8 @@ export class Runtime {
     } catch (error) {
       console.error('Behavior interrupt failed', error)
     } finally {
+      this.failCompletionGates(session.id)
+      this.disposeVisualProxy(session.id)
       try {
         session.interrupt(reason === 'regrab' ? 'regrab' : 'cancel')
       } finally {
@@ -479,19 +829,57 @@ export class Runtime {
     return this.sessions.get(id)
   }
 
+  takeSurface(sessionId: string, surfaceId: string): boolean {
+    const session = this.sessions.get(sessionId)
+    if (!session) return false
+    session.takeSurface(surfaceId)
+    return this.owner.isOwnedBy(surfaceId, sessionId)
+  }
+
+  /** 获取需要在 landing 前提前释放的对象 Lease（例如 detach 本体）。 */
+  acquireObject(sessionId: string, objectId: string): Lease | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) return null
+    return this.owner.takeObject(objectId, sessionId)
+  }
+
+  /** 将 Surface placeholder 的销毁纳入当前移动事务清理。 */
+  trackPlaceholder(sessionId: string, dispose: () => void): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    session.cleanup.track(dispose)
+  }
+
+  takeSurfaces(sessionId: string, surfaceIds: readonly string[]): boolean {
+    return surfaceIds.every(surfaceId => this.takeSurface(sessionId, surfaceId))
+  }
+
   endSession(session: Session): void {
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
     try {
       session.dispose()
     } finally {
+      this.failCompletionGates(session.id)
+      this.disposeVisualProxy(session.id)
       this.disposeBehavior(behavior, context)
       this.sessions.delete(session.id)
     }
   }
 
+  private failCompletionGates(sessionId: string): void {
+    const gates = this.completionGates.get(sessionId)
+    if (!gates) return
+    for (const gate of [...gates]) gate.fail()
+    this.completionGates.delete(sessionId)
+    this.disposeVisualProxy(sessionId)
+  }
+
   private disposeBehavior(behavior: Behavior | undefined, context: BehaviorContext): void {
     try {
+      if (behavior instanceof MoveBehavior) {
+        behavior.getLifecycle(context.session.id)?.surface?.dispose?.(context)
+      }
       behavior?.dispose?.(context)
     } catch (error) {
       console.error('Behavior dispose failed', error)
@@ -503,7 +891,10 @@ export class Runtime {
     return {
       session,
       emitAction: (action: Action) => this.actions.emit(action),
-      visual: item ? this.getVisualAdapter(item.type) : undefined,
+      // 行为准备阶段仍使用可解析 DOM 的通用适配器；对象注册的 VisualAdapter
+      // 通过 createVisualProxy/生命周期入口逐步接管视觉，不改变现有 demo 的
+      // source 解析与拖拽起点。
+      visual: item ? this.getVisualAdapter(item.visual ?? item.type) : undefined,
       hit: this.hitResolver,
     }
   }

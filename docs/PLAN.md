@@ -257,7 +257,8 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 2. [x] 将 MoveAction 的生成收回 Runtime，业务端只订阅 `runtime.onAction()`；
 3. [x] 为事务提供统一的 Layout lifecycle（capture → play → cancel）接口，
    Runtime 在 commit 前后调用；demo 现有 FLIP driver 的迁移仍列在第 7 项；
-4. [x] 将 source/target 解析、target 等待、zero-size 处理收回 Runtime；
+4. [x] 将同步 source/target 解析收回 Runtime；target 等待不作为全局强制流程，
+   由 clone 等需要等待的视觉策略在 proxy 接管后自行处理，detach 保持同步解析；
 5. [x] 将 clone/detach 的视觉实现注册为 `VisualStrategy`，Runtime 只调用统一的
    `beginDrag/landing/reveal/cancel/dispose` 生命周期；
 6. [x] 将 regrab、旧 token 失效和旧 session cleanup 收回 Runtime；
@@ -270,8 +271,99 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 - 每个移动事务只产生一次 Action、landing 和 reveal；
 - commit/landing/reveal 失败都进入统一取消和清理路径；
 - interrupt 后旧 Promise、旧 listener 和旧 Lease 不再影响新 Session；
-- clone/detach 视觉行为不改变；
+- clone/detach 视觉行为不改变；clone 的 target wait 不得发生在 proxy 创建之前；
 - Runtime 不实现 MotionController，不保存业务 Store 状态。
+
+0.7 的最终边界：Runtime 不阻塞视觉代理的创建。detach 直接使用同步 target；clone
+先创建可见 proxy，再由策略内部等待目标节点 mount。目标等待不能放在 source 隐藏和
+proxy 创建之间，否则会产生 release 视觉空窗。
+
+### 阶段 0.8：Surface 与输入生命周期收口
+
+0.8 建立在 0.7 稳定实现之上，目标是让业务端只提供对象、Surface、命中和视觉
+策略，不再手动编排卡片与 Surface 的事务生命周期。本阶段不重新实现运动数学，
+不引入 `MotionController` 或 `CardVisualHost`，也不改变 clone/detach 的视觉行为。
+
+执行顺序：
+
+1. [x] 收口 Surface 生命周期：source/destination Lease、Surface enter/leave、
+   placeholder 登记与释放、跨 Surface cleanup 和事务锁；
+2. [x] 收口输入生命周期：pointerdown、pointermove、pointerup、pointercancel、
+   lostpointercapture、window blur 和 regrab；
+3. [x] Runtime 已统一推进主流程 `prepare → active → release → landing → revealing →
+   completed/cancelled → disposed`，clone/detach 视觉策略不再直接调用
+   `session.transition()` / `session.handoff()`；
+4. [x] 将 listener、RAF、ResizeObserver、Lease 和 placeholder 纳入同一清理出口；
+5. [x] 清理 clone/detach 入口中重复的 Session、Surface、输入和 Promise 编排，
+   保留项目卡专属 DOM、样式、proxy 和 target 时序。两种策略现在统一通过
+   `orchestrateMoveSession`、Runtime Lease、Runtime 输入绑定和 Session Cleanup
+   接入；策略文件仅保留各自的 DOM、proxy、target 等视觉时序。
+
+视觉策略边界保持明确：detach 使用同步 target 解析；clone 如需等待目标 mount，
+必须先创建可见 proxy，再由策略内部等待。Runtime 不强制所有策略等待 target。
+
+0.8 验收标准：
+
+- 业务入口只注册 Object、Surface、MoveBehavior、HitResolver、Action 和视觉策略；
+- 业务端不再直接管理 Session 状态、Lease、输入监听和通用 cleanup；
+- cancel、interrupt、regrab、landing-failed 都只执行一次清理；
+- clone/detach 的同列、跨列、landing regrab 和连续拖动行为保持不变；
+- 不新增 MotionController，不迁移文件卡、画布卡，不改变业务 DOM 结构。
+
+0.8 状态：已完成。后续阶段只处理真实业务接入和策略专属视觉迁移，不再扩大
+Runtime 的通用职责。
+
+### 阶段 0.9：注册即运行的默认交互与视觉生命周期
+
+目标是让业务端完成对象和 Surface 注册后，Runtime 自动建立一条完整的移动交互
+链路，并自动驱动对象的视觉生命周期。业务端不再手动调用 `start()`、
+`orchestrateMoveSession()`、`bindPointerSessionInput()` 或 clone/detach 启动函数。
+
+执行顺序：
+
+1. [x] 扩展对象注册配置：对象注册时声明 `type`、`element`、`surfaceId`、能力和
+   可选 `visual/visualMode`；Runtime 根据对象注册解析默认 Behavior 和视觉策略。
+2. [x] 扩展 Surface 注册配置：Surface 声明 `accepts`、命中范围和默认插入策略；
+   Runtime 自动完成 source/destination Surface 解析和 Lease。
+3. [~] 扩展现有 `VisualAdapter`，让它同时提供 `createProxy`、`updateProxy`、
+   `land`、`reveal` 和 `dispose`；Runtime 统一调用这些能力。默认使用 detach，
+   clone 只作为显式覆盖配置。取消 `ObjectVisualAdapter` 与 `VisualAdapter` 两套
+   生命周期接口并存（detach 已切换到 Runtime 的 VisualAdapter 调度），`legacyStart`
+   只作为迁移临时层，最终删除。
+4. [x] 将 pointerdown → Session → pointer input → release 的启动链收进 Runtime；
+   业务只同步对象 element，不再维护每张卡片的事件 disposer。
+5. [~] 将通用 regrab、landing/reveal 一次性保护和失败清理收进 Runtime；
+   regrab 注册、proxy pointerdown 监听、Session Cleanup 和一次性 completion gate
+   已收进 Runtime；`createVisualProxy()`、`landVisualProxy()` 和
+   `revealVisualProxy()` 已提供统一调度与代理清理入口，detach 已不再在策略文件中维护
+   独立的 proxy 生命周期 Promise。
+6. [ ] 缩减 demo 业务入口，保留项目卡专属 DOM、样式、FLIP 和 proxy 实现，
+   删除重复的 Session/输入/Lease 编排。
+
+0.9 不负责：业务 Store 提交、MotionController、CardVisualHost、对象内容渲染、
+Surface 的业务样式，以及文件/画布对象迁移。
+
+0.9 迁移拆分顺序：
+
+1. 先抽离 detach 的 Move driver（prepare/update/resolveDestination/commit），保留
+   旧入口作为适配层；当前 `update/resolveDestination/commit` 已提取为
+   `createDetachMoveDriver()`；Surface/兄弟 FLIP lifecycle 也已提取为
+   `createDetachLayoutLifecycle()`。
+2. 再抽离 detach 的 VisualAdapter landing/reveal/dispose；
+3. 将 regrab 交接改为 Runtime gate；
+4. 删除旧入口中的 `orchestrateMoveSession`、Session/Lease 和通用 cleanup；
+5. 最后迁移 clone，并删除 `legacyStart`。
+
+0.9 验收标准：
+
+- 接入方只需注册 Object、Surface 和可选视觉配置即可拖动对象；
+- 未指定模式时自动使用 detach；
+- Runtime 自动完成 Session、输入、命中、Action、proxy 创建、跟手、landing、
+  reveal、regrab 和 cleanup；
+- 业务端不再直接调用策略启动函数；
+- 业务端只需实现现有 `VisualAdapter` 的视觉方法，不再额外实现一套生命周期适配器；
+- clone/detach 的 demo 行为与 0.8 保持一致；
+- API 文档提供 Vue/React 两种 element 同步示例。
 
 ### 阶段 1：迁移 Gugu-web 看板项目卡
 

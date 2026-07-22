@@ -27,6 +27,12 @@ export interface MoveLayoutLifecycle {
   cancel?(context: BehaviorContext, snapshot: unknown, reason: string): void
 }
 
+export interface MoveSurfaceLifecycle {
+  leave?(context: BehaviorContext, surfaceId: string): void | Promise<void>
+  enter?(context: BehaviorContext, surfaceId: string): void | Promise<void>
+  dispose?(context: BehaviorContext): void
+}
+
 export interface MoveBehaviorDriver {
   prepare?(context: BehaviorContext, request: StartRequest): void | Promise<void>
   update?(context: BehaviorContext, input: RuntimeInput): void
@@ -50,6 +56,7 @@ export interface MoveBehaviorDriver {
 
 export interface MoveVisualLifecycle {
   layout?: MoveLayoutLifecycle
+  surface?: MoveSurfaceLifecycle
   beginDrag?(context: BehaviorContext): void | Promise<void>
   landing?(context: BehaviorContext, destination: unknown): LandingResult | void | Promise<LandingResult | void>
   reveal?(context: BehaviorContext, destination: unknown): void | Promise<void>
@@ -67,6 +74,7 @@ export interface MoveReleaseResult {
 export interface LandingResult {
   readonly completed: boolean
   readonly reason?: string
+  readonly reveal?: () => void
 }
 
 export class MoveBehavior implements Behavior {
@@ -107,6 +115,10 @@ export class MoveBehavior implements Behavior {
 
   bindLifecycle(sessionId: string, lifecycle: MoveVisualLifecycle): void {
     this.sessionLifecycles.set(sessionId, lifecycle)
+  }
+
+  getLifecycle(sessionId: string): MoveVisualLifecycle | undefined {
+    return this.sessionLifecycles.get(sessionId)
   }
 
   captureLayout(context: BehaviorContext): void {

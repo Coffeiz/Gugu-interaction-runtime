@@ -1,7 +1,6 @@
 <template>
   <div class="kb-strategy-switch">
-    <label><input type="radio" value="clone" v-model="strategy" /> clone 策略（proxy + 隐藏本体）</label>
-    <label><input type="radio" value="detach" v-model="strategy" /> detach 策略（全程一个对象）</label>
+    <span>默认视觉模式：detach</span>
   </div>
   <div class="kb-board">
     <div v-for="col in columns" :key="col.id" class="kb-column" :data-column="col.id" data-layout-surface data-surface-type="kanban-column" :ref="el => setColumnRef(col.id, el as HTMLElement | null)">
@@ -32,7 +31,7 @@
                       class="kb-card kb-card-done"
                       :class="{ 'kb-card-locked': isLocked(cardId) }"
                       :data-card="cardId"
-                      @pointerdown="onCardPointerDown($event, cardId)"
+                      :ref="el => bindCardPointer(cardId, el as HTMLElement | null)"
                     >
                       {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
                       <span class="kb-done-badge">✓ 完成</span>
@@ -57,7 +56,7 @@
             class="kb-card"
             :class="{ 'kb-card-locked': isLocked(cardId) }"
             :data-card="cardId"
-            @pointerdown="onCardPointerDown($event, cardId)"
+            :ref="el => bindCardPointer(cardId, el as HTMLElement | null)"
           >
             {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
           </div>
@@ -71,14 +70,18 @@
 import { computed, reactive, ref, watchEffect, onUnmounted } from 'vue'
 import { columns, cards, moveCard } from './store'
 import { buildDoneGroups } from './doneGrouping'
-import { startCardDrag } from './kanbanDrag'
-import { startCardDragDetach } from './kanbanDragDetach'
+import { createKanbanVisualAdapter } from './kanbanVisualAdapter'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
 import { useSurface } from '../vue/useSurface'
 import { runtime } from '../Runtime'
 import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 
-const strategy = ref<'clone' | 'detach'>('clone')
+// 未显式选择视觉模式时，Runtime 默认使用 detach；clone 仅作为 demo 的
+// 可选对照策略保留。
+runtime.registerObjectType('kanban', {
+  defaultVisualMode: 'detach',
+  visual: createKanbanVisualAdapter(),
+})
 
 // 阶段 D：业务数据怎么变，由业务层订阅 Runtime 的 Action 通道自己决定，
 // 不是 kanbanDrag.ts/kanbanDragDetach.ts 直接调 moveCard——这两个文件现在
@@ -111,11 +114,17 @@ Object.keys(cards).forEach(cardId => {
   runtime.objects.register({
     id: cardId,
     type: 'kanban-card',
+    visual: 'kanban',
+    visualMode: 'detach',
     surfaceId: '',
     element: null,
     abilities: cardId === 'c3' ? [] : ['move', 'sort'],
   })
 })
+
+function bindCardPointer(cardId: string, element: HTMLElement | null): void {
+  runtime.objects.setElement(cardId, element)
+}
 
 function isLocked(cardId: string): boolean {
   return !runtime.objects.hasAbility(cardId, 'move')
@@ -213,12 +222,6 @@ function toggleGroup(level: 'year' | 'month', key: string) {
   }
 }
 
-function onCardPointerDown(event: PointerEvent, cardId: string) {
-  const el = (event.currentTarget as HTMLElement) ?? null
-  if (!el) return
-  if (strategy.value === 'detach') startCardDragDetach(event, cardId, el)
-  else startCardDrag(event, cardId, el)
-}
 </script>
 
 <style scoped>

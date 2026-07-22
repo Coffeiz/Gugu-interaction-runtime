@@ -30,6 +30,8 @@ const { elementRef } = useObject({
   type: 'project-card',
   surface: () => `column:${project.status}`,  // getter，随业务数据变化
   abilities: ['move', 'sort'],
+  visual: 'kanban',
+  visualMode: 'detach',
 })
 ```
 
@@ -82,24 +84,40 @@ mountVisualOverlay()
 **3. 给对象打上可识别的标记**（供 hit test 用，见"已知限制"）
 
 ```html
-<div class="my-card" :data-card="cardId" @pointerdown="onPointerDown(cardId, $event)">
+<div class="my-card" :data-card="cardId">
 ```
 
-**4. 选一种视觉策略，调用对应的拖拽函数**
+Runtime 会根据对象注册里的 `visual` 找到适配器，自动创建 Session、绑定
+driver/lifecycle、接管输入并推进完整事务。未填写 `visual` 时按对象类型默认配置，
+未填写 `visualMode` 时默认使用 `detach`。
+
+视觉适配器只在 Runtime 集成层创建一次。`createProxy`、`updateProxy`、
+`landProxy`、`revealTarget` 和 `disposeProxy` 都封装在这个类型级适配器内部；每张
+卡片的注册只需要提供 `id`、`type`、`element` 和 `surfaceId`，不需要重复声明这些
+视觉能力。
+
+对象注册时如果已经有 DOM element，Runtime 会自动绑定 `pointerdown`；如果 element
+稍后才挂载，后续 `runtime.objects.setElement(id, element)` 也会自动完成绑定。业务端
+不需要再单独调用 `runtime.bindObjectPointer()`，也不需要为每张卡片维护 disposer。
+
+推荐在渲染框架的 ref/挂载回调里只同步 element：
 
 ```ts
-import { startCardDrag } from '{path-to}/kanbanDrag'          // clone 策略
-import { startCardDragDetach } from '{path-to}/kanbanDragDetach' // detach 策略
-
-function onPointerDown(cardId: string, event: PointerEvent) {
-  const el = event.currentTarget as HTMLElement
-  startCardDrag(event, cardId, el)       // 或 startCardDragDetach(event, cardId, el)
+function setCardElement(id: string, element: HTMLElement | null): void {
+  runtime.objects.setElement(id, element)
 }
 ```
 
-这两个函数入口处都会先查 `runtime.objects.hasAbility(cardId, 'move')`，
-没有这个能力直接拒绝——对象只要注册时不声明 `'move'`，就自动拖不动，不
-需要在业务组件里另外判断"这个能不能拖"。两种策略的选择依据见
+Runtime 会根据对象注册的 `visual` 找到对应适配器，并负责监听器的替换、卸载和
+重新绑定。对象 DOM 被 Vue/React 重建时，只要再次同步新的 element，
+输入入口仍然保持不变。
+
+`startObjectPointer()` 是 Runtime 内部入口，业务端不需要直接调用，也不需要在模板里
+手动转发 `pointerdown` 或判断 clone/detach。
+
+Runtime 会先检查 `runtime.objects.hasAbility(cardId, 'move')`，没有这个能力直接
+拒绝——对象只要注册时不声明 `'move'`，就自动拖不动，不需要在业务组件里另外判断。
+clone/detach 两种策略的选择依据见
 [VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
 
 业务层可以订阅 Runtime 输出的语义化 Action，并在自己的 Store/API 边界提交：
@@ -114,15 +132,39 @@ const stop = runtime.onAction(action => {
 
 Runtime 不直接写业务 Store；订阅者负责保存、失败处理和必要的回滚。
 
-**4.1（可选）提供视觉适配器**
+代理由 Runtime 按 session 登记。适配器不需要维护代理注册表；Runtime 创建新代理时会替换旧代理，并在取消、打断或完成时统一清理。
+
+落地和揭示阶段由 Runtime 分别调用 `landVisualProxy(sessionId, target)` 与
+`revealVisualProxy(sessionId, target)`；适配器只返回落地结果或执行视觉过渡，不直接修改
+Session 状态，也不自行决定何时清理代理。
+
+跟手或重定位阶段使用 `updateVisualProxy(sessionId, context)`，由 Runtime 转发给适配器。
+
+最终目标使用 `resolveVisualTarget(sessionId, destination)` 解析；适配器只返回目标节点，
+Runtime 会统一检查节点仍连接在文档中。
+
+普通、抓取、落地和揭示状态使用 `applyVisualState(objectId, element, state)` 写入，
+业务适配器只负责把状态映射为 class 或样式。
+
+需要保存抓取前或落地目标样式时使用 `captureVisualState(objectId, element)`，由 Runtime
+统一获取适配器快照或默认 DOM 快照。
+
+释放时 Runtime 会先通知适配器执行 `dispose(proxy, context)`，随后调用代理对象自身的
+`dispose()`；两者都由 Runtime 保证最多执行一次。
+
+**3.1（可选）提供视觉适配器**
 
 业务端可以自定义卡片在普通、hover、抓取、落地和揭示阶段的 class 或样式，
 但不应自行编排 proxy 与本体的交接：
 
 ```ts
 const visual: VisualAdapter = {
-  getSourceElement: () => cardEl,
-  createProxy: snapshot => createProjectProxy(snapshot),
+  resolveSource: () => cardEl,
+  createProxy: context => createProjectProxy(context),
+  updateProxy: (proxy, context) => updateProjectProxy(proxy, context),
+  land: (proxy, target, context) => landProjectProxy(proxy, target, context),
+  reveal: (proxy, target, context) => revealProjectTarget(proxy, target, context),
+  dispose: proxy => disposeProjectProxy(proxy),
   applyState: (element, state) => {
     element.classList.toggle('is-hovered', state.hovered)
     element.classList.toggle('is-dragging', state.grabbed)
@@ -131,8 +173,8 @@ const visual: VisualAdapter = {
 }
 ```
 
-适配器负责具体的阴影、圆角、背景和 class；Runtime 负责统一 hover 状态、运动
-时序、代理到本体的渐变交接，以及取消/清理。这样不同卡片类型可以拥有不同
+适配器负责具体的阴影、圆角、背景、proxy 运动和样式；Runtime 负责统一 hover 状态、
+生命周期时序、代理到本体的渐变交接，以及取消/清理。这样不同卡片类型可以拥有不同
 视觉风格，同时不会因各自实现 hover 或 reveal 而产生交接闪烁。
 
 业务端样式可以直接按 Runtime 写入的状态 class 定义。例如项目卡：
@@ -183,10 +225,12 @@ Runtime 或适配器：
 }
 ```
 
-**4.2（可选覆盖）视觉适配器**
+**3.2（可选覆盖）视觉适配器**
 
 Runtime 会统一编排 source/target 解析所需的生命周期顺序、landing、handoff、reveal
-和清理；具体 proxy、样式交接和落地动画仍由当前 clone/detach 视觉 driver 实现。
+和清理；具体 proxy、样式交接、目标等待和落地动画仍由当前 clone/detach 视觉 driver
+实现。detach 使用同步 target 解析；clone 如需等待目标 mount，必须先创建 proxy，
+再在策略内部等待，Runtime 不强制阻塞所有策略。
 
 只有需要特殊视觉时才注册适配器：
 
@@ -204,7 +248,7 @@ runtime.registerVisualAdapter('project-card', {
 适配器只覆盖提供的字段；Runtime 负责 Session、landing/reveal 顺序、幂等和
 清理，source/target 的具体 DOM 操作仍由视觉 driver 负责。
 
-**4.3 视觉 driver 的落地交接**
+**3.3 视觉 driver 的落地交接**
 
 以下代码展示视觉 driver 如何执行交接；Runtime 负责在 landing 完成后调用
 reveal，业务端不应自行编排 Session。目标只读取一次

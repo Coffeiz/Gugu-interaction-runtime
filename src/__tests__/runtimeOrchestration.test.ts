@@ -51,6 +51,378 @@ describe('Runtime move orchestration', () => {
     expect(handler).toHaveBeenCalledWith(event)
   })
 
+  it('Surface Lease 不允许后续 Session 覆盖当前控制权', () => {
+    const runtime = createRuntime()
+    const first = runtime.start(createRequest())
+    const second = runtime.start(createRequest())
+
+    expect(runtime.takeSurface(first.id, 'column:todo')).toBe(true)
+    expect(runtime.takeSurface(second.id, 'column:todo')).toBe(false)
+    expect(runtime.owner.isOwnedBy('column:todo', first.id)).toBe(true)
+    expect(runtime.owner.isOwnedBy('column:todo', second.id)).toBe(false)
+
+    runtime.cancel(first.id)
+    runtime.cancel(second.id)
+  })
+
+  it('对象类型注册后由 Runtime 自动启动默认视觉模式', () => {
+    const runtime = createRuntime()
+    const start = vi.fn()
+    runtime.registerObjectType('project-card', {
+      defaultVisualMode: 'detach',
+      start,
+    })
+    const element = document.createElement('div')
+    const event = new PointerEvent('pointerdown')
+
+    expect(runtime.startObjectPointer('card-1', element, event)).toBe(true)
+    expect(start).toHaveBeenCalledWith({
+      objectId: 'card-1',
+      element,
+      event,
+      mode: 'detach',
+    })
+  })
+
+  it('对象类型可以由 Runtime 自动创建 Move Session', () => {
+    const runtime = createRuntime()
+    const driver = createDriver(() => undefined)
+    const createMove = vi.fn(() => ({ driver }))
+    runtime.registerObjectType('project-card', {
+      defaultVisualMode: 'detach',
+      createMove,
+    })
+    const element = document.createElement('div')
+
+    expect(runtime.startObjectPointer('card-1', element, new PointerEvent('pointerdown'))).toBe(true)
+    expect(createMove).toHaveBeenCalledOnce()
+    expect(runtime.snapshot().objects.find(object => object.id === 'card-1')?.element).toBe(element)
+  })
+
+  it('视觉适配器按对象 visual 配置解析', () => {
+    const runtime = createRuntime()
+    const adapter = { resolveSource: () => null }
+    runtime.registerVisualAdapter('kanban', adapter)
+    runtime.objects.setElement('card-1', null)
+    const object = runtime.objects.get('card-1')!
+    object.visual = 'kanban'
+
+    expect(runtime.getObjectVisualAdapter('card-1')).toBe(adapter)
+  })
+
+  it('默认 VisualAdapter 保持 source/target 与状态 class 逻辑', () => {
+    const runtime = createRuntime()
+    runtime.visuals.remove('project-card')
+    const source = document.createElement('div')
+    source.dataset.card = 'card-1'
+    document.body.appendChild(source)
+
+    const adapter = runtime.getObjectVisualAdapter('card-1')
+    adapter.applyState?.(source, {
+      phase: 'dragging',
+      hovered: false,
+      selected: false,
+      grabbed: true,
+    })
+    expect(source.dataset.runtimePhase).toBe('dragging')
+    expect(source.classList.contains('is-grabbed')).toBe(true)
+    source.remove()
+  })
+
+  it('VisualProxy 随 Session 注册、替换并在取消时清理', () => {
+    const runtime = createRuntime()
+    const handle = runtime.start(createRequest())
+    const firstDispose = vi.fn()
+    const secondDispose = vi.fn()
+    const first = { element: document.createElement('div'), dispose: firstDispose }
+    const second = { element: document.createElement('div'), dispose: secondDispose }
+
+    runtime.registerVisualProxy(handle.id, first)
+    runtime.registerVisualProxy(handle.id, second)
+    expect(firstDispose).toHaveBeenCalledOnce()
+    expect(runtime.getVisualProxy(handle.id)).toBe(second)
+
+    runtime.cancel(handle.id)
+    expect(secondDispose).toHaveBeenCalledOnce()
+    expect(runtime.getVisualProxy(handle.id)).toBeUndefined()
+  })
+
+  it('通过对象 VisualAdapter 创建并登记代理', () => {
+    const runtime = new Runtime()
+    const element = document.createElement('div')
+    const proxyElement = document.createElement('div')
+    runtime.objects.register({
+      id: 'card-visual',
+      type: 'visual-card',
+      surfaceId: 'surface:visual',
+      element,
+      abilities: ['move'],
+    })
+    runtime.registerObjectType('visual-card', {
+      defaultVisualMode: 'detach',
+      visual: {
+        createProxy: context => {
+          expect(context.objectId).toBe('card-visual')
+          expect(context.sessionId).toBe(handle.id)
+          return { element: proxyElement }
+        },
+      },
+    })
+    runtime.registerVisualAdapter('visual-card', { resolveSource: () => null })
+    const handle = runtime.start({
+      type: 'move',
+      objectId: 'card-visual',
+      input: { kind: 'programmatic' },
+    })
+    expect(runtime.getSession(handle.id)).toBeDefined()
+
+    const proxy = runtime.createVisualProxy(
+      handle.id,
+      runtime.createVisualLifecycleContext(handle.id),
+    )
+
+    expect(proxy?.element).toBe(proxyElement)
+    expect(runtime.getVisualProxy(handle.id)?.element).toBe(proxyElement)
+    runtime.cancel(handle.id)
+    expect(runtime.getVisualProxy(handle.id)).toBeUndefined()
+  })
+
+  it('通过 Runtime 顺序调用 VisualAdapter 的 landing 和 reveal', async () => {
+    const runtime = new Runtime()
+    const source = document.createElement('div')
+    const proxyElement = document.createElement('div')
+    const target = document.createElement('div')
+    const calls: string[] = []
+    runtime.objects.register({
+      id: 'card-lifecycle',
+      type: 'lifecycle-card',
+      surfaceId: 'surface:lifecycle',
+      element: source,
+      abilities: ['move'],
+    })
+    runtime.registerVisualAdapter('lifecycle-card', { resolveSource: () => source })
+    runtime.registerObjectType('lifecycle-card', {
+      defaultVisualMode: 'detach',
+      visual: {
+        createProxy: () => ({ element: proxyElement }),
+        land: async (_proxy, _target, context) => {
+          calls.push(`land:${context.objectId}`)
+          return { completed: true }
+        },
+        reveal: async (_proxy, _target, context) => {
+          calls.push(`reveal:${context.objectId}`)
+        },
+      },
+    })
+    const handle = runtime.start({
+      type: 'move',
+      objectId: 'card-lifecycle',
+      input: { kind: 'programmatic' },
+    })
+    runtime.createVisualProxy(handle.id, runtime.createVisualLifecycleContext(handle.id))
+
+    expect(await runtime.landVisualProxy(handle.id, target)).toEqual({ completed: true })
+    await runtime.revealVisualProxy(handle.id, target)
+    expect(calls).toEqual(['land:card-lifecycle', 'reveal:card-lifecycle'])
+    runtime.cancel(handle.id)
+  })
+
+  it('释放代理时调用适配器 dispose，并保持代理自身清理', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('div')
+    const proxyElement = document.createElement('div')
+    const disposeAdapter = vi.fn()
+    const disposeProxy = vi.fn()
+    runtime.objects.register({
+      id: 'card-dispose',
+      type: 'dispose-card',
+      surfaceId: 'surface:dispose',
+      element: source,
+      abilities: ['move'],
+    })
+    runtime.registerVisualAdapter('dispose-card', { resolveSource: () => source })
+    runtime.registerObjectType('dispose-card', {
+      defaultVisualMode: 'detach',
+      visual: {
+        createProxy: () => ({ element: proxyElement, dispose: disposeProxy }),
+        dispose: disposeAdapter,
+      },
+    })
+    const handle = runtime.start({
+      type: 'move',
+      objectId: 'card-dispose',
+      input: { kind: 'programmatic' },
+    })
+    runtime.createVisualProxy(handle.id, runtime.createVisualLifecycleContext(handle.id))
+
+    runtime.disposeVisualProxy(handle.id)
+    expect(disposeAdapter).toHaveBeenCalledOnce()
+    expect(disposeProxy).toHaveBeenCalledOnce()
+  })
+
+  it('将代理更新转发给当前对象适配器', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('div')
+    const proxyElement = document.createElement('div')
+    const update = vi.fn()
+    runtime.objects.register({
+      id: 'card-update',
+      type: 'update-card',
+      surfaceId: 'surface:update',
+      element: source,
+      abilities: ['move'],
+    })
+    runtime.registerVisualAdapter('update-card', { resolveSource: () => source })
+    runtime.registerObjectType('update-card', {
+      defaultVisualMode: 'detach',
+      visual: {
+        createProxy: () => ({ element: proxyElement }),
+        updateProxy: update,
+      },
+    })
+    const handle = runtime.start({
+      type: 'move',
+      objectId: 'card-update',
+      input: { kind: 'programmatic' },
+    })
+    runtime.createVisualProxy(handle.id, runtime.createVisualLifecycleContext(handle.id))
+
+    runtime.updateVisualProxy(handle.id)
+    expect(update).toHaveBeenCalledOnce()
+    runtime.cancel(handle.id)
+  })
+
+  it('通过对象适配器解析并校验最终目标节点', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('div')
+    const target = document.createElement('div')
+    const resolveTarget = vi.fn(() => target)
+    runtime.objects.register({
+      id: 'card-target',
+      type: 'target-card',
+      surfaceId: 'surface:target',
+      element: source,
+      abilities: ['move'],
+    })
+    runtime.registerVisualAdapter('target-card', { resolveSource: () => source })
+    runtime.registerObjectType('target-card', {
+      defaultVisualMode: 'detach',
+      visual: { resolveTarget },
+    })
+    const handle = runtime.start({
+      type: 'move',
+      objectId: 'card-target',
+      input: { kind: 'programmatic' },
+    })
+
+    expect(runtime.resolveVisualTarget(handle.id, { surfaceId: 'surface:target' })).toBeNull()
+    document.body.appendChild(target)
+    expect(runtime.resolveVisualTarget(handle.id, { surfaceId: 'surface:target' })).toBe(target)
+    expect(resolveTarget).toHaveBeenCalledTimes(2)
+    runtime.cancel(handle.id)
+  })
+
+  it('通过对象适配器应用统一视觉状态', () => {
+    const runtime = new Runtime()
+    const element = document.createElement('div')
+    const applyState = vi.fn()
+    runtime.objects.register({
+      id: 'card-state',
+      type: 'state-card',
+      surfaceId: 'surface:state',
+      element,
+      abilities: ['move'],
+    })
+    runtime.registerObjectType('state-card', {
+      defaultVisualMode: 'detach',
+      visual: { applyState },
+    })
+    const state = { phase: 'dragging' as const, hovered: false, selected: false, grabbed: true }
+
+    runtime.applyVisualState('card-state', element, state)
+    expect(applyState).toHaveBeenCalledWith(element, state)
+  })
+
+  it('未覆盖 applyState 时使用 Runtime 默认视觉状态实现', () => {
+    const runtime = new Runtime()
+    const element = document.createElement('div')
+    runtime.objects.register({
+      id: 'card-default-state',
+      type: 'default-state-card',
+      surfaceId: 'surface:default-state',
+      element,
+      abilities: ['move'],
+    })
+    runtime.registerObjectType('default-state-card', { defaultVisualMode: 'detach', visual: {} })
+
+    runtime.applyVisualState('card-default-state', element, {
+      phase: 'dragging', hovered: false, selected: false, grabbed: true,
+    })
+
+    expect(element.dataset.runtimePhase).toBe('dragging')
+    expect(element.classList.contains('is-grabbed')).toBe(true)
+  })
+
+  it('通过 Runtime 获取默认视觉快照', () => {
+    const runtime = new Runtime()
+    const element = document.createElement('div')
+    element.style.opacity = '0.7'
+    runtime.objects.register({
+      id: 'card-snapshot',
+      type: 'snapshot-card',
+      surfaceId: 'surface:snapshot',
+      element,
+      abilities: ['move'],
+    })
+    runtime.registerObjectType('snapshot-card', { defaultVisualMode: 'detach', visual: {} })
+
+    const snapshot = runtime.captureVisualState('card-snapshot', element)
+    expect(snapshot.opacity).toBe('0.7')
+    expect(snapshot.rect).toHaveProperty('width')
+  })
+
+  it('Runtime 会随对象 element 生命周期自动绑定并清理 pointerdown 入口', () => {
+    const runtime = createRuntime()
+    const start = vi.fn()
+    runtime.registerObjectType('project-card', { defaultVisualMode: 'detach', start })
+    const element = document.createElement('div')
+    runtime.objects.setElement('card-1', element)
+
+    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    expect(start).toHaveBeenCalledTimes(1)
+    runtime.objects.setElement('card-1', null)
+    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    expect(start).toHaveBeenCalledTimes(1)
+  })
+
+  it('统一输入入口会把 pointercancel 转为一次性 cancel', async () => {
+    const runtime = createRuntime()
+    const handle = runtime.orchestrateMoveSession(createRequest(), {
+      driver: createDriver(() => undefined),
+      pointerInput: { target: window },
+    })
+
+    window.dispatchEvent(new PointerEvent('pointercancel'))
+    await Promise.resolve()
+
+    expect(runtime.getSession(handle.id)).toBeUndefined()
+  })
+
+  it('完成 gate 只允许当前 Session 完成一次，Session 结束会失效', async () => {
+    const runtime = createRuntime()
+    const handle = runtime.start(createRequest())
+    const gate = runtime.createCompletionGate(handle.id, { completed: false, reason: 'disposed' })
+
+    gate.complete({ completed: true, reason: '' })
+    gate.complete({ completed: false, reason: 'late' })
+    await expect(gate.promise).resolves.toEqual({ completed: true, reason: '' })
+
+    const second = runtime.start(createRequest())
+    const cancelledGate = runtime.createCompletionGate(second.id, { completed: false, reason: 'cancelled' })
+    runtime.cancel(second.id)
+    await expect(cancelledGate.promise).resolves.toEqual({ completed: false, reason: 'cancelled' })
+  })
+
   it('按对象类型自动绑定 VisualStrategy 生命周期', async () => {
     const runtime = createRuntime()
     const events: string[] = []
@@ -84,6 +456,30 @@ describe('Runtime move orchestration', () => {
       toSurfaceId: 'column:done',
       toIndex: 0,
     })])
+  })
+
+  it('由 Runtime 编排 Surface leave → Action → enter → dispose', async () => {
+    const runtime = createRuntime()
+    const events: string[] = []
+    const handle = runtime.start(createRequest())
+    runtime.bindMoveSession(handle.id, createDriver(() => { events.push('action') }))
+    runtime.bindMoveLifecycle(handle.id, {
+      surface: {
+        leave: (_context, surfaceId) => { events.push(`leave:${surfaceId}`) },
+        enter: (_context, surfaceId) => { events.push(`enter:${surfaceId}`) },
+        dispose: () => { events.push('surface-dispose') },
+      },
+      landing: () => ({ completed: true }),
+    })
+
+    await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
+
+    expect(events).toEqual([
+      'action',
+      'leave:column:todo',
+      'enter:column:done',
+      'surface-dispose',
+    ])
   })
 
   it('将业务侧 columnId/index 落点归一为 MoveAction', async () => {
