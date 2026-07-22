@@ -312,8 +312,10 @@ runtime.cancel(sessionId, reason)
 runtime.interrupt(sessionId, reason)
 ```
 
-`MoveBehavior` 负责 proxy、placeholder、命中、布局、落地和 handoff；Runtime
-负责 Session 调度、状态转换、能力校验和 Action 输出。页面不应再自行拼接这些步骤。
+`MoveBehavior` 只保存一次移动事务的行为状态；`VisualAdapter`、`Hit` 和
+`GroupLayout` 作为 Runtime 内部组件继续提供已有的视觉、命中和布局实现。Runtime
+负责把完整生命周期编排起来并提供统一注册 API；页面只注册 Object 和 Surface，不再
+自行拼接 proxy、landing、FLIP、regrab 或通用清理步骤。
 
 
 Behavior 执行期间通过上下文取得本次对象的能力：
