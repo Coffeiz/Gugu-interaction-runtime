@@ -165,6 +165,16 @@ export function prepareDetachLanding(args: {
   return beforeRect
 }
 
+export function scheduleDetachLandingFrame(
+  clearFloating: () => void,
+  callback: () => void,
+): () => void {
+  return () => requestAnimationFrame(() => {
+    clearFloating()
+    callback()
+  })
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *

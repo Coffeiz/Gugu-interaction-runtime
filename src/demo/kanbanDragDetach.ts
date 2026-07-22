@@ -20,6 +20,7 @@ import {
   createDetachVisualLifecycle,
   cancelDetachWithoutDrop,
   prepareDetachLanding,
+  scheduleDetachLandingFrame,
   createDetachDropState,
   interruptDetachRegrab,
   prepareDetachMotion,
@@ -173,7 +174,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 不解除的话 surface 高度动画会算出"少一张卡"的错误目标（见
     // dom/Visual.ts settleFloatingLayout 的注释）。保持不可见，真正的
     // 揭示仍然留给下面 landingPlan 里的 clearFloatingStyle。
-    landingPlan = () => requestAnimationFrame(() => {
+    landingPlan = scheduleDetachLandingFrame(() => clearFloatingStyle(sourceEl), () => {
       // clearFloatingStyle 不能在 onUp() 里同步调用：那样会在这一帧同步抹掉
       // sourceEl 的抬起阴影/位置样式，但接管视觉的落地代理要等到这个 rAF 才
       // 创建——中间至少有一帧，浏览器会先画出"样式已经被清空、但代理还没
@@ -181,7 +182,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       // position:fixed 元素的渲染位置只认内联 left/top，不受 Teleport 换父级
       // 影响，所以拖到这里才清也不会看见位置跳动——延后清除跟延后隐藏必须
       // 在同一个 rAF 里完成，才能让"跟手样式"和"落地代理"无缝衔接。
-      clearFloatingStyle(sourceEl)
       // 注意：这里不能继续用闭包里的 sourceEl。同列内重排时 Vue 确实会
       // 复用同一个节点（同一个 v-for 数组内 diff），但跨列拖拽时源列和
       // 目标列是两个独立的 v-for/TransitionGroup 实例，Vue 只能在源列里
