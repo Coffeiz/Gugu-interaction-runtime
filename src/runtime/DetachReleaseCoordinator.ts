@@ -8,14 +8,20 @@ export interface DetachReleaseContext {
   readonly sessionId: string
   readonly objectId: string
   readonly source: HTMLElement
+  readonly beforeContent: HTMLElement
+  readonly sourceRect: DOMRect
+  readonly visualSnapshot: unknown
+  readonly landingPlan: (() => void) | null
+  readonly landingGate: unknown
+  readonly objectLease: { release(): void } | null
   readonly proxy?: HTMLElement | null
   readonly landing?: Promise<LandingResult>
 }
 
 export interface DetachReleaseCoordinatorOptions<TDrop> {
   readonly release: () => TDrop | null
-  readonly onInvalidDrop?: () => void
   readonly onAcceptedDrop?: (drop: TDrop) => void
+  readonly onInvalidDrop?: () => void
 }
 
 export class DetachReleaseCoordinator<TDrop> {
@@ -35,4 +41,5 @@ export class DetachReleaseCoordinator<TDrop> {
   reset(): void {
     this.released = false
   }
+
 }
