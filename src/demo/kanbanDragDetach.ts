@@ -122,10 +122,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   // 做（通过 orchestrateMoveSession 的 followElement 选项 + dragOffset）。
   // detach 的跟手对象就是本体自己。
 
-  let currentColumnId = findColumnIdOf(cardId)
-  let currentIndex = -1
   const dropState = createDetachDropState(
-    currentColumnId,
+    columns.find(col => col.cardIds.includes(cardId))?.id,
     event => hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, event.clientX, event.clientY, cardId),
     (drop, previous) => drop.columnId === previous?.columnId && drop.index === previous?.index,
   )
@@ -133,10 +131,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   let landingPlan: (() => void) | null = null
   let landingGate: RuntimeCompletionGate<LandingResult> | null = null
   let landingProxy: HTMLElement | null = null
-
-  function findColumnIdOf(id: string) {
-    return columns.find(col => col.cardIds.includes(id))?.id
-  }
 
   function onMove(moveEvent: PointerEvent) {
     if (session.state !== 'active') return
@@ -154,8 +148,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       getSurface: drop => drop.columnId,
     })
     if (!hit) return
-    currentColumnId = dropState.currentSurface
-    currentIndex = hit.index
     // detach 模式下拖动阶段不提交业务数组。否则鼠标经过哪一列，列计数和
     // Vue 节点归属就会立即改变，Teleport 可能在跟手过程中卸载本体。
     // 这里只记录候选落点，松手时一次性提交。
@@ -164,6 +156,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
 
   function onUp(): { columnId: string; index: number } | null {
     if (session.state !== 'active' && session.state !== 'release') return null
+    pendingDrop = dropState.release()
     if (!pendingDrop) {
       cancelDetachWithoutDrop({
         source: sourceEl,
