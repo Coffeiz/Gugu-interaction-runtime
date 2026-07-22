@@ -780,9 +780,10 @@ export class Runtime {
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
     try {
-      // 必须在 Coordinator 删除 Session 前销毁代理；VisualAdapter.dispose 需要 Session 上下文。
-      this.disposeVisualProxy(session.id)
-      this.sessionCoordinator.finalize(session.id)
+      this.sessionCoordinator.finalize(session.id, current => {
+        // VisualAdapter.dispose 需要 Session 上下文，必须在 Session 删除前执行。
+        this.disposeVisualProxy(current.id)
+      })
     } finally {
       this.disposeBehavior(behavior, context)
     }

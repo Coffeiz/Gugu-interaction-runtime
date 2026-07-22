@@ -51,9 +51,10 @@ export class SessionCoordinator {
   }
 
   /** 成功结束事务；视觉和 Behavior 的外围清理由 Runtime 按既有顺序调用。 */
-  finalize(sessionId: string): Session | undefined {
+  finalize(sessionId: string, beforeDispose?: (session: Session) => void): Session | undefined {
     const session = this.sessions.get(sessionId)
     if (!session) return undefined
+    beforeDispose?.(session)
     session.dispose()
     this.failGates(sessionId)
     this.sessions.delete(sessionId)
