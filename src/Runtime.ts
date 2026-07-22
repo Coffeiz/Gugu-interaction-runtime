@@ -25,6 +25,7 @@ import { VisualStateCoordinator } from './runtime/VisualStateCoordinator'
 import { VisualMotionCoordinator } from './runtime/VisualMotionCoordinator'
 import { RuntimeInputCoordinator } from './runtime/RuntimeInput'
 import { RuntimeMoveCoordinator } from './runtime/RuntimeMove'
+import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -132,6 +133,7 @@ export class Runtime {
   private readonly moveBehavior: MoveBehavior
   private hitResolver: HitResolver | null = null
   private readonly sessionCoordinator = new SessionCoordinator()
+  private readonly runtimeSession = new RuntimeSessionCoordinator(this.sessionCoordinator)
   private readonly events = new Emitter<RuntimeEvent>()
   private readonly actions = new Emitter<Action>()
   private readonly inputCoordinator: RuntimeInputCoordinator
@@ -752,14 +754,13 @@ export class Runtime {
   endSession(session: Session): void {
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
-    try {
-      this.sessionCoordinator.finalize(session.id, current => {
-        // VisualAdapter.dispose 需要 Session 上下文，必须在 Session 删除前执行。
-        this.disposeVisualProxy(current.id)
-      })
-    } finally {
-      this.disposeBehavior(behavior, context)
-    }
+    this.runtimeSession.finalize(
+      session,
+      behavior,
+      context,
+      sessionId => this.disposeVisualProxy(sessionId),
+      (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
+    )
   }
 
   private failCompletionGates(sessionId: string): void {
