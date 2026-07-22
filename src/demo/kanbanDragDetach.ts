@@ -13,6 +13,7 @@ import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
 import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
 import {
+  captureDetachDraggingSnapshot,
   createDetachLayoutLifecycle,
   createDetachMoveRequest,
   createDetachMoveDriver,
@@ -36,18 +37,6 @@ function startDetachSession(cardId: string, event: PointerEvent) {
   if (!session) throw new Error('detach session was not created')
   const objectLease = prepareDetachSession(session.id, cardId)
   return { session, objectLease }
-}
-
-function captureDetachDraggingSnapshot(
-  cardId: string,
-  sourceEl: HTMLElement,
-): VisualSnapshot | undefined {
-  const snapshot = runtime.captureVisualState(cardId, sourceEl)
-  return {
-    ...snapshot,
-    boxShadow: sourceEl.style.boxShadow || snapshot.boxShadow,
-    transform: sourceEl.style.transform || snapshot.transform,
-  }
 }
 
 function prepareDetachMotion(
@@ -171,7 +160,9 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   // 不是抬起后的最终样子。border-radius/background 没被 applyFloatingStyle
   // 碰过，用 computed 读没问题；box-shadow/transform 这两个要读 el.style
   // 本身（也就是"刚被赋的目标值"），绕开过渡中的插值。
-  const draggingSnapshot = captureDetachDraggingSnapshot(cardId, sourceEl)
+  const draggingSnapshot = captureDetachDraggingSnapshot(
+    (id, element) => runtime.captureVisualState(id, element), cardId, sourceEl,
+  )
   sourceEl.dataset.runtimeActive = 'true'
   moveFloating(sourceEl, startX, startY, offsetX, offsetY)
   // 阶段 C：往后每次 pointermove 的跟手定位由 MoveBehavior.update() 统一

@@ -1,11 +1,25 @@
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import type { LandingResult, MoveBehaviorDriver } from '../behavior/MoveBehavior'
+import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 
 export function createDetachMoveRequest(objectId: string, event: PointerEvent) {
   return {
     type: 'move' as const,
     objectId,
     input: { kind: 'pointerdown' as const, event },
+  }
+}
+
+export function captureDetachDraggingSnapshot(
+  capture: (objectId: string, element: HTMLElement) => VisualSnapshot,
+  objectId: string,
+  element: HTMLElement,
+): VisualSnapshot {
+  const snapshot = capture(objectId, element)
+  return {
+    ...snapshot,
+    boxShadow: element.style.boxShadow || snapshot.boxShadow,
+    transform: element.style.transform || snapshot.transform,
   }
 }
 
