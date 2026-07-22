@@ -11,33 +11,8 @@ import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
-import type { LandingResult, MoveBehaviorDriver, MoveContext } from '../behavior/MoveBehavior'
-
-function createDetachMoveDriver(
-  onMove: (event: PointerEvent) => void,
-  onUp: () => { columnId: string; index: number } | null,
-): MoveBehaviorDriver {
-  return {
-    update: (_context, input) => {
-      if (input.event instanceof PointerEvent) onMove(input.event)
-    },
-    resolveDestination: () => {
-      const drop = onUp()
-      return drop ? { accepted: true, destination: drop } : { accepted: false }
-    },
-    commit: () => undefined,
-  }
-}
-
-function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
-  return {
-    capture: () => captureLayoutFlip(Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
-      .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')),
-    play: (_context: unknown, snapshot: unknown) => {
-      scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
-    },
-  }
-}
+import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
+import { createDetachLayoutLifecycle, createDetachMoveDriver } from '../runtime/DetachMoveDriver'
 
 function createDetachVisualLifecycle(
   objectId: string,
