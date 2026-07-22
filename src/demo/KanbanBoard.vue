@@ -239,8 +239,8 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 <style scoped>
 
 .kb-strategy-switch { display: flex; gap: 16px; padding: 12px 24px 0; font-family: system-ui, sans-serif; font-size: 13px; }
-.kb-board { display: flex; gap: 16px; padding: 24px; align-items: stretch; font-family: system-ui, sans-serif; height: calc(100vh - 40px); }
-.kb-column { max-height: 100%; overflow-y: auto;
+.kb-board { display: flex; gap: 16px; padding: 24px; align-items: flex-start; font-family: system-ui, sans-serif; height: calc(100vh - 40px); }
+.kb-column { max-height: calc(100vh - 40px - 48px); overflow-y: auto;
   width: 220px; background: #f4f5f7; border-radius: 10px; padding: 10px;
   display: flex; flex-direction: column; gap: 8px; min-height: 80px;
 }
