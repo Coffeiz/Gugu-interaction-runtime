@@ -38,6 +38,18 @@ export class DetachReleaseCoordinator<TDrop> {
     return drop
   }
 
+  releaseWithContext(
+    context: DetachReleaseContext,
+    execute: (context: DetachReleaseContext) => TDrop | null,
+  ): TDrop | null {
+    if (this.released) return null
+    this.released = true
+    const drop = execute(context)
+    if (!drop) this.options.onInvalidDrop?.()
+    else this.options.onAcceptedDrop?.(drop)
+    return drop
+  }
+
   reset(): void {
     this.released = false
   }
