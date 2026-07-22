@@ -17,7 +17,6 @@ import {
   createDetachLayoutLifecycle,
   createDetachMoveRequest,
   createDetachMoveDriver,
-  createDetachVisualLifecycle,
   cancelDetachWithoutDrop,
   prepareDetachLanding,
   scheduleDetachLandingFrame,
@@ -27,6 +26,7 @@ import {
   startDetachLandingVisual,
   completeDetachLanding,
   resolveDetachRegrabTarget,
+  createDetachLandingLifecycle,
   createDetachDropState,
   updateDetachDrop,
   interruptDetachRegrab,
@@ -267,16 +267,13 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     driver: createDetachMoveDriver(onMove, onUp),
     visualStrategy: {
       layout: createDetachLayoutLifecycle(sourceEl),
-      ...createDetachVisualLifecycle(() => runtime.clearRegrab(cardId), () => {
-        const gate = runtime.createCompletionGate(session.id, { completed: false, reason: 'landing-cancelled' })
-        // 松手后立即恢复其它卡片 hover；landing 代理自身仍由视觉策略接管。
-        document.body.classList.remove('kb-dragging')
-        landingGate = gate
-        landingPlan?.()
-        landingPlan = null
-        return gate.promise
-      }, () => {
-        if (landingProxy) setProxyInteractive(landingProxy, false)
+      ...createDetachLandingLifecycle({
+        createGate: () => runtime.createCompletionGate(session.id, { completed: false, reason: 'landing-cancelled' }),
+        onGate: gate => { landingGate = gate },
+        clearDragging: () => document.body.classList.remove('kb-dragging'),
+        scheduleLanding: () => { landingPlan?.(); landingPlan = null },
+        clearRegrab: () => runtime.clearRegrab(cardId),
+        finishReveal: () => { if (landingProxy) setProxyInteractive(landingProxy, false) },
       }),
     },
   })

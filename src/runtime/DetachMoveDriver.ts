@@ -271,6 +271,29 @@ export function resolveDetachRegrabTarget(
   return resolve() ?? fallback()
 }
 
+export function createDetachLandingLifecycle<TGate extends { promise: Promise<LandingResult> }>(args: {
+  createGate: () => TGate
+  onGate: (gate: TGate) => void
+  clearDragging: () => void
+  scheduleLanding: () => void
+  clearRegrab: () => void
+  finishReveal: () => void
+}) {
+  return {
+    landing: () => {
+      const gate = args.createGate()
+      args.onGate(gate)
+      args.clearDragging()
+      args.scheduleLanding()
+      return gate.promise
+    },
+    reveal: () => {
+      args.clearRegrab()
+      args.finishReveal()
+    },
+  }
+}
+
 
 /**
  * Runtime 的 detach 编排原语。
