@@ -159,11 +159,6 @@ export class Runtime {
       getObjectSurface: objectId => this.objects.get(objectId)?.surfaceId,
       emit: action => this.actions.emit(action),
     })
-    this.runtimeMove = RuntimeMoveCoordinator.fromPorts({
-      getSession: sessionId => this.sessionCoordinator.get(sessionId),
-      getBehavior: type => this.behaviors.get(type),
-      createContext: sessionId => this.createBehaviorContext(this.sessionCoordinator.get(sessionId)!),
-    })
     this.moveCommit = new MoveCommitCoordinator({
       createContext: session => this.createBehaviorContext(session),
       getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
@@ -175,6 +170,11 @@ export class Runtime {
       cancel: (sessionId, reason) => this.cancel(sessionId, reason),
       end: session => this.endSession(session),
     })
+    this.runtimeMove = RuntimeMoveCoordinator.fromPorts({
+      getSession: sessionId => this.sessionCoordinator.get(sessionId),
+      getBehavior: type => this.behaviors.get(type),
+      createContext: sessionId => this.createBehaviorContext(this.sessionCoordinator.get(sessionId)!),
+    }, this.moveCommit, this.moveLanding)
     this.visualState = new VisualStateCoordinator({ getAdapter: objectId => this.getObjectVisualAdapter(objectId) })
     this.visualMotion = new VisualMotionCoordinator({
       getSession: sessionId => this.sessionCoordinator.get(sessionId),
@@ -684,13 +684,13 @@ export class Runtime {
     }
 
     try {
-      await this.moveCommit.commit(session, behavior, destination)
+      await this.runtimeMove.commit(session, behavior, destination)
     } catch (error) {
       this.cancel(session.id, error instanceof Error ? error.message : 'commit-failed')
       return
     }
 
-    await this.moveLanding.run(session, behavior, destination)
+    await this.runtimeMove.land(session, behavior, destination)
   }
 
   cancel(sessionId: string, reason = 'cancelled'): void {
