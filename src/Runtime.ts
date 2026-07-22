@@ -8,19 +8,24 @@ import type { RuntimeInput, SessionHandle, StartRequest } from './core/Interacti
 import type { Behavior, BehaviorContext } from './behavior/Behavior'
 import { BehaviorStore } from './behavior/BehaviorStore'
 import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle, type MoveVisualStrategy } from './behavior/MoveBehavior'
-import { DefaultVisualAdapter, VisualAdapters, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
+import { DefaultVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
 import type { VisualState } from './dom/VisualAdapterTypes'
 import type { HitResolver } from './dom/Hit'
-import {
-  trackLandingTarget as observeLandingTarget,
-  type LandingTargetTrackerOptions,
-} from './dom/LandingTargetTracker'
-import {
-  bindPointerSessionInput as attachPointerSessionInput,
-  type PointerSessionInputOptions,
-} from './input/PointerSessionInput'
+import type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
+import type { PointerSessionInputOptions } from './input/PointerSessionInput'
 import type { Action } from './action/Action'
-import type { MoveActionDestination } from './behavior/MoveTransaction'
+import { RuntimeRegistry } from './runtime/RuntimeRegistry'
+import { RuntimeDispatcher } from './runtime/RuntimeDispatcher'
+import { SessionCoordinator, type SessionCompletionGate } from './runtime/SessionCoordinator'
+import { MoveActionCoordinator } from './runtime/MoveActionCoordinator'
+import { VisualProxyCoordinator } from './runtime/VisualProxyCoordinator'
+import { MoveUpdateCoordinator } from './runtime/MoveUpdateCoordinator'
+import { MoveReleaseCoordinator } from './runtime/MoveReleaseCoordinator'
+import { MoveCommitCoordinator } from './runtime/MoveCommitCoordinator'
+import { MoveLandingCoordinator } from './runtime/MoveLandingCoordinator'
+import { VisualStateCoordinator } from './runtime/VisualStateCoordinator'
+import { VisualMotionCoordinator } from './runtime/VisualMotionCoordinator'
+import { RuntimeInputCoordinator } from './runtime/RuntimeInput'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -122,21 +127,69 @@ export class Runtime {
   readonly objects = new ObjectStore()
   readonly surfaces = new SurfaceStore()
   readonly behaviors = new BehaviorStore()
-  readonly visuals = new VisualAdapters()
+  readonly registry = new RuntimeRegistry()
+  /** 兼容现有调用方；新的注册逻辑统一落在 registry。 */
+  get visuals() { return this.registry.visuals }
   private readonly moveBehavior: MoveBehavior
   private hitResolver: HitResolver | null = null
-  private sessions = new Map<string, Session>()
+  private readonly sessionCoordinator = new SessionCoordinator()
   private readonly events = new Emitter<RuntimeEvent>()
   private readonly actions = new Emitter<Action>()
-  private readonly visualStrategies = new Map<string, MoveVisualStrategy>()
-  private readonly objectTypes = new Map<string, ObjectTypeRegistration>()
-  private readonly objectPointerBindings = new WeakMap<HTMLElement, () => void>()
-  private readonly objectPointerDisposers = new Map<string, () => void>()
-  private readonly completionGates = new Map<string, Set<RuntimeCompletionGate<unknown>>>()
-  private readonly visualProxies = new Map<string, VisualProxy>()
+  private readonly inputCoordinator: RuntimeInputCoordinator
+  private readonly visualProxyCoordinator = new VisualProxyCoordinator()
+  private readonly dispatcher: RuntimeDispatcher
+  private readonly moveActions: MoveActionCoordinator
+  private readonly moveUpdates: MoveUpdateCoordinator
+  private readonly moveRelease = new MoveReleaseCoordinator()
+  private readonly moveCommit: MoveCommitCoordinator
+  private readonly moveLanding: MoveLandingCoordinator
+  private readonly visualState: VisualStateCoordinator
+  private readonly visualMotion: VisualMotionCoordinator
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
+    this.inputCoordinator = new RuntimeInputCoordinator({
+      objects: this.objects,
+      registry: this.registry,
+      startObjectPointer: (objectId, element, event) => this.startObjectPointer(objectId, element, event),
+      registerRegrab: (objectId, handler) => this.registerRegrab(objectId, handler),
+      regrab: (objectId, event) => this.regrab(objectId, event),
+      update: (sessionId, input) => this.update(sessionId, input),
+      release: (sessionId, input) => this.release(sessionId, input),
+    })
+    this.moveActions = new MoveActionCoordinator({
+      getObjectSurface: objectId => this.objects.get(objectId)?.surfaceId,
+      emit: action => this.actions.emit(action),
+    })
+    this.moveUpdates = new MoveUpdateCoordinator({
+      getSession: sessionId => this.sessionCoordinator.get(sessionId),
+      getBehavior: type => this.behaviors.get(type),
+      createContext: sessionId => this.createBehaviorContext(this.sessionCoordinator.get(sessionId)!),
+    })
+    this.moveCommit = new MoveCommitCoordinator({
+      createContext: session => this.createBehaviorContext(session),
+      getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
+      normalize: (objectId, destination) => this.moveActions.normalize(objectId, destination),
+    }, this.moveActions)
+    this.moveLanding = new MoveLandingCoordinator({
+      createContext: session => this.createBehaviorContext(session),
+      getSession: sessionId => this.sessionCoordinator.get(sessionId),
+      cancel: (sessionId, reason) => this.cancel(sessionId, reason),
+      end: session => this.endSession(session),
+    })
+    this.visualState = new VisualStateCoordinator({ getAdapter: objectId => this.getObjectVisualAdapter(objectId) })
+    this.visualMotion = new VisualMotionCoordinator({
+      getSession: sessionId => this.sessionCoordinator.get(sessionId),
+      getAdapter: objectId => this.getObjectVisualAdapter(objectId),
+      createContext: (sessionId, destination, target) => this.createVisualLifecycleContext(sessionId, destination, target),
+    }, this.visualProxyCoordinator)
+    this.dispatcher = new RuntimeDispatcher({
+      start: request => this.startInternal(request),
+      update: (sessionId, input) => this.updateInternal(sessionId, input),
+      release: (sessionId, input) => this.releaseInternal(sessionId, input),
+      cancel: (sessionId, reason) => this.cancelInternal(sessionId, reason),
+      interrupt: (sessionId, reason) => this.interruptInternal(sessionId, reason),
+    })
     this.behaviors.register(this.moveBehavior)
     this.objects.subscribe(event => {
       this.events.emit(event)
@@ -144,8 +197,7 @@ export class Runtime {
         this.syncObjectPointerBinding(event.id)
       }
       if (event.type === 'object-removed') {
-        this.objectPointerDisposers.get(event.id)?.()
-        this.objectPointerDisposers.delete(event.id)
+        this.inputCoordinator.remove(event.id)
       }
     })
     this.surfaces.subscribe(event => this.events.emit(event))
@@ -153,16 +205,15 @@ export class Runtime {
   }
 
   registerVisualAdapter(type: string, adapter: VisualAdapter): void {
-    this.visuals.register(type, adapter)
+    this.registry.registerVisualAdapter(type, adapter)
   }
 
   registerVisualStrategy(type: string, strategy: MoveVisualStrategy): void {
-    this.visualStrategies.set(type, strategy)
+    this.registry.registerVisualStrategy(type, strategy)
   }
 
   registerObjectType(type: string, registration: ObjectTypeRegistration): void {
-    this.objectTypes.set(type, registration)
-    if (registration.visual) this.visuals.register(type, registration.visual)
+    this.registry.registerObjectType(type, registration)
     for (const object of this.objects.values()) {
       if (object.type === type || object.visual === type) this.syncObjectPointerBinding(object.id)
     }
@@ -171,7 +222,7 @@ export class Runtime {
   startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent): boolean {
     const object = this.objects.get(objectId)
     if (!object) return false
-    const registration = this.objectTypes.get(object.visual ?? object.type)
+    const registration = this.registry.objectTypes.get(object.visual ?? object.type)
     if (!registration) return false
     if (object.element !== element) this.objects.setElement(objectId, element)
     const context = {
@@ -205,33 +256,20 @@ export class Runtime {
   }
 
   bindObjectPointer(objectId: string, element: HTMLElement): () => void {
-    const previous = this.objectPointerBindings.get(element)
-    previous?.()
-    const listener = (event: Event) => {
-      if (event instanceof PointerEvent) this.startObjectPointer(objectId, element, event)
-    }
-    element.addEventListener('pointerdown', listener)
-    const dispose = () => element.removeEventListener('pointerdown', listener)
-    this.objectPointerBindings.set(element, dispose)
-    return dispose
+    return this.inputCoordinator.bind(objectId, element)
   }
 
   private syncObjectPointerBinding(objectId: string): void {
-    const object = this.objects.get(objectId)
-    this.objectPointerDisposers.get(objectId)?.()
-    this.objectPointerDisposers.delete(objectId)
-    if (!object?.element || !this.objectTypes.has(object.visual ?? object.type)) return
-    const dispose = this.bindObjectPointer(objectId, object.element)
-    this.objectPointerDisposers.set(objectId, dispose)
+    this.inputCoordinator.sync(objectId)
   }
 
   getVisualAdapter(type: string): VisualAdapter {
-    return this.visuals.get(type) ?? new DefaultVisualAdapter()
+    return this.registry.visuals.get(type) ?? new DefaultVisualAdapter()
   }
 
   getObjectVisualAdapter(objectId: string): VisualAdapter {
     const object = this.objects.get(objectId)
-    const registration = object ? this.objectTypes.get(object.visual ?? object.type) : undefined
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
     if (registration?.visual) return registration.visual
     return this.getVisualAdapter(object?.visual ?? object?.type ?? '')
   }
@@ -242,7 +280,7 @@ export class Runtime {
     targetElement?: HTMLElement,
     beforeContent?: HTMLElement,
   ): VisualLifecycleContext {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     const object = session ? this.objects.get(session.objectId) : undefined
     const sourceElement = object?.element ?? undefined
     const adapter = session ? this.getObjectVisualAdapter(session.objectId) : new DefaultVisualAdapter()
@@ -270,12 +308,7 @@ export class Runtime {
     sessionId: string,
     context: VisualLifecycleContext,
   ): VisualProxy | undefined {
-    const session = this.sessions.get(sessionId)
-    if (!session) return undefined
-    const proxy = this.getObjectVisualAdapter(session.objectId).createProxy?.(context)
-    if (!proxy) return undefined
-    this.registerVisualProxy(sessionId, proxy)
-    return proxy
+    return this.visualMotion.create(sessionId, context)
   }
 
   /** 调用当前对象适配器的 landing，并保证无代理时也有确定结果。 */
@@ -284,43 +317,29 @@ export class Runtime {
     target: HTMLElement,
     context?: VisualLifecycleContext,
   ): Promise<{ completed: boolean; reason?: string }> {
-    const session = this.sessions.get(sessionId)
-    const proxy = this.visualProxies.get(sessionId)
-    if (!session || !proxy) return { completed: false, reason: 'visual-proxy-missing' }
-    const lifecycleContext = context ?? this.createVisualLifecycleContext(sessionId, undefined, target)
-    const result = await this.getObjectVisualAdapter(session.objectId).land?.(proxy, target, lifecycleContext)
-    return result ?? { completed: true }
+    return this.visualMotion.land(sessionId, target, context)
   }
 
   /** 将跟手或重定位更新转发给当前 session 的视觉适配器。 */
   updateVisualProxy(sessionId: string, context?: VisualLifecycleContext): void {
-    const session = this.sessions.get(sessionId)
-    const proxy = this.visualProxies.get(sessionId)
-    if (!session || !proxy) return
-    const lifecycleContext = context ?? this.createVisualLifecycleContext(sessionId)
-    this.getObjectVisualAdapter(session.objectId).updateProxy?.(proxy, lifecycleContext)
+    this.visualMotion.update(sessionId, context)
   }
 
   /** 通过对象 VisualAdapter 解析最终揭示目标，并过滤已断开的节点。 */
   resolveVisualTarget(sessionId: string, destination: unknown): HTMLElement | null {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session) return null
-    const adapter = this.getObjectVisualAdapter(session.objectId)
-    const target = adapter.resolveTarget?.(session.objectId, destination)
-      ?? new DefaultVisualAdapter().resolveTarget(session.objectId)
-    return target?.isConnected ? target : null
+    return this.visualState.resolveTarget(session.objectId, destination)
   }
 
   /** 将对象的生命周期视觉状态交给其适配器写入。 */
   applyVisualState(objectId: string, element: HTMLElement, state: VisualState): void {
-    const adapter = this.getObjectVisualAdapter(objectId)
-    ;(adapter.applyState ?? new DefaultVisualAdapter().applyState)(element, state)
+    this.visualState.apply(objectId, element, state)
   }
 
   /** 获取对象当前视觉快照；未覆盖时使用默认 DOM 样式快照。 */
   captureVisualState(objectId: string, element: HTMLElement) {
-    const adapter = this.getObjectVisualAdapter(objectId)
-    return (adapter.captureVisualState ?? new DefaultVisualAdapter().captureVisualState)(element)
+    return this.visualState.capture(objectId, element)
   }
 
   /** 调用当前对象适配器的 reveal；交接只允许由 Runtime 触发。 */
@@ -329,32 +348,27 @@ export class Runtime {
     target: HTMLElement,
     context?: VisualLifecycleContext,
   ): Promise<void> {
-    const session = this.sessions.get(sessionId)
-    const proxy = this.visualProxies.get(sessionId)
-    if (!session || !proxy) return
-    const lifecycleContext = context ?? this.createVisualLifecycleContext(sessionId, undefined, target)
-    await this.getObjectVisualAdapter(session.objectId).reveal?.(proxy, target, lifecycleContext)
+    await this.visualMotion.reveal(sessionId, target, context)
   }
 
   registerVisualProxy(sessionId: string, proxy: VisualProxy): void {
-    this.visualProxies.get(sessionId)?.dispose?.()
-    this.visualProxies.set(sessionId, proxy)
+    this.visualProxyCoordinator.register(sessionId, proxy)
   }
 
   getVisualProxy(sessionId: string): VisualProxy | undefined {
-    return this.visualProxies.get(sessionId)
+    return this.visualProxyCoordinator.get(sessionId)
   }
 
   disposeVisualProxy(sessionId: string): void {
-    const proxy = this.visualProxies.get(sessionId)
+    const proxy = this.visualProxyCoordinator.get(sessionId)
     if (!proxy) return
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     if (session) {
       const context = this.createVisualLifecycleContext(sessionId)
       this.getObjectVisualAdapter(session.objectId).dispose?.(proxy, context)
     }
     proxy.dispose?.()
-    this.visualProxies.delete(sessionId)
+    this.visualProxyCoordinator.remove(sessionId)
   }
 
   createCompletionGate<T>(sessionId: string, failureValue: T): RuntimeCompletionGate<T> {
@@ -367,18 +381,16 @@ export class Runtime {
         if (settled) return
         settled = true
         resolvePromise(value)
-        this.completionGates.get(sessionId)?.delete(gate as RuntimeCompletionGate<unknown>)
+        this.sessionCoordinator.removeGate(sessionId, gate as SessionCompletionGate<unknown>)
       },
       fail: () => {
         if (settled) return
         settled = true
         resolvePromise(failureValue)
-        this.completionGates.get(sessionId)?.delete(gate as RuntimeCompletionGate<unknown>)
+        this.sessionCoordinator.removeGate(sessionId, gate as SessionCompletionGate<unknown>)
       },
     }
-    const gates = this.completionGates.get(sessionId) ?? new Set<RuntimeCompletionGate<unknown>>()
-    gates.add(gate as RuntimeCompletionGate<unknown>)
-    this.completionGates.set(sessionId, gates)
+    this.sessionCoordinator.addGate(sessionId, gate as SessionCompletionGate<unknown>)
     return gate
   }
 
@@ -434,7 +446,7 @@ export class Runtime {
     destination: unknown,
     fallback?: () => HTMLElement | null,
   ): HTMLElement | null {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session) return null
     const context = this.createBehaviorContext(session)
     const target = context.visual?.resolveTarget?.(session.objectId, destination) ?? fallback?.() ?? null
@@ -469,14 +481,9 @@ export class Runtime {
     target: HTMLElement,
     handler: (event: PointerEvent) => void,
   ): void {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session) return
-    this.registerRegrab(objectId, handler)
-    const listener = (event: Event) => {
-      if (event instanceof PointerEvent) this.regrab(objectId, event)
-    }
-    target.addEventListener('pointerdown', listener)
-    session.cleanup.trackTargetListener(target, 'pointerdown', listener)
+    this.inputCoordinator.bindRegrabTarget(session, objectId, target, handler)
   }
 
   createRegrabContext(
@@ -485,7 +492,7 @@ export class Runtime {
     proxyElement: HTMLElement,
     sourceElement: HTMLElement,
   ): RegrabContext | null {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return null
     return {
       sessionId,
@@ -506,9 +513,9 @@ export class Runtime {
     sessionId: string,
     options: PointerSessionInputOptions = {},
   ): () => void {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session) return () => undefined
-    return attachPointerSessionInput(this, session, options)
+    return this.inputCoordinator.bindSession(session, options)
   }
 
   /**
@@ -520,23 +527,22 @@ export class Runtime {
     retarget: (rect: DOMRect) => void,
     options: RuntimeLandingTargetOptions = {},
   ): () => void {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session) return () => undefined
-    return observeLandingTarget({
-      ...options,
-      cleanup: session.cleanup,
-      target,
-      retarget,
-    })
+    return this.visualState.trackTarget(session.cleanup, target, retarget, options)
   }
 
   start(request: StartRequest): SessionHandle {
+    return this.dispatcher.start(request)
+  }
+
+  private startInternal(request: StartRequest): SessionHandle {
     const behavior = this.behaviors.get(request.type)
     if (!behavior) throw new Error(`Unknown interaction behavior: ${request.type}`)
 
     const session = this.startSession(request.type, request.objectId)
     const object = this.objects.get(request.objectId)
-    const strategy = object ? this.visualStrategies.get(object.type) : undefined
+    const strategy = object ? this.registry.visualStrategies.get(object.type) : undefined
     if (strategy) this.moveBehavior.bindLifecycle(session.id, strategy)
     const context = this.createBehaviorContext(session)
 
@@ -550,7 +556,7 @@ export class Runtime {
       const result = behavior.prepare?.(context, request)
       if (result && typeof (result as { then?: unknown }).then === 'function') {
         (result as Promise<void>).catch(error => {
-          if (this.sessions.get(session.id) === session) {
+          if (this.sessionCoordinator.get(session.id) === session) {
             this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
           }
         })
@@ -559,7 +565,7 @@ export class Runtime {
       this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
     }
 
-    if (this.sessions.get(session.id) === session && session.state === 'prepare') {
+    if (this.sessionCoordinator.get(session.id) === session && session.state === 'prepare') {
       session.transition('active')
     }
 
@@ -588,12 +594,12 @@ export class Runtime {
     // 如果传入了已存在的 sessionId，跳过 start() 直接绑定
     let session: Session
     if (options.sessionId) {
-      const existing = this.sessions.get(options.sessionId)
+      const existing = this.sessionCoordinator.get(options.sessionId)
       if (!existing) throw new Error(`Session not found: ${options.sessionId}`)
       session = existing
     } else {
       const handle = this.start(request)
-      session = this.sessions.get(handle.id)!
+      session = this.sessionCoordinator.get(handle.id)!
     }
 
     const moveContext = this.getMoveContext(session.id)
@@ -624,38 +630,41 @@ export class Runtime {
   }
 
   update(sessionId: string, input: RuntimeInput): void {
-    const session = this.sessions.get(sessionId)
-    if (!session || session.state !== 'active') return
-    this.behaviors.get(session.type)?.update?.(this.createBehaviorContext(session), input)
+    this.dispatcher.update(sessionId, input)
+  }
+
+  private updateInternal(sessionId: string, input: RuntimeInput): void {
+    this.moveUpdates.update(sessionId, input)
   }
 
   async release(sessionId: string, input: RuntimeInput): Promise<void> {
-    const session = this.sessions.get(sessionId)
-    if (!session) return
-    if (input.kind === 'pointercancel' || input.kind === 'blur' || input.kind === 'lostpointercapture') {
-      this.cancel(session.id, input.kind)
-      return
-    }
-    if (session.state === 'prepare') {
-      this.cancel(session.id, 'interaction-not-ready')
-      return
-    }
-    if (session.state === 'active') session.transition('release')
-    if (session.state !== 'release') return
+    return this.dispatcher.release(sessionId, input)
+  }
 
-    const behavior = this.behaviors.get(session.type)
+  private async releaseInternal(sessionId: string, input: RuntimeInput): Promise<void> {
+    const sessionCandidate = this.sessionCoordinator.get(sessionId)
+    const preflight = this.moveRelease.prepare(sessionCandidate, input)
+    if (preflight.kind === 'ignore') return
+    if (preflight.kind === 'cancel') {
+      if (sessionCandidate) this.cancel(sessionCandidate.id, preflight.reason)
+      return
+    }
+    const activeSession = preflight.session
+    const session = activeSession
+
+    const behavior = this.behaviors.get(activeSession.type)
     if (behavior instanceof MoveBehavior) {
-      behavior.captureLayout(this.createBehaviorContext(session))
+      behavior.captureLayout(this.createBehaviorContext(activeSession))
     }
     let result: unknown
     try {
-      result = await behavior?.release?.(this.createBehaviorContext(session), input)
+      result = await behavior?.release?.(this.createBehaviorContext(activeSession), input)
     } catch (error) {
-      this.cancel(session.id, error instanceof Error ? error.message : 'release-failed')
+      this.cancel(activeSession.id, error instanceof Error ? error.message : 'release-failed')
       return
     }
 
-    if (this.sessions.get(session.id) !== session) return
+    if (this.sessionCoordinator.get(activeSession.id) !== activeSession) return
 
     const releaseResult = result as { accepted?: boolean; destination?: unknown } | undefined
     if (releaseResult?.accepted === false) {
@@ -663,118 +672,35 @@ export class Runtime {
       return
     }
 
-    if (session.state === 'release') session.transition('landing')
+    if (activeSession.state === 'release') activeSession.transition('landing')
 
     if (!(behavior instanceof MoveBehavior)) {
-      this.endSession(session)
+      this.endSession(activeSession)
       return
     }
 
     const destination = releaseResult?.destination
     if (destination === undefined) {
-      this.cancel(session.id, 'invalid-release-result')
+      this.cancel(activeSession.id, 'invalid-release-result')
       return
     }
 
-    // 布局快照由 Runtime 在 commit 前统一捕获，避免业务 driver 自己编排
-    // capture/schedule 与 Action、landing 产生竞态。
-    // commit 阶段：执行业务变更（emitAction + FLIP + 清理跟手样式）
     try {
-      await behavior.commit(this.createBehaviorContext(session), destination)
+      await this.moveCommit.commit(session, behavior, destination)
     } catch (error) {
       this.cancel(session.id, error instanceof Error ? error.message : 'commit-failed')
       return
     }
 
-    behavior.playLayout(this.createBehaviorContext(session))
-
-    if (this.sessions.get(session.id) !== session) return
-
-    const moveContext = behavior instanceof MoveBehavior
-      ? behavior.getContext(session.id)
-      : null
-    const lifecycle = this.moveBehavior.getLifecycle(session.id)
-    const normalizedDestination = this.normalizeMoveDestination(session.objectId, destination)
-    if (normalizedDestination) {
-      await lifecycle?.surface?.leave?.(
-        this.createBehaviorContext(session),
-        normalizedDestination.fromSurfaceId,
-      )
-    }
-    if (moveContext && this.emitMoveAction(session.objectId, moveContext.destination, moveContext.transaction)) {
-      // Action 已由 Runtime 统一发出；视觉 driver 的 commit 仍负责布局和样式，
-      // 但不再需要重复提交业务动作。
-    }
-    if (normalizedDestination) {
-      await lifecycle?.surface?.enter?.(
-        this.createBehaviorContext(session),
-        normalizedDestination.toSurfaceId,
-      )
-    }
-
-    try {
-      const landingResult = await behavior.landing(this.createBehaviorContext(session), destination)
-      const liveSession = this.sessions.get(session.id)
-      if (liveSession !== session) return
-      if (liveSession.state === 'disposed' || liveSession.state === 'interrupt') return
-      if (landingResult && !landingResult.completed) {
-        this.cancel(session.id, landingResult.reason ?? 'landing-failed')
-        return
-      }
-      landingResult?.reveal?.()
-      // landing 完成只代表临时视觉运动结束；先进入 handoff，等待视觉策略
-      // 把最终 DOM/样式交回业务节点，再允许 Session 正常结束。这样成功路径
-      // 与取消、regrab 的终态边界一致，也不会把 reveal 误认为 dispose。
-      session.handoff()
-      if (behavior.reveal) await behavior.reveal(this.createBehaviorContext(session), destination)
-      if (this.sessions.get(session.id) !== session) return
-      this.endSession(session)
-    } catch (error) {
-      if (this.sessions.get(session.id) === session) {
-        this.cancel(session.id, error instanceof Error ? error.message : 'landing-failed')
-      }
-    }
-  }
-
-  private emitMoveAction(
-    objectId: string,
-    destination: unknown,
-    transaction: MoveContext['transaction'],
-  ): boolean {
-    if (transaction.actionEmitted) return false
-    const normalized = this.normalizeMoveDestination(objectId, destination)
-    if (!normalized) return false
-    const action: Action = {
-      type: 'move',
-      objectId,
-      fromSurfaceId: normalized.fromSurfaceId,
-      toSurfaceId: normalized.toSurfaceId,
-      ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }),
-      timestamp: Date.now(),
-    }
-    transaction.actionEmitted = true
-    this.actions.emit(action)
-    return true
-  }
-
-  private normalizeMoveDestination(objectId: string, value: unknown): MoveActionDestination | null {
-    if (isMoveActionDestination(value)) return value
-    if (!value || typeof value !== 'object') return null
-    const candidate = value as { columnId?: unknown; index?: unknown }
-    if (typeof candidate.columnId !== 'string') return null
-    const fromSurfaceId = this.objects.get(objectId)?.surfaceId
-    if (!fromSurfaceId) return null
-    return {
-      fromSurfaceId,
-      toSurfaceId: candidate.columnId.startsWith('column:')
-        ? candidate.columnId
-        : `column:${candidate.columnId}`,
-      ...(typeof candidate.index === 'number' ? { toIndex: candidate.index } : {}),
-    }
+    await this.moveLanding.run(session, behavior, destination)
   }
 
   cancel(sessionId: string, reason = 'cancelled'): void {
-    const session = this.sessions.get(sessionId)
+    this.dispatcher.cancel(sessionId, reason)
+  }
+
+  private cancelInternal(sessionId: string, reason = 'cancelled'): void {
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session) return
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
@@ -788,16 +714,19 @@ export class Runtime {
       this.failCompletionGates(session.id)
       this.disposeVisualProxy(session.id)
       try {
-        session.cancel()
+        this.sessionCoordinator.cancel(session.id)
       } finally {
         this.disposeBehavior(behavior, context)
-        this.sessions.delete(session.id)
       }
     }
   }
 
   interrupt(sessionId: string, reason: string = 'cancel'): void {
-    const session = this.sessions.get(sessionId)
+    this.dispatcher.interrupt(sessionId, reason)
+  }
+
+  private interruptInternal(sessionId: string, reason: string = 'cancel'): void {
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session) return
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
@@ -811,26 +740,24 @@ export class Runtime {
       this.failCompletionGates(session.id)
       this.disposeVisualProxy(session.id)
       try {
-        session.interrupt(reason === 'regrab' ? 'regrab' : 'cancel')
+        this.sessionCoordinator.interrupt(session.id, reason === 'regrab' ? 'regrab' : 'cancel')
       } finally {
         this.disposeBehavior(behavior, context)
-        this.sessions.delete(session.id)
       }
     }
   }
 
   startSession(type: string, objectId = ''): Session {
     const session = new Session(type, objectId, this.owner)
-    this.sessions.set(session.id, session)
-    return session
+    return this.sessionCoordinator.create(type, objectId, this.owner)
   }
 
   getSession(id: string): Session | undefined {
-    return this.sessions.get(id)
+    return this.sessionCoordinator.get(id)
   }
 
   takeSurface(sessionId: string, surfaceId: string): boolean {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessionCoordinator.get(sessionId)
     if (!session) return false
     session.takeSurface(surfaceId)
     return this.owner.isOwnedBy(surfaceId, sessionId)
@@ -838,16 +765,12 @@ export class Runtime {
 
   /** 获取需要在 landing 前提前释放的对象 Lease（例如 detach 本体）。 */
   acquireObject(sessionId: string, objectId: string): Lease | null {
-    const session = this.sessions.get(sessionId)
-    if (!session) return null
-    return this.owner.takeObject(objectId, sessionId)
+    return this.sessionCoordinator.acquireObject(sessionId, objectId)
   }
 
   /** 将 Surface placeholder 的销毁纳入当前移动事务清理。 */
   trackPlaceholder(sessionId: string, dispose: () => void): void {
-    const session = this.sessions.get(sessionId)
-    if (!session) return
-    session.cleanup.track(dispose)
+    this.sessionCoordinator.track(sessionId, dispose)
   }
 
   takeSurfaces(sessionId: string, surfaceIds: readonly string[]): boolean {
@@ -858,20 +781,15 @@ export class Runtime {
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
     try {
-      session.dispose()
+      this.sessionCoordinator.finalize(session.id)
     } finally {
-      this.failCompletionGates(session.id)
       this.disposeVisualProxy(session.id)
       this.disposeBehavior(behavior, context)
-      this.sessions.delete(session.id)
     }
   }
 
   private failCompletionGates(sessionId: string): void {
-    const gates = this.completionGates.get(sessionId)
-    if (!gates) return
-    for (const gate of [...gates]) gate.fail()
-    this.completionGates.delete(sessionId)
+    this.sessionCoordinator.failGates(sessionId)
     this.disposeVisualProxy(sessionId)
   }
 
@@ -901,11 +819,3 @@ export class Runtime {
 }
 
 export const runtime = new Runtime()
-
-function isMoveActionDestination(value: unknown): value is MoveActionDestination {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as Partial<MoveActionDestination>
-  return typeof candidate.fromSurfaceId === 'string'
-    && typeof candidate.toSurfaceId === 'string'
-    && (candidate.toIndex === undefined || typeof candidate.toIndex === 'number')
-}
