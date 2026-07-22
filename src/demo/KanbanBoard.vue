@@ -88,7 +88,7 @@ runtime.registerObjectType('kanban', {
     },
   }),
   motion: {
-    flip: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+    flip: { duration: 3000, easing: 'cubic-bezier(.22,1,.36,1)' },
     landing: { duration: 3000, easing: 'cubic-bezier(.22,1,.36,1)' },
   },
 })
@@ -109,7 +109,15 @@ onUnmounted(stopActionSubscription)
 // （不是在 v-for 里动态调用）。每个列注册成一个 Surface，只接受
 // 'kanban-card' 类型的对象——见 docs/DESIGN.md 原则 4、docs/PLAN.md 阶段 0.5。
 const columnSurfaces = Object.fromEntries(
-  columns.map(col => [col.id, useSurface({ id: `column:${col.id}`, type: 'list', accepts: ['kanban-card'], motion: { resize: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' } } })]),
+  columns.map(col => [
+    col.id,
+    useSurface({
+      id: `column:${col.id}`,
+      type: 'kanban-column',
+      accepts: ['kanban-card'],
+      motion: { resize: { duration: 3000, easing: 'cubic-bezier(.22,1,.36,1)' } },
+    }),
+  ]),
 )
 function setColumnRef(colId: string, el: HTMLElement | null) {
   columnSurfaces[colId].elementRef.value = el

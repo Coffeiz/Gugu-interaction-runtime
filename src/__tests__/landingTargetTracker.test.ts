@@ -37,7 +37,7 @@ describe('LandingTargetTracker retarget', () => {
     return rafQueue
   }
 
-  it('rAF 轮询检测到位置变化时调用 retarget', () => {
+  it('rAF 轮询检测到位置变化时调用 retarget', async () => {
     const rafQueue = createTracker()
     const spy = vi.fn()
     target.getBoundingClientRect = () => new DOMRect(0, 0, 100, 50)
@@ -48,6 +48,8 @@ describe('LandingTargetTracker retarget', () => {
     rafQueue[0]()
     expect(spy).toHaveBeenCalledTimes(1)
 
+    // 模拟过了 80ms 冷却
+    await new Promise(r => setTimeout(r, 100))
     target.getBoundingClientRect = () => new DOMRect(50, 0, 100, 50)
     rafQueue[1]()
     expect(spy).toHaveBeenCalledTimes(2)

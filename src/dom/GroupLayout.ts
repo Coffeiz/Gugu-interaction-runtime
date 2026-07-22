@@ -13,6 +13,12 @@ function resolveProfile(type?: string): { flip: { duration: number; easing: stri
     const p = currentProfiles.get(type)!
     return { flip: p.flip ?? DEFAULT_MOTION_PROFILE.flip, resize: p.resize ?? DEFAULT_MOTION_PROFILE.resize }
   }
+  // 没传 type 时从注册表里取任意一个有 flip 的 profile 作为全局 FLIP 速度。
+  if (!type && currentProfiles) {
+    for (const p of currentProfiles.values()) {
+      if (p.flip) return { flip: p.flip, resize: p.resize ?? DEFAULT_MOTION_PROFILE.resize }
+    }
+  }
   return { flip: DEFAULT_MOTION_PROFILE.flip, resize: DEFAULT_MOTION_PROFILE.resize }
 }
 
