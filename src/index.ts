@@ -5,7 +5,7 @@
 export { Runtime, runtime } from './Runtime'
 export type { RuntimeEvent, RuntimeLandingTargetOptions } from './Runtime'
 export { RuntimeRegistry } from './runtime/RuntimeRegistry'
-export { RuntimeDispatcher } from './runtime/RuntimeDispatcher'
+export { RuntimeDispatcher } from './runtime/RuntimeInput'
 export { SessionCoordinator, RuntimeSessionCoordinator } from './runtime/RuntimeSession'
 export { MoveActionCoordinator } from './runtime/MoveActionCoordinator'
 export { VisualProxyCoordinator, VisualStateCoordinator, VisualMotionCoordinator } from './runtime/RuntimeVisual'

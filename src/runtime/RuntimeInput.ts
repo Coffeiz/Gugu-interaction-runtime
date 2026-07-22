@@ -2,7 +2,7 @@ import type { ObjectStore } from '../object/ObjectStore'
 import type { RuntimeRegistry } from './RuntimeRegistry'
 import type { Session } from '../session/Session'
 import { bindPointerSessionInput, type PointerSessionInputOptions } from '../input/PointerSessionInput'
-import type { RuntimeInput } from '../core/Interaction'
+import type { RuntimeInput, SessionHandle, StartRequest } from '../core/Interaction'
 
 export interface RuntimeInputPort {
   objects: ObjectStore
@@ -69,4 +69,19 @@ export class RuntimeInputCoordinator {
   }
 }
 
-export { RuntimeDispatcher } from './RuntimeDispatcher'
+export interface RuntimeDispatchHandlers {
+  start(request: StartRequest): SessionHandle
+  update(sessionId: string, input: RuntimeInput): void
+  release(sessionId: string, input: RuntimeInput): Promise<void>
+  cancel(sessionId: string, reason?: string): void
+  interrupt(sessionId: string, reason?: string): void
+}
+
+export class RuntimeDispatcher {
+  constructor(private readonly handlers: RuntimeDispatchHandlers) {}
+  start(request: StartRequest): SessionHandle { return this.handlers.start(request) }
+  update(sessionId: string, input: RuntimeInput): void { this.handlers.update(sessionId, input) }
+  release(sessionId: string, input: RuntimeInput): Promise<void> { return this.handlers.release(sessionId, input) }
+  cancel(sessionId: string, reason?: string): void { this.handlers.cancel(sessionId, reason) }
+  interrupt(sessionId: string, reason?: string): void { this.handlers.interrupt(sessionId, reason) }
+}
