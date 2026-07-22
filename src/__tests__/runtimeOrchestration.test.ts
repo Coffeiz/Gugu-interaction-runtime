@@ -260,6 +260,52 @@ describe('Runtime move orchestration', () => {
     expect(disposeProxy).toHaveBeenCalledOnce()
   })
 
+  it('每次 Runtime.start 只创建一个 Session', () => {
+    const runtime = createRuntime()
+    const first = runtime.start({ type: 'move', objectId: 'card-1', input: { kind: 'programmatic' } })
+    const second = runtime.start({ type: 'move', objectId: 'card-1', input: { kind: 'programmatic' } })
+
+    const firstNumber = Number(first.id.replace('session-', ''))
+    const secondNumber = Number(second.id.replace('session-', ''))
+    expect(secondNumber - firstNumber).toBe(1)
+    runtime.cancel(first.id)
+    runtime.cancel(second.id)
+  })
+
+  it('结束 Session 前先销毁 VisualAdapter 代理，避免代理 DOM 残留', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('div')
+    const proxyElement = document.createElement('div')
+    const disposeAdapter = vi.fn()
+    const disposeProxy = vi.fn()
+    runtime.objects.register({
+      id: 'card-finalize',
+      type: 'finalize-card',
+      surfaceId: 'surface:finalize',
+      element: source,
+      abilities: ['move'],
+    })
+    runtime.registerObjectType('finalize-card', {
+      defaultVisualMode: 'detach',
+      visual: {
+        createProxy: () => ({ element: proxyElement, dispose: disposeProxy }),
+        dispose: disposeAdapter,
+      },
+    })
+    const handle = runtime.start({ type: 'move', objectId: 'card-finalize', input: { kind: 'programmatic' } })
+    runtime.createVisualProxy(handle.id, runtime.createVisualLifecycleContext(handle.id))
+    const session = runtime.getSession(handle.id)!
+    session.transition('release')
+    session.transition('landing')
+    session.handoff()
+
+    runtime.endSession(session)
+
+    expect(disposeAdapter).toHaveBeenCalledOnce()
+    expect(disposeProxy).toHaveBeenCalledOnce()
+    expect(runtime.getSession(handle.id)).toBeUndefined()
+  })
+
   it('将代理更新转发给当前对象适配器', () => {
     const runtime = new Runtime()
     const source = document.createElement('div')
