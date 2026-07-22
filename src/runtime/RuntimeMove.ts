@@ -1,8 +1,6 @@
 import type { RuntimeInput, SessionHandle, StartRequest } from '../core/Interaction'
 import type { Session } from '../session/Session'
 import { MoveBehavior, type MoveVisualStrategy } from '../behavior/MoveBehavior'
-import type { MoveCommitCoordinator } from './MoveCommitCoordinator'
-import type { MoveLandingCoordinator } from './MoveLandingCoordinator'
 import type { Behavior, BehaviorContext } from '../behavior/Behavior'
 import type { Action } from '../action/Action'
 import type { MoveActionDestination } from '../behavior/MoveTransaction'
@@ -158,6 +156,40 @@ export class MoveReleaseCoordinator {
   }
 }
 
+export interface MoveCommitPort { createContext(session: Session): BehaviorContext; getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined; normalize(objectId: string, destination: unknown): MoveActionDestination | null }
+export class MoveCommitCoordinator {
+  constructor(private readonly port: MoveCommitPort, private readonly actions: MoveActionCoordinator) {}
+  async commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void> {
+    const context = this.port.createContext(session)
+    await behavior.commit(context, destination)
+    behavior.playLayout(context)
+    const lifecycle = this.port.getLifecycle(session.id)
+    const normalized = this.port.normalize(session.objectId, destination)
+    if (normalized) await lifecycle?.surface?.leave?.(context, normalized.fromSurfaceId)
+    this.actions.emit(session.objectId, behavior.getContext(session.id).destination, behavior.getContext(session.id).transaction)
+    if (normalized) await lifecycle?.surface?.enter?.(context, normalized.toSurfaceId)
+  }
+}
+
+export interface MoveLandingPort { createContext(session: Session): BehaviorContext; getSession(id: string): Session | undefined; cancel(id: string, reason: string): void; end(session: Session): void }
+export class MoveLandingCoordinator {
+  constructor(private readonly port: MoveLandingPort) {}
+  async run(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void> {
+    try {
+      const result = await behavior.landing(this.port.createContext(session), destination)
+      const live = this.port.getSession(session.id)
+      if (live !== session || live.state === 'disposed' || live.state === 'interrupt') return
+      if (result && !result.completed) return this.port.cancel(session.id, result.reason ?? 'landing-failed')
+      result?.reveal?.()
+      session.handoff()
+      if (behavior.reveal) await behavior.reveal(this.port.createContext(session), destination)
+      if (this.port.getSession(session.id) === session) this.port.end(session)
+    } catch (error) {
+      if (this.port.getSession(session.id) === session) this.port.cancel(session.id, error instanceof Error ? error.message : 'landing-failed')
+    }
+  }
+}
+
 export class MoveActionCoordinator {
   constructor(private readonly port: MoveActionPort) {}
   normalize(objectId: string, value: unknown): MoveActionDestination | null {
@@ -183,6 +215,3 @@ export class MoveActionCoordinator {
     return typeof candidate.fromSurfaceId === 'string' && typeof candidate.toSurfaceId === 'string'
   }
 }
-
-export { MoveCommitCoordinator } from './MoveCommitCoordinator'
-export { MoveLandingCoordinator } from './MoveLandingCoordinator'
