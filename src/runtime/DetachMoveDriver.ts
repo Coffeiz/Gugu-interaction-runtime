@@ -56,6 +56,18 @@ export function applyDetachPickupVisual(
   })
 }
 
+export interface DetachPickupPreparation {
+  readonly beforeContent: HTMLElement
+  readonly beforePickup: ReturnType<typeof captureLayoutFlip>
+}
+
+export function prepareDetachPickup(sourceElement: HTMLElement): DetachPickupPreparation {
+  const beforeContent = sourceElement.cloneNode(true) as HTMLElement
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+    .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
+  return { beforeContent, beforePickup: captureLayoutFlip(cards) }
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *

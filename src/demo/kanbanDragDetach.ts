@@ -19,12 +19,8 @@ import {
   createDetachMoveDriver,
   createDetachVisualLifecycle,
   prepareDetachMotion,
+  prepareDetachPickup,
 } from '../runtime/DetachMoveDriver'
-
-interface DetachPickupPreparation {
-  readonly beforeContent: HTMLElement
-  readonly beforePickup: ReturnType<typeof captureLayoutFlip>
-}
 
 function prepareDetachSession(sessionId: string, cardId: string) {
   const objectLease = runtime.acquireObject(sessionId, cardId)
@@ -41,13 +37,6 @@ function startDetachSession(cardId: string, event: PointerEvent) {
 }
 
 /** 把抓起前的内容和兄弟布局快照冻结下来，供 Runtime Move 创建阶段消费。 */
-function prepareDetachPickup(sourceEl: HTMLElement): DetachPickupPreparation {
-  const beforeContent = sourceEl.cloneNode(true) as HTMLElement
-  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
-    .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')
-  return { beforeContent, beforePickup: captureLayoutFlip(cards) }
-}
-
 /**
  * detach 跟手阶段只有一个真实对象；但松手后它必须回到 Vue 的真实列表，因而
  * 会再次进入 Surface 的裁剪树。落地交接改用 Runtime overlay 中短暂存在的
