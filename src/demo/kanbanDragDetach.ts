@@ -19,6 +19,7 @@ import {
   createDetachMoveDriver,
   createDetachVisualLifecycle,
   createDetachDropState,
+  interruptDetachRegrab,
   prepareDetachMotion,
   prepareDetachPickup,
   prepareDetachSession,
@@ -47,27 +48,6 @@ function startDetachSession(cardId: string, event: PointerEvent) {
  */
 const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
 runtime.setHitResolver(kanbanHitResolver)
-
-function performDetachRegrab(args: {
-  event: PointerEvent
-  cardId: string
-  sessionId: string
-  proxy: HTMLElement
-  source: HTMLElement
-  proxyRect: DOMRect
-  interrupt: () => void
-  clearRegrab: () => void
-  disposeProxy: () => void
-}): void {
-  args.event.stopPropagation()
-  setProxyInteractive(args.proxy, false)
-  args.clearRegrab()
-  releaseVisibilityOwnership(args.source, args.sessionId)
-  args.interrupt()
-  args.source.style.visibility = ''
-  args.disposeProxy()
-  startCardDragDetach(args.event, args.cardId, args.source, args.proxyRect)
-}
 
 /**
  * "detach" 策略：全程只有一个对象——不克隆 proxy，本体自己脱离文档流。
@@ -310,16 +290,15 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     if (!regrabContext) return
     const proxyRect = regrabContext.proxyRect
 
-    performDetachRegrab({
+    interruptDetachRegrab({
       event: regrabContext.event,
-      cardId,
       sessionId: session.id,
       proxy,
       source: liveEl,
-      proxyRect,
       interrupt: () => regrabContext.interrupt('regrab'),
       clearRegrab: () => runtime.clearRegrab(cardId),
       disposeProxy: () => runtime.disposeVisualProxy(session.id),
     })
+    startCardDragDetach(regrabEvent, cardId, liveEl, proxyRect)
   }
 }

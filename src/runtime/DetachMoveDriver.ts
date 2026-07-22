@@ -2,6 +2,7 @@ import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import type { LandingResult, MoveBehaviorDriver, MoveContext } from '../behavior/MoveBehavior'
 import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
 import { applyFloatingStyle } from '../dom/Visual'
+import { releaseVisibilityOwnership, setProxyInteractive } from '../dom/Visual'
 
 export function createDetachMoveRequest(objectId: string, event: PointerEvent) {
   return {
@@ -113,6 +114,24 @@ export function createDetachDropState<TDrop>(
       return currentSurface
     },
   }
+}
+
+export function interruptDetachRegrab(args: {
+  event: PointerEvent
+  proxy: HTMLElement
+  source: HTMLElement
+  sessionId: string
+  interrupt: () => void
+  clearRegrab: () => void
+  disposeProxy: () => void
+}): void {
+  args.event.stopPropagation()
+  setProxyInteractive(args.proxy, false)
+  args.clearRegrab()
+  releaseVisibilityOwnership(args.source, args.sessionId)
+  args.interrupt()
+  args.source.style.visibility = ''
+  args.disposeProxy()
 }
 
 /**
