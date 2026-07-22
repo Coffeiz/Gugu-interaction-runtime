@@ -19,8 +19,6 @@ import { RuntimeDispatcher } from './runtime/RuntimeDispatcher'
 import { SessionCoordinator, type SessionCompletionGate } from './runtime/SessionCoordinator'
 import { MoveActionCoordinator } from './runtime/MoveActionCoordinator'
 import { VisualProxyCoordinator } from './runtime/VisualProxyCoordinator'
-import { MoveUpdateCoordinator } from './runtime/MoveUpdateCoordinator'
-import { MoveReleaseCoordinator } from './runtime/MoveReleaseCoordinator'
 import { MoveCommitCoordinator } from './runtime/MoveCommitCoordinator'
 import { MoveLandingCoordinator } from './runtime/MoveLandingCoordinator'
 import { VisualStateCoordinator } from './runtime/VisualStateCoordinator'
@@ -140,9 +138,7 @@ export class Runtime {
   private readonly visualProxyCoordinator = new VisualProxyCoordinator()
   private readonly dispatcher: RuntimeDispatcher
   private readonly moveActions: MoveActionCoordinator
-  private readonly moveUpdates: MoveUpdateCoordinator
   private readonly runtimeMove: RuntimeMoveCoordinator
-  private readonly moveRelease = new MoveReleaseCoordinator()
   private readonly moveCommit: MoveCommitCoordinator
   private readonly moveLanding: MoveLandingCoordinator
   private readonly visualState: VisualStateCoordinator
@@ -163,12 +159,11 @@ export class Runtime {
       getObjectSurface: objectId => this.objects.get(objectId)?.surfaceId,
       emit: action => this.actions.emit(action),
     })
-    this.moveUpdates = new MoveUpdateCoordinator({
+    this.runtimeMove = RuntimeMoveCoordinator.fromPorts({
       getSession: sessionId => this.sessionCoordinator.get(sessionId),
       getBehavior: type => this.behaviors.get(type),
       createContext: sessionId => this.createBehaviorContext(this.sessionCoordinator.get(sessionId)!),
     })
-    this.runtimeMove = new RuntimeMoveCoordinator(this.moveUpdates)
     this.moveCommit = new MoveCommitCoordinator({
       createContext: session => this.createBehaviorContext(session),
       getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
@@ -646,7 +641,7 @@ export class Runtime {
 
   private async releaseInternal(sessionId: string, input: RuntimeInput): Promise<void> {
     const sessionCandidate = this.sessionCoordinator.get(sessionId)
-    const preflight = this.moveRelease.prepare(sessionCandidate, input)
+    const preflight = this.runtimeMove.prepareRelease(sessionCandidate, input)
     if (preflight.kind === 'ignore') return
     if (preflight.kind === 'cancel') {
       if (sessionCandidate) this.cancel(sessionCandidate.id, preflight.reason)
