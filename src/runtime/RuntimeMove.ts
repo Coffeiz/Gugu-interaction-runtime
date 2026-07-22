@@ -4,7 +4,7 @@ import { MoveUpdateCoordinator } from './MoveUpdateCoordinator'
 import type { ReleasePreflight } from './MoveReleaseCoordinator'
 import { MoveReleaseCoordinator } from './MoveReleaseCoordinator'
 import type { Session } from '../session/Session'
-import type { MoveBehavior } from '../behavior/MoveBehavior'
+import { MoveBehavior, type MoveVisualStrategy } from '../behavior/MoveBehavior'
 import type { MoveCommitCoordinator } from './MoveCommitCoordinator'
 import type { MoveLandingCoordinator } from './MoveLandingCoordinator'
 import type { Behavior, BehaviorContext } from '../behavior/Behavior'
@@ -47,6 +47,49 @@ export class RuntimeMoveCoordinator {
     return this.landingCoordinator.run(session, behavior, destination)
   }
 
+  async release(sessionId: string, input: RuntimeInput, port: MoveReleasePort): Promise<void> {
+    const candidate = port.getSession(sessionId)
+    const preflight = this.prepareRelease(candidate, input)
+    if (preflight.kind === 'ignore') return
+    if (preflight.kind === 'cancel') {
+      if (candidate) port.cancel(candidate.id, preflight.reason)
+      return
+    }
+    const session = preflight.session
+    const behavior = port.getBehavior(session.type)
+    if (behavior instanceof MoveBehavior) behavior.captureLayout(port.createContext(session))
+    let result: unknown
+    try {
+      result = await behavior?.release?.(port.createContext(session), input)
+    } catch (error) {
+      port.cancel(session.id, error instanceof Error ? error.message : 'release-failed')
+      return
+    }
+    if (port.getSession(session.id) !== session) return
+    const releaseResult = result as { accepted?: boolean; destination?: unknown } | undefined
+    if (releaseResult?.accepted === false) {
+      port.cancel(session.id, 'no-valid-drop')
+      return
+    }
+    if (session.state === 'release') session.transition('landing')
+    if (!(behavior instanceof MoveBehavior)) {
+      port.end(session)
+      return
+    }
+    const destination = releaseResult?.destination
+    if (destination === undefined) {
+      port.cancel(session.id, 'invalid-release-result')
+      return
+    }
+    try {
+      await this.commit(session, behavior, destination)
+    } catch (error) {
+      port.cancel(session.id, error instanceof Error ? error.message : 'commit-failed')
+      return
+    }
+    await this.land(session, behavior, destination)
+  }
+
   start(request: StartRequest, port: MoveStartPort): SessionHandle {
     const behavior = port.getBehavior(request.type)
     if (!behavior) throw new Error(`Unknown interaction behavior: ${request.type}`)
@@ -77,12 +120,20 @@ export class RuntimeMoveCoordinator {
 export interface MoveStartPort {
   getBehavior(type: string): Behavior | undefined
   createSession(type: string, objectId: string): Session
-  getVisualStrategy(objectId: string): import('../behavior/MoveBehavior').MoveVisualStrategy | undefined
-  bindLifecycle(sessionId: string, strategy: import('../behavior/MoveBehavior').MoveVisualStrategy): void
+  getVisualStrategy(objectId: string): MoveVisualStrategy | undefined
+  bindLifecycle(sessionId: string, strategy: MoveVisualStrategy): void
   createContext(session: Session): BehaviorContext
   isCurrent(sessionId: string): boolean
   cancel(sessionId: string, reason: string): void
   interrupt(sessionId: string, reason: string): void
+}
+
+export interface MoveReleasePort {
+  getSession(sessionId: string): Session | undefined
+  getBehavior(type: string): Behavior | undefined
+  createContext(session: Session): BehaviorContext
+  cancel(sessionId: string, reason: string): void
+  end(session: Session): void
 }
 
 export { MoveActionCoordinator } from './MoveActionCoordinator'

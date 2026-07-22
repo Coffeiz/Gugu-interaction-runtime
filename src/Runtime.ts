@@ -24,7 +24,7 @@ import { MoveLandingCoordinator } from './runtime/MoveLandingCoordinator'
 import { VisualStateCoordinator } from './runtime/VisualStateCoordinator'
 import { VisualMotionCoordinator } from './runtime/VisualMotionCoordinator'
 import { RuntimeInputCoordinator } from './runtime/RuntimeInput'
-import { RuntimeMoveCoordinator } from './runtime/RuntimeMove'
+import { RuntimeMoveCoordinator, type MoveReleasePort } from './runtime/RuntimeMove'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
 
 export type RuntimeEvent =
@@ -617,57 +617,14 @@ export class Runtime {
   }
 
   private async releaseInternal(sessionId: string, input: RuntimeInput): Promise<void> {
-    const sessionCandidate = this.sessionCoordinator.get(sessionId)
-    const preflight = this.runtimeMove.prepareRelease(sessionCandidate, input)
-    if (preflight.kind === 'ignore') return
-    if (preflight.kind === 'cancel') {
-      if (sessionCandidate) this.cancel(sessionCandidate.id, preflight.reason)
-      return
+    const port: MoveReleasePort = {
+      getSession: id => this.sessionCoordinator.get(id),
+      getBehavior: type => this.behaviors.get(type),
+      createContext: session => this.createBehaviorContext(session),
+      cancel: (id, reason) => this.cancel(id, reason),
+      end: session => this.endSession(session),
     }
-    const activeSession = preflight.session
-    const session = activeSession
-
-    const behavior = this.behaviors.get(activeSession.type)
-    if (behavior instanceof MoveBehavior) {
-      behavior.captureLayout(this.createBehaviorContext(activeSession))
-    }
-    let result: unknown
-    try {
-      result = await behavior?.release?.(this.createBehaviorContext(activeSession), input)
-    } catch (error) {
-      this.cancel(activeSession.id, error instanceof Error ? error.message : 'release-failed')
-      return
-    }
-
-    if (this.sessionCoordinator.get(activeSession.id) !== activeSession) return
-
-    const releaseResult = result as { accepted?: boolean; destination?: unknown } | undefined
-    if (releaseResult?.accepted === false) {
-      this.cancel(session.id, 'no-valid-drop')
-      return
-    }
-
-    if (activeSession.state === 'release') activeSession.transition('landing')
-
-    if (!(behavior instanceof MoveBehavior)) {
-      this.endSession(activeSession)
-      return
-    }
-
-    const destination = releaseResult?.destination
-    if (destination === undefined) {
-      this.cancel(activeSession.id, 'invalid-release-result')
-      return
-    }
-
-    try {
-      await this.runtimeMove.commit(session, behavior, destination)
-    } catch (error) {
-      this.cancel(session.id, error instanceof Error ? error.message : 'commit-failed')
-      return
-    }
-
-    await this.runtimeMove.land(session, behavior, destination)
+    return this.runtimeMove.release(sessionId, input, port)
   }
 
   cancel(sessionId: string, reason = 'cancelled'): void {
