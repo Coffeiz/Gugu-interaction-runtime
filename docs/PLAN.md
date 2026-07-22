@@ -335,7 +335,7 @@ RuntimeInput     pointer 输入、capture 和 regrab
 - [x] `Runtime.ts` 保留公共注册和统一输入 API，内部实现开始拆到协调器模块；
 - [x] 将 object/surface/adapter 注册移入 `RuntimeRegistry`；
 - [x] 建立 `start/update/release/cancel/interrupt` 的 `RuntimeDispatcher` 分发入口；
-- [ ] 将上述操作的实际实现完全移出 `Runtime.ts`；
+- [x] 将上述操作的实际实现完全移出 `Runtime.ts`；Runtime 仅保留端口适配和公共 API；
 - [x] 将移动目标规范化和 Action 去重提交移入 `MoveActionCoordinator`；
 - [x] 将 Session 到视觉代理的唯一引用移入 `VisualProxyCoordinator`；
 - [x] 将 active 阶段的 pointer update 分发移入 `MoveUpdateCoordinator`；
@@ -344,8 +344,8 @@ RuntimeInput     pointer 输入、capture 和 regrab
 - [x] 将 landing、handoff、reveal 和成功结束移入 `MoveLandingCoordinator`；
 - [x] 将 Session 索引、CompletionGate、对象 Lease 获取和 Cleanup 注册移入
   `SessionCoordinator`；
-- [ ] 将 Session 的最终 dispose/release 顺序和 cancel/interrupt 清理移入
-  `SessionCoordinator`；
+- [x] 将 Session 的最终 dispose/release 顺序和 cancel/interrupt 清理移入
+  `RuntimeSession`；
 - [x] 成功结束路径的 Session dispose、CompletionGate 收束和索引删除已移入
   `SessionCoordinator`；
 - [x] cancel/interrupt 的 Session 终止、Lease/Cleanup 和索引删除已移入
@@ -371,9 +371,8 @@ VisualState/VisualMotion/VisualProxy 归入 `RuntimeVisual`，
 - [ ] 业务侧只保留 Object/Surface 注册、元素绑定和 Action 订阅；
 - [ ] 在 detach driver 迁移完成并通过回归后，删除 `legacyStart` 及其业务调用。
 
-当前进度补充：Session 的创建、索引、查找、CompletionGate、对象 Lease 获取和
-事务 Cleanup 注册已迁入 `SessionCoordinator`；最终 dispose/release 顺序仍由
-Runtime 调用，尚未完成完整生命周期收口。
+当前进度补充：Session 的创建、索引、查找、CompletionGate、对象 Lease 获取、
+事务 Cleanup 注册以及终态清理均已迁入 `RuntimeSession` 功能域。
 
 当前进度：Registry、Dispatcher 和 SessionCoordinator 的基础能力已由 Runtime 使用；
 detach 的完整 driver 仍待迁移，因此 `legacyStart` 暂时保留，但不应继续扩大其职责。
