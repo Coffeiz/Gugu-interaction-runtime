@@ -1,8 +1,4 @@
 import type { RuntimeInput, SessionHandle, StartRequest } from '../core/Interaction'
-import type { MoveUpdatePort } from './MoveUpdateCoordinator'
-import { MoveUpdateCoordinator } from './MoveUpdateCoordinator'
-import type { ReleasePreflight } from './MoveReleaseCoordinator'
-import { MoveReleaseCoordinator } from './MoveReleaseCoordinator'
 import type { Session } from '../session/Session'
 import { MoveBehavior, type MoveVisualStrategy } from '../behavior/MoveBehavior'
 import type { MoveCommitCoordinator } from './MoveCommitCoordinator'
@@ -141,6 +137,27 @@ export interface MoveReleasePort {
 
 export interface MoveActionPort { getObjectSurface(objectId: string): string | undefined; emit(action: Action): void }
 
+export interface MoveUpdatePort { getSession(id: string): { type: string; state: string } | undefined; getBehavior(type: string): Behavior | undefined; createContext(id: string): BehaviorContext }
+export class MoveUpdateCoordinator {
+  constructor(private readonly port: MoveUpdatePort) {}
+  update(sessionId: string, input: RuntimeInput): void {
+    const session = this.port.getSession(sessionId)
+    if (!session || session.state !== 'active') return
+    this.port.getBehavior(session.type)?.update?.(this.port.createContext(sessionId), input)
+  }
+}
+
+export type ReleasePreflight = { kind: 'cancel'; reason: string } | { kind: 'continue'; session: Session } | { kind: 'ignore' }
+export class MoveReleaseCoordinator {
+  prepare(session: Session | undefined, input: RuntimeInput): ReleasePreflight {
+    if (!session) return { kind: 'ignore' }
+    if (input.kind === 'pointercancel' || input.kind === 'blur' || input.kind === 'lostpointercapture') return { kind: 'cancel', reason: input.kind }
+    if (session.state === 'prepare') return { kind: 'cancel', reason: 'interaction-not-ready' }
+    if (session.state === 'active') session.transition('release')
+    return session.state === 'release' ? { kind: 'continue', session } : { kind: 'ignore' }
+  }
+}
+
 export class MoveActionCoordinator {
   constructor(private readonly port: MoveActionPort) {}
   normalize(objectId: string, value: unknown): MoveActionDestination | null {
@@ -167,7 +184,5 @@ export class MoveActionCoordinator {
   }
 }
 
-export { MoveUpdateCoordinator } from './MoveUpdateCoordinator'
-export { MoveReleaseCoordinator } from './MoveReleaseCoordinator'
 export { MoveCommitCoordinator } from './MoveCommitCoordinator'
 export { MoveLandingCoordinator } from './MoveLandingCoordinator'
