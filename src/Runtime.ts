@@ -22,6 +22,7 @@ import { MoveCommitCoordinator, MoveLandingCoordinator } from './runtime/Runtime
 import { RuntimeInputCoordinator, RuntimeDispatcher } from './runtime/RuntimeInput'
 import { RuntimeMoveCoordinator, type MoveReleasePort } from './runtime/RuntimeMove'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
+import { setMotionProfiles } from './dom/GroupLayout'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -65,6 +66,8 @@ export interface ObjectTypeRegistration {
   defaultVisualMode: string
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
   visual?: ObjectVisualAdapter
+  /** 可选运动参数：flip 位移和 landing 落地速度。未设置时使用 DEFAULT_MOTION_PROFILE。 */
+  motion?: { flip?: { duration: number; easing: string }; landing?: { duration: number; easing: string } }
   /** 兼容旧 demo 的手动启动入口。 */
   start?(context: { objectId: string; element: HTMLElement; event: PointerEvent; mode: string }): void
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
@@ -187,6 +190,7 @@ export class Runtime {
       interrupt: (sessionId, reason) => this.interruptInternal(sessionId, reason),
     })
     this.behaviors.register(this.moveBehavior)
+setMotionProfiles(this.registry.motionProfiles)
     this.objects.subscribe(event => {
       this.events.emit(event)
       if (event.type === 'object-added' || event.type === 'object-changed') {
@@ -210,9 +214,28 @@ export class Runtime {
 
   registerObjectType(type: string, registration: ObjectTypeRegistration): void {
     this.registry.registerObjectType(type, registration)
+    if (registration.motion) {
+      const existing = this.registry.motionProfiles.get(type) ?? {}
+      this.registry.motionProfiles.set(type, { ...existing, ...registration.motion } as import('./dom/MotionProfile').MotionProfile)
+    }
     for (const object of this.objects.values()) {
       if (object.type === type || object.visual === type) this.syncObjectPointerBinding(object.id)
     }
+  }
+
+  registerSurface(surface: import('./surface/Surface').Surface): void {
+    this.surfaces.register(surface)
+    if (surface.motion?.resize) {
+      const existing = this.registry.motionProfiles.get(surface.type) ?? {}
+      this.registry.motionProfiles.set(surface.type, {
+        ...existing,
+        resize: surface.motion.resize,
+      })
+    }
+  }
+
+  getMotionProfile(type: string): import('./dom/MotionProfile').MotionProfile | undefined {
+    return this.registry.motionProfiles.get(type)
   }
 
   startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent): boolean {
@@ -281,6 +304,7 @@ export class Runtime {
     const sourceElement = object?.element ?? undefined
     const adapter = session ? this.getObjectVisualAdapter(session.objectId) : new DefaultVisualAdapter()
     const fallback = new DefaultVisualAdapter()
+    const motionProfile = object ? this.registry.motionProfiles.get(object.visual ?? object.type) : undefined
     return {
       objectId: session?.objectId ?? '',
       sessionId,
@@ -296,6 +320,7 @@ export class Runtime {
       targetSnapshot: targetElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
+      motion: motionProfile,
     }
   }
 

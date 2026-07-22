@@ -1,3 +1,4 @@
+import { DEFAULT_MOTION_PROFILE } from '../dom/MotionProfile'
 import { runtime } from '../Runtime'
 import {
   concealElement,
@@ -8,8 +9,6 @@ import {
 } from '../dom/Visual'
 import { preserveProxyVisualContext } from '../dom/ProxyVisualContext'
 import type { VisualAdapter, VisualLifecycleContext, VisualProxy } from '../dom/VisualAdapter'
-
-const LANDING_DURATION = 3000
 
 interface DetachProxyState {
   target: HTMLElement | null
@@ -52,7 +51,7 @@ export function createDetachVisualAdapter(): VisualAdapter {
       proxy.style.width = `${targetRect.width}px`
       proxy.style.height = `${targetRect.height}px`
       const { finished, retarget } = landDragProxy(proxy, targetRect, {
-        duration: LANDING_DURATION,
+        duration: context.motion?.landing?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
         targetShadow: context.targetSnapshot?.boxShadow,
         targetRadius: context.targetSnapshot?.borderRadius,
         targetBackground: context.targetSnapshot?.background,

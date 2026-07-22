@@ -1,12 +1,14 @@
 import { VisualAdapters, type VisualAdapter } from '../dom/VisualAdapter'
 import type { MoveVisualStrategy } from '../behavior/MoveBehavior'
 import type { ObjectTypeRegistration } from '../Runtime'
+import type { MotionProfile } from '../dom/MotionProfile'
 
 /** Runtime 的注册状态；不参与 Session 或视觉生命周期。 */
 export class RuntimeRegistry {
   readonly visuals = new VisualAdapters()
   readonly objectTypes = new Map<string, ObjectTypeRegistration>()
   readonly visualStrategies = new Map<string, MoveVisualStrategy>()
+  readonly motionProfiles = new Map<string, MotionProfile>()
 
   registerVisualAdapter(type: string, adapter: VisualAdapter): void {
     this.visuals.register(type, adapter)
@@ -19,5 +21,9 @@ export class RuntimeRegistry {
   registerObjectType(type: string, registration: ObjectTypeRegistration): void {
     this.objectTypes.set(type, registration)
     if (registration.visual) this.visuals.register(type, registration.visual)
+  }
+
+  registerMotionProfile(type: string, profile: MotionProfile): void {
+    this.motionProfiles.set(type, profile)
   }
 }

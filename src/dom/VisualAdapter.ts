@@ -1,4 +1,5 @@
 import type { VisualState, VisualSnapshot } from './VisualAdapterTypes'
+import type { MotionProfile } from './MotionProfile'
 
 export interface VisualLifecycleContext {
   readonly objectId: string
@@ -12,6 +13,8 @@ export interface VisualLifecycleContext {
   readonly sourceRect?: DOMRect
   readonly visualSnapshot?: VisualSnapshot
   readonly targetSnapshot?: VisualSnapshot
+  /** 对象类型注册的 MotionProfile；adapter 可用此覆盖 landing 速度。 */
+  readonly motion?: MotionProfile
 }
 
 export interface VisualProxy {
