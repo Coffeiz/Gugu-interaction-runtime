@@ -61,20 +61,20 @@ export class SessionCoordinator {
     return session
   }
 
-  cancel(sessionId: string): Session | undefined {
+  cancel(sessionId: string, beforeDispose?: (session: Session) => void): Session | undefined {
     const session = this.sessions.get(sessionId)
     if (!session) return undefined
+    beforeDispose?.(session)
     session.cancel()
-    this.failGates(sessionId)
     this.sessions.delete(sessionId)
     return session
   }
 
-  interrupt(sessionId: string, reason: 'cancel' | 'regrab'): Session | undefined {
+  interrupt(sessionId: string, reason: 'cancel' | 'regrab', beforeDispose?: (session: Session) => void): Session | undefined {
     const session = this.sessions.get(sessionId)
     if (!session) return undefined
+    beforeDispose?.(session)
     session.interrupt(reason)
-    this.failGates(sessionId)
     this.sessions.delete(sessionId)
     return session
   }

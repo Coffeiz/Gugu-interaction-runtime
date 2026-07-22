@@ -711,10 +711,8 @@ export class Runtime {
     } catch (error) {
       console.error('Behavior cancel failed', error)
     } finally {
-      this.failCompletionGates(session.id)
-      this.disposeVisualProxy(session.id)
       try {
-        this.sessionCoordinator.cancel(session.id)
+        this.sessionCoordinator.cancel(session.id, current => this.failCompletionGates(current.id))
       } finally {
         this.disposeBehavior(behavior, context)
       }
@@ -737,10 +735,12 @@ export class Runtime {
     } catch (error) {
       console.error('Behavior interrupt failed', error)
     } finally {
-      this.failCompletionGates(session.id)
-      this.disposeVisualProxy(session.id)
       try {
-        this.sessionCoordinator.interrupt(session.id, reason === 'regrab' ? 'regrab' : 'cancel')
+        this.sessionCoordinator.interrupt(
+          session.id,
+          reason === 'regrab' ? 'regrab' : 'cancel',
+          current => this.failCompletionGates(current.id),
+        )
       } finally {
         this.disposeBehavior(behavior, context)
       }
