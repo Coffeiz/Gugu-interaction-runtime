@@ -535,44 +535,19 @@ export class Runtime {
   }
 
   private startInternal(request: StartRequest): SessionHandle {
-    const behavior = this.behaviors.get(request.type)
-    if (!behavior) throw new Error(`Unknown interaction behavior: ${request.type}`)
-
-    const session = this.startSession(request.type, request.objectId)
-    const object = this.objects.get(request.objectId)
-    const strategy = object ? this.registry.visualStrategies.get(object.type) : undefined
-    if (strategy) this.moveBehavior.bindLifecycle(session.id, strategy)
-    const context = this.createBehaviorContext(session)
-
-    // prepare 必须同步执行：业务侧（demo/kanbanDrag.ts 等）紧接着从
-    // getMoveContext() 读 sourceElement/dragOffset 算 proxy 起点位置，
-    // 推迟到 microtask 会让这些字段在读时还没被填（→ proxy 跑到
-    // 浏览器左上角）。prepare 如果返回 Promise（异步清理/动画初始化），
-    // 错误走异步 catch，但同步的 transition('active') 不等它——demo
-    // 需要在 start() 返回那一刻 MoveContext 已是可用状态。
-    try {
-      const result = behavior.prepare?.(context, request)
-      if (result && typeof (result as { then?: unknown }).then === 'function') {
-        (result as Promise<void>).catch(error => {
-          if (this.sessionCoordinator.get(session.id) === session) {
-            this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
-          }
-        })
-      }
-    } catch (error) {
-      this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
-    }
-
-    if (this.sessionCoordinator.get(session.id) === session && session.state === 'prepare') {
-      session.transition('active')
-    }
-
-    return {
-      id: session.id,
-      get state() { return session.state },
-      cancel: reason => this.cancel(session.id, reason ?? 'cancelled'),
-      interrupt: reason => this.interrupt(session.id, reason ?? 'interrupted'),
-    }
+    return this.runtimeMove.start(request, {
+      getBehavior: type => this.behaviors.get(type),
+      createSession: (type, objectId) => this.startSession(type, objectId),
+      getVisualStrategy: objectId => {
+        const object = this.objects.get(objectId)
+        return object ? this.registry.visualStrategies.get(object.type) : undefined
+      },
+      bindLifecycle: (sessionId, strategy) => this.moveBehavior.bindLifecycle(sessionId, strategy),
+      createContext: session => this.createBehaviorContext(session),
+      isCurrent: sessionId => Boolean(this.sessionCoordinator.get(sessionId)),
+      cancel: (sessionId, reason) => this.cancel(sessionId, reason),
+      interrupt: (sessionId, reason) => this.interrupt(sessionId, reason),
+    })
   }
 
   /**
