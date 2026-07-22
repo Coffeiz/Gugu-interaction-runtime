@@ -84,6 +84,27 @@ describe('Runtime move orchestration', () => {
     })
   })
 
+  it('元素绑定后由 Runtime 输入层转发迁移期 legacyStart', () => {
+    const runtime = createRuntime()
+    const legacyStart = vi.fn()
+    runtime.registerObjectType('project-card', {
+      defaultVisualMode: 'detach',
+      visual: { legacyStart },
+    })
+    const element = document.createElement('div')
+    runtime.objects.setElement('card-1', element)
+    const event = new PointerEvent('pointerdown', { bubbles: true })
+
+    element.dispatchEvent(event)
+
+    expect(legacyStart).toHaveBeenCalledWith({
+      objectId: 'card-1',
+      element,
+      event,
+      mode: 'detach',
+    })
+  })
+
   it('对象类型可以由 Runtime 自动创建 Move Session', () => {
     const runtime = createRuntime()
     const driver = createDriver(() => undefined)

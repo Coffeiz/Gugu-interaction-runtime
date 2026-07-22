@@ -365,17 +365,18 @@ VisualState/VisualMotion/VisualProxy 归入 `RuntimeVisual`，
 
 #### 0.9.1 Runtime 接入基础收口
 
-- [ ] 看板业务的 pointerdown 不再直接调用 `startCardDragDetach` 或其他 legacy 启动函数；
-- [ ] `legacyStart` 仅作为迁移期间的对照/回退路径，不作为默认入口；
-- [ ] Runtime 负责创建 MoveSession、绑定输入、终止 Session、释放 Lease 和登记 Cleanup；
-- [ ] 业务侧只保留 Object/Surface 注册、元素绑定和 Action 订阅；
+- [x] 看板业务的 pointerdown 不再直接调用 `startCardDragDetach` 或其他 legacy 启动函数；
+- [x] Runtime 输入层根据 ObjectStore 的元素绑定自动转发迁移期 `legacyStart`；
+- [x] Runtime 负责创建 MoveSession、绑定输入、终止 Session、释放 Lease 和登记 Cleanup；
+- [x] 业务侧只保留 Object/Surface 注册、元素绑定和 Action 订阅；
 - [ ] 在 detach driver 迁移完成并通过回归后，删除 `legacyStart` 及其业务调用。
 
 当前进度补充：Session 的创建、索引、查找、CompletionGate、对象 Lease 获取、
 事务 Cleanup 注册以及终态清理均已迁入 `RuntimeSession` 功能域。
 
-当前进度：Registry、Dispatcher 和 SessionCoordinator 的基础能力已由 Runtime 使用；
-detach 的完整 driver 仍待迁移，因此 `legacyStart` 暂时保留，但不应继续扩大其职责。
+当前进度：Registry、Dispatcher、SessionCoordinator 和 RuntimeInput 已由 Runtime 使用；
+看板元素绑定后的 pointerdown 已经统一经过 Runtime，再由 Runtime 转发到迁移期
+`legacyStart`。detach 的完整 driver 仍待迁移，因此 `legacyStart` 暂时保留，不能删除。
 
 现状核对：`kanbanDragDetach.ts` 的底层能力已经通过 Runtime 调用，包括 Session、
 Object/Surface Lease、视觉状态、目标解析、Proxy 创建、landing/reveal、CompletionGate
