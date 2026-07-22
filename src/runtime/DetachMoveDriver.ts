@@ -1,6 +1,7 @@
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import type { LandingResult, MoveBehaviorDriver, MoveContext } from '../behavior/MoveBehavior'
-import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
+import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
+import { applyFloatingStyle } from '../dom/Visual'
 
 export function createDetachMoveRequest(objectId: string, event: PointerEvent) {
   return {
@@ -34,6 +35,25 @@ export function prepareDetachMotion(
   const offsetY = fromRect ? event.clientY - rect.top : context.dragOffset.y
   if (fromRect) context.dragOffset = { x: offsetX, y: offsetY }
   return { rect, offsetX, offsetY }
+}
+
+export function applyDetachPickupVisual(
+  applyState: (objectId: string, element: HTMLElement, state: VisualState) => void,
+  objectId: string,
+  element: HTMLElement,
+  rect: DOMRect,
+  fromRect?: DOMRect,
+): void {
+  element.style.transform = ''
+  applyFloatingStyle(element, rect)
+  document.body.classList.add('kb-dragging')
+  if (fromRect) element.style.transition = 'none'
+  applyState(objectId, element, {
+    phase: 'dragging',
+    hovered: element.matches(':hover'),
+    selected: element.classList.contains('is-selected'),
+    grabbed: true,
+  })
 }
 
 /**

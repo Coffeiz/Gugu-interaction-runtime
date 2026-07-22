@@ -1,6 +1,5 @@
 import { runtime, type RuntimeCompletionGate } from '../Runtime'
 import {
-  applyFloatingStyle,
   clearFloatingStyle,
   moveFloating,
   releaseVisibilityOwnership,
@@ -14,6 +13,7 @@ import { columns } from './store'
 import type { LandingResult } from '../behavior/MoveBehavior'
 import {
   captureDetachDraggingSnapshot,
+  applyDetachPickupVisual,
   createDetachLayoutLifecycle,
   createDetachMoveRequest,
   createDetachMoveDriver,
@@ -38,24 +38,6 @@ function startDetachSession(cardId: string, event: PointerEvent) {
   if (!session) throw new Error('detach session was not created')
   const objectLease = prepareDetachSession(session.id, cardId)
   return { session, objectLease }
-}
-
-function applyDetachPickupVisual(
-  cardId: string,
-  sourceEl: HTMLElement,
-  rect: DOMRect,
-  fromRect: DOMRect | undefined,
-): void {
-  sourceEl.style.transform = ''
-  applyFloatingStyle(sourceEl, rect)
-  document.body.classList.add('kb-dragging')
-  if (fromRect) sourceEl.style.transition = 'none'
-  runtime.applyVisualState(cardId, sourceEl, {
-    phase: 'dragging',
-    hovered: sourceEl.matches(':hover'),
-    selected: sourceEl.classList.contains('is-selected'),
-    grabbed: true,
-  })
 }
 
 /** 把抓起前的内容和兄弟布局快照冻结下来，供 Runtime Move 创建阶段消费。 */
@@ -137,7 +119,13 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   const startY = event.clientY
   const offsetX = motion.offsetX
   const offsetY = motion.offsetY
-  applyDetachPickupVisual(cardId, sourceEl, rect, fromRect)
+  applyDetachPickupVisual(
+    (id, element, state) => runtime.applyVisualState(id, element, state),
+    cardId,
+    sourceEl,
+    rect,
+    fromRect,
+  )
   // 落地时要从"跟手时的样子"（这里，抬起阴影 + 放大）渐变到目标真实样式，
   // 而不是 clearFloatingStyle 瞬间抹掉——跟手状态之后不会再变，这里定住
   // 之后就能供 onUp() 里的落地补间使用。
