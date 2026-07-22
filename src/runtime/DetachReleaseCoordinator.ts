@@ -24,6 +24,14 @@ export interface DetachReleaseCoordinatorOptions<TDrop> {
   readonly onInvalidDrop?: () => void
 }
 
+export interface DetachReleasePlan<TDrop> {
+  readonly canRelease: () => boolean
+  readonly resolveDrop: () => TDrop | null
+  readonly cancel: () => void
+  readonly prepareLanding: () => DOMRect
+  readonly startLanding: (drop: TDrop, sourceRect: DOMRect) => void
+}
+
 export class DetachReleaseCoordinator<TDrop> {
   private released = false
 
@@ -52,6 +60,21 @@ export class DetachReleaseCoordinator<TDrop> {
 
   reset(): void {
     this.released = false
+  }
+
+  releasePlan(plan: DetachReleasePlan<TDrop>): TDrop | null {
+    if (this.released || !plan.canRelease()) return null
+    this.released = true
+    const drop = plan.resolveDrop()
+    if (!drop) {
+      plan.cancel()
+      this.options.onInvalidDrop?.()
+      return null
+    }
+    const sourceRect = plan.prepareLanding()
+    plan.startLanding(drop, sourceRect)
+    this.options.onAcceptedDrop?.(drop)
+    return drop
   }
 
 }
