@@ -230,12 +230,19 @@ function toggleGroup(level: 'year' | 'month', key: string) {
 
 </script>
 
+<style>
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+#app { height: 100%; }
+
+</style>
+
 <style scoped>
+
 .kb-strategy-switch { display: flex; gap: 16px; padding: 12px 24px 0; font-family: system-ui, sans-serif; font-size: 13px; }
-.kb-board { display: flex; gap: 16px; padding: 24px; align-items: flex-start; font-family: system-ui, sans-serif; }
-.kb-column {
+.kb-board { display: flex; gap: 16px; padding: 24px; align-items: stretch; font-family: system-ui, sans-serif; height: calc(100vh - 40px); }
+.kb-column { max-height: 100%; overflow-y: auto;
   width: 220px; background: #f4f5f7; border-radius: 10px; padding: 10px;
-  display: flex; flex-direction: column; gap: 8px; min-height: 80px; overflow: hidden;
+  display: flex; flex-direction: column; gap: 8px; min-height: 80px;
 }
 .kb-column-title { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; color: #444; padding: 2px 4px; }
 .kb-card-list { display: flex; flex-direction: column; gap: 8px; min-height: 4px; }
