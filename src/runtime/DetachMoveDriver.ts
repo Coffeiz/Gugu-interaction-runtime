@@ -116,6 +116,17 @@ export function createDetachDropState<TDrop>(
   }
 }
 
+export function updateDetachDrop<TDrop>(args: {
+  active: boolean
+  event: PointerEvent
+  state: ReturnType<typeof createDetachDropState<TDrop>>
+  resolve: (event: PointerEvent) => TDrop | null
+  getSurface: (drop: TDrop) => string
+}): TDrop | null {
+  if (!args.active) return null
+  return args.state.update(args.event, args.getSurface)
+}
+
 export function interruptDetachRegrab(args: {
   event: PointerEvent
   proxy: HTMLElement

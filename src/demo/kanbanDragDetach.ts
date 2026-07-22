@@ -23,6 +23,7 @@ import {
   scheduleDetachLandingFrame,
   resolveDetachLandingTarget,
   createDetachDropState,
+  updateDetachDrop,
   interruptDetachRegrab,
   prepareDetachMotion,
   prepareDetachPickup,
@@ -140,7 +141,18 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   function onMove(moveEvent: PointerEvent) {
     if (session.state !== 'active') return
     // 跟手定位已经在 MoveBehavior.update() 里做过了，这里只做命中判定。
-    const hit = dropState.update(moveEvent, drop => drop.columnId)
+    const hit = updateDetachDrop({
+      active: session.state === 'active',
+      event: moveEvent,
+      state: dropState,
+      resolve: event => hitWithResolver(
+        runtime.getHitResolver() ?? kanbanHitResolver,
+        event.clientX,
+        event.clientY,
+        cardId,
+      ),
+      getSurface: drop => drop.columnId,
+    })
     if (!hit) return
     currentColumnId = dropState.currentSurface
     currentIndex = hit.index
