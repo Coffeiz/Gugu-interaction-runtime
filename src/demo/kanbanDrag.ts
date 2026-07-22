@@ -166,8 +166,8 @@ export function startCardDrag(event: PointerEvent, cardId: string, sourceEl: HTM
     delete sourceEl.dataset.runtimeActive
     hideLiveCard(cardId)
     runtime.registerRegrab(cardId, onRegrab)
-    requestAnimationFrame(async () => {
-      const targetEl = await runtime.waitForMoveTarget(session.id, pendingDrop, () => resolveLiveCard(cardId))
+    requestAnimationFrame(() => {
+      const targetEl = runtime.resolveMoveTarget(session.id, pendingDrop, () => resolveLiveCard(cardId))
       if (!targetEl || session.state !== 'landing') {
         resolveLanding?.()
         resolveLanding = null
