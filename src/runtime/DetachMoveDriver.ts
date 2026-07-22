@@ -295,9 +295,15 @@ export function createDetachLandingLifecycle<TGate extends { promise: Promise<La
 }
 
 export function createDetachReleaseCoordinator<TDrop>(release: () => TDrop | null) {
+  let frozen = false
   return {
     release(): TDrop | null {
+      if (frozen) return null
+      frozen = true
       return release()
+    },
+    reset(): void {
+      frozen = false
     },
   }
 }
