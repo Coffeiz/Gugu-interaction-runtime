@@ -748,7 +748,6 @@ export class Runtime {
   }
 
   startSession(type: string, objectId = ''): Session {
-    const session = new Session(type, objectId, this.owner)
     return this.sessionCoordinator.create(type, objectId, this.owner)
   }
 
@@ -781,9 +780,10 @@ export class Runtime {
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
     try {
+      // 必须在 Coordinator 删除 Session 前销毁代理；VisualAdapter.dispose 需要 Session 上下文。
+      this.disposeVisualProxy(session.id)
       this.sessionCoordinator.finalize(session.id)
     } finally {
-      this.disposeVisualProxy(session.id)
       this.disposeBehavior(behavior, context)
     }
   }
