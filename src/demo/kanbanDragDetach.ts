@@ -2,7 +2,6 @@ import { runtime, type RuntimeCompletionGate } from '../Runtime'
 import {
   applyFloatingStyle,
   clearFloatingStyle,
-  destroyDragProxy,
   moveFloating,
   releaseVisibilityOwnership,
   setProxyInteractive,
@@ -12,7 +11,7 @@ import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
-import type { LandingResult, MoveBehaviorDriver } from '../behavior/MoveBehavior'
+import type { LandingResult, MoveBehaviorDriver, MoveContext } from '../behavior/MoveBehavior'
 
 function createDetachMoveDriver(
   onMove: (event: PointerEvent) => void,
@@ -52,6 +51,84 @@ function createDetachVisualLifecycle(
       finishReveal()
     },
   }
+}
+
+interface DetachPickupPreparation {
+  readonly beforeContent: HTMLElement
+  readonly beforePickup: ReturnType<typeof captureLayoutFlip>
+}
+
+function createDetachMoveRequest(cardId: string, event: PointerEvent) {
+  return {
+    type: 'move' as const,
+    objectId: cardId,
+    input: { kind: 'pointerdown' as const, event },
+  }
+}
+
+function prepareDetachSession(sessionId: string, cardId: string) {
+  const objectLease = runtime.acquireObject(sessionId, cardId)
+  runtime.takeSurfaces(sessionId, columns.map(column => `column:${column.id}`))
+  return objectLease
+}
+
+function startDetachSession(cardId: string, event: PointerEvent) {
+  const handle = runtime.start(createDetachMoveRequest(cardId, event))
+  const session = runtime.getSession(handle.id)
+  if (!session) throw new Error('detach session was not created')
+  const objectLease = prepareDetachSession(session.id, cardId)
+  return { session, objectLease }
+}
+
+function captureDetachDraggingSnapshot(
+  cardId: string,
+  sourceEl: HTMLElement,
+): VisualSnapshot | undefined {
+  const snapshot = runtime.captureVisualState(cardId, sourceEl)
+  return {
+    ...snapshot,
+    boxShadow: sourceEl.style.boxShadow || snapshot.boxShadow,
+    transform: sourceEl.style.transform || snapshot.transform,
+  }
+}
+
+function prepareDetachMotion(
+  moveContext: MoveContext,
+  sourceEl: HTMLElement,
+  event: PointerEvent,
+  fromRect?: DOMRect,
+): { rect: DOMRect; offsetX: number; offsetY: number } {
+  const rect = fromRect ?? sourceEl.getBoundingClientRect()
+  const offsetX = fromRect ? event.clientX - rect.left : moveContext.dragOffset.x
+  const offsetY = fromRect ? event.clientY - rect.top : moveContext.dragOffset.y
+  if (fromRect) moveContext.dragOffset = { x: offsetX, y: offsetY }
+  return { rect, offsetX, offsetY }
+}
+
+function applyDetachPickupVisual(
+  cardId: string,
+  sourceEl: HTMLElement,
+  rect: DOMRect,
+  fromRect: DOMRect | undefined,
+): void {
+  sourceEl.style.transform = ''
+  applyFloatingStyle(sourceEl, rect)
+  document.body.classList.add('kb-dragging')
+  if (fromRect) sourceEl.style.transition = 'none'
+  runtime.applyVisualState(cardId, sourceEl, {
+    phase: 'dragging',
+    hovered: sourceEl.matches(':hover'),
+    selected: sourceEl.classList.contains('is-selected'),
+    grabbed: true,
+  })
+}
+
+/** 把抓起前的内容和兄弟布局快照冻结下来，供 Runtime Move 创建阶段消费。 */
+function prepareDetachPickup(sourceEl: HTMLElement): DetachPickupPreparation {
+  const beforeContent = sourceEl.cloneNode(true) as HTMLElement
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+    .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')
+  return { beforeContent, beforePickup: captureLayoutFlip(cards) }
 }
 
 /**
@@ -105,62 +182,27 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     activeRegrab(event)
     return
   }
-  // 落地代理要能从"抓起时的内容"渐变到"落点的内容"（比如落进已完成列多一个
-  // 徽章、拖出来少一个徽章）——detach 全程只有这一个真实节点，proxy 迟早要
-  // 克隆它，但如果落地时才克隆，克隆到的已经是 Vue 按新位置/新状态重渲染过
-  // 的内容，没有"旧内容"可供交叉淡变。这里在任何拖拽样式介入之前，先冻结
-  // 一份最原始的内容快照。
-  const beforeContent = sourceEl.cloneNode(true) as HTMLElement
-  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
-    .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')
-  const beforePickup = captureLayoutFlip(cards)
+  // 落地代理要从抓起时的内容渐变到落点状态，先冻结内容和兄弟布局快照。
+  const { beforeContent, beforePickup } = prepareDetachPickup(sourceEl)
   // 立即登记、下一帧播放。若这一帧内已经放下，新事务会接管此快照，
   // 不会先播一笔收束再瞬间清空。
   scheduleLayoutFlip(beforePickup)
   runtime.objects.setElement(cardId, sourceEl)
-  // 如果这张卡此刻正在做落地 FLIP 回弹，先清掉残留的 transform。
-  // transition 不能在 applyFloatingStyle 前清除：那会把 transition:none
-  // 保存进浮动快照，落地恢复后 hover 就会失去过渡动画。regrab 场景的
-  // transition 清理放在 applyFloatingStyle 之后，见下方 fromRect 分支。
-  sourceEl.style.transform = ''
-
-  const handle = runtime.start({
-    type: 'move',
-    objectId: cardId,
-    input: { kind: 'pointerdown', event },
-  })
-  const session = runtime.getSession(handle.id)!
-  const visualAdapter = runtime.getVisualAdapter(runtime.objects.get(cardId)?.type ?? 'project-card')
+  const { session, objectLease } = startDetachSession(cardId, event)
   // 对象的 Lease 单独持有（不放进 session 的 leases 数组）：落地时需要先
   // 单独释放它（触发 Teleport 把节点放回真实位置），同时继续拿着 Surface
   // 的 Lease 直到落地动画结束，让 Vue 的 TransitionGroup 全程保持关闭。
-  const objectLease = runtime.acquireObject(session.id, cardId)
-  runtime.takeSurfaces(session.id, columns.map(col => `column:${col.id}`))
-
   // sourceElement/dragOffset 的常规算法已经在 MoveBehavior.prepare() 里
   // 统一算好了（阶段 B）——detach 没有 clone 那种 regrab 特殊起点，直接用。
   // regrab 场景（fromRect 存在）例外：起点是代理飞到一半的插值位置。
   const moveContext = runtime.getMoveContext(session.id)
-  const rect = fromRect ?? sourceEl.getBoundingClientRect()
+  const motion = prepareDetachMotion(moveContext, sourceEl, event, fromRect)
+  const rect = motion.rect
   const startX = event.clientX
   const startY = event.clientY
-  const offsetX = fromRect ? startX - rect.left : moveContext.dragOffset.x
-  const offsetY = fromRect ? startY - rect.top : moveContext.dragOffset.y
-  if (fromRect) {
-    moveContext.dragOffset = { x: offsetX, y: offsetY }
-  }
-  applyFloatingStyle(sourceEl, rect)
-  // 拖动期间禁用其他卡片的 hover 效果
-  document.body.classList.add('kb-dragging')
-  if (fromRect) {
-    sourceEl.style.transition = 'none'
-  }
-  visualAdapter.applyState?.(sourceEl, {
-    phase: 'dragging',
-    hovered: sourceEl.matches(':hover'),
-    selected: sourceEl.classList.contains('is-selected'),
-    grabbed: true,
-  })
+  const offsetX = motion.offsetX
+  const offsetY = motion.offsetY
+  applyDetachPickupVisual(cardId, sourceEl, rect, fromRect)
   // 落地时要从"跟手时的样子"（这里，抬起阴影 + 放大）渐变到目标真实样式，
   // 而不是 clearFloatingStyle 瞬间抹掉——跟手状态之后不会再变，这里定住
   // 之后就能供 onUp() 里的落地补间使用。
@@ -171,12 +213,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   // 不是抬起后的最终样子。border-radius/background 没被 applyFloatingStyle
   // 碰过，用 computed 读没问题；box-shadow/transform 这两个要读 el.style
   // 本身（也就是"刚被赋的目标值"），绕开过渡中的插值。
-  const draggingSnapshotBase = visualAdapter.captureVisualState?.(sourceEl)
-  const draggingSnapshot = draggingSnapshotBase && {
-    ...draggingSnapshotBase,
-    boxShadow: sourceEl.style.boxShadow || draggingSnapshotBase.boxShadow,
-    transform: sourceEl.style.transform || draggingSnapshotBase.transform,
-  }
+  const draggingSnapshot = captureDetachDraggingSnapshot(cardId, sourceEl)
   sourceEl.dataset.runtimeActive = 'true'
   moveFloating(sourceEl, startX, startY, offsetX, offsetY)
   // 阶段 C：往后每次 pointermove 的跟手定位由 MoveBehavior.update() 统一
@@ -265,7 +302,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         landingGate = null
         return
       }
-      visualAdapter.applyState?.(landedEl, {
+      runtime.applyVisualState(cardId, landedEl, {
         phase: 'revealing',
         hovered: false,
         selected: landedEl.classList.contains('is-selected'),
@@ -280,7 +317,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       landedEl.dataset.runtimeLandingCapture = 'true'
       landedEl.style.transition = 'none'
       void landedEl.offsetWidth
-      const targetSnapshot = visualAdapter.captureVisualState?.(landedEl)
+      const targetSnapshot = runtime.captureVisualState(cardId, landedEl)
       landedEl.style.transition = targetTransition
       delete landedEl.dataset.runtimeLandingCapture
       const visualContext = {
@@ -345,7 +382,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     if (!proxy) return
 
     // 1. 先捕获视觉状态
-    const liveEl = visualAdapter.resolveTarget?.(cardId, pendingDrop)
+    const liveEl = runtime.resolveVisualTarget(session.id, pendingDrop)
       ?? document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
     if (!liveEl) return
     const regrabContext = runtime.createRegrabContext(session.id, regrabEvent, proxy, liveEl)
@@ -361,7 +398,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       proxyRect,
       interrupt: () => regrabContext.interrupt('regrab'),
       clearRegrab: () => runtime.clearRegrab(cardId),
-      disposeProxy: () => destroyDragProxy(proxy),
+      disposeProxy: () => runtime.disposeVisualProxy(session.id),
     })
   }
 }
