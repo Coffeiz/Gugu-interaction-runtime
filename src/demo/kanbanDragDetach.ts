@@ -259,6 +259,18 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   }
 
   const releaseCoordinator = new DetachReleaseCoordinator({ release: onUp })
+  const releaseContext = () => ({
+    sessionId: session.id,
+    objectId: cardId,
+    source: sourceEl,
+    beforeContent,
+    sourceRect: sourceEl.getBoundingClientRect(),
+    visualSnapshot: draggingSnapshot,
+    landingPlan,
+    landingGate,
+    objectLease,
+    proxy: landingProxy,
+  })
 
   runtime.orchestrateMoveSession({
     type: 'move',
@@ -267,7 +279,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   }, {
     sessionId: session.id,
     followElement: sourceEl,
-    driver: createDetachMoveDriver(onMove, () => releaseCoordinator.release()),
+    driver: createDetachMoveDriver(onMove, () => releaseCoordinator.releaseWithContext(releaseContext(), onUp)),
     visualStrategy: {
       layout: createDetachLayoutLifecycle(sourceEl),
       ...createDetachLandingLifecycle({
