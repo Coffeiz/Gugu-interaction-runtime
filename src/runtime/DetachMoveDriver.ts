@@ -68,6 +68,18 @@ export function prepareDetachPickup(sourceElement: HTMLElement): DetachPickupPre
   return { beforeContent, beforePickup: captureLayoutFlip(cards) }
 }
 
+export function prepareDetachSession<TLease>(
+  acquireObject: (sessionId: string, objectId: string) => TLease,
+  takeSurfaces: (sessionId: string, surfaceIds: string[]) => void,
+  sessionId: string,
+  objectId: string,
+  surfaceIds: string[],
+): TLease {
+  const objectLease = acquireObject(sessionId, objectId)
+  takeSurfaces(sessionId, surfaceIds)
+  return objectLease
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *

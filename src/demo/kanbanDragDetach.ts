@@ -20,19 +20,20 @@ import {
   createDetachVisualLifecycle,
   prepareDetachMotion,
   prepareDetachPickup,
+  prepareDetachSession,
 } from '../runtime/DetachMoveDriver'
-
-function prepareDetachSession(sessionId: string, cardId: string) {
-  const objectLease = runtime.acquireObject(sessionId, cardId)
-  runtime.takeSurfaces(sessionId, columns.map(column => `column:${column.id}`))
-  return objectLease
-}
 
 function startDetachSession(cardId: string, event: PointerEvent) {
   const handle = runtime.start(createDetachMoveRequest(cardId, event))
   const session = runtime.getSession(handle.id)
   if (!session) throw new Error('detach session was not created')
-  const objectLease = prepareDetachSession(session.id, cardId)
+  const objectLease = prepareDetachSession(
+    (id, objectId) => runtime.acquireObject(id, objectId),
+    (id, surfaceIds) => runtime.takeSurfaces(id, surfaceIds),
+    session.id,
+    cardId,
+    columns.map(column => `column:${column.id}`),
+  )
   return { session, objectLease }
 }
 
