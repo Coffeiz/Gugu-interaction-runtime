@@ -64,7 +64,6 @@ export class SessionCoordinator {
     const session = this.sessions.get(sessionId)
     if (!session) return undefined
     session.cancel()
-    this.failGates(sessionId)
     this.sessions.delete(sessionId)
     return session
   }
@@ -73,7 +72,6 @@ export class SessionCoordinator {
     const session = this.sessions.get(sessionId)
     if (!session) return undefined
     session.interrupt(reason)
-    this.failGates(sessionId)
     this.sessions.delete(sessionId)
     return session
   }
