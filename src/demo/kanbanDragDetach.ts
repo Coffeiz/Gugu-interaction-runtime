@@ -19,6 +19,7 @@ import {
   createDetachMoveDriver,
   createDetachVisualLifecycle,
   cancelDetachWithoutDrop,
+  prepareDetachLanding,
   createDetachDropState,
   interruptDetachRegrab,
   prepareDetachMotion,
@@ -159,7 +160,12 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       })
       return null
     }
-    const beforeRect = sourceEl.getBoundingClientRect()
+    const beforeRect = prepareDetachLanding({
+      source: sourceEl,
+      settle: settleFloatingLayout,
+      clearActive: () => delete sourceEl.dataset.runtimeActive,
+      releaseObject: () => objectLease?.release(),
+    })
     // 必须在提交业务状态前登记：若 pickup 的 rAF 尚未执行，这一笔会直接
     // 替换它并继承抓起前的视觉快照。
     // 必须在 scheduleLayoutFlip 实际测量之前解除——本体此刻仍是
@@ -167,11 +173,6 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     // 不解除的话 surface 高度动画会算出"少一张卡"的错误目标（见
     // dom/Visual.ts settleFloatingLayout 的注释）。保持不可见，真正的
     // 揭示仍然留给下面 landingPlan 里的 clearFloatingStyle。
-    settleFloatingLayout(sourceEl)
-    delete sourceEl.dataset.runtimeActive
-    // 只放开这一个对象的 Lease：Vue 下一帧会把它摆回真实列表位置。
-    // Surface 的 Lease（TransitionGroup 总闸）留到落地动画结束才一起释放。
-      objectLease?.release()
     landingPlan = () => requestAnimationFrame(() => {
       // clearFloatingStyle 不能在 onUp() 里同步调用：那样会在这一帧同步抹掉
       // sourceEl 的抬起阴影/位置样式，但接管视觉的落地代理要等到这个 rAF 才

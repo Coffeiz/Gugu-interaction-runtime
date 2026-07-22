@@ -152,6 +152,19 @@ export function cancelDetachWithoutDrop(args: {
   scheduleLayoutFlip(returnBefore)
 }
 
+export function prepareDetachLanding(args: {
+  source: HTMLElement
+  settle: (element: HTMLElement) => void
+  clearActive: () => void
+  releaseObject: () => void
+}): DOMRect {
+  const beforeRect = args.source.getBoundingClientRect()
+  args.settle(args.source)
+  args.clearActive()
+  args.releaseObject()
+  return beforeRect
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *
