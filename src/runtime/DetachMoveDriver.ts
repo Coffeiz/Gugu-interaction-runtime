@@ -34,3 +34,17 @@ export function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
     },
   }
 }
+
+export function createDetachVisualLifecycle(
+  clearRegrab: () => void,
+  beginLanding: () => Promise<LandingResult>,
+  finishReveal: () => void,
+) {
+  return {
+    landing: () => beginLanding(),
+    reveal: () => {
+      clearRegrab()
+      finishReveal()
+    },
+  }
+}

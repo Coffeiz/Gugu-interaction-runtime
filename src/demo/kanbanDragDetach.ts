@@ -12,21 +12,11 @@ import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
 import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
-import { createDetachLayoutLifecycle, createDetachMoveDriver } from '../runtime/DetachMoveDriver'
-
-function createDetachVisualLifecycle(
-  objectId: string,
-  beginLanding: () => Promise<LandingResult>,
-  finishReveal: () => void,
-) {
-  return {
-    landing: () => beginLanding(),
-    reveal: () => {
-      runtime.clearRegrab(objectId)
-      finishReveal()
-    },
-  }
-}
+import {
+  createDetachLayoutLifecycle,
+  createDetachMoveDriver,
+  createDetachVisualLifecycle,
+} from '../runtime/DetachMoveDriver'
 
 interface DetachPickupPreparation {
   readonly beforeContent: HTMLElement
@@ -334,7 +324,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     driver: createDetachMoveDriver(onMove, onUp),
     visualStrategy: {
       layout: createDetachLayoutLifecycle(sourceEl),
-      ...createDetachVisualLifecycle(cardId, () => {
+      ...createDetachVisualLifecycle(() => runtime.clearRegrab(cardId), () => {
         const gate = runtime.createCompletionGate(session.id, { completed: false, reason: 'landing-cancelled' })
         // 松手后立即恢复其它卡片 hover；landing 代理自身仍由视觉策略接管。
         document.body.classList.remove('kb-dragging')
