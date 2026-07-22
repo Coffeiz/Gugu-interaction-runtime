@@ -1,6 +1,14 @@
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import type { LandingResult, MoveBehaviorDriver } from '../behavior/MoveBehavior'
 
+export function createDetachMoveRequest(objectId: string, event: PointerEvent) {
+  return {
+    type: 'move' as const,
+    objectId,
+    input: { kind: 'pointerdown' as const, event },
+  }
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *

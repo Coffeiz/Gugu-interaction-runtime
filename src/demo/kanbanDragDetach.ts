@@ -14,6 +14,7 @@ import { columns } from './store'
 import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
 import {
   createDetachLayoutLifecycle,
+  createDetachMoveRequest,
   createDetachMoveDriver,
   createDetachVisualLifecycle,
 } from '../runtime/DetachMoveDriver'
@@ -21,14 +22,6 @@ import {
 interface DetachPickupPreparation {
   readonly beforeContent: HTMLElement
   readonly beforePickup: ReturnType<typeof captureLayoutFlip>
-}
-
-function createDetachMoveRequest(cardId: string, event: PointerEvent) {
-  return {
-    type: 'move' as const,
-    objectId: cardId,
-    input: { kind: 'pointerdown' as const, event },
-  }
 }
 
 function prepareDetachSession(sessionId: string, cardId: string) {
