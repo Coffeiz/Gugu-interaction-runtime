@@ -250,6 +250,20 @@ export function startDetachLandingVisual(args: {
   return proxy.element
 }
 
+export function completeDetachLanding(args: {
+  active: boolean
+  result: LandingResult
+  complete: (result: LandingResult) => void
+  reveal: () => void
+}): void {
+  if (!args.active) return
+  args.complete({
+    completed: args.result.completed,
+    reason: args.result.reason ?? '',
+    reveal: args.reveal,
+  })
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *

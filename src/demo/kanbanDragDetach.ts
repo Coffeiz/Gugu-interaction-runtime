@@ -25,6 +25,7 @@ import {
   captureDetachTargetSnapshot,
   createDetachVisualContext,
   startDetachLandingVisual,
+  completeDetachLanding,
   createDetachDropState,
   updateDetachDrop,
   interruptDetachRegrab,
@@ -242,10 +243,10 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
           landingGate = null
         },
         onComplete: landingResult => {
-          if (session.state !== 'landing') return
-          landingGate?.complete({
-            completed: landingResult.completed,
-            reason: landingResult.reason ?? '',
+          completeDetachLanding({
+            active: session.state === 'landing',
+            result: landingResult,
+            complete: result => landingGate?.complete(result),
             reveal: () => { void runtime.revealVisualProxy(session.id, landedEl, visualContext) },
           })
           landingGate = null
