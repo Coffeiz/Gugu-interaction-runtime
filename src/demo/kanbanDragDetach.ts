@@ -18,6 +18,7 @@ import {
   createDetachMoveRequest,
   createDetachMoveDriver,
   createDetachVisualLifecycle,
+  createDetachDropState,
   prepareDetachMotion,
   prepareDetachPickup,
   prepareDetachSession,
@@ -138,6 +139,11 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
 
   let currentColumnId = findColumnIdOf(cardId)
   let currentIndex = -1
+  const dropState = createDetachDropState(
+    currentColumnId,
+    event => hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, event.clientX, event.clientY, cardId),
+    (drop, previous) => drop.columnId === previous?.columnId && drop.index === previous?.index,
+  )
   let pendingDrop: { columnId: string; index: number } | null = null
   let landingPlan: (() => void) | null = null
   let landingGate: RuntimeCompletionGate<LandingResult> | null = null
@@ -150,10 +156,9 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   function onMove(moveEvent: PointerEvent) {
     if (session.state !== 'active') return
     // 跟手定位已经在 MoveBehavior.update() 里做过了，这里只做命中判定。
-    const hit = hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, moveEvent.clientX, moveEvent.clientY, cardId)
+    const hit = dropState.update(moveEvent, drop => drop.columnId)
     if (!hit) return
-    if (hit.columnId === currentColumnId && hit.index === currentIndex) return
-    currentColumnId = hit.columnId
+    currentColumnId = dropState.currentSurface
     currentIndex = hit.index
     // detach 模式下拖动阶段不提交业务数组。否则鼠标经过哪一列，列计数和
     // Vue 节点归属就会立即改变，Teleport 可能在跟手过程中卸载本体。

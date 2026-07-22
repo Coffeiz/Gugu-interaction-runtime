@@ -91,6 +91,30 @@ export function startDetachSession<TSession, TLease>(
   return { session, objectLease: prepare(handle.id) }
 }
 
+export function createDetachDropState<TDrop>(
+  initialSurface: string | undefined,
+  resolve: (event: PointerEvent) => TDrop | null,
+  same: (drop: TDrop, previous: TDrop | null) => boolean,
+) {
+  let currentSurface = initialSurface
+  let pending: TDrop | null = null
+  return {
+    update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null {
+      const drop = resolve(event)
+      if (!drop || same(drop, pending)) return pending
+      currentSurface = getSurface(drop)
+      pending = drop
+      return pending
+    },
+    release(): TDrop | null {
+      return pending
+    },
+    get currentSurface(): string | undefined {
+      return currentSurface
+    },
+  }
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *
