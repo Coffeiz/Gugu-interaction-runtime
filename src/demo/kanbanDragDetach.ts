@@ -23,6 +23,7 @@ import {
   scheduleDetachLandingFrame,
   resolveDetachLandingTarget,
   captureDetachTargetSnapshot,
+  createDetachVisualContext,
   createDetachDropState,
   updateDetachDrop,
   interruptDetachRegrab,
@@ -223,13 +224,13 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       const targetSnapshot = captureDetachTargetSnapshot(
         element => runtime.captureVisualState(cardId, element), landedEl,
       )
-      const visualContext = {
-        ...runtime.createVisualLifecycleContext(session.id, pendingDrop, landedEl, beforeContent),
-        sourceElement: sourceEl,
+      const visualContext = createDetachVisualContext({
+        createContext: () => runtime.createVisualLifecycleContext(session.id, pendingDrop, landedEl, beforeContent),
+        source: sourceEl,
         sourceRect: beforeRect,
         visualSnapshot: draggingSnapshot,
         targetSnapshot,
-      }
+      })
       const visualProxy = runtime.createVisualProxy(session.id, visualContext)
       if (!visualProxy) {
         landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' })

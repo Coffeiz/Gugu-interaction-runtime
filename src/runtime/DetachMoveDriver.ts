@@ -210,6 +210,27 @@ export function captureDetachTargetSnapshot(
   return snapshot
 }
 
+export function createDetachVisualContext<TContext extends object>(args: {
+  createContext: () => TContext
+  source: HTMLElement
+  sourceRect: DOMRect
+  visualSnapshot: VisualSnapshot
+  targetSnapshot: VisualSnapshot
+}): TContext & {
+  sourceElement: HTMLElement
+  sourceRect: DOMRect
+  visualSnapshot: VisualSnapshot
+  targetSnapshot: VisualSnapshot
+} {
+  return {
+    ...args.createContext(),
+    sourceElement: args.source,
+    sourceRect: args.sourceRect,
+    visualSnapshot: args.visualSnapshot,
+    targetSnapshot: args.targetSnapshot,
+  }
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *
