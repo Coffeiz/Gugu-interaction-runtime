@@ -1,7 +1,7 @@
 import type { BehaviorContext } from '../behavior/Behavior'
 import type { MoveBehavior, MoveVisualLifecycle } from '../behavior/MoveBehavior'
 import type { Session } from '../session/Session'
-import type { MoveActionCoordinator } from './MoveActionCoordinator'
+import type { MoveActionCoordinator } from './RuntimeMove'
 
 export interface MoveCommitPort {
   createContext(session: Session): BehaviorContext
