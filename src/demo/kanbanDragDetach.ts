@@ -27,6 +27,7 @@ import {
   completeDetachLanding,
   resolveDetachRegrabTarget,
   createDetachLandingLifecycle,
+  createDetachReleaseCoordinator,
   createDetachDropState,
   updateDetachDrop,
   interruptDetachRegrab,
@@ -257,6 +258,8 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     return pendingDrop
   }
 
+  const releaseCoordinator = createDetachReleaseCoordinator(onUp)
+
   runtime.orchestrateMoveSession({
     type: 'move',
     objectId: cardId,
@@ -264,7 +267,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   }, {
     sessionId: session.id,
     followElement: sourceEl,
-    driver: createDetachMoveDriver(onMove, onUp),
+    driver: createDetachMoveDriver(onMove, () => releaseCoordinator.release()),
     visualStrategy: {
       layout: createDetachLayoutLifecycle(sourceEl),
       ...createDetachLandingLifecycle({

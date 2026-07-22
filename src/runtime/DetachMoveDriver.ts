@@ -294,6 +294,14 @@ export function createDetachLandingLifecycle<TGate extends { promise: Promise<La
   }
 }
 
+export function createDetachReleaseCoordinator<TDrop>(release: () => TDrop | null) {
+  return {
+    release(): TDrop | null {
+      return release()
+    },
+  }
+}
+
 
 /**
  * Runtime 的 detach 编排原语。
