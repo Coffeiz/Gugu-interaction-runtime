@@ -26,6 +26,7 @@ import { MoveLandingCoordinator } from './runtime/MoveLandingCoordinator'
 import { VisualStateCoordinator } from './runtime/VisualStateCoordinator'
 import { VisualMotionCoordinator } from './runtime/VisualMotionCoordinator'
 import { RuntimeInputCoordinator } from './runtime/RuntimeInput'
+import { RuntimeMoveCoordinator } from './runtime/RuntimeMove'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -140,6 +141,7 @@ export class Runtime {
   private readonly dispatcher: RuntimeDispatcher
   private readonly moveActions: MoveActionCoordinator
   private readonly moveUpdates: MoveUpdateCoordinator
+  private readonly runtimeMove: RuntimeMoveCoordinator
   private readonly moveRelease = new MoveReleaseCoordinator()
   private readonly moveCommit: MoveCommitCoordinator
   private readonly moveLanding: MoveLandingCoordinator
@@ -166,6 +168,7 @@ export class Runtime {
       getBehavior: type => this.behaviors.get(type),
       createContext: sessionId => this.createBehaviorContext(this.sessionCoordinator.get(sessionId)!),
     })
+    this.runtimeMove = new RuntimeMoveCoordinator(this.moveUpdates)
     this.moveCommit = new MoveCommitCoordinator({
       createContext: session => this.createBehaviorContext(session),
       getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
@@ -634,7 +637,7 @@ export class Runtime {
   }
 
   private updateInternal(sessionId: string, input: RuntimeInput): void {
-    this.moveUpdates.update(sessionId, input)
+    this.runtimeMove.update(sessionId, input)
   }
 
   async release(sessionId: string, input: RuntimeInput): Promise<void> {
