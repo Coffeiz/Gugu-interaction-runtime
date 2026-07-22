@@ -27,7 +27,6 @@ import {
   completeDetachLanding,
   resolveDetachRegrabTarget,
   createDetachLandingLifecycle,
-  createDetachReleaseCoordinator,
   createDetachDropState,
   updateDetachDrop,
   interruptDetachRegrab,
@@ -36,6 +35,7 @@ import {
   prepareDetachSession,
   startDetachSession as startRuntimeDetachSession,
 } from '../runtime/DetachMoveDriver'
+import { DetachReleaseCoordinator } from '../runtime/DetachReleaseCoordinator'
 
 function startDetachSession(cardId: string, event: PointerEvent) {
   return startRuntimeDetachSession(
@@ -258,7 +258,7 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     return pendingDrop
   }
 
-  const releaseCoordinator = createDetachReleaseCoordinator(onUp)
+  const releaseCoordinator = new DetachReleaseCoordinator({ release: onUp })
 
   runtime.orchestrateMoveSession({
     type: 'move',
