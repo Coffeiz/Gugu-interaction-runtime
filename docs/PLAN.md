@@ -392,7 +392,7 @@ pointerup 判定、regrab 绑定以及 landing/reveal 的编排顺序。后续�
 - [ ] detach/clone 视觉策略迁入 Runtime 内部策略目录；
 - [ ] 删除业务入口中的 proxy/source/target、landing/reveal 和 FLIP 编排。
 
-当前迁移进度：pickup 阶段已完成第一轮收口。Runtime 侧已提供 Session/Lease
+当前迁移进度：pickup 阶段已完成第一轮收口，dragging/update 的落点状态也已开始收口。Runtime 侧已提供 Session/Lease
 准备、抓起前布局与内容快照、运动起点、dragging 视觉状态和 landing 帧调度；
 业务入口暂时保留事务闭包，作为下一阶段 dragging/update 迁移的对照实现。
 
