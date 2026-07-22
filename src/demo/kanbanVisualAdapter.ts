@@ -1,10 +1,13 @@
-import { startCardDragDetach } from './kanbanDragDetach'
+import { executeDetachDrag } from '../runtime/DetachMoveDriver'
 import { type ObjectVisualAdapter } from '../Runtime'
 import { DefaultVisualAdapter } from '../dom/VisualAdapter'
 import { createDetachVisualAdapter } from './kanbanDetachVisual'
+import { runtime } from '../Runtime'
 
-/** 看板项目卡的类型级视觉适配器。页面只安装一次，不按对象重复创建。 */
-export function createKanbanVisualAdapter(): ObjectVisualAdapter {
+export function createKanbanVisualAdapter(context: {
+  surfaceIds: string[]
+  findColumnIdOf: (objectId: string) => string | undefined
+}): ObjectVisualAdapter {
   const defaults = new DefaultVisualAdapter()
   const detach = createDetachVisualAdapter()
   return {
@@ -18,7 +21,14 @@ export function createKanbanVisualAdapter(): ObjectVisualAdapter {
     reveal: detach.reveal,
     dispose: detach.dispose,
     legacyStart: ({ objectId, element, event }) => {
-      startCardDragDetach(event, objectId, element)
+      executeDetachDrag({
+        runtime,
+        objectId,
+        element,
+        event,
+        surfaceIds: context.surfaceIds,
+        findColumnIdOf: context.findColumnIdOf,
+      })
     },
   }
 }

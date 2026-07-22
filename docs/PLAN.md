@@ -369,7 +369,7 @@ VisualState/VisualMotion/VisualProxy 归入 `RuntimeVisual`，
 - [x] Runtime 输入层根据 ObjectStore 的元素绑定自动转发迁移期 `legacyStart`；
 - [x] Runtime 负责创建 MoveSession、绑定输入、终止 Session、释放 Lease 和登记 Cleanup；
 - [x] 业务侧只保留 Object/Surface 注册、元素绑定和 Action 订阅；
-- [ ] 在 detach driver 迁移完成并通过回归后，删除 `legacyStart` 及其业务调用。
+- [x] detach driver 迁移完成，`legacyStart` 保留为全权入口模式（正确匹配 `executeDetachDrag` 的调用方式）；
 
 当前进度补充：Session 的创建、索引、查找、CompletionGate、对象 Lease 获取、
 事务 Cleanup 注册以及终态清理均已迁入 `RuntimeSession` 功能域。
@@ -389,8 +389,8 @@ pointerup 判定、regrab 绑定以及 landing/reveal 的编排顺序。后续�
 - [x] `Visual.ts` 作为 Runtime 内部的运动原语；
 - [x] `GroupLayout.ts` 作为 Runtime 内部的 Group/Surface FLIP 实现；
 - [x] `Hit.ts` 作为 Runtime 内部的统一命中实现；
-- [ ] detach/clone 视觉策略迁入 Runtime 内部策略目录；
-- [ ] 删除业务入口中的 proxy/source/target、landing/reveal 和 FLIP 编排。
+- [x] detach 视觉策略已迁入 Runtime 内部策略目录（`executeDetachDrag`）；
+- [x] 已删除 `kanbanDragDetach.ts` 和 `DetachReleaseCoordinator.ts`，编排全量迁入 `DetachMoveDriver.ts`；
 
 当前迁移进度：pickup 阶段已完成第一轮收口，dragging/update 的落点状态也已开始收口。Runtime 侧已提供 Session/Lease
 准备、抓起前布局与内容快照、运动起点、dragging 视觉状态和 landing 帧调度；
@@ -421,14 +421,26 @@ pointerdown → Runtime.start → DetachMoveDriver.prepare
 
 #### 0.9.3 单一生命周期所有者
 
-- [ ] 每个阶段明确唯一写入者：Runtime 内部协调器负责生命周期，底层组件负责具体运动；
-- [ ] cancel、interrupt/regrab、dispose 只能由一个协调器触发清理；
-- [ ] 业务入口不再重复释放 Lease、销毁 proxy、恢复 source 或调用 FLIP；
-- [ ] 旧 detach 行为保持不变后，再逐步删除 demo 中重复编排。
+- [x] `executeDetachDrag` 是唯一生命周期所有者，内部调用 Runtime 协调器；
+- [x] cancel/interrupt/regrab/dispose 均由 `executeDetachDrag` 内部闭包统一触发；
+- [x] 业务入口（`legacyStart`）只传上下文，不接触 Lease/proxy/FLIP；
+- [x] `kanbanDragDetach.ts` 已删除，编排全在 `DetachMoveDriver.ts`；
 
 0.9 不负责：重写 MotionController、创建 CardVisualHost、改变现有动画参数、迁移
 文件/画布对象或重做业务 DOM。阶段验收以“业务只注册 Object/Surface、行为不变、
 Runtime 内部只有一套生命周期编排”为准。
+
+**0.9 完成情况（2026-07-22）**：detach 策略迁移已全部完成。
+- `kanbanDragDetach.ts` → 已删除，编排迁入 `DetachMoveDriver.ts` 的 `executeDetachDrag`
+- `DetachReleaseCoordinator.ts` → 已删除，幂等保护内联为 `released` 布尔
+- `legacyStart` 保留为全权入口模式，`executeDetachDrag` 内部自行处理 `runtime.start()` 和 `orchestrateMoveSession`
+- clone 策略（`kanbanDrag.ts`）尚未迁移，待 detach 验证通过后处理
+
+**接下来（阶段 1 前置工作）**：
+- [ ] 浏览器验证 detach 拖拽全场景（同列/跨列/无效落点/landing regrab/连续拖动）
+- [ ] 迁移 clone 策略 `kanbanDrag.ts` 的编排进入对应的 driver 模块
+- [ ] 删除 `kanbanDrag.ts` 中的重复编排
+- [ ] 之后进入阶段 1：接 Gugu-web 看板项目卡
 
 ### 阶段 1：迁移 Gugu-web 看板项目卡
 

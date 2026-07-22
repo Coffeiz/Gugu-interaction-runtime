@@ -80,11 +80,17 @@ import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 // 可选对照策略保留。
 runtime.registerObjectType('kanban', {
   defaultVisualMode: 'detach',
-  visual: createKanbanVisualAdapter(),
+  visual: createKanbanVisualAdapter({
+    surfaceIds: columns.map(col => `column:${col.id}`),
+    findColumnIdOf: (cardId: string) => {
+      const col = columns.find(c => c.cardIds.includes(cardId))
+      return col ? col.id : undefined
+    },
+  }),
 })
 
 // 阶段 D：业务数据怎么变，由业务层订阅 Runtime 的 Action 通道自己决定，
-// 不是 kanbanDrag.ts/kanbanDragDetach.ts 直接调 moveCard——这两个文件现在
+// 不是 kanbanDrag.ts 直接调 moveCard——这两个文件现在
 // 只负责生成"发生了什么"（Action），不负责"这意味着业务数据要怎么改"。
 const stopActionSubscription = runtime.onAction(action => {
   if (action.type !== 'move') return

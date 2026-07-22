@@ -1,12 +1,8 @@
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
-import type { LandingResult, MoveBehaviorDriver, MoveContext, MoveVisualLifecycle } from '../behavior/MoveBehavior'
+import type { LandingResult, MoveBehaviorDriver, MoveContext } from '../behavior/MoveBehavior'
 import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
-import { applyFloatingStyle, clearFloatingStyle, moveFloating, settleFloatingLayout } from '../dom/Visual'
+import { applyFloatingStyle } from '../dom/Visual'
 import { releaseVisibilityOwnership, setProxyInteractive } from '../dom/Visual'
-import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
-import type { Runtime, RuntimeCompletionGate } from '../Runtime'
-
-
 
 export function createDetachMoveRequest(objectId: string, event: PointerEvent) {
   return {
@@ -15,8 +11,6 @@ export function createDetachMoveRequest(objectId: string, event: PointerEvent) {
     input: { kind: 'pointerdown' as const, event },
   }
 }
-
-
 
 export function captureDetachDraggingSnapshot(
   capture: (objectId: string, element: HTMLElement) => VisualSnapshot,
@@ -31,8 +25,6 @@ export function captureDetachDraggingSnapshot(
   }
 }
 
-
-
 export function prepareDetachMotion(
   context: MoveContext,
   element: HTMLElement,
@@ -45,8 +37,6 @@ export function prepareDetachMotion(
   if (fromRect) context.dragOffset = { x: offsetX, y: offsetY }
   return { rect, offsetX, offsetY }
 }
-
-
 
 export function applyDetachPickupVisual(
   applyState: (objectId: string, element: HTMLElement, state: VisualState) => void,
@@ -67,14 +57,10 @@ export function applyDetachPickupVisual(
   })
 }
 
-
-
 export interface DetachPickupPreparation {
   readonly beforeContent: HTMLElement
   readonly beforePickup: ReturnType<typeof captureLayoutFlip>
 }
-
-
 
 export function prepareDetachPickup(sourceElement: HTMLElement): DetachPickupPreparation {
   const beforeContent = sourceElement.cloneNode(true) as HTMLElement
@@ -82,8 +68,6 @@ export function prepareDetachPickup(sourceElement: HTMLElement): DetachPickupPre
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
   return { beforeContent, beforePickup: captureLayoutFlip(cards) }
 }
-
-
 
 export function prepareDetachSession<TLease>(
   acquireObject: (sessionId: string, objectId: string) => TLease,
@@ -97,8 +81,6 @@ export function prepareDetachSession<TLease>(
   return objectLease
 }
 
-
-
 export function startDetachSession<TSession, TLease>(
   start: () => { id: string },
   getSession: (sessionId: string) => TSession | undefined,
@@ -110,9 +92,7 @@ export function startDetachSession<TSession, TLease>(
   return { session, objectLease: prepare(handle.id) }
 }
 
-
-
-function createDetachDropState<TDrop>(
+export function createDetachDropState<TDrop>(
   initialSurface: string | undefined,
   resolve: (event: PointerEvent) => TDrop | null,
   same: (drop: TDrop, previous: TDrop | null) => boolean,
@@ -136,9 +116,7 @@ function createDetachDropState<TDrop>(
   }
 }
 
-
-
-function updateDetachDrop<TDrop>(args: {
+export function updateDetachDrop<TDrop>(args: {
   active: boolean
   event: PointerEvent
   state: ReturnType<typeof createDetachDropState<TDrop>>
@@ -148,8 +126,6 @@ function updateDetachDrop<TDrop>(args: {
   if (!args.active) return null
   return args.state.update(args.event, args.getSurface)
 }
-
-
 
 export function interruptDetachRegrab(args: {
   event: PointerEvent
@@ -169,8 +145,6 @@ export function interruptDetachRegrab(args: {
   args.disposeProxy()
 }
 
-
-
 export function cancelDetachWithoutDrop(args: {
   source: HTMLElement
   cancel: () => void
@@ -189,8 +163,6 @@ export function cancelDetachWithoutDrop(args: {
   scheduleLayoutFlip(returnBefore)
 }
 
-
-
 export function prepareDetachLanding(args: {
   source: HTMLElement
   settle: (element: HTMLElement) => void
@@ -204,8 +176,6 @@ export function prepareDetachLanding(args: {
   return beforeRect
 }
 
-
-
 export function scheduleDetachLandingFrame(
   clearFloating: () => void,
   callback: () => void,
@@ -216,8 +186,6 @@ export function scheduleDetachLandingFrame(
   })
 }
 
-
-
 export function resolveDetachLandingTarget<TDestination>(args: {
   resolve: () => HTMLElement | null
   applyState: (element: HTMLElement) => void
@@ -227,8 +195,6 @@ export function resolveDetachLandingTarget<TDestination>(args: {
   args.applyState(target)
   return target
 }
-
-
 
 export function captureDetachTargetSnapshot(
   capture: (element: HTMLElement) => VisualSnapshot,
@@ -243,8 +209,6 @@ export function captureDetachTargetSnapshot(
   delete element.dataset.runtimeLandingCapture
   return snapshot
 }
-
-
 
 export function createDetachVisualContext<TContext extends object>(args: {
   createContext: () => TContext
@@ -267,8 +231,6 @@ export function createDetachVisualContext<TContext extends object>(args: {
   }
 }
 
-
-
 export function startDetachLandingVisual(args: {
   createProxy: () => { element: HTMLElement } | null
   enableProxy: (element: HTMLElement) => void
@@ -288,8 +250,6 @@ export function startDetachLandingVisual(args: {
   return proxy.element
 }
 
-
-
 export function completeDetachLanding(args: {
   active: boolean
   result: LandingResult
@@ -304,16 +264,12 @@ export function completeDetachLanding(args: {
   })
 }
 
-
-
 export function resolveDetachRegrabTarget(
   resolve: () => HTMLElement | null,
   fallback: () => HTMLElement | null,
 ): HTMLElement | null {
   return resolve() ?? fallback()
 }
-
-
 
 export function createDetachLandingLifecycle<TGate extends { promise: Promise<LandingResult> }>(args: {
   createGate: () => TGate
@@ -342,6 +298,9 @@ export function createDetachLandingLifecycle<TGate extends { promise: Promise<La
 
 /**
  * Runtime 的 detach 编排原语。
+ *
+ * 视觉代理仍由业务 VisualAdapter 提供；这里仅负责把 pointer 更新、落点
+ * 解析和布局 FLIP 接到 MoveBehavior，避免业务入口重复维护这段顺序。
  */
 export function createDetachMoveDriver(
   onMove: (event: PointerEvent) => void,
@@ -359,8 +318,6 @@ export function createDetachMoveDriver(
   }
 }
 
-
-
 export function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
   return {
     capture: () => captureLayoutFlip(
@@ -371,230 +328,4 @@ export function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
       scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
     },
   }
-}
-
-
-
-// ---- executeDetachDrag：完整编排入口 ----
-
-export interface DetachDragOptions {
-  runtime: Runtime
-  objectId: string
-  element: HTMLElement
-  event: PointerEvent
-  fromRect?: DOMRect
-  surfaceIds: string[]
-  findColumnIdOf: (objectId: string) => string | undefined
-}
-
-/**
- * 执行一次完整的 detach 拖拽。
- *
- * 内部完成 pickup → 跟手 → 落点判定 → release → landing → reveal → regrab 的
- * 全流程编排，包括 Session 创建和 Runtime.orchestrateMoveSession 调用。
- * 调用方（VisualAdapter.legacyStart）只需传入上下文即可。
- */
-export function executeDetachDrag(options: DetachDragOptions): void {
-  const { runtime, objectId, element, event, fromRect, surfaceIds, findColumnIdOf } = options
-
-  if (!runtime.objects.hasAbility(objectId, 'move')) return
-  event.preventDefault()
-
-  const activeRegrab = runtime.getRegrab(objectId)
-  if (activeRegrab) {
-    activeRegrab(event)
-    return
-  }
-
-  const { beforeContent, beforePickup } = prepareDetachPickup(element)
-  scheduleLayoutFlip(beforePickup)
-  runtime.objects.setElement(objectId, element)
-  const { session, objectLease } = startDetachSession(
-    () => runtime.start(createDetachMoveRequest(objectId, event)),
-    id => runtime.getSession(id),
-    id => prepareDetachSession(
-      (sessionId, oid) => runtime.acquireObject(sessionId, oid),
-      (sessionId, sids) => runtime.takeSurfaces(sessionId, sids),
-      id,
-      objectId,
-      surfaceIds,
-    ),
-  )
-
-  const moveContext = runtime.getMoveContext(session.id)
-  const motion = prepareDetachMotion(moveContext, element, event, fromRect)
-  const rect = motion.rect
-  const startX = event.clientX
-  const startY = event.clientY
-  const offsetX = motion.offsetX
-  const offsetY = motion.offsetY
-  applyDetachPickupVisual(
-    (id, el, state) => runtime.applyVisualState(id, el, state),
-    objectId,
-    element,
-    rect,
-    fromRect,
-  )
-
-  const draggingSnapshot = captureDetachDraggingSnapshot(
-    (id, el) => runtime.captureVisualState(id, el), objectId, element,
-  )
-  element.dataset.runtimeActive = 'true'
-  moveFloating(element, startX, startY, offsetX, offsetY)
-
-  const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
-  const dropState = createDetachDropState(
-    findColumnIdOf(objectId),
-    ev => hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, ev.clientX, ev.clientY, objectId),
-    (drop: { columnId: string; index: number }, previous) =>
-      drop.columnId === previous?.columnId && drop.index === previous?.index,
-  )
-
-  let pendingDrop: { columnId: string; index: number } | null = null
-  let landingPlan: (() => void) | null = null
-  let landingGate: RuntimeCompletionGate<LandingResult> | null = null
-  let landingProxy: HTMLElement | null = null
-  let released = false
-
-  function onMove(moveEvent: PointerEvent) {
-    if (session.state !== 'active') return
-    const hit = updateDetachDrop({
-      active: session.state === 'active',
-      event: moveEvent,
-      state: dropState,
-      resolve: ev => hitWithResolver(
-        runtime.getHitResolver() ?? kanbanHitResolver,
-        ev.clientX,
-        ev.clientY,
-        objectId,
-      ),
-      getSurface: (drop: { columnId: string }) => drop.columnId,
-    })
-    if (!hit) return
-    pendingDrop = hit
-  }
-
-  function onUp(): { columnId: string; index: number } | null {
-    if (released) return null
-    released = true
-    if (session.state !== 'active' && session.state !== 'release') return null
-    pendingDrop = dropState.release()
-    if (!pendingDrop) {
-      cancelDetachWithoutDrop({
-        source: element,
-        cancel: () => runtime.cancel(session.id, 'no-valid-drop'),
-        clearFloating: clearFloatingStyle,
-        clearActive: () => delete element.dataset.runtimeActive,
-        releaseObject: () => objectLease?.release(),
-      })
-      return null
-    }
-    const beforeRect = prepareDetachLanding({
-      source: element,
-      settle: settleFloatingLayout,
-      clearActive: () => delete element.dataset.runtimeActive,
-      releaseObject: () => objectLease?.release(),
-    })
-    landingPlan = scheduleDetachLandingFrame(() => clearFloatingStyle(element), () => {
-      const landedEl = resolveDetachLandingTarget({
-        resolve: () => runtime.resolveMoveTarget(
-          session.id,
-          pendingDrop,
-          () => document.querySelector<HTMLElement>(`[data-card="${objectId}"]`) ?? element,
-        ),
-        applyState: target => runtime.applyVisualState(objectId, target, {
-          phase: 'revealing',
-          hovered: false,
-          selected: target.classList.contains('is-selected'),
-          grabbed: false,
-        }),
-      })
-      if (!landedEl) {
-        landingGate?.complete({ completed: true, reason: '' })
-        landingGate = null
-        return
-      }
-      const targetSnapshot = captureDetachTargetSnapshot(
-        el => runtime.captureVisualState(objectId, el), landedEl,
-      )
-      const visualContext = createDetachVisualContext({
-        createContext: () => runtime.createVisualLifecycleContext(session.id, pendingDrop, landedEl, beforeContent),
-        source: element,
-        sourceRect: beforeRect,
-        visualSnapshot: draggingSnapshot,
-        targetSnapshot,
-      })
-      landingProxy = startDetachLandingVisual({
-        createProxy: () => runtime.createVisualProxy(session.id, visualContext) ?? null,
-        enableProxy: proxy => setProxyInteractive(proxy, true),
-        bindRegrab: proxy => runtime.bindRegrabTarget(session.id, objectId, proxy, onRegrab),
-        land: () => runtime.landVisualProxy(session.id, landedEl, visualContext),
-        onMissing: () => {
-          landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' })
-          landingGate = null
-        },
-        onComplete: landingResult => {
-          completeDetachLanding({
-            active: session.state === 'landing',
-            result: landingResult,
-            complete: result => landingGate?.complete(result),
-            reveal: () => { void runtime.revealVisualProxy(session.id, landedEl, visualContext) },
-          })
-          landingGate = null
-        },
-      })
-    })
-    return pendingDrop
-  }
-
-  function onRegrab(regrabEvent: PointerEvent) {
-    if (session.state !== 'landing') return
-    const proxy = landingProxy
-    if (!proxy) return
-
-    const liveEl = resolveDetachRegrabTarget(
-      () => runtime.resolveVisualTarget(session.id, pendingDrop),
-      () => document.querySelector<HTMLElement>(`[data-card="${objectId}"]`),
-    )
-    if (!liveEl) return
-    const regrabContext = runtime.createRegrabContext(session.id, regrabEvent, proxy, liveEl)
-    if (!regrabContext) return
-    const proxyRect = regrabContext.proxyRect
-
-    interruptDetachRegrab({
-      event: regrabContext.event,
-      sessionId: session.id,
-      proxy,
-      source: liveEl,
-      interrupt: () => regrabContext.interrupt('regrab'),
-      clearRegrab: () => runtime.clearRegrab(objectId),
-      disposeProxy: () => runtime.disposeVisualProxy(session.id),
-    })
-    executeDetachDrag({
-      runtime, objectId, element: liveEl, event: regrabEvent,
-      fromRect: proxyRect, surfaceIds, findColumnIdOf,
-    })
-  }
-
-  const lifecycle = {
-    layout: createDetachLayoutLifecycle(element),
-    ...createDetachLandingLifecycle({
-      createGate: () => runtime.createCompletionGate(session.id, { completed: false, reason: 'landing-cancelled' }),
-      onGate: gate => { landingGate = gate },
-      clearDragging: () => document.body.classList.remove('kb-dragging'),
-      scheduleLanding: () => { landingPlan?.(); landingPlan = null },
-      clearRegrab: () => runtime.clearRegrab(objectId),
-      finishReveal: () => { if (landingProxy) setProxyInteractive(landingProxy, false) },
-    }),
-  }
-
-  runtime.orchestrateMoveSession(
-    createDetachMoveRequest(objectId, event),
-    {
-      sessionId: session.id,
-      followElement: element,
-      driver: createDetachMoveDriver(onMove, onUp),
-      lifecycle,
-    },
-  )
 }
