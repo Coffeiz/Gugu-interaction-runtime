@@ -1,5 +1,5 @@
 import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
-import type { LandingResult, MoveBehaviorDriver } from '../behavior/MoveBehavior'
+import type { LandingResult, MoveBehaviorDriver, MoveContext } from '../behavior/MoveBehavior'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 
 export function createDetachMoveRequest(objectId: string, event: PointerEvent) {
@@ -21,6 +21,19 @@ export function captureDetachDraggingSnapshot(
     boxShadow: element.style.boxShadow || snapshot.boxShadow,
     transform: element.style.transform || snapshot.transform,
   }
+}
+
+export function prepareDetachMotion(
+  context: MoveContext,
+  element: HTMLElement,
+  event: PointerEvent,
+  fromRect?: DOMRect,
+): { rect: DOMRect; offsetX: number; offsetY: number } {
+  const rect = fromRect ?? element.getBoundingClientRect()
+  const offsetX = fromRect ? event.clientX - rect.left : context.dragOffset.x
+  const offsetY = fromRect ? event.clientY - rect.top : context.dragOffset.y
+  if (fromRect) context.dragOffset = { x: offsetX, y: offsetY }
+  return { rect, offsetX, offsetY }
 }
 
 /**

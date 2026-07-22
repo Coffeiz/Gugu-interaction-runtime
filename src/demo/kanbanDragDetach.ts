@@ -11,13 +11,14 @@ import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
 import { createDomHitResolver, hitWithResolver } from '../dom/Hit'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { columns } from './store'
-import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
+import type { LandingResult } from '../behavior/MoveBehavior'
 import {
   captureDetachDraggingSnapshot,
   createDetachLayoutLifecycle,
   createDetachMoveRequest,
   createDetachMoveDriver,
   createDetachVisualLifecycle,
+  prepareDetachMotion,
 } from '../runtime/DetachMoveDriver'
 
 interface DetachPickupPreparation {
@@ -37,19 +38,6 @@ function startDetachSession(cardId: string, event: PointerEvent) {
   if (!session) throw new Error('detach session was not created')
   const objectLease = prepareDetachSession(session.id, cardId)
   return { session, objectLease }
-}
-
-function prepareDetachMotion(
-  moveContext: MoveContext,
-  sourceEl: HTMLElement,
-  event: PointerEvent,
-  fromRect?: DOMRect,
-): { rect: DOMRect; offsetX: number; offsetY: number } {
-  const rect = fromRect ?? sourceEl.getBoundingClientRect()
-  const offsetX = fromRect ? event.clientX - rect.left : moveContext.dragOffset.x
-  const offsetY = fromRect ? event.clientY - rect.top : moveContext.dragOffset.y
-  if (fromRect) moveContext.dragOffset = { x: offsetX, y: offsetY }
-  return { rect, offsetX, offsetY }
 }
 
 function applyDetachPickupVisual(
