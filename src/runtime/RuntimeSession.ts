@@ -19,6 +19,34 @@ export class RuntimeSessionCoordinator {
       disposeBehavior(behavior, context)
     }
   }
+
+  terminate(
+    session: Session,
+    behavior: Behavior | undefined,
+    context: BehaviorContext,
+    reason: string,
+    mode: 'cancel' | 'interrupt',
+    cancelBehavior: (behavior: Behavior | undefined, context: BehaviorContext, reason: string) => void,
+    beforeSession: (session: Session) => void,
+    disposeBehavior: (behavior: Behavior | undefined, context: BehaviorContext) => void,
+  ): void {
+    try {
+      cancelBehavior(behavior, context, reason)
+    } catch (error) {
+      console.error(`Behavior ${mode} failed`, error)
+    } finally {
+      try {
+        beforeSession(session)
+        if (mode === 'cancel') {
+          this.sessions.cancel(session.id)
+        } else {
+          this.sessions.interrupt(session.id, reason === 'regrab' ? 'regrab' : 'cancel')
+        }
+      } finally {
+        disposeBehavior(behavior, context)
+      }
+    }
+  }
 }
 
 export { SessionCoordinator } from './SessionCoordinator'

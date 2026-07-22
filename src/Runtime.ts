@@ -680,18 +680,19 @@ export class Runtime {
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
 
-    try {
-      if (behavior instanceof MoveBehavior) behavior.cancelLayout(context, reason)
-      behavior?.cancel?.(context, reason)
-    } catch (error) {
-      console.error('Behavior cancel failed', error)
-    } finally {
-      try {
-        this.sessionCoordinator.cancel(session.id, current => this.failCompletionGates(current.id))
-      } finally {
-        this.disposeBehavior(behavior, context)
-      }
-    }
+    this.runtimeSession.terminate(
+        session,
+        behavior,
+        context,
+        reason,
+        'cancel',
+        (currentBehavior, currentContext, currentReason) => {
+          if (currentBehavior instanceof MoveBehavior) currentBehavior.cancelLayout(currentContext, currentReason)
+          currentBehavior?.cancel?.(currentContext, currentReason)
+        },
+        current => this.failCompletionGates(current.id),
+        (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
+    )
   }
 
   interrupt(sessionId: string, reason: string = 'cancel'): void {
@@ -704,22 +705,19 @@ export class Runtime {
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
 
-    try {
-      if (behavior instanceof MoveBehavior) behavior.cancelLayout(context, reason)
-      behavior?.interrupt?.(context, reason)
-    } catch (error) {
-      console.error('Behavior interrupt failed', error)
-    } finally {
-      try {
-        this.sessionCoordinator.interrupt(
-          session.id,
-          reason === 'regrab' ? 'regrab' : 'cancel',
-          current => this.failCompletionGates(current.id),
-        )
-      } finally {
-        this.disposeBehavior(behavior, context)
-      }
-    }
+    this.runtimeSession.terminate(
+        session,
+        behavior,
+        context,
+        reason,
+        'interrupt',
+        (currentBehavior, currentContext, currentReason) => {
+          if (currentBehavior instanceof MoveBehavior) currentBehavior.cancelLayout(currentContext, currentReason)
+          currentBehavior?.interrupt?.(currentContext, currentReason)
+        },
+        current => this.failCompletionGates(current.id),
+        (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
+    )
   }
 
   startSession(type: string, objectId = ''): Session {
