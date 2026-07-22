@@ -21,20 +21,21 @@ import {
   prepareDetachMotion,
   prepareDetachPickup,
   prepareDetachSession,
+  startDetachSession as startRuntimeDetachSession,
 } from '../runtime/DetachMoveDriver'
 
 function startDetachSession(cardId: string, event: PointerEvent) {
-  const handle = runtime.start(createDetachMoveRequest(cardId, event))
-  const session = runtime.getSession(handle.id)
-  if (!session) throw new Error('detach session was not created')
-  const objectLease = prepareDetachSession(
-    (id, objectId) => runtime.acquireObject(id, objectId),
-    (id, surfaceIds) => runtime.takeSurfaces(id, surfaceIds),
-    session.id,
-    cardId,
-    columns.map(column => `column:${column.id}`),
+  return startRuntimeDetachSession(
+    () => runtime.start(createDetachMoveRequest(cardId, event)),
+    id => runtime.getSession(id),
+    id => prepareDetachSession(
+      (sessionId, objectId) => runtime.acquireObject(sessionId, objectId),
+      (sessionId, surfaceIds) => runtime.takeSurfaces(sessionId, surfaceIds),
+      id,
+      cardId,
+      columns.map(column => `column:${column.id}`),
+    ),
   )
-  return { session, objectLease }
 }
 
 /** 把抓起前的内容和兄弟布局快照冻结下来，供 Runtime Move 创建阶段消费。 */

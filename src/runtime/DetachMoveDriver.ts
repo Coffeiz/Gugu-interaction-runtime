@@ -80,6 +80,17 @@ export function prepareDetachSession<TLease>(
   return objectLease
 }
 
+export function startDetachSession<TSession, TLease>(
+  start: () => { id: string },
+  getSession: (sessionId: string) => TSession | undefined,
+  prepare: (sessionId: string) => TLease,
+): { session: TSession; objectLease: TLease } {
+  const handle = start()
+  const session = getSession(handle.id)
+  if (!session) throw new Error('detach session was not created')
+  return { session, objectLease: prepare(handle.id) }
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *
