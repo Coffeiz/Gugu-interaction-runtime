@@ -231,6 +231,25 @@ export function createDetachVisualContext<TContext extends object>(args: {
   }
 }
 
+export function startDetachLandingVisual(args: {
+  createProxy: () => { element: HTMLElement } | null
+  enableProxy: (element: HTMLElement) => void
+  bindRegrab: (element: HTMLElement) => void
+  land: (element: HTMLElement) => Promise<LandingResult>
+  onMissing: () => void
+  onComplete: (result: LandingResult) => void
+}): HTMLElement | null {
+  const proxy = args.createProxy()
+  if (!proxy) {
+    args.onMissing()
+    return null
+  }
+  args.enableProxy(proxy.element)
+  args.bindRegrab(proxy.element)
+  void args.land(proxy.element).then(args.onComplete)
+  return proxy.element
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *

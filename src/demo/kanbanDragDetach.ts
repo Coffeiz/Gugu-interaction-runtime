@@ -24,6 +24,7 @@ import {
   resolveDetachLandingTarget,
   captureDetachTargetSnapshot,
   createDetachVisualContext,
+  startDetachLandingVisual,
   createDetachDropState,
   updateDetachDrop,
   interruptDetachRegrab,
@@ -231,23 +232,24 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
         visualSnapshot: draggingSnapshot,
         targetSnapshot,
       })
-      const visualProxy = runtime.createVisualProxy(session.id, visualContext)
-      if (!visualProxy) {
-        landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' })
-        landingGate = null
-        return
-      }
-      landingProxy = visualProxy.element
-      setProxyInteractive(visualProxy.element, true)
-      runtime.bindRegrabTarget(session.id, cardId, visualProxy.element, onRegrab)
-      void runtime.landVisualProxy(session.id, landedEl, visualContext).then(landingResult => {
-        if (session.state !== 'landing') return
-        landingGate?.complete({
-          completed: landingResult.completed,
-          reason: landingResult.reason ?? '',
-          reveal: () => { void runtime.revealVisualProxy(session.id, landedEl, visualContext) },
-        })
-        landingGate = null
+      landingProxy = startDetachLandingVisual({
+        createProxy: () => runtime.createVisualProxy(session.id, visualContext) ?? null,
+        enableProxy: proxy => setProxyInteractive(proxy, true),
+        bindRegrab: proxy => runtime.bindRegrabTarget(session.id, cardId, proxy, onRegrab),
+        land: () => runtime.landVisualProxy(session.id, landedEl, visualContext),
+        onMissing: () => {
+          landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' })
+          landingGate = null
+        },
+        onComplete: landingResult => {
+          if (session.state !== 'landing') return
+          landingGate?.complete({
+            completed: landingResult.completed,
+            reason: landingResult.reason ?? '',
+            reveal: () => { void runtime.revealVisualProxy(session.id, landedEl, visualContext) },
+          })
+          landingGate = null
+        },
       })
     })
     return pendingDrop
