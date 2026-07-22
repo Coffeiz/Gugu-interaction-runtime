@@ -18,6 +18,7 @@ import {
   createDetachMoveRequest,
   createDetachMoveDriver,
   createDetachVisualLifecycle,
+  cancelDetachWithoutDrop,
   createDetachDropState,
   interruptDetachRegrab,
   prepareDetachMotion,
@@ -149,18 +150,13 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
   function onUp(): { columnId: string; index: number } | null {
     if (session.state !== 'active' && session.state !== 'release') return null
     if (!pendingDrop) {
-      document.body.classList.remove('kb-dragging')
-      // 本列原位松手不是“不需要布局动画”：抓起时本体已经被 Teleport
-      // 移出列表，兄弟卡正处于收束 FLIP。恢复本体前必须捕获这一帧的视觉
-      // 位置，恢复后再反向 FLIP，否则旧 transform 被清空时会瞬间展开。
-      const returnCards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
-        .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true')
-      const returnBefore = captureLayoutFlip(returnCards)
-      runtime.cancel(session.id, 'no-valid-drop')
-      clearFloatingStyle(sourceEl)
-      delete sourceEl.dataset.runtimeActive
-  objectLease?.release()
-      scheduleLayoutFlip(returnBefore)
+      cancelDetachWithoutDrop({
+        source: sourceEl,
+        cancel: () => runtime.cancel(session.id, 'no-valid-drop'),
+        clearFloating: clearFloatingStyle,
+        clearActive: () => delete sourceEl.dataset.runtimeActive,
+        releaseObject: () => objectLease?.release(),
+      })
       return null
     }
     const beforeRect = sourceEl.getBoundingClientRect()

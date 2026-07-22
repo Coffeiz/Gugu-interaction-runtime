@@ -134,6 +134,24 @@ export function interruptDetachRegrab(args: {
   args.disposeProxy()
 }
 
+export function cancelDetachWithoutDrop(args: {
+  source: HTMLElement
+  cancel: () => void
+  releaseObject: () => void
+  clearFloating: (element: HTMLElement) => void
+  clearActive: () => void
+}): void {
+  document.body.classList.remove('kb-dragging')
+  const returnCards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+    .filter(element => element !== args.source && element.dataset.runtimeProxy !== 'true')
+  const returnBefore = captureLayoutFlip(returnCards)
+  args.cancel()
+  args.clearFloating(args.source)
+  args.clearActive()
+  args.releaseObject()
+  scheduleLayoutFlip(returnBefore)
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *
