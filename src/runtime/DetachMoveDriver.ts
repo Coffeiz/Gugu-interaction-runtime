@@ -196,6 +196,20 @@ export function resolveDetachLandingTarget<TDestination>(args: {
   return target
 }
 
+export function captureDetachTargetSnapshot(
+  capture: (element: HTMLElement) => VisualSnapshot,
+  element: HTMLElement,
+): VisualSnapshot {
+  const transition = element.style.transition
+  element.dataset.runtimeLandingCapture = 'true'
+  element.style.transition = 'none'
+  void element.offsetWidth
+  const snapshot = capture(element)
+  element.style.transition = transition
+  delete element.dataset.runtimeLandingCapture
+  return snapshot
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *

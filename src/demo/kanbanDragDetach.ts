@@ -22,6 +22,7 @@ import {
   prepareDetachLanding,
   scheduleDetachLandingFrame,
   resolveDetachLandingTarget,
+  captureDetachTargetSnapshot,
   createDetachDropState,
   updateDetachDrop,
   interruptDetachRegrab,
@@ -219,13 +220,9 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       // 会把抓起阴影误记成 landing 的终点，导致 proxy 落地后一直保留深阴影。
       // 临时冻结 transition 并强制完成一次 layout，只捕获稳定的业务终态；
       // 读取后恢复原 transition，真实本体揭示时仍保留正常 hover 过渡。
-      const targetTransition = landedEl.style.transition
-      landedEl.dataset.runtimeLandingCapture = 'true'
-      landedEl.style.transition = 'none'
-      void landedEl.offsetWidth
-      const targetSnapshot = runtime.captureVisualState(cardId, landedEl)
-      landedEl.style.transition = targetTransition
-      delete landedEl.dataset.runtimeLandingCapture
+      const targetSnapshot = captureDetachTargetSnapshot(
+        element => runtime.captureVisualState(cardId, element), landedEl,
+      )
       const visualContext = {
         ...runtime.createVisualLifecycleContext(session.id, pendingDrop, landedEl, beforeContent),
         sourceElement: sourceEl,
