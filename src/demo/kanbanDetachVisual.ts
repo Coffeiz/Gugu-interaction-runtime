@@ -9,7 +9,7 @@ import {
 import { preserveProxyVisualContext } from '../dom/ProxyVisualContext'
 import type { VisualAdapter, VisualLifecycleContext, VisualProxy } from '../dom/VisualAdapter'
 
-const LANDING_DURATION = 250
+const LANDING_DURATION = 3000
 
 interface DetachProxyState {
   target: HTMLElement | null
