@@ -21,6 +21,7 @@ import {
   cancelDetachWithoutDrop,
   prepareDetachLanding,
   scheduleDetachLandingFrame,
+  resolveDetachLandingTarget,
   createDetachDropState,
   interruptDetachRegrab,
   prepareDetachMotion,
@@ -190,22 +191,24 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
       // 当前真正渲染出来的节点：同列场景下查到的就是 sourceEl 本身，跨列
       // 场景下查到的是目标列刚创建的新节点——不管是哪种，用它当 FLIP 的
       // "to"，看起来都是同一个对象飞过去。
-      const landedEl = runtime.resolveMoveTarget(
-        session.id,
-        pendingDrop,
-        () => document.querySelector<HTMLElement>(`[data-card="${cardId}"]`) ?? sourceEl,
-      )
+      const landedEl = resolveDetachLandingTarget({
+        resolve: () => runtime.resolveMoveTarget(
+          session.id,
+          pendingDrop,
+          () => document.querySelector<HTMLElement>(`[data-card="${cardId}"]`) ?? sourceEl,
+        ),
+        applyState: target => runtime.applyVisualState(cardId, target, {
+          phase: 'revealing',
+          hovered: false,
+          selected: target.classList.contains('is-selected'),
+          grabbed: false,
+        }),
+      })
       if (!landedEl) {
         landingGate?.complete({ completed: true, reason: '' })
         landingGate = null
         return
       }
-      runtime.applyVisualState(cardId, landedEl, {
-        phase: 'revealing',
-        hovered: false,
-        selected: landedEl.classList.contains('is-selected'),
-        grabbed: false,
-      })
       // clearFloatingStyle 刚刚移除了抓起样式，但业务 transition 可能还在
       // 播放“抓起阴影 → 普通阴影”。如果此刻直接 capture，读到的是中间帧，
       // 会把抓起阴影误记成 landing 的终点，导致 proxy 落地后一直保留深阴影。

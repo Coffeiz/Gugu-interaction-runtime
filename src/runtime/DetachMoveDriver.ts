@@ -175,6 +175,16 @@ export function scheduleDetachLandingFrame(
   })
 }
 
+export function resolveDetachLandingTarget<TDestination>(args: {
+  resolve: () => HTMLElement | null
+  applyState: (element: HTMLElement) => void
+}): HTMLElement | null {
+  const target = args.resolve()
+  if (!target) return null
+  args.applyState(target)
+  return target
+}
+
 /**
  * Runtime 的 detach 编排原语。
  *
