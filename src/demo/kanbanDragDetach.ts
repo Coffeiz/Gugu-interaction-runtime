@@ -26,6 +26,7 @@ import {
   createDetachVisualContext,
   startDetachLandingVisual,
   completeDetachLanding,
+  resolveDetachRegrabTarget,
   createDetachDropState,
   updateDetachDrop,
   interruptDetachRegrab,
@@ -289,8 +290,10 @@ export function startCardDragDetach(event: PointerEvent, cardId: string, sourceE
     if (!proxy) return
 
     // 1. 先捕获视觉状态
-    const liveEl = runtime.resolveVisualTarget(session.id, pendingDrop)
-      ?? document.querySelector<HTMLElement>(`[data-card="${cardId}"]`)
+    const liveEl = resolveDetachRegrabTarget(
+      () => runtime.resolveVisualTarget(session.id, pendingDrop),
+      () => document.querySelector<HTMLElement>(`[data-card="${cardId}"]`),
+    )
     if (!liveEl) return
     const regrabContext = runtime.createRegrabContext(session.id, regrabEvent, proxy, liveEl)
     if (!regrabContext) return

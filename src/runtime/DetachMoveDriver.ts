@@ -264,6 +264,14 @@ export function completeDetachLanding(args: {
   })
 }
 
+export function resolveDetachRegrabTarget(
+  resolve: () => HTMLElement | null,
+  fallback: () => HTMLElement | null,
+): HTMLElement | null {
+  return resolve() ?? fallback()
+}
+
+
 /**
  * Runtime 的 detach 编排原语。
  *
