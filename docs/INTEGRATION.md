@@ -171,7 +171,18 @@ Runtime 会统一检查节点仍连接在文档中。
 **4.1（可选）提供视觉适配器**
 
 业务端可以自定义卡片在普通、hover、抓取、落地和揭示阶段的 class 或样式，
-但不应自行编排 proxy 与本体的交接：
+但不应自行编排 proxy 与本体的交接。如果不提供，Runtime 使用内置的
+`DefaultVisualAdapter` 自动处理 detach 的 `createProxy`、`land`、`reveal`、`dispose`
+和 `createMove`，从 Runtime 注册表自动获取 surface 信息：
+
+```ts
+// DefaultVisualAdapter 已内置，用户不需要自己创建
+runtime.registerObjectType('kanban', {
+  defaultVisualMode: 'detach',
+})
+```
+
+如果需要自定义视觉，可以注册 `VisualAdapter`：
 
 ```ts
 const visual: VisualAdapter = {

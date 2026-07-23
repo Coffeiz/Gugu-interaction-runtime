@@ -437,9 +437,12 @@ Runtime 内部只有一套生命周期编排”为准。
 - clone 策略（`kanbanDrag.ts`）尚未迁移，待 detach 验证通过后处理
 
 **接下来（阶段 1 前置工作）**：
-- [ ] 浏览器验证 detach 拖拽全场景（同列/跨列/无效落点/landing regrab/连续拖动）
+- [x] detach 策略迁移完成（`createMove` + `DetachAdapter` + `DefaultVisualAdapter` 内置）
+- [x] Teleport fly-to 修复（`objectLease.release()` 释放控制权，Teleport 关闭后元素回到列容器）
+- [x] 删除 `kanbanDrag.ts`（legacy clone 编排）
+- [x] 删除 `kanbanVisualAdapter.ts`（能力内联到 `DefaultVisualAdapter`，用户不需要手动创建）
+- [x] 浏览器验证 detach 拖拽全场景（同列/跨列/无效落点/landing regrab/连续拖动）
 - [ ] 迁移 clone 策略 `kanbanDrag.ts` 的编排进入对应的 driver 模块
-- [ ] 删除 `kanbanDrag.ts` 中的重复编排
 - [ ] 之后进入阶段 1：接 Gugu-web 看板项目卡
 
 ### 阶段 1：迁移 Gugu-web 看板项目卡

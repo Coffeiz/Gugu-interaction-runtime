@@ -83,10 +83,10 @@ runtime.registerObjectType('kanban', {
 })
 
 runtime.registerMotionProfile({
-  flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
-  resize: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
-  landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
-  group: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  flip: { duration: 1000, easing: 'cubic-bezier(.22,1,.36,1)' },
+  resize: { duration: 1000, easing: 'cubic-bezier(.22,1,.36,1)' },
+  landing: { duration: 1000, easing: 'cubic-bezier(.22,1,.36,1)' },
+  group: { duration: 1000, easing: 'cubic-bezier(.22,1,.36,1)' },
 })
 
 // 阶段 D：业务数据怎么变，由业务层订阅 Runtime 的 Action 通道自己决定，
