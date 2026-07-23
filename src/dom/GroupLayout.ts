@@ -1,25 +1,19 @@
 import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } from './Flip'
 import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
 
-/** Runtime 通过此引用注入对象类型的 MotionProfile；模块级而非传参。 */
-let currentProfiles: ReadonlyMap<string, MotionProfile> | null = null
-export function setMotionProfiles(profiles: ReadonlyMap<string, MotionProfile> | null): void {
-  currentProfiles = profiles
+/** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
+let currentProfile: MotionProfile | null = null
+export function setMotionProfiles(profile: MotionProfile | null): void {
+  currentProfile = profile
 }
 
-/** 按对象类型查找 MotionProfile，不存在时返回默认值。 */
-function resolveProfile(type?: string): { flip: { duration: number; easing: string }; resize: { duration: number; easing: string } } {
-  if (type && currentProfiles?.has(type)) {
-    const p = currentProfiles.get(type)!
-    return { flip: p.flip ?? DEFAULT_MOTION_PROFILE.flip, resize: p.resize ?? DEFAULT_MOTION_PROFILE.resize }
+/** 读取全局 MotionProfile，不存在时返回默认值。 */
+function resolveProfile(): { flip: { duration: number; easing: string }; resize: { duration: number; easing: string } } {
+  const p = currentProfile
+  return {
+    flip: p?.flip ?? DEFAULT_MOTION_PROFILE.flip,
+    resize: p?.resize ?? DEFAULT_MOTION_PROFILE.resize,
   }
-  // 没传 type 时从注册表里取任意一个有 flip 的 profile 作为全局 FLIP 速度。
-  if (!type && currentProfiles) {
-    for (const p of currentProfiles.values()) {
-      if (p.flip) return { flip: p.flip, resize: p.resize ?? DEFAULT_MOTION_PROFILE.resize }
-    }
-  }
-  return { flip: DEFAULT_MOTION_PROFILE.flip, resize: DEFAULT_MOTION_PROFILE.resize }
 }
 
 
@@ -258,7 +252,7 @@ export function playSurfaceResize(
     .map(item => {
       const next = readRect(item.element)
       const type = item.element.dataset.surfaceType
-      const prof = resolveProfile(type)
+      const prof = resolveProfile()
       return {
         item, next,
         profile: prof.resize,

@@ -19,6 +19,12 @@ export interface MotionProfile {
     /** CSS easing 函数。 */
     easing: string
   }
+  group?: {
+    /** 组展开/收起高度动画时长，ms。 */
+    duration: number
+    /** CSS easing 函数。 */
+    easing: string
+  }
 }
 
 /** 默认运动参数，用作 fallback。 */
@@ -26,4 +32,5 @@ export const DEFAULT_MOTION_PROFILE: Required<MotionProfile> = {
   flip: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
   resize: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
   landing: { duration: 280, easing: 'cubic-bezier(.22,1,.36,1)' },
+  group: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
 }

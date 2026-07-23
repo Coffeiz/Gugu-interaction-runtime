@@ -8,7 +8,7 @@ export class RuntimeRegistry {
   readonly visuals = new VisualAdapters()
   readonly objectTypes = new Map<string, ObjectTypeRegistration>()
   readonly visualStrategies = new Map<string, MoveVisualStrategy>()
-  readonly motionProfiles = new Map<string, MotionProfile>()
+  motionProfile: MotionProfile | null = null
 
   registerVisualAdapter(type: string, adapter: VisualAdapter): void {
     this.visuals.register(type, adapter)
@@ -23,7 +23,7 @@ export class RuntimeRegistry {
     if (registration.visual) this.visuals.register(type, registration.visual)
   }
 
-  registerMotionProfile(type: string, profile: MotionProfile): void {
-    this.motionProfiles.set(type, profile)
+  setMotionProfile(profile: MotionProfile): void {
+    this.motionProfile = profile
   }
 }

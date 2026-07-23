@@ -190,7 +190,7 @@ export class Runtime {
       interrupt: (sessionId, reason) => this.interruptInternal(sessionId, reason),
     })
     this.behaviors.register(this.moveBehavior)
-setMotionProfiles(this.registry.motionProfiles)
+setMotionProfiles(this.registry.motionProfile)
     this.objects.subscribe(event => {
       this.events.emit(event)
       if (event.type === 'object-added' || event.type === 'object-changed') {
@@ -214,10 +214,6 @@ setMotionProfiles(this.registry.motionProfiles)
 
   registerObjectType(type: string, registration: ObjectTypeRegistration): void {
     this.registry.registerObjectType(type, registration)
-    if (registration.motion) {
-      const existing = this.registry.motionProfiles.get(type) ?? {}
-      this.registry.motionProfiles.set(type, { ...existing, ...registration.motion } as import('./dom/MotionProfile').MotionProfile)
-    }
     for (const object of this.objects.values()) {
       if (object.type === type || object.visual === type) this.syncObjectPointerBinding(object.id)
     }
@@ -225,17 +221,15 @@ setMotionProfiles(this.registry.motionProfiles)
 
   registerSurface(surface: import('./surface/Surface').Surface): void {
     this.surfaces.register(surface)
-    if (surface.motion?.resize) {
-      const existing = this.registry.motionProfiles.get(surface.type) ?? {}
-      this.registry.motionProfiles.set(surface.type, {
-        ...existing,
-        resize: surface.motion.resize,
-      })
-    }
   }
 
-  getMotionProfile(type: string): import('./dom/MotionProfile').MotionProfile | undefined {
-    return this.registry.motionProfiles.get(type)
+  registerMotionProfile(profile: import('./dom/MotionProfile').MotionProfile): void {
+    this.registry.setMotionProfile(profile)
+    setMotionProfiles(this.registry.motionProfile)
+  }
+
+  getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null {
+    return this.registry.motionProfile
   }
 
   startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent): boolean {
@@ -304,7 +298,7 @@ setMotionProfiles(this.registry.motionProfiles)
     const sourceElement = object?.element ?? undefined
     const adapter = session ? this.getObjectVisualAdapter(session.objectId) : new DefaultVisualAdapter()
     const fallback = new DefaultVisualAdapter()
-    const motionProfile = object ? this.registry.motionProfiles.get(object.visual ?? object.type) : undefined
+    const motionProfile = this.registry.motionProfile ?? undefined
     return {
       objectId: session?.objectId ?? '',
       sessionId,

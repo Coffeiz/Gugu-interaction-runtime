@@ -72,6 +72,7 @@ import { columns, cards, moveCard } from './store'
 import { buildDoneGroups } from './doneGrouping'
 import { createKanbanVisualAdapter } from './kanbanVisualAdapter'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
+import { DEFAULT_MOTION_PROFILE } from '../dom/MotionProfile'
 import { useSurface } from '../vue/useSurface'
 import { runtime } from '../Runtime'
 import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
@@ -87,13 +88,14 @@ runtime.registerObjectType('kanban', {
       return col ? col.id : undefined
     },
   }),
-  motion: {
-    flip: { duration: 3000, easing: 'cubic-bezier(.22,1,.36,1)' },
-    landing: { duration: 3000, easing: 'cubic-bezier(.22,1,.36,1)' },
-  },
 })
 
-
+runtime.registerMotionProfile({
+  flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  resize: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  group: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+})
 
 // 阶段 D：业务数据怎么变，由业务层订阅 Runtime 的 Action 通道自己决定，
 // 不是 kanbanDrag.ts 直接调 moveCard——这两个文件现在
@@ -115,7 +117,7 @@ const columnSurfaces = Object.fromEntries(
       id: `column:${col.id}`,
       type: 'kanban-column',
       accepts: ['kanban-card'],
-      motion: { resize: { duration: 3000, easing: 'cubic-bezier(.22,1,.36,1)' } },
+
     }),
   ]),
 )
@@ -210,8 +212,9 @@ function toggleGroup(level: 'year' | 'month', key: string) {
   if (!el) return
   const token = String(++groupToggleSeq)
   el.dataset.runtimeToggleToken = token
-  const duration = FLIP_DURATION
-  const easing = FLIP_EASING
+  const profile = runtime.getMotionProfile()?.group ?? DEFAULT_MOTION_PROFILE.group
+  const duration = profile.duration
+  const easing = profile.easing
   const current = el.getBoundingClientRect().height
   el.style.transition = ''
   el.style.height = `${current}px`
