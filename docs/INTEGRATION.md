@@ -9,9 +9,9 @@
 > Session、landing/reveal 时机和清理；业务端仍需要提供对象的命中、Action
 > 提交及 clone/detach 这类具体视觉策略。
 
-> **冻结基线**：当前 demo 基于提交 `2153600` 冻结。clone/detach 是已验证的
-> 两种视觉策略；MotionController、CardVisualHost 以及其他对象类型接入暂不在
-> 此基线内。需要扩展时请从新分支开始，避免改变现有回归行为。
+> **MotionProfile**：`runtime.registerMotionProfile()` 已可用，一次注册控制
+> flip/resize/landing/group 四种运动速度。`registerSurfaceLayout()` 不再需要，
+> Surface resize 速度由 MotionProfile.resize 统一配置。
 
 ## 现在能怎么接
 
@@ -80,6 +80,22 @@ import { mountVisualOverlay } from '{path-to}/index'
 
 mountVisualOverlay()
 ```
+
+**3. 注册运动参数**
+
+所有运动速度通过一次全局配置控制：
+
+```ts
+runtime.registerMotionProfile({
+  flip:    { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+  resize:  { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+  landing: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+  group:   { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+})
+```
+
+所有字段可选，未设置的字段回退到 `DEFAULT_MOTION_PROFILE`。推荐在应用
+初始化时调用一次。
 
 **3. 给对象打上可识别的标记**（供 hit test 用，见"已知限制"）
 
@@ -152,7 +168,7 @@ Runtime 会统一检查节点仍连接在文档中。
 释放时 Runtime 会先通知适配器执行 `dispose(proxy, context)`，随后调用代理对象自身的
 `dispose()`；两者都由 Runtime 保证最多执行一次。
 
-**3.1（可选）提供视觉适配器**
+**4.1（可选）提供视觉适配器**
 
 业务端可以自定义卡片在普通、hover、抓取、落地和揭示阶段的 class 或样式，
 但不应自行编排 proxy 与本体的交接：
@@ -225,7 +241,7 @@ Runtime 或适配器：
 }
 ```
 
-**3.2（可选覆盖）视觉适配器**
+**4.2（可选覆盖）视觉适配器**
 
 Runtime 会统一编排 source/target 解析所需的生命周期顺序、landing、handoff、reveal
 和清理；具体 proxy、样式交接、目标等待和落地动画仍由当前 clone/detach 视觉 driver
@@ -248,7 +264,7 @@ runtime.registerVisualAdapter('project-card', {
 适配器只覆盖提供的字段；Runtime 负责 Session、landing/reveal 顺序、幂等和
 清理，source/target 的具体 DOM 操作仍由视觉 driver 负责。
 
-**3.3 视觉 driver 的落地交接**
+**4.3 视觉 driver 的落地交接**
 
 以下代码展示视觉 driver 如何执行交接；Runtime 负责在 landing 完成后调用
 reveal，业务端不应自行编排 Session。目标只读取一次
@@ -337,24 +353,8 @@ Surface 的运动由 Runtime 执行；业务只声明 Surface 类型和期望策
 策略会补间 `height`，未来可以按类型注册更具体的策略：
 
 ```ts
-runtime.registerSurfaceLayout('kanban-column', {
-  resize: {
-    enabled: true,
-    properties: ['height'],
-    duration: 220,
-    easing: 'cubic-bezier(.22,1,.36,1)',
-  },
-})
-```
-
-```html
-<section data-layout-surface data-surface-type="kanban-column">
-  ...
-</section>
-```
-
-`registerSurfaceLayout()` 是已确定、待第二类 Surface 接入时实现的扩展接口；
-在当前默认策略下不必注册。业务不要在同一 Surface 上自行写 `height`、
+Surface 的 resize 速度由 `MotionProfile.resize` 控制，组展开/收起速度由
+`MotionProfile.group` 控制。业务不要在同一 Surface 上自行写 `height`、
 `transform` 或 `transition`，以免和 Runtime 的布局事务竞争。
 
 在业务提交前捕获、提交后播放即可：
@@ -404,15 +404,12 @@ Surface 的 `height` 或 `transition`。
 ## Runtime 入口
 
 ```ts
+runtime.registerMotionProfile({ flip, resize, landing, group })
 runtime.start({ type: 'move', objectId: card.id, input: event })
-```
-
-```ts
 runtime.onAction(async action => {
   await projectStore.applyAction(action)
 })
 ```
 
-`runtime.start()` 创建统一 Session，`runtime.onAction()` 输出明确的行为
-联合类型。当前 clone/detach demo 仍由业务入口选择视觉 driver；当有第三种
-以上稳定视觉策略时，再评估是否需要进一步抽取策略注册，而不提前扩大核心。
+`registerMotionProfile` 是全局的一次性配置，推荐在应用初始化时调用。
+`runtime.start()` 创建统一 Session，`runtime.onAction()` 输出明确的行为联合类型。
