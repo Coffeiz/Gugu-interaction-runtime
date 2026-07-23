@@ -196,6 +196,8 @@ function setGroupContentRef(refs: Record<string, HTMLElement | null>, key: strin
   refs[key] = el
 }
 
+let groupToggleSeq = 0
+
 function toggleGroup(level: 'year' | 'month', key: string) {
   const refs = level === 'year' ? yearContentRefs : monthContentRefs
   const openSet = level === 'year' ? openYears : openMonths
@@ -206,37 +208,30 @@ function toggleGroup(level: 'year' | 'month', key: string) {
   else next.delete(key)
   openSet.value = next
   if (!el) return
+  const token = String(++groupToggleSeq)
+  el.dataset.runtimeToggleToken = token
   const duration = FLIP_DURATION
   const easing = FLIP_EASING
   const current = el.getBoundingClientRect().height
+  el.style.transition = ''
   el.style.height = `${current}px`
   el.style.overflow = 'hidden'
   void el.offsetHeight
   if (opening) {
-    requestAnimationFrame(() => {
-      const target = el.scrollHeight
-      el.style.transition = `height ${duration}ms ${easing}`
-      el.style.height = `${target}px`
-    })
-    // 展开方向的终点就是内容的自然高度，动画结束后把内联样式还原成空
-    // 是安全的空操作——跟 Gugu-web flipCoordinator.ts 里 isOpening 分支
-    // 同一个道理。
+    const target = el.scrollHeight
+    el.style.transition = `height ${duration}ms ${easing}`
+    el.style.height = `${target}px`
     window.setTimeout(() => {
+      if (el.dataset.runtimeToggleToken !== token) return
       el.style.height = ''
       el.style.overflow = ''
       el.style.transition = ''
     }, duration + 40)
   } else {
-    requestAnimationFrame(() => {
-      el.style.transition = `height ${duration}ms ${easing}`
-      el.style.height = '0px'
-    })
-    // 收起方向动画结束后不能把 height 复位成空字符串：内容其实还挂在
-    // DOM 里（没有被卸载），复位成 auto 会让它瞬间弹回自然高度、再次
-    // "收起"——这正是这次会话里在 Gugu-web 抽屉状态组上踩过、后来专门
-    // 修掉的"高度闪回"bug 的同一个根因，这里从一开始就不踩这个坑：
-    // height:0/overflow:hidden 一直钉到下次展开为止。
+    el.style.transition = `height ${duration}ms ${easing}`
+    el.style.height = '0px'
     window.setTimeout(() => {
+      if (el.dataset.runtimeToggleToken !== token) return
       el.style.transition = ''
     }, duration + 40)
   }
