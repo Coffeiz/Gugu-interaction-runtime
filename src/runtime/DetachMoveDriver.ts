@@ -112,7 +112,7 @@ export function startDetachSession<TSession, TLease>(
 
 
 
-function createDetachDropState<TDrop>(
+export function createDetachDropState<TDrop>(
   initialSurface: string | undefined,
   resolve: (event: PointerEvent) => TDrop | null,
   same: (drop: TDrop, previous: TDrop | null) => boolean,
@@ -138,7 +138,7 @@ function createDetachDropState<TDrop>(
 
 
 
-function updateDetachDrop<TDrop>(args: {
+export function updateDetachDrop<TDrop>(args: {
   active: boolean
   event: PointerEvent
   state: ReturnType<typeof createDetachDropState<TDrop>>
@@ -514,9 +514,11 @@ export function executeDetachDrag(options: DetachDragOptions): void {
         landingGate = null
         return
       }
+      console.log('[executeDetachDrag] landedEl', { className: landedEl.className, rect: landedEl.getBoundingClientRect() })
       const targetSnapshot = captureDetachTargetSnapshot(
         el => runtime.captureVisualState(objectId, el), landedEl,
       )
+      console.log('[executeDetachDrag] landing visual', { targetRect: landedEl.getBoundingClientRect() })
       const visualContext = createDetachVisualContext({
         createContext: () => runtime.createVisualLifecycleContext(session.id, pendingDrop, landedEl, beforeContent),
         source: element,

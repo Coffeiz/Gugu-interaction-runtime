@@ -48,7 +48,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
 
   resolveTarget(objectId: string): HTMLElement | null {
     return Array.from(document.querySelectorAll<HTMLElement>(`[data-card="${CSS.escape(objectId)}"]`))
-      .filter(element => element.dataset.runtimeProxy !== 'true' && element.isConnected)
+      .filter(element => element.dataset.runtimeProxy !== 'true' && element.isConnected && element.closest('[data-layout-surface]') !== null)
       .find(element => {
         const rect = element.getBoundingClientRect()
         return rect.width > 0 && rect.height > 0

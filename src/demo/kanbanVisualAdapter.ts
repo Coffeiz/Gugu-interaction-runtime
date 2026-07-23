@@ -1,4 +1,5 @@
 import { executeDetachDrag } from '../runtime/DetachMoveDriver'
+import { createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
 import { type ObjectVisualAdapter } from '../Runtime'
 import { DefaultVisualAdapter } from '../dom/VisualAdapter'
 import { createDetachVisualAdapter } from './kanbanDetachVisual'
@@ -20,6 +21,18 @@ export function createKanbanVisualAdapter(context: {
     land: detach.land,
     reveal: detach.reveal,
     dispose: detach.dispose,
+    createMove: ({ objectId, element, event }) => {
+      if (!runtime.objects.hasAbility(objectId, 'move')) return {}
+      event.preventDefault()
+      return createDetachMoveFromAdapter({
+        runtime,
+        objectId,
+        element,
+        event,
+        surfaceIds: context.surfaceIds,
+        findColumnIdOf: context.findColumnIdOf,
+      })
+    },
     legacyStart: ({ objectId, element, event }) => {
       executeDetachDrag({
         runtime,
