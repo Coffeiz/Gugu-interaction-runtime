@@ -70,24 +70,16 @@
 import { computed, reactive, ref, watchEffect, onUnmounted } from 'vue'
 import { columns, cards, moveCard } from './store'
 import { buildDoneGroups } from './doneGrouping'
-import { createKanbanVisualAdapter } from './kanbanVisualAdapter'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
 import { DEFAULT_MOTION_PROFILE } from '../dom/MotionProfile'
 import { useSurface } from '../vue/useSurface'
 import { runtime } from '../Runtime'
 import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 
-// 未显式选择视觉模式时，Runtime 默认使用 detach；clone 仅作为 demo 的
-// 可选对照策略保留。
+// Runtime 默认使用 DefaultVisualAdapter 内置的 detach 策略，
+// registerObjectType 不需要传 visual adapter
 runtime.registerObjectType('kanban', {
   defaultVisualMode: 'detach',
-  visual: createKanbanVisualAdapter({
-    surfaceIds: columns.map(col => `column:${col.id}`),
-    findColumnIdOf: (cardId: string) => {
-      const col = columns.find(c => c.cardIds.includes(cardId))
-      return col ? col.id : undefined
-    },
-  }),
 })
 
 runtime.registerMotionProfile({

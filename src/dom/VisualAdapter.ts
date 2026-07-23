@@ -1,5 +1,16 @@
 import type { VisualState, VisualSnapshot } from './VisualAdapterTypes'
 import type { MotionProfile } from './MotionProfile'
+import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
+import {
+  concealElement,
+  createDragProxy,
+  destroyDragProxy,
+  landDragProxy,
+  revealElement,
+} from './Visual'
+import { preserveProxyVisualContext } from './ProxyVisualContext'
+import { createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
+import type { Runtime } from '../Runtime'
 
 export interface VisualLifecycleContext {
   readonly objectId: string
@@ -42,6 +53,17 @@ export interface VisualAdapterRegistry {
 }
 
 export class DefaultVisualAdapter implements VisualAdapter {
+  private runtime?: Runtime
+
+  constructor(runtime?: Runtime) {
+    this.runtime = runtime
+  }
+
+  /** 设置/更新 runtime 引用（在 registerObjectType 时自动设置） */
+  setRuntime(runtime: Runtime): void {
+    this.runtime = runtime
+  }
+
   resolveSource(objectId: string): HTMLElement | null {
     return document.querySelector<HTMLElement>(`[data-card="${CSS.escape(objectId)}"]`)
   }
@@ -72,6 +94,93 @@ export class DefaultVisualAdapter implements VisualAdapter {
     element.classList.toggle('is-hovered', state.hovered)
     element.classList.toggle('is-grabbed', state.grabbed)
     element.classList.toggle('is-selected', state.selected)
+  }
+
+  createProxy(context: VisualLifecycleContext): VisualProxy {
+    if (!context.sourceElement || !context.sourceRect || !context.beforeContent) {
+      throw new Error('visual proxy requires source snapshot')
+    }
+    const proxy = createDragProxy(context.beforeContent, context.sourceRect)
+    preserveProxyVisualContext(context.sourceElement, proxy)
+    const snapshot = context.visualSnapshot
+    if (snapshot) {
+      proxy.style.boxShadow = snapshot.boxShadow
+      proxy.style.borderRadius = snapshot.borderRadius
+      proxy.style.backgroundColor = snapshot.background
+      proxy.style.opacity = snapshot.opacity
+      proxy.style.transform = snapshot.transform || 'scale(1.03)'
+    }
+    return { element: proxy }
+  }
+
+  land(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): Promise<{ completed: boolean; reason?: string }> {
+    const el = proxy.element
+    if (!context.targetSnapshot?.rect && !target.isConnected) {
+      return Promise.resolve({ completed: false, reason: 'target-disconnected' })
+    }
+    const rawTargetRect = context.targetSnapshot?.rect ?? target.getBoundingClientRect()
+    const targetRect = {
+      left: rawTargetRect.left ?? rawTargetRect.x,
+      top: rawTargetRect.top ?? rawTargetRect.y,
+      width: rawTargetRect.width,
+      height: rawTargetRect.height,
+    }
+    concealElement(target, context.sessionId)
+    el.style.transition = 'none'
+    el.style.width = `${targetRect.width}px`
+    el.style.height = `${targetRect.height}px`
+    const { finished, retarget } = landDragProxy(el, targetRect, {
+      duration: context.motion?.landing?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
+      targetShadow: context.targetSnapshot?.boxShadow,
+      targetRadius: context.targetSnapshot?.borderRadius,
+      targetBackground: context.targetSnapshot?.background,
+      targetOpacity: context.targetSnapshot?.opacity,
+      targetContent: target,
+    })
+    if (this.runtime) {
+      this.runtime.trackLandingTarget(context.sessionId, target, () => {
+        if (context.targetSnapshot?.rect && !target.closest('[data-layout-surface]')) {
+          retarget({
+            left: context.targetSnapshot.rect.x,
+            top: context.targetSnapshot.rect.y,
+            width: context.targetSnapshot.rect.width,
+            height: context.targetSnapshot.rect.height,
+          })
+        } else {
+          retarget(target.getBoundingClientRect())
+        }
+      })
+    }
+    return finished.then(() => ({ completed: true }))
+  }
+
+  reveal(_proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void {
+    revealElement(target, context.sessionId)
+  }
+
+  dispose(proxy: VisualProxy, context: VisualLifecycleContext): void {
+    const el = proxy.element
+    proxy.dispose?.()
+    destroyDragProxy(el)
+  }
+
+  /** 创建 detach 拖拽 move，从 Runtime 注册表自动获取 surface 信息 */
+  createMove(context: {
+    objectId: string
+    element: HTMLElement
+    event: PointerEvent
+    fromRect?: DOMRect
+  }): any {
+    const r = this.runtime
+    if (!r || !r.objects.hasAbility(context.objectId, 'move')) return {}
+    context.event.preventDefault()
+    return createDetachMoveFromAdapter({
+      runtime: r,
+      objectId: context.objectId,
+      element: context.element,
+      event: context.event,
+      fromRect: context.fromRect,
+    })
   }
 }
 

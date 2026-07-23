@@ -244,9 +244,25 @@ setMotionProfiles(this.registry.motionProfile)
       event,
       mode: object.visualMode ?? registration.defaultVisualMode,
     }
-    const createMove = registration.visual?.createMove ?? registration.createMove
+    // 优先用户自定义 createMove，没有则用 DefaultVisualAdapter 的内置 createMove
+    const userCreateMove = registration.visual?.createMove ?? registration.createMove
+    const defaultCreateMove = () => {
+      const adapter = this.defaultVisualAdapter
+      const move = adapter.createMove(context)
+      return move
+    }
+    const createMove = userCreateMove ?? defaultCreateMove
     if (createMove) {
       const move = createMove(context)
+      if (!move.driver && !move.lifecycle) {
+        // createMove 返回空对象（无能力 / 非 detach 模式），fallback 到 legacyStart 或 start
+        if (registration.visual?.legacyStart) {
+          registration.visual.legacyStart(context)
+        } else {
+          registration.start?.(context)
+        }
+        return true
+      }
       this.orchestrateMoveSession(
         move.request ?? {
           type: 'move',
@@ -260,12 +276,9 @@ setMotionProfiles(this.registry.motionProfile)
           followElement: element,
         },
       )
-    } else if (registration.visual?.legacyStart) {
-      registration.visual.legacyStart(context)
-    } else {
-      registration.start?.(context)
+      return true
     }
-    return true
+    return false
   }
 
   bindObjectPointer(objectId: string, element: HTMLElement): () => void {
@@ -276,8 +289,10 @@ setMotionProfiles(this.registry.motionProfile)
     this.inputCoordinator.sync(objectId)
   }
 
+  private defaultVisualAdapter = new DefaultVisualAdapter(this)
+
   getVisualAdapter(type: string): VisualAdapter {
-    return this.registry.visuals.get(type) ?? new DefaultVisualAdapter()
+    return this.registry.visuals.get(type) ?? this.defaultVisualAdapter
   }
 
   getObjectVisualAdapter(objectId: string): VisualAdapter {
@@ -296,7 +311,7 @@ setMotionProfiles(this.registry.motionProfile)
     const session = this.sessionCoordinator.get(sessionId)
     const object = session ? this.objects.get(session.objectId) : undefined
     const sourceElement = object?.element ?? undefined
-    const adapter = session ? this.getObjectVisualAdapter(session.objectId) : new DefaultVisualAdapter()
+    const adapter = session ? this.getObjectVisualAdapter(session.objectId) : this.defaultVisualAdapter
     const fallback = new DefaultVisualAdapter()
     const motionProfile = this.registry.motionProfile ?? undefined
     return {

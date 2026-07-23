@@ -11,10 +11,14 @@ export function createDetachMoveFromAdapter(config: {
   element: HTMLElement
   event: PointerEvent
   fromRect?: DOMRect
-  surfaceIds: string[]
-  findColumnIdOf: (objectId: string) => string | undefined
 }): { driver: MoveBehaviorDriver; lifecycle: MoveVisualLifecycle } {
-  const { runtime, objectId, element, event, fromRect, surfaceIds, findColumnIdOf } = config
+  const { runtime, objectId, element, event, fromRect } = config
+  // surfaceIds 和 findColumnIdOf 从 Runtime 注册表获取，不需要用户传
+  const objectItem = runtime.objects.get(objectId)
+  const allSurfaces = runtime.surfaces.snapshot()
+  const surfaceIds = allSurfaces.map(s => s.id)
+  const findColumnIdOf = (oid: string) => runtime.objects.get(oid)?.surfaceId
+  const initialSurfaceId = objectItem?.surfaceId ?? allSurfaces[0]?.id
   const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
   let beforeContent: HTMLElement | undefined
   let draggingSnapshot: ReturnType<typeof captureDetachDraggingSnapshot> | undefined
