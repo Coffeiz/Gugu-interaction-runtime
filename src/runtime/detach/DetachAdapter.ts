@@ -25,6 +25,7 @@ export function createDetachMoveFromAdapter(config: {
   let landingProxy: HTMLElement | null = null
   let released = false
   let sessionId: string | null = null
+  let objectLease: { release: () => void } | null = null
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
 
@@ -53,7 +54,7 @@ export function createDetachMoveFromAdapter(config: {
         cancel: () => runtime.cancel(sessionId!, 'no-valid-drop'),
         clearFloating: clearFloatingStyle,
         clearActive: () => delete element.dataset.runtimeActive,
-        releaseObject: () => {},
+        releaseObject: () => objectLease?.release(),
       })
       return { accepted: false as const }
     }
@@ -61,24 +62,21 @@ export function createDetachMoveFromAdapter(config: {
       source: element,
       settle: settleFloatingLayout,
       clearActive: () => delete element.dataset.runtimeActive,
-      releaseObject: () => {},
+      releaseObject: () => objectLease?.release(),
     })
+    // 释放控制权后，Vue nextTick 会把元素从 Teleport 移回列容器
+    // resolveDetachLandingTarget 在下一帧（scheduleDetachLandingFrame 的 rAF）执行时，
+    // 元素已在列容器中，getBoundingClientRect 返回正确位置
     landingPlan = scheduleDetachLandingFrame(() => clearFloatingStyle(element), () => {
       const sid = sessionId!
       const landedEl = resolveDetachLandingTarget({
-        resolve: () => {
-          const allCards = document.querySelectorAll<HTMLElement>(`[data-card="${objectId}"]`)
-          console.log('[createDetachMove] querySelectorAll', Array.from(allCards).map(el => ({ className: el.className, rect: el.getBoundingClientRect(), runtimeActive: el.dataset.runtimeActive, runtimeProxy: el.dataset.runtimeProxy, isConnected: el.isConnected, dataset: JSON.stringify(el.dataset) })))
-          return runtime.resolveMoveTarget(sid, pendingDrop, () => {
-            return document.querySelector<HTMLElement>(`[data-card="${objectId}"]`) ?? null
-          })
-        },
+        resolve: () => runtime.resolveMoveTarget(sid, pendingDrop, () => {
+          return document.querySelector<HTMLElement>(`[data-card="${objectId}"]`) ?? null
+        }),
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
       if (!landedEl) { landingGate?.complete({ completed: true, reason: '' }); landingGate = null; return }
-      console.log('[createDetachMove] landedEl', { className: landedEl.className, rect: landedEl.getBoundingClientRect() })
       const targetSnapshot = captureDetachTargetSnapshot((el: HTMLElement) => runtime.captureVisualState(objectId, el), landedEl)
-      console.log('[createDetachMove] landing visual', { targetRect: landedEl.getBoundingClientRect() })
       const visualContext = createDetachVisualContext({
         createContext: () => runtime.createVisualLifecycleContext(sid, pendingDrop, landedEl, beforeContent!),
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,
@@ -122,13 +120,9 @@ export function createDetachMoveFromAdapter(config: {
     prepare(ctx) {
       sessionId = ctx.session.id
       if (ctx.session.state !== 'prepare') return
-      console.log('[prepare] before setElement', { rect: element.getBoundingClientRect() })
       runtime.objects.setElement(objectId, element)
-      console.log('[prepare] before acquireObject', { rect: element.getBoundingClientRect() })
-      runtime.acquireObject(sessionId!, objectId)
-      console.log('[prepare] before takeSurfaces', { rect: element.getBoundingClientRect() })
+      objectLease = runtime.acquireObject(sessionId!, objectId)
       runtime.takeSurfaces(sessionId!, surfaceIds)
-      console.log('[prepare] before pickup', { rect: element.getBoundingClientRect() })
       const { beforePickup } = prepareDetachPickup(element)
       beforeContent = element.cloneNode(true) as HTMLElement
       scheduleLayoutFlip(beforePickup)

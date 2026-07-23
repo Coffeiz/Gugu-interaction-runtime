@@ -96,14 +96,12 @@ export class RuntimeMoveCoordinator {
     const context = port.createContext(session)
     try {
       const result = behavior.prepare?.(context, request)
-      console.log('[RuntimeMove.start] prepare called', { hasResult: !!result, state: session.state })
       if (result && typeof (result as { then?: unknown }).then === 'function') {
         ;(result as Promise<void>).catch(error => {
           if (port.isCurrent(session.id)) port.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
         })
       }
     } catch (error) {
-      console.log('[RuntimeMove.start] prepare error', error)
       port.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
     }
     if (port.isCurrent(session.id) && session.state === 'prepare') session.transition('active')

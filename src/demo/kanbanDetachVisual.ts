@@ -44,7 +44,13 @@ export function createDetachVisualAdapter(): VisualAdapter {
       const proxy = visualProxy.element
       const state = states.get(proxy)
       if (!state || state.disposed) return Promise.resolve({ completed: false, reason: 'visual-proxy-disposed' })
-      const targetRect = target.getBoundingClientRect()
+      const rawTargetRect = context.targetSnapshot?.rect ?? target.getBoundingClientRect()
+      const targetRect = {
+        left: rawTargetRect.left ?? rawTargetRect.x,
+        top: rawTargetRect.top ?? rawTargetRect.y,
+        width: rawTargetRect.width,
+        height: rawTargetRect.height,
+      }
       state.target = target
       concealElement(target, context.sessionId)
       proxy.style.transition = 'none'
@@ -58,7 +64,20 @@ export function createDetachVisualAdapter(): VisualAdapter {
         targetOpacity: context.targetSnapshot?.opacity,
         targetContent: target,
       })
-      state.stopTracking = runtime.trackLandingTarget(context.sessionId, target, retarget)
+      state.stopTracking = runtime.trackLandingTarget(context.sessionId, target, () => {
+        // target 可能在 Teleport 中（不在 layout-surface 内），getBoundingClientRect 返回 body 底部位置
+        // 完全忽略 nextRect 的值，全部用 context.targetSnapshot.rect
+        if (context.targetSnapshot?.rect && !target.closest('[data-layout-surface]')) {
+          retarget({
+            left: context.targetSnapshot.rect.x,
+            top: context.targetSnapshot.rect.y,
+            width: context.targetSnapshot.rect.width,
+            height: context.targetSnapshot.rect.height,
+          })
+        } else {
+          retarget(target.getBoundingClientRect())
+        }
+      })
       return finished.then(() => ({ completed: true }))
     },
     reveal: (_visualProxy, target, context) => {

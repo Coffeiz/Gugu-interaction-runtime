@@ -466,7 +466,6 @@ setMotionProfiles(this.registry.motionProfile)
     const context = this.createBehaviorContext(session)
     const resolveResult = context.visual?.resolveTarget?.(session.objectId, destination)
     const fallbackResult = fallback?.()
-    console.log('[resolveMoveTarget]', { objectId: session.objectId, resolveResult: !!resolveResult, fallbackResult: !!fallbackResult, resolveClassName: resolveResult?.className, fallbackClassName: fallbackResult?.className, resolveRect: resolveResult?.getBoundingClientRect(), fallbackRect: fallbackResult?.getBoundingClientRect() })
     const target = resolveResult ?? fallbackResult ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
@@ -591,11 +590,8 @@ setMotionProfiles(this.registry.motionProfile)
       if (!existing) throw new Error(`Session not found: ${options.sessionId}`)
       session = existing
     } else {
-      console.log('[orchestrateMoveSession] about to start', { hasDriver: !!options.driver })
-      // 在 start() 前临时设为默认 driver，确保 prepare 阶段能找到
       if (options.driver) this.moveBehavior.setDriver(options.driver)
       const handle = this.start(request)
-      console.log('[orchestrateMoveSession] after start', { handleId: handle.id })
       if (options.driver) this.moveBehavior.setDriver({})
       session = this.sessionCoordinator.get(handle.id)!
     }
