@@ -405,7 +405,7 @@ pointerup 判定、regrab 绑定以及 landing/reveal 的编排顺序。后续�
    `DetachMoveDriver`；
 3. 将 landing、reveal、CompletionGate、cancel/dispose 顺序迁入同一个 driver；
 4. `kanbanVisualAdapter.ts` 只保留视觉实现，不再负责启动拖拽；
-5. `legacyStart` 只作为迁移期间的对照路径，Runtime driver 验证通过后删除；
+5. [x] `legacyStart` 只作为迁移期间的对照路径，Runtime driver 验证通过后删除（已于 2026-07-25 删除：`ObjectVisualAdapter.legacyStart` 接口字段、`Runtime.startObjectPointer` 的 fallback 分支和对应单元测试均已移除）；
 6. `KanbanBoard.vue` 最终只保留 Object/Surface 注册、元素绑定和 Action 订阅。
 
 目标调用链固定为：

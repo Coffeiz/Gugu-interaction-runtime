@@ -85,13 +85,6 @@ export interface ObjectTypeRegistration {
 }
 
 export interface ObjectVisualAdapter extends VisualAdapter {
-  /** 迁移阶段的视觉启动实现；最终由 createMove 替代。 */
-  legacyStart?(context: {
-    objectId: string
-    element: HTMLElement
-    event: PointerEvent
-    mode: string
-  }): void
   createMove?(context: {
     objectId: string
     element: HTMLElement
@@ -255,12 +248,8 @@ setMotionProfiles(this.registry.motionProfile)
     if (createMove) {
       const move = createMove(context)
       if (!move.driver && !move.lifecycle) {
-        // createMove 返回空对象（无能力 / 非 detach 模式），fallback 到 legacyStart 或 start
-        if (registration.visual?.legacyStart) {
-          registration.visual.legacyStart(context)
-        } else {
-          registration.start?.(context)
-        }
+        // createMove 返回空对象（无能力 / 非 detach 模式），fallback 到 start
+        registration.start?.(context)
         return true
       }
       this.orchestrateMoveSession(
