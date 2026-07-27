@@ -442,6 +442,21 @@ Runtime 内部只有一套生命周期编排”为准。
 - [x] 删除 `kanbanDrag.ts`（legacy clone 编排）
 - [x] 删除 `kanbanVisualAdapter.ts`（能力内联到 `DefaultVisualAdapter`，用户不需要手动创建）
 - [x] 浏览器验证 detach 拖拽全场景（同列/跨列/无效落点/landing regrab/连续拖动）
+- [x] 新增拖拽自动滚屏能力（`dom/AutoScroll.ts`），指针贴近列边缘时持续滚动，滚动期间通过
+      `onScroll` 回调重新计算命中/落点索引，避免指针静止时索引停留在滚动前的旧值上
+- [x] 收拢 `executeDetachDrag` 与 `createDetachMoveFromAdapter` 两套重复的 detach 编排（2026-07-27）：
+      `executeDetachDrag`／`createDetachMoveRequest`／`startDetachSession`／`createDetachMoveDriver`
+      已从 `DetachMoveDriver.ts` 删除；regrab 改为调用 `Runtime.startObjectPointer(objectId, liveEl,
+      event, fromRect)`，与首次拾取走同一条 `createMove → createDetachMoveFromAdapter` 路径；
+      `startObjectPointer` 新增可选的 `fromRect` 透传参数，以及原本只在 `executeDetachDrag` 里的
+      "已登记 regrab handler 时直接转发"兜底检查，现在挪到 `startObjectPointer` 顶部对所有对象通用
+- [x] 落地时把目标滚动进列容器可视范围（`DetachAdapter.ts` 的 `keepElementWithinColumn`）：
+      年/月分组增删、FLIP 收尾可能跨多个 frame 才提交完，参考
+      `Gugu-web-drag-animation-refactor` 里 `DrawerViewport.vue` 的做法，落地那一帧校正一次后，
+      接下来几帧再重新校正，而不是只做一次性快照
+- [x] `landDragProxy` 的 `retarget` 加最小间隔节流（60ms）：兄弟卡 FLIP 期间目标位置逐帧变化，
+      之前每次 `retarget` 都立即重启一次过渡（冻结当前状态→强制回流→下一帧写新终点），逐帧重启
+      会打断浏览器正在合成的动画，表现为落地途中卡顿；现在把高频 retarget 合并到较低频率补一次
 - [ ] 迁移 clone 策略 `kanbanDrag.ts` 的编排进入对应的 driver 模块
 - [ ] 之后进入阶段 1：接 Gugu-web 看板项目卡
 

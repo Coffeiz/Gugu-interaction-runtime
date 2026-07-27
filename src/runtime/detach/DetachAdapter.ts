@@ -1,9 +1,21 @@
 import { createDomHitResolver, hitWithResolver } from '../../dom/Hit'
+import { createAutoScroller, type AutoScrollController } from '../../dom/AutoScroll'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../../dom/GroupLayout'
 import { moveFloating, clearFloatingStyle, settleFloatingLayout, setProxyInteractive } from '../../dom/Visual'
-import { captureDetachDraggingSnapshot, prepareDetachMotion, applyDetachPickupVisual, prepareDetachPickup, createDetachDropState, updateDetachDrop, prepareDetachLanding, resolveDetachLandingTarget, captureDetachTargetSnapshot, createDetachVisualContext, startDetachLandingVisual, completeDetachLanding, cancelDetachWithoutDrop, resolveDetachRegrabTarget, interruptDetachRegrab, scheduleDetachLandingFrame, createDetachLayoutLifecycle, createDetachLandingLifecycle, executeDetachDrag } from '../DetachMoveDriver'
+import { captureDetachDraggingSnapshot, prepareDetachMotion, applyDetachPickupVisual, prepareDetachPickup, createDetachDropState, updateDetachDrop, prepareDetachLanding, resolveDetachLandingTarget, captureDetachTargetSnapshot, createDetachVisualContext, startDetachLandingVisual, completeDetachLanding, cancelDetachWithoutDrop, resolveDetachRegrabTarget, interruptDetachRegrab, scheduleDetachLandingFrame, createDetachLayoutLifecycle, createDetachLandingLifecycle } from '../DetachMoveDriver'
 import type { Runtime, RuntimeCompletionGate } from '../../Runtime'
 import type { LandingResult, MoveBehaviorDriver, MoveVisualLifecycle } from '../../behavior/MoveBehavior'
+
+/** 把 target 滚动进 column 的可视范围内（贴边对齐，不居中）。 */
+function keepElementWithinColumn(column: HTMLElement, target: HTMLElement): void {
+  const columnRect = column.getBoundingClientRect()
+  const elRect = target.getBoundingClientRect()
+  if (elRect.top < columnRect.top) {
+    column.scrollTop -= columnRect.top - elRect.top
+  } else if (elRect.bottom > columnRect.bottom) {
+    column.scrollTop += elRect.bottom - columnRect.bottom
+  }
+}
 
 export function createDetachMoveFromAdapter(config: {
   runtime: Runtime
@@ -30,15 +42,16 @@ export function createDetachMoveFromAdapter(config: {
   let released = false
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
+  let autoScroller: AutoScrollController | null = null
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
 
-  function onMove(moveEvent: PointerEvent) {
+  function updateDropFromPoint(x: number, y: number): void {
     if (getSessionState() !== 'active') return
     if (!dropState) return
     const hit = updateDetachDrop({
       active: getSessionState() === 'active',
-      event: moveEvent,
+      event: { clientX: x, clientY: y } as PointerEvent,
       state: dropState,
       resolve: (ev: PointerEvent) => hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, ev.clientX, ev.clientY, objectId),
       getSurface: (drop: { columnId: string }) => drop.columnId,
@@ -47,9 +60,18 @@ export function createDetachMoveFromAdapter(config: {
     pendingDrop = hit
   }
 
+  function onMove(moveEvent: PointerEvent) {
+    updateDropFromPoint(moveEvent.clientX, moveEvent.clientY)
+    autoScroller?.update(
+      (runtime.getHitResolver() ?? kanbanHitResolver).findSurface({ x: moveEvent.clientX, y: moveEvent.clientY }),
+      { x: moveEvent.clientX, y: moveEvent.clientY },
+    )
+  }
+
   function onUp() {
     if (released) return { accepted: false as const }
     released = true
+    autoScroller?.stop()
     if (!dropState || !sessionId) return { accepted: false as const }
     pendingDrop = dropState.release()
     if (!pendingDrop) {
@@ -80,6 +102,21 @@ export function createDetachMoveFromAdapter(config: {
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
       if (!landedEl) { landingGate?.complete({ completed: true, reason: '' }); landingGate = null; return }
+      const scrollColumn = landedEl.closest<HTMLElement>('[data-column]')
+      if (scrollColumn) {
+        keepElementWithinColumn(scrollColumn, landedEl)
+        // 分组高度/Vue DOM 提交可能跨多个 frame（年/月分组增删、FLIP 收尾），
+        // 单次校正可能被后续布局覆盖，参考 DrawerViewport 的做法，在接下来
+        // 几帧重新校正一次，而不是只做一次性快照。
+        let recheckFrames = 3
+        const recheck = () => {
+          if (!landedEl.isConnected || recheckFrames <= 0) return
+          recheckFrames -= 1
+          keepElementWithinColumn(scrollColumn, landedEl)
+          requestAnimationFrame(recheck)
+        }
+        requestAnimationFrame(recheck)
+      }
       const targetSnapshot = captureDetachTargetSnapshot((el: HTMLElement) => runtime.captureVisualState(objectId, el), landedEl)
       const visualContext = createDetachVisualContext({
         createContext: () => runtime.createVisualLifecycleContext(sid, pendingDrop, landedEl, beforeContent!),
@@ -117,12 +154,15 @@ export function createDetachMoveFromAdapter(config: {
       clearRegrab: () => runtime.clearRegrab(objectId),
       disposeProxy: () => runtime.disposeVisualProxy(sessionId!),
     })
-    executeDetachDrag({ runtime, objectId, element: liveEl, event: regrabEvent, fromRect: regrabContext.proxyRect, surfaceIds, findColumnIdOf })
+    runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.proxyRect)
   }
 
   const driver: MoveBehaviorDriver = {
     prepare(ctx) {
       sessionId = ctx.session.id
+      autoScroller = createAutoScroller(ctx.session.cleanup, {
+        onScroll: point => updateDropFromPoint(point.x, point.y),
+      })
       if (ctx.session.state !== 'prepare') return
       runtime.objects.setElement(objectId, element)
       objectLease = runtime.acquireObject(sessionId!, objectId)

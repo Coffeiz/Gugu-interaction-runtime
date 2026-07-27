@@ -363,10 +363,22 @@ export function landDragProxy(
       && Math.abs(rect.width - currentTarget.width) < 2
       && Math.abs(rect.height - currentTarget.height) < 2
   }
+  let pendingRetarget: LandingRect | null = null
+  let pendingRetargetTimer: number | null = null
+  let lastFlyToAt = 0
+  // retarget 之间强制间隔的下限：每次 flyTo 都会重启过渡（冻结当前视觉状态→强制
+  // 回流→下一帧写新终点），如果目标位置在兄弟卡 FLIP 期间逐帧变化，每帧都重启一次
+  // 过渡会打断浏览器正在合成的动画，表现为落地途中卡顿。用这个间隔把高频 retarget
+  // 合并成较低频率的重启，落点仍然会追上，只是不再逐帧强制回流。
+  const RETARGET_MIN_INTERVAL = 60
   const settle = (via: string) => {
     if (settled) return
     settled = true
     proxy.removeEventListener('transitionend', onEnd)
+    if (pendingRetargetTimer !== null) {
+      window.clearTimeout(pendingRetargetTimer)
+      pendingRetargetTimer = null
+    }
     resolveFinished()
   }
   const waitForTarget = () => {
@@ -441,6 +453,13 @@ export function landDragProxy(
   flyTo(target)
   window.setTimeout(waitForTarget, duration + 40)
 
+  const applyRetarget = (nextTarget: LandingRect) => {
+    lastFlyToAt = performance.now()
+    // 用剩余时间而非完整 duration：retarget 只是修正航向，不应重置动画时钟。
+    const remaining = Math.max(80, duration - (lastFlyToAt - startedAt))
+    flyTo(nextTarget, remaining)
+  }
+
   const retarget = (nextTarget: LandingRect) => {
     if (settled) return
     const dx = Math.abs(nextTarget.left - currentTarget.left)
@@ -448,9 +467,23 @@ export function landDragProxy(
     const dw = Math.abs(nextTarget.width - currentTarget.width)
     const dh = Math.abs(nextTarget.height - currentTarget.height)
     if (dx < 0.5 && dy < 0.5 && dw < 0.5 && dh < 0.5) return
-    // 用剩余时间而非完整 duration：retarget 只是修正航向，不应重置动画时钟。
-    const remaining = Math.max(80, duration - (performance.now() - startedAt))
-    flyTo(nextTarget, remaining)
+    const elapsed = performance.now() - lastFlyToAt
+    if (elapsed >= RETARGET_MIN_INTERVAL) {
+      applyRetarget(nextTarget)
+      return
+    }
+    // 距上次 flyTo 还不到最小间隔：先记下最新目标，等间隔到了再统一补一次，
+    // 而不是每帧都重启过渡。
+    pendingRetarget = nextTarget
+    if (pendingRetargetTimer === null) {
+      pendingRetargetTimer = window.setTimeout(() => {
+        pendingRetargetTimer = null
+        if (settled || !pendingRetarget) return
+        const target = pendingRetarget
+        pendingRetarget = null
+        applyRetarget(target)
+      }, RETARGET_MIN_INTERVAL - elapsed)
+    }
   }
 
   return { finished, retarget }
