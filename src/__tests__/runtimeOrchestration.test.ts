@@ -70,6 +70,7 @@ describe('Runtime move orchestration', () => {
     const start = vi.fn()
     runtime.registerObjectType('project-card', {
       defaultVisualMode: 'detach',
+      createMove: () => ({}),
       start,
     })
     const element = document.createElement('div')
@@ -430,7 +431,7 @@ describe('Runtime move orchestration', () => {
   it('Runtime 会随对象 element 生命周期自动绑定并清理 pointerdown 入口', () => {
     const runtime = createRuntime()
     const start = vi.fn()
-    runtime.registerObjectType('project-card', { defaultVisualMode: 'detach', start })
+    runtime.registerObjectType('project-card', { defaultVisualMode: 'detach', createMove: () => ({}), start })
     const element = document.createElement('div')
     runtime.objects.setElement('card-1', element)
 

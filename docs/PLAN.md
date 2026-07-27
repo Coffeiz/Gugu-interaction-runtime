@@ -366,47 +366,42 @@ VisualState/VisualMotion/VisualProxy 归入 `RuntimeVisual`，
 #### 0.9.1 Runtime 接入基础收口
 
 - [x] 看板业务的 pointerdown 不再直接调用 `startCardDragDetach` 或其他 legacy 启动函数；
-- [x] Runtime 输入层根据 ObjectStore 的元素绑定自动转发迁移期 `legacyStart`；
+- [x] Runtime 输入层根据 ObjectStore 的元素绑定自动启动默认 detach driver；
 - [x] Runtime 负责创建 MoveSession、绑定输入、终止 Session、释放 Lease 和登记 Cleanup；
 - [x] 业务侧只保留 Object/Surface 注册、元素绑定和 Action 订阅；
-- [x] detach driver 迁移完成，`legacyStart` 保留为全权入口模式（正确匹配 `executeDetachDrag` 的调用方式）；
+- [x] detach driver 迁移完成，Runtime 通过 `DefaultVisualAdapter.createMove()` 自动启动；
 
 当前进度补充：Session 的创建、索引、查找、CompletionGate、对象 Lease 获取、
 事务 Cleanup 注册以及终态清理均已迁入 `RuntimeSession` 功能域。
 
-当前进度：Registry、Dispatcher、SessionCoordinator 和 RuntimeInput 已由 Runtime 使用；
-看板元素绑定后的 pointerdown 已经统一经过 Runtime，再由 Runtime 转发到迁移期
-`legacyStart`。detach 的完整 driver 仍待迁移，因此 `legacyStart` 暂时保留，不能删除。
+当前进度：Registry、Dispatcher、SessionCoordinator、RuntimeInput 和内置 detach driver
+均已由 Runtime 使用；看板元素绑定后的 pointerdown 直接进入 Runtime 默认移动事务。
 
-现状核对：`kanbanDragDetach.ts` 的底层能力已经通过 Runtime 调用，包括 Session、
-Object/Surface Lease、视觉状态、目标解析、Proxy 创建、landing/reveal、CompletionGate
-和取消清理。尚未迁入 Runtime 的是业务侧事务组合逻辑：pickup 准备、跟手 driver、
-pointerup 判定、regrab 绑定以及 landing/reveal 的编排顺序。后续只迁移这些组合逻辑，
-不重复实现现有 Visual、Hit 或 GroupLayout。
+现状核对：detach 的 pickup、跟手、落点判定、regrab、landing/reveal、CompletionGate
+和取消清理已经由 `DetachAdapter`/`DetachMoveDriver` 在 Runtime 内部统一编排，业务侧
+只保留 Object/Surface 注册、元素绑定和 Action 订阅。
 
 #### 0.9.2 迁移 DetachMoveDriver
 
 - [x] `Visual.ts` 作为 Runtime 内部的运动原语；
 - [x] `GroupLayout.ts` 作为 Runtime 内部的 Group/Surface FLIP 实现；
 - [x] `Hit.ts` 作为 Runtime 内部的统一命中实现；
-- [x] detach 视觉策略已迁入 Runtime 内部策略目录（`executeDetachDrag`）；
-- [x] 已删除 `kanbanDragDetach.ts` 和 `DetachReleaseCoordinator.ts`，编排全量迁入 `DetachMoveDriver.ts`；
+- [x] detach 视觉策略已迁入 Runtime 内部策略目录（`DetachAdapter`）；
+- [x] 已删除 `kanbanDragDetach.ts` 和 `DetachReleaseCoordinator.ts`，编排全量迁入 `DetachAdapter`/`DetachMoveDriver`；
 
-当前迁移进度：pickup 阶段已完成第一轮收口，dragging/update 的落点状态也已开始收口。Runtime 侧已提供 Session/Lease
-准备、抓起前布局与内容快照、运动起点、dragging 视觉状态和 landing 帧调度；
-业务入口暂时保留事务闭包，作为下一阶段 dragging/update 迁移的对照实现。
+当前迁移进度：0.9.2 已完成。Runtime 侧统一提供 Session/Lease、pickup、dragging/update、
+release、landing/reveal、regrab 和 dispose，业务入口不再保留 detach 事务闭包。
 
 #### 0.9.2 业务编排收口顺序
 
 下一步按以下顺序执行，不改变现有动画实现：
 
-1. 在 Runtime 内增加统一的对象接入入口，Runtime 根据对象注册自动创建移动事务；
-2. 将 `kanbanDragDetach.ts` 中的 pickup、跟手、落点判定和 regrab 编排迁入
-   `DetachMoveDriver`；
-3. 将 landing、reveal、CompletionGate、cancel/dispose 顺序迁入同一个 driver；
-4. `kanbanVisualAdapter.ts` 只保留视觉实现，不再负责启动拖拽；
-5. [x] `legacyStart` 只作为迁移期间的对照路径，Runtime driver 验证通过后删除（已于 2026-07-25 删除：`ObjectVisualAdapter.legacyStart` 接口字段、`Runtime.startObjectPointer` 的 fallback 分支和对应单元测试均已移除）；
-6. `KanbanBoard.vue` 最终只保留 Object/Surface 注册、元素绑定和 Action 订阅。
+1. [x] Runtime 根据对象注册自动创建移动事务；
+2. [x] detach 的 pickup、跟手、落点判定和 regrab 编排已迁入 `DetachMoveDriver`；
+3. [x] landing、reveal、CompletionGate、cancel/dispose 顺序已迁入同一个 driver；
+4. [x] `kanbanVisualAdapter.ts` 已删除，视觉实现由 Runtime 内置；
+5. [x] 已删除迁移期 `legacyStart` 接口、Runtime fallback 分支和对应旧测试；
+6. [x] `KanbanBoard.vue` 只保留 Object/Surface 注册、元素绑定和 Action 订阅。
 
 目标调用链固定为：
 
@@ -421,20 +416,20 @@ pointerdown → Runtime.start → DetachMoveDriver.prepare
 
 #### 0.9.3 单一生命周期所有者
 
-- [x] `executeDetachDrag` 是唯一生命周期所有者，内部调用 Runtime 协调器；
-- [x] cancel/interrupt/regrab/dispose 均由 `executeDetachDrag` 内部闭包统一触发；
-- [x] 业务入口（`legacyStart`）只传上下文，不接触 Lease/proxy/FLIP；
+- [x] `DetachAdapter.createDetachMoveFromAdapter` 是唯一生命周期所有者，内部调用 Runtime 协调器；
+- [x] cancel/interrupt/regrab/dispose 均由 detach adapter 内部闭包统一触发；
+- [x] 业务入口不再传递 legacy 启动函数，不接触 Lease/proxy/FLIP；
 - [x] `kanbanDragDetach.ts` 已删除，编排全在 `DetachMoveDriver.ts`；
 
 0.9 不负责：重写 MotionController、创建 CardVisualHost、改变现有动画参数、迁移
 文件/画布对象或重做业务 DOM。阶段验收以“业务只注册 Object/Surface、行为不变、
 Runtime 内部只有一套生命周期编排”为准。
 
-**0.9 完成情况（2026-07-22）**：detach 策略迁移已全部完成。
-- `kanbanDragDetach.ts` → 已删除，编排迁入 `DetachMoveDriver.ts` 的 `executeDetachDrag`
+**0.9 完成情况（2026-07-27）**：detach 策略迁移已全部完成。
+- `kanbanDragDetach.ts` → 已删除，编排迁入 `src/runtime/detach/DetachAdapter.ts`
 - `DetachReleaseCoordinator.ts` → 已删除，幂等保护内联为 `released` 布尔
-- `legacyStart` 保留为全权入口模式，`executeDetachDrag` 内部自行处理 `runtime.start()` 和 `orchestrateMoveSession`
-- clone 策略（`kanbanDrag.ts`）尚未迁移，待 detach 验证通过后处理
+- `legacyStart` 已删除，默认视觉模式通过 `DefaultVisualAdapter.createMove()` 启动 detach driver
+- demo 不再保留 clone 编排；clone 代码已删除，detach 是当前唯一内置策略
 
 **接下来（阶段 1 前置工作）**：
 - [x] detach 策略迁移完成（`createMove` + `DetachAdapter` + `DefaultVisualAdapter` 内置）
@@ -444,8 +439,8 @@ Runtime 内部只有一套生命周期编排”为准。
 - [x] 浏览器验证 detach 拖拽全场景（同列/跨列/无效落点/landing regrab/连续拖动）
 - [x] 新增拖拽自动滚屏能力（`dom/AutoScroll.ts`），指针贴近列边缘时持续滚动，滚动期间通过
       `onScroll` 回调重新计算命中/落点索引，避免指针静止时索引停留在滚动前的旧值上
-- [x] 收拢 `executeDetachDrag` 与 `createDetachMoveFromAdapter` 两套重复的 detach 编排（2026-07-27）：
-      `executeDetachDrag`／`createDetachMoveRequest`／`startDetachSession`／`createDetachMoveDriver`
+- [x] 收拢重复的 detach 编排（2026-07-27）：
+      旧的 `executeDetachDrag`／`createDetachMoveRequest`／`startDetachSession`／`createDetachMoveDriver`
       已从 `DetachMoveDriver.ts` 删除；regrab 改为调用 `Runtime.startObjectPointer(objectId, liveEl,
       event, fromRect)`，与首次拾取走同一条 `createMove → createDetachMoveFromAdapter` 路径；
       `startObjectPointer` 新增可选的 `fromRect` 透传参数，以及原本只在 `executeDetachDrag` 里的
@@ -457,8 +452,8 @@ Runtime 内部只有一套生命周期编排”为准。
 - [x] `landDragProxy` 的 `retarget` 加最小间隔节流（60ms）：兄弟卡 FLIP 期间目标位置逐帧变化，
       之前每次 `retarget` 都立即重启一次过渡（冻结当前状态→强制回流→下一帧写新终点），逐帧重启
       会打断浏览器正在合成的动画，表现为落地途中卡顿；现在把高频 retarget 合并到较低频率补一次
-- [ ] 迁移 clone 策略 `kanbanDrag.ts` 的编排进入对应的 driver 模块
-- [ ] 之后进入阶段 1：接 Gugu-web 看板项目卡
+- [x] 删除迁移期 clone 编排和重复 detach 编排
+- [x] 进入阶段 1：接 Gugu-web 看板项目卡
 
 ### 阶段 1：迁移 Gugu-web 看板项目卡
 
