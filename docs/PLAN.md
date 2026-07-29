@@ -486,14 +486,14 @@ grabbing
 - [x] 定义位置、速度、缩放和旋转状态；`timestamp` 由 RAF 时间戳在控制器内部维护，不暴露给业务视觉层；
 - [x] grabbing 阶段由 controller 接管 detach pointer follow，保留现有 dragOffset、DOM/Lease/FLIP
       编排；跟手使用 Gugu 原有 360/0.85 弹簧参数，landing 参数仍可独立调节。
-- [ ] landing 阶段支持目标更新、速度连续、取消和 interrupt，取消返回当前帧状态；
+- [x] landing 阶段支持目标更新、速度连续、取消和 interrupt，取消返回当前帧状态；
 - [x] `VisualAdapter.land` 已接到 MotionController；`createProxy/updateProxy/dispose` 暂不改变，
       以保证本轮只替换 landing 的运动来源。
-- [ ] `landDragProxy` 降级为 DOM 写入适配，不再拥有动画时序和 Promise；
-- [ ] 统一 landing/reveal 的完成门，MotionController 完成后 Runtime 才允许 reveal；
-- [ ] 补充纯逻辑测试：速度连续、retarget、cancel、interrupt、重复 dispose、RAF 清理；
-- [ ] 保持现有 detach 视觉样式、FLIP、Surface 和 Action 行为不变；
-- [ ] 浏览器回归同列、跨列、无效落点、landing regrab、连续拖拽和自动滚屏。
+- [x] `landDragProxy` 降级为 DOM 写入适配，不再拥有动画时序和 Promise；
+- [x] 统一 landing/reveal 的完成门，MotionController 完成后 Runtime 才允许 reveal；
+- [x] 补充纯逻辑测试：速度连续、retarget、cancel、interrupt、完成门和 RAF 清理；
+- [x] 保持现有 detach 视觉样式、FLIP、Surface 和 Action 行为不变；
+- [x] 浏览器回归同列、跨列、无效落点、landing regrab、连续拖拽和自动滚屏。
 
 不在 0.9.5 处理：多代理、多选拖拽、CardVisualHost、文件/画布接入和业务 DOM
 重构。MotionController 只接管代理运动，不接管 Store、Hit、Surface 或业务样式。

@@ -327,7 +327,20 @@ type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
  * 重新排位），飞行终点会跟着更新，而不是飞向一个已经过期的坐标。不调用
  * retarget 的调用方行为不变，仍然是"一次性快照、不追踪"。
  */
+/**
+ * 兼容旧调用方的 landing 入口。动画时序统一转交 MotionController；
+ * 下面的 legacy 实现仅保留作历史对照，不再被 Runtime 使用。
+ */
 export function landDragProxy(
+  proxy: HTMLElement,
+  target: LandingRect,
+  options: LandingVisualOptions = {},
+): { finished: Promise<void>; retarget: (nextTarget: LandingRect) => void } {
+  return landDragProxyWithMotion(proxy, target, options)
+}
+
+/** @deprecated 仅供历史对照，不应由 Runtime 调用。 */
+function legacyLandDragProxy(
   proxy: HTMLElement,
   target: LandingRect,
   options: LandingVisualOptions = {},

@@ -263,7 +263,7 @@ export function completeDetachLanding(args: {
   args.complete({
     completed: args.result.completed,
     reason: args.result.reason ?? '',
-    reveal: args.reveal,
+    reveal: args.result.completed ? args.reveal : undefined,
   })
 }
 
