@@ -1,11 +1,12 @@
 import type { VisualState, VisualSnapshot } from './VisualAdapterTypes'
 import type { MotionProfile } from './MotionProfile'
+import type { MotionState } from '../motion/CardMotionController'
 import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import {
   concealElement,
   createDragProxy,
   destroyDragProxy,
-  landDragProxy,
+  landDragProxyWithMotion,
   revealElement,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
@@ -26,6 +27,8 @@ export interface VisualLifecycleContext {
   readonly targetSnapshot?: VisualSnapshot
   /** 对象类型注册的 MotionProfile；adapter 可用此覆盖 landing 速度。 */
   readonly motion?: MotionProfile
+  /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
+  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY'>
 }
 
 export interface VisualProxy {
@@ -129,7 +132,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     el.style.transition = 'none'
     el.style.width = `${targetRect.width}px`
     el.style.height = `${targetRect.height}px`
-    const { finished, retarget } = landDragProxy(el, targetRect, {
+    const { finished, retarget } = landDragProxyWithMotion(el, targetRect, {
       duration: context.motion?.landing?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
       targetShadow: context.targetSnapshot?.boxShadow,
       targetRadius: context.targetSnapshot?.borderRadius,
@@ -137,6 +140,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetOpacity: context.targetSnapshot?.opacity,
       targetContent: target,
       readTarget: () => target.getBoundingClientRect(),
+      motionState: context.motionState,
     })
     if (this.runtime) {
       this.runtime.trackLandingTarget(context.sessionId, target, () => {

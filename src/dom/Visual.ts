@@ -1,5 +1,8 @@
 import type { VisualContext } from './VisualAdapterTypes'
 import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
+import { createCardMotionController } from '../motion/CardMotionController'
+import type { MotionState } from '../motion/CardMotionController'
+import { LANDING_PROFILE } from '../motion/MotionProfile'
 
 let visualOverlay: HTMLElement | null = null
 
@@ -196,6 +199,7 @@ export interface LandingVisualOptions {
   targetContent?: HTMLElement
   /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
   readTarget?: () => LandingRect
+  motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY'>
 }
 
 /** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
@@ -490,6 +494,123 @@ export function landDragProxy(
   }
 
   return { finished, retarget }
+}
+
+/**
+ * MotionController 驱动的 landing 版本。
+ * DOM 视觉属性仍由本文件处理，控制器只负责连续的位置、尺寸和完成时机。
+ */
+export function landDragProxyWithMotion(
+  proxy: HTMLElement,
+  target: LandingRect,
+  options: LandingVisualOptions = {},
+): { finished: Promise<void>; retarget: (nextTarget: LandingRect) => void } {
+  const duration = options.duration ?? DEFAULT_MOTION_PROFILE.landing.duration
+  const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
+  const targetShadow = options.targetShadow
+  const targetRadius = options.targetRadius
+  const targetBackground = options.targetBackground
+  const targetOpacity = options.targetOpacity
+  const contentLayers = options.targetContent ? wrapContentForMorph(proxy, options.targetContent) : null
+  if (contentLayers) {
+    for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
+    for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
+  }
+
+  const layoutLeft = parseFloat(proxy.style.left) || proxy.getBoundingClientRect().left
+  const layoutTop = parseFloat(proxy.style.top) || proxy.getBoundingClientRect().top
+  const startRect = proxy.getBoundingClientRect()
+  const startWidth = startRect.width || target.width
+  const startHeight = startRect.height || target.height
+  let currentTarget = target
+  let settled = false
+  let timeoutId: number | null = null
+  let timeoutDeadline = 0
+  let resolveFinished: () => void = () => undefined
+  const finished = new Promise<void>(resolve => { resolveFinished = resolve })
+
+  const settle = () => {
+    if (settled) return
+    settled = true
+    motion.stop()
+    if (timeoutId !== null) window.clearTimeout(timeoutId)
+    timeoutId = null
+    resolveFinished()
+  }
+
+  const motion = createCardMotionController({
+    mode: 'settle',
+    onFrame: frame => {
+      proxy.style.transform = `translate3d(${(frame.x - layoutLeft).toFixed(2)}px, ${(frame.y - layoutTop).toFixed(2)}px, 0)`
+      proxy.style.width = `${(startWidth * frame.scaleX).toFixed(2)}px`
+      proxy.style.height = `${(startHeight * frame.scaleY).toFixed(2)}px`
+    },
+    onArrived: settle,
+  })
+  motion.setProfile(LANDING_PROFILE)
+  motion.seed({
+    // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
+    // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
+    x: options.motionState?.x ?? startRect.left,
+    y: options.motionState?.y ?? startRect.top,
+    vx: options.motionState?.vx ?? 0,
+    vy: options.motionState?.vy ?? 0,
+    scaleX: 1,
+    scaleY: 1,
+  })
+  motion.setTarget({
+    x: target.left,
+    y: target.top,
+    scaleX: target.width / startWidth,
+    scaleY: target.height / startHeight,
+  })
+
+  // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
+  proxy.style.transition = [
+    `box-shadow ${duration}ms ${easing}`,
+    `border-radius ${duration}ms ${easing}`,
+    `background-color ${duration}ms ${easing}`,
+    `opacity ${duration}ms ${easing}`,
+  ].join(', ')
+  requestAnimationFrame(() => {
+    if (settled) return
+    if (targetShadow != null) proxy.style.boxShadow = targetShadow
+    if (targetRadius != null) proxy.style.borderRadius = targetRadius
+    if (targetBackground != null) proxy.style.background = targetBackground
+    if (targetOpacity != null) proxy.style.opacity = targetOpacity
+    if (contentLayers) {
+      for (const el of contentLayers.enteringEls) el.style.opacity = '1'
+      for (const el of contentLayers.leavingEls) el.style.opacity = '0'
+    }
+  })
+  const scheduleMotionTimeout = (extraMs = 0) => {
+    if (timeoutId !== null) window.clearTimeout(timeoutId)
+    timeoutDeadline = performance.now() + Math.max(2000, duration * 8, 5000) + extraMs
+    timeoutId = window.setTimeout(() => {
+      timeoutId = null
+      // 超时只作为异常状态的最终保险，不参与正常 landing 完成判断。
+      if (!settled && performance.now() >= timeoutDeadline) settle()
+    }, Math.max(2000, duration * 8, 5000) + extraMs)
+  }
+  scheduleMotionTimeout()
+  motion.start()
+
+  return {
+    finished,
+    retarget(nextTarget) {
+      if (settled) return
+      currentTarget = nextTarget
+      // 目标发生布局移动时，给新的弹簧轨迹完整的收敛窗口，避免旧 duration
+      // 到期后提前 reveal，造成“移动到一半瞬间到目标”的假跳变。
+      scheduleMotionTimeout(1000)
+      motion.setTarget({
+        x: currentTarget.left,
+        y: currentTarget.top,
+        scaleX: currentTarget.width / startWidth,
+        scaleY: currentTarget.height / startHeight,
+      })
+    },
+  }
 }
 
 export function destroyDragProxy(proxy: HTMLElement) {

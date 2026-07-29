@@ -1,7 +1,10 @@
 import { createDomHitResolver, hitWithResolver } from '../../dom/Hit'
 import { createAutoScroller, type AutoScrollController } from '../../dom/AutoScroll'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../../dom/GroupLayout'
-import { moveFloating, clearFloatingStyle, settleFloatingLayout, setProxyInteractive } from '../../dom/Visual'
+import { clearFloatingStyle, settleFloatingLayout, setProxyInteractive } from '../../dom/Visual'
+import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
+import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
+import { shapeReleaseVelocity } from '../../motion/ReleaseMotion'
 import { captureDetachDraggingSnapshot, prepareDetachMotion, applyDetachPickupVisual, prepareDetachPickup, createDetachDropState, updateDetachDrop, prepareDetachLanding, resolveDetachLandingTarget, captureDetachTargetSnapshot, createDetachVisualContext, startDetachLandingVisual, completeDetachLanding, cancelDetachWithoutDrop, resolveDetachRegrabTarget, interruptDetachRegrab, scheduleDetachLandingFrame, createDetachLayoutLifecycle, createDetachLandingLifecycle } from '../DetachMoveDriver'
 import type { Runtime, RuntimeCompletionGate } from '../../Runtime'
 import type { LandingResult, MoveBehaviorDriver, MoveVisualLifecycle } from '../../behavior/MoveBehavior'
@@ -45,6 +48,9 @@ export function createDetachMoveFromAdapter(config: {
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
   let autoScroller: AutoScrollController | null = null
+  let dragMotion: CardMotionController | null = null
+  let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number } | undefined
+  let dragOffset = { x: 0, y: 0 }
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
 
@@ -63,6 +69,10 @@ export function createDetachMoveFromAdapter(config: {
   }
 
   function onMove(moveEvent: PointerEvent) {
+    dragMotion?.setTarget({
+      x: moveEvent.clientX - dragOffset.x,
+      y: moveEvent.clientY - dragOffset.y,
+    })
     updateDropFromPoint(moveEvent.clientX, moveEvent.clientY)
     autoScroller?.update(
       (runtime.getHitResolver() ?? kanbanHitResolver).findSurface({ x: moveEvent.clientX, y: moveEvent.clientY }),
@@ -73,6 +83,14 @@ export function createDetachMoveFromAdapter(config: {
   function onUp() {
     if (released) return { accepted: false as const }
     released = true
+    releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
+    if (releaseMotionState) {
+      const releaseVelocity = shapeReleaseVelocity({ x: releaseMotionState.vx, y: releaseMotionState.vy })
+      releaseMotionState.vx = releaseVelocity.x
+      releaseMotionState.vy = releaseVelocity.y
+    }
+    dragMotion?.stop()
+    dragMotion = null
     autoScroller?.stop()
     if (!dropState || !sessionId) return { accepted: false as const }
     pendingDrop = dropState.release()
@@ -112,6 +130,7 @@ export function createDetachMoveFromAdapter(config: {
       const visualContext = createDetachVisualContext({
         createContext: () => runtime.createVisualLifecycleContext(sid, pendingDrop, landedEl, beforeContent!),
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,
+        motionState: releaseMotionState,
       })
       landingProxy = startDetachLandingVisual({
         createProxy: () => runtime.createVisualProxy(sid, visualContext) ?? null,
@@ -164,10 +183,23 @@ export function createDetachMoveFromAdapter(config: {
       const moveContext = runtime.getMoveContext(sessionId!)
       const motion = prepareDetachMotion(moveContext, element, event, fromRect)
       const rect = motion.rect
+      dragOffset = { x: motion.offsetX, y: motion.offsetY }
       applyDetachPickupVisual((_id: string, el: HTMLElement, state: any) => runtime.applyVisualState(objectId, el, state), objectId, element, rect, fromRect)
       draggingSnapshot = captureDetachDraggingSnapshot((_id: string, el: HTMLElement) => runtime.captureVisualState(objectId, el), objectId, element)
       element.dataset.runtimeActive = 'true'
-      moveFloating(element, event.clientX, event.clientY, motion.offsetX, motion.offsetY)
+      dragMotion = createCardMotionController({
+        mode: 'follow',
+        followRotation: FOLLOW_ROTATION,
+        onFrame: frame => {
+          element.style.left = `${frame.x}px`
+          element.style.top = `${frame.y}px`
+          element.style.transform = `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
+        },
+      })
+      dragMotion.setProfile(FOLLOW_PROFILE)
+      dragMotion.seed({ x: rect.left, y: rect.top, scaleX: 1.03, scaleY: 1.03, rotateX: 5, rotateZ: 0 })
+      dragMotion.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
+      dragMotion.start()
       dropState = createDetachDropState(
         findColumnIdOf(objectId),
         (ev: PointerEvent) => hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, ev.clientX, ev.clientY, objectId),
@@ -182,6 +214,8 @@ export function createDetachMoveFromAdapter(config: {
     },
     cancel(_ctx: any, _reason: string) {
       released = true
+      dragMotion?.stop()
+      dragMotion = null
       if (landingProxy) { runtime.disposeVisualProxy(sessionId!); landingProxy = null }
       runtime.clearRegrab(objectId)
       document.body.classList.remove('kb-dragging')

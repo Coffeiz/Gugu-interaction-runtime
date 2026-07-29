@@ -47,3 +47,16 @@ export type {
 } from './input/PointerSessionInput'
 export type { Action, MoveAction, TransferAction, SortAction, ResizeAction, LinkAction } from './action/Action'
 export type { RuntimeInput, StartRequest, SessionHandle } from './core/Interaction'
+export {
+  createCardMotionController,
+  type CardMotionController,
+  type CardMotionControllerOptions,
+  type MotionState,
+  type MotionTarget,
+  type MotionFrame,
+  type FollowRotationConfig,
+  type ArriveThreshold,
+} from './motion/CardMotionController'
+export { LANDING_PROFILE, FOLLOW_PROFILE, FOLLOW_ROTATION, type MotionProfile as CardMotionProfile, type SpringParams } from './motion/MotionProfile'
+export { integrateSpring, type PhysicsVector, type SpringState } from './motion/physics'
+export { DEFAULT_RELEASE_PROFILE, shapeReleaseVelocity, coastOffset, type ReleaseMotionProfile } from './motion/ReleaseMotion'

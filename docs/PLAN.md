@@ -475,11 +475,20 @@ grabbing
 
 执行项：
 
-- [ ] 新增 `MotionController`，使用 `requestAnimationFrame` 驱动，不依赖 CSS transition 完成通知；
-- [ ] 定义不可变 `MotionState`：`position`、`velocity`、`scale`、`rotation`、`timestamp`；
-- [ ] grabbing 阶段由 controller 接管 pointer follow，保留释放瞬间速度；
+- [x] 从 Gugu-web 历史提交 `4b0b742` 提取纯运动部分：`integrateSpring`、位置/缩放二阶弹簧、follow/settle
+      两种模式、速度驱动姿态和 RAF 生命周期；对应 Runtime 文件为 `src/motion/`。没有迁入
+      clone/holder DOM、命中、FLIP、Store、Surface、滚动或 reveal/cleanup。
+- [x] 将提取出的 `MotionController` 首先接入 detach landing：proxy 的位置、尺寸和完成通知由
+      JS controller 驱动；阴影、圆角、背景、内容交叉淡变仍由现有视觉适配器处理。
+- [x] landing 默认弹簧改为接近临界阻尼，长距离移动缓出且不回弹；跟手阶段参数暂不改变。
+- [x] demo 增加 Motion 调参面板：滑块实时预览，保存写入浏览器本地调试配置，重置回到已保存值；
+      业务接入 API 不依赖该面板。
+- [x] 定义位置、速度、缩放和旋转状态；`timestamp` 由 RAF 时间戳在控制器内部维护，不暴露给业务视觉层；
+- [x] grabbing 阶段由 controller 接管 detach pointer follow，保留现有 dragOffset、DOM/Lease/FLIP
+      编排；跟手使用 Gugu 原有 360/0.85 弹簧参数，landing 参数仍可独立调节。
 - [ ] landing 阶段支持目标更新、速度连续、取消和 interrupt，取消返回当前帧状态；
-- [ ] 将 `VisualAdapter.createProxy/updateProxy/land/dispose` 接到 MotionController；
+- [x] `VisualAdapter.land` 已接到 MotionController；`createProxy/updateProxy/dispose` 暂不改变，
+      以保证本轮只替换 landing 的运动来源。
 - [ ] `landDragProxy` 降级为 DOM 写入适配，不再拥有动画时序和 Promise；
 - [ ] 统一 landing/reveal 的完成门，MotionController 完成后 Runtime 才允许 reveal；
 - [ ] 补充纯逻辑测试：速度连续、retarget、cancel、interrupt、重复 dispose、RAF 清理；
