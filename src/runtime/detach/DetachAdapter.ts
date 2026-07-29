@@ -2,6 +2,7 @@ import { createDomHitResolver, hitWithResolver } from '../../dom/Hit'
 import { createAutoScroller, type AutoScrollController } from '../../dom/AutoScroll'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../../dom/GroupLayout'
 import { clearFloatingStyle, createDragProxy, destroyDragProxy, settleFloatingLayout, setProxyInteractive } from '../../dom/Visual'
+import { preserveProxyVisualContext } from '../../dom/ProxyVisualContext'
 import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
 import { shapeReleaseVelocity } from '../../motion/ReleaseMotion'
@@ -97,11 +98,21 @@ export function createDetachMoveFromAdapter(config: {
     if (!dropState || !sessionId) return { accepted: false as const }
     pendingDrop = dropState.release()
     if (!pendingDrop) {
+      const sourceVisibility = element.style.visibility
       const returnProxy = createDragProxy(element, element.getBoundingClientRect())
       const cancelToken = ++cancelProxySequence
       returnProxy.dataset.runtimeCancelProxy = 'true'
+      preserveProxyVisualContext(element, returnProxy)
+      // getBoundingClientRect 包含 grabbing 的 scale；createDragProxy 再把该
+      // 尺寸与 scale 叠加会放大一遍。回飞代理使用未变换的 border-box 尺寸，
+      // 与本体及普通 landing 的尺寸基准保持一致。
+      const sourceStyle = getComputedStyle(element)
+      returnProxy.style.width = sourceStyle.width
+      returnProxy.style.height = sourceStyle.height
       returnProxy.style.transition = 'none'
-      document.body.appendChild(returnProxy)
+      // createDragProxy 已经挂到 runtime overlay；不要再 reparent 到 body，
+      // 否则会绕过统一的裁剪/层级/样式上下文。
+      element.style.visibility = 'hidden'
       const destination = pickupRect
       requestAnimationFrame(() => {
         if (!destination) return
@@ -109,9 +120,14 @@ export function createDetachMoveFromAdapter(config: {
         returnProxy.style.left = `${destination.left}px`
         returnProxy.style.top = `${destination.top}px`
         returnProxy.style.transform = 'scale(1)'
+        // cancel 已经恢复了 source 的正常视觉状态；回飞同时完成抓取态
+        // 阴影到本体阴影的交接，避免一路保持 grabbing 阴影再瞬切。
+        returnProxy.style.boxShadow = getComputedStyle(element).boxShadow
       })
       window.setTimeout(() => {
-        if (cancelProxySequence === cancelToken) destroyDragProxy(returnProxy)
+        if (cancelProxySequence !== cancelToken) return
+        destroyDragProxy(returnProxy)
+        element.style.visibility = sourceVisibility
       }, 290)
       cancelDetachWithoutDrop({
         source: element,
@@ -195,6 +211,9 @@ export function createDetachMoveFromAdapter(config: {
       })
       if (ctx.session.state !== 'prepare') return
       runtime.objects.setElement(objectId, element)
+      // 取消回飞可能在下一次抓取前仍处于收尾阶段；新 session 接管时必须
+      // 先让 source 重新可见，避免新旧视觉对象同时隐藏或叠加。
+      element.style.visibility = ''
       objectLease = runtime.acquireObject(sessionId!, objectId)
       runtime.takeSurfaces(sessionId!, surfaceIds)
       const { beforePickup } = prepareDetachPickup(element)
