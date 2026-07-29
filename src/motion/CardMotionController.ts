@@ -161,8 +161,15 @@ export function createCardMotionController(options: CardMotionControllerOptions)
       const rotation = options.followRotation!
       const smoothingRate = -Math.log(1 - (rotation.smoothing ?? 0.2)) * 60
       const smoothing = 1 - Math.exp(-smoothingRate * dt)
+      const previousVX = smoothedVX
+      const previousVY = smoothedVY
       smoothedVX += (state.vx - smoothedVX) * smoothing
       smoothedVY += (state.vy - smoothedVY) * smoothing
+      // 急停产生角动量：速度突然下降时，保留原方向的旋转惯性，
+      // 让卡片先越过水平线，再由角度弹簧回正，而不是直接收回。
+      const stopImpulse = 0.025
+      state.rotateVZ += (previousVX - smoothedVX) * stopImpulse
+      state.rotateVX += (previousVY - smoothedVY) * stopImpulse * 0.7
       const desiredZ = Math.max(-(rotation.maxSway ?? 5), Math.min(rotation.maxSway ?? 5, (smoothedVX / 60) * rotation.sway))
       const delta = Math.max(-(rotation.maxTiltDelta ?? 4), Math.min(rotation.maxTiltDelta ?? 4, (smoothedVY / 60) * (rotation.verticalTiltFactor ?? 0.16)))
       const desiredX = rotation.tilt + delta
