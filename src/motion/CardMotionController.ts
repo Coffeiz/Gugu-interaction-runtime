@@ -41,6 +41,7 @@ export interface FollowRotationConfig {
   maxSway?: number
   maxTiltDelta?: number
   verticalTiltFactor?: number
+  smoothing?: number
 }
 
 export interface CardMotionControllerOptions {
@@ -51,17 +52,25 @@ export interface CardMotionControllerOptions {
   followRotation?: FollowRotationConfig
 }
 
+export interface CoastMotionProfile {
+  duration: number
+  friction: number
+  maxDistance: number
+  minVelocity: number
+}
+
 export interface CardMotionController {
   seed(partial: Partial<MotionState>): void
   setTarget(target: MotionTarget): void
   setProfile(profile: MotionProfile): void
   getState(): Readonly<MotionState>
   start(): void
+  startCoastThenSettle(profile: CoastMotionProfile): void
   stop(): void
 }
 
 const DEFAULT_ARRIVE: ArriveThreshold = { position: 0.35, velocity: 5 }
-const FOLLOW_VELOCITY_SMOOTHING_RATE = -Math.log(1 - 0.12) * 60
+// 停止移动后更快清掉残余速度，避免卡片保持倾斜太久。
 
 /**
  * Gugu 卡片的纯运动状态机。
@@ -88,6 +97,8 @@ export function createCardMotionController(options: CardMotionControllerOptions)
   let running = false
   let smoothedVX = 0
   let smoothedVY = 0
+  let phase: 'settle' | 'coast' = 'settle'
+  let coastDistance = 0
 
   function emitFrame(): void {
     options.onFrame({
@@ -102,12 +113,40 @@ export function createCardMotionController(options: CardMotionControllerOptions)
     const dt = Math.min(0.032, lastTime == null ? 1 / 60 : Math.max(0, (time - lastTime) / 1000))
     lastTime = time
 
-    const position = { position: { x: state.x, y: state.y }, velocity: { x: state.vx, y: state.vy } }
-    integrateSpring(position, { x: target.x, y: target.y }, profile.position.stiffness, profile.position.damping, dt)
-    state.x = position.position.x
-    state.y = position.position.y
-    state.vx = position.velocity.x
-    state.vy = position.velocity.y
+    if (phase === 'coast') {
+      const decay = Math.exp(-coastProfile!.friction * dt)
+      state.vx *= decay
+      state.vy *= decay
+      const dx = state.vx * dt
+      const dy = state.vy * dt
+      const nextDistance = coastDistance + Math.hypot(dx, dy)
+      if (nextDistance >= coastProfile!.maxDistance) {
+        const remaining = Math.max(0, coastProfile!.maxDistance - coastDistance)
+        const length = Math.hypot(dx, dy)
+        const factor = length > 0 ? remaining / length : 0
+        state.x += dx * factor
+        state.y += dy * factor
+        state.vx = 0
+        state.vy = 0
+        phase = 'settle'
+      } else {
+        state.x += dx
+        state.y += dy
+        coastDistance = nextDistance
+        const elapsed = (time - (coastStartTime ?? time)) / 1000
+        if (elapsed >= coastProfile!.duration || Math.hypot(state.vx, state.vy) <= coastProfile!.minVelocity) {
+          phase = 'settle'
+        }
+      }
+    }
+    if (phase === 'settle') {
+      const position = { position: { x: state.x, y: state.y }, velocity: { x: state.vx, y: state.vy } }
+      integrateSpring(position, { x: target.x, y: target.y }, profile.position.stiffness, profile.position.damping, dt)
+      state.x = position.position.x
+      state.y = position.position.y
+      state.vx = position.velocity.x
+      state.vy = position.velocity.y
+    }
 
     const scale = { position: { x: state.scaleX, y: state.scaleY }, velocity: { x: state.scaleVX, y: state.scaleVY } }
     integrateSpring(scale, { x: target.scaleX ?? state.scaleX, y: target.scaleY ?? state.scaleY }, profile.scale.stiffness, profile.scale.damping, dt)
@@ -118,7 +157,8 @@ export function createCardMotionController(options: CardMotionControllerOptions)
 
     if (mode === 'follow') {
       const rotation = options.followRotation!
-      const smoothing = 1 - Math.exp(-FOLLOW_VELOCITY_SMOOTHING_RATE * dt)
+      const smoothingRate = -Math.log(1 - (rotation.smoothing ?? 0.2)) * 60
+      const smoothing = 1 - Math.exp(-smoothingRate * dt)
       smoothedVX += (state.vx - smoothedVX) * smoothing
       smoothedVY += (state.vy - smoothedVY) * smoothing
       state.rotateZ = Math.max(-(rotation.maxSway ?? 5), Math.min(rotation.maxSway ?? 5, (smoothedVX / 60) * rotation.sway))
@@ -135,7 +175,7 @@ export function createCardMotionController(options: CardMotionControllerOptions)
       raf = requestAnimationFrame(tick)
       return
     }
-    const arrived = Math.abs(target.x - state.x) < arrive.position
+    const arrived = phase === 'settle' && Math.abs(target.x - state.x) < arrive.position
       && Math.abs(target.y - state.y) < arrive.position
       && Math.abs(state.vx) < arrive.velocity
       && Math.abs(state.vy) < arrive.velocity
@@ -148,6 +188,9 @@ export function createCardMotionController(options: CardMotionControllerOptions)
     raf = requestAnimationFrame(tick)
   }
 
+  let coastProfile: CoastMotionProfile | null = null
+  let coastStartTime: number | null = null
+
   return {
     seed(partial) { Object.assign(state, partial) },
     setTarget(next) { target = { ...next } },
@@ -156,9 +199,35 @@ export function createCardMotionController(options: CardMotionControllerOptions)
     start() {
       if (running) return
       running = true
+      phase = 'settle'
+      coastProfile = null
+      coastStartTime = null
       lastTime = null
       emitFrame()
       raf = requestAnimationFrame(tick)
+    },
+    startCoastThenSettle(nextCoast) {
+      if (running) return
+      running = true
+      phase = 'coast'
+      coastProfile = nextCoast
+      coastDistance = 0
+      coastStartTime = null
+      // 即使业务调参把 release velocity 放大，也不能让惯性在一帧内
+      // 穿过整段 coast 路径；限制为平均滑行速度，保留可见的减速过程。
+      const speed = Math.hypot(state.vx, state.vy)
+      const maxCoastSpeed = nextCoast.maxDistance / Math.max(nextCoast.duration, 1 / 60)
+      if (speed > maxCoastSpeed && speed > 0) {
+        const factor = maxCoastSpeed / speed
+        state.vx *= factor
+        state.vy *= factor
+      }
+      lastTime = null
+      emitFrame()
+      raf = requestAnimationFrame((time) => {
+        coastStartTime = time
+        tick(time)
+      })
     },
     stop() {
       running = false

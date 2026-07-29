@@ -200,6 +200,9 @@ export interface LandingVisualOptions {
   /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
   readTarget?: () => LandingRect
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY'>
+  coast?: { duration: number; friction: number; maxDistance: number; minVelocity: number }
+  /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
+  releaseDamping?: number
 }
 
 /** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
@@ -517,6 +520,13 @@ export function landDragProxyWithMotion(
     for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
   }
 
+  // proxy 创建时仍使用 source snapshot；landing 必须在启动控制器前切到
+  // grabbing 的最后一帧，否则第一帧会从鼠标/旧 source 位置直接跳入。
+  if (options.motionState) {
+    proxy.style.left = `${options.motionState.x}px`
+    proxy.style.top = `${options.motionState.y}px`
+    proxy.style.transform = 'none'
+  }
   const layoutLeft = parseFloat(proxy.style.left) || proxy.getBoundingClientRect().left
   const layoutTop = parseFloat(proxy.style.top) || proxy.getBoundingClientRect().top
   const startRect = proxy.getBoundingClientRect()
@@ -547,7 +557,17 @@ export function landDragProxyWithMotion(
     },
     onArrived: settle,
   })
-  motion.setProfile(LANDING_PROFILE)
+  const releaseSpeed = Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0)
+  const releaseDamping = options.releaseDamping ?? 0.78
+  motion.setProfile(releaseSpeed > 30
+    ? {
+        ...LANDING_PROFILE,
+        position: {
+          ...LANDING_PROFILE.position,
+          damping: LANDING_PROFILE.position.damping * releaseDamping,
+        },
+      }
+    : LANDING_PROFILE)
   motion.seed({
     // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
     // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
@@ -593,7 +613,12 @@ export function landDragProxyWithMotion(
     }, Math.max(2000, duration * 8, 5000) + extraMs)
   }
   scheduleMotionTimeout()
-  motion.start()
+  const coast = options.coast
+  if (coast && coast.maxDistance > 0 && Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0) > coast.minVelocity) {
+    motion.startCoastThenSettle(coast)
+  } else {
+    motion.start()
+  }
 
   return {
     finished,

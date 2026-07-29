@@ -25,4 +25,5 @@ export const FOLLOW_PROFILE: MotionProfile = {
 export const FOLLOW_ROTATION = {
   tilt: 5,
   sway: 0.25,
+  smoothing: 0.2,
 }

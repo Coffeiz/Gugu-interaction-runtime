@@ -2,6 +2,7 @@ import type { VisualState, VisualSnapshot } from './VisualAdapterTypes'
 import type { MotionProfile } from './MotionProfile'
 import type { MotionState } from '../motion/CardMotionController'
 import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
+import { DEFAULT_COAST_FRICTION, DEFAULT_RELEASE_PROFILE } from '../motion/ReleaseMotion'
 import {
   concealElement,
   createDragProxy,
@@ -141,6 +142,13 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetContent: target,
       readTarget: () => target.getBoundingClientRect(),
       motionState: context.motionState,
+      coast: {
+        duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
+        friction: DEFAULT_COAST_FRICTION,
+        maxDistance: DEFAULT_RELEASE_PROFILE.maxCoast,
+        minVelocity: DEFAULT_RELEASE_PROFILE.minVelocity,
+      },
+      releaseDamping: DEFAULT_RELEASE_PROFILE.dampingRatio,
     })
     if (this.runtime) {
       this.runtime.trackLandingTarget(context.sessionId, target, () => {

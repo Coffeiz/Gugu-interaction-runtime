@@ -54,6 +54,13 @@
         <input v-model.number="draft.sway" type="range" min="0" max="1" step="0.01" @input="applyPreview" />
       </label>
       <label>
+        <span>回正速度
+          <output v-if="editing !== 'smoothing'" class="editable-value" @click="editing = 'smoothing'">{{ draft.smoothing.toFixed(2) }}</output>
+          <input v-else v-model.number="draft.smoothing" class="inline-number" type="number" min="0.02" max="0.8" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
+        </span>
+        <input v-model.number="draft.smoothing" type="range" min="0.02" max="0.8" step="0.01" @input="applyPreview" />
+      </label>
+      <label>
         <span>抛出速度倍率
           <output v-if="editing !== 'velocityScale'" class="editable-value" @click="editing = 'velocityScale'">{{ draft.velocityScale.toFixed(2) }}</output>
           <input v-else v-model.number="draft.velocityScale" class="inline-number" type="number" min="0" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
@@ -66,6 +73,20 @@
           <input v-else v-model.number="draft.minVelocity" class="inline-number" type="number" min="0" step="1" autofocus @blur="editing = null" @input="applyPreview" />
         </span>
         <input v-model.number="draft.minVelocity" type="range" min="0" max="300" step="1" @input="applyPreview" />
+      </label>
+      <label>
+        <span>抛出最高速度
+          <output v-if="editing !== 'maxVelocity'" class="editable-value" @click="editing = 'maxVelocity'">{{ draft.maxVelocity }}</output>
+          <input v-else v-model.number="draft.maxVelocity" class="inline-number" type="number" min="0" step="50" autofocus @blur="editing = null" @input="applyPreview" />
+        </span>
+        <input v-model.number="draft.maxVelocity" type="range" min="0" max="5000" step="50" @input="applyPreview" />
+      </label>
+      <label>
+        <span>抛出阻尼比例
+          <output v-if="editing !== 'dampingRatio'" class="editable-value" @click="editing = 'dampingRatio'">{{ draft.dampingRatio.toFixed(2) }}</output>
+          <input v-else v-model.number="draft.dampingRatio" class="inline-number" type="number" min="0.4" max="1" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
+        </span>
+        <input v-model.number="draft.dampingRatio" type="range" min="0.4" max="1" step="0.01" @input="applyPreview" />
       </label>
       <div class="motion-debug-actions">
         <button @click="resetToSaved">重置</button>
@@ -90,8 +111,11 @@ interface SavedMotionConfig {
   followDamping: number
   tilt: number
   sway: number
+  smoothing: number
   velocityScale: number
   minVelocity: number
+  maxVelocity: number
+  dampingRatio: number
 }
 
 const STORAGE_KEY = 'gugu-runtime-motion-profile'
@@ -105,8 +129,11 @@ const saved = reactive<SavedMotionConfig>({
   followDamping: FOLLOW_PROFILE.position.damping,
   tilt: FOLLOW_ROTATION.tilt,
   sway: FOLLOW_ROTATION.sway,
+  smoothing: FOLLOW_ROTATION.smoothing,
   velocityScale: DEFAULT_RELEASE_PROFILE.velocityScale,
   minVelocity: DEFAULT_RELEASE_PROFILE.minVelocity,
+  maxVelocity: DEFAULT_RELEASE_PROFILE.maxVelocity,
+  dampingRatio: DEFAULT_RELEASE_PROFILE.dampingRatio,
 })
 const draft = reactive<SavedMotionConfig>({ ...saved })
 
@@ -119,8 +146,11 @@ function applyPreview(): void {
   FOLLOW_PROFILE.position.damping = draft.followDamping
   FOLLOW_ROTATION.tilt = draft.tilt
   FOLLOW_ROTATION.sway = draft.sway
+  FOLLOW_ROTATION.smoothing = draft.smoothing
   DEFAULT_RELEASE_PROFILE.velocityScale = draft.velocityScale
   DEFAULT_RELEASE_PROFILE.minVelocity = draft.minVelocity
+  DEFAULT_RELEASE_PROFILE.maxVelocity = draft.maxVelocity
+  DEFAULT_RELEASE_PROFILE.dampingRatio = draft.dampingRatio
   runtime.registerMotionProfile({
     ...(runtime.getMotionProfile() ?? {}),
     landing: { duration: draft.duration, easing: 'cubic-bezier(.22,1,.36,1)' },
@@ -164,8 +194,11 @@ onMounted(() => {
     if (typeof value.followDamping === 'number') saved.followDamping = value.followDamping
     if (typeof value.tilt === 'number') saved.tilt = value.tilt
     if (typeof value.sway === 'number') saved.sway = value.sway
+    if (typeof value.smoothing === 'number') saved.smoothing = value.smoothing
     if (typeof value.velocityScale === 'number') saved.velocityScale = value.velocityScale
     if (typeof value.minVelocity === 'number') saved.minVelocity = value.minVelocity
+    if (typeof value.maxVelocity === 'number') saved.maxVelocity = value.maxVelocity
+    if (typeof value.dampingRatio === 'number') saved.dampingRatio = value.dampingRatio
     Object.assign(draft, saved)
     applyPreview()
   } catch {
