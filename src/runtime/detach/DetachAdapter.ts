@@ -1,7 +1,7 @@
 import { createDomHitResolver, hitWithResolver } from '../../dom/Hit'
 import { createAutoScroller, type AutoScrollController } from '../../dom/AutoScroll'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../../dom/GroupLayout'
-import { clearFloatingStyle, settleFloatingLayout, setProxyInteractive } from '../../dom/Visual'
+import { clearFloatingStyle, createDragProxy, destroyDragProxy, settleFloatingLayout, setProxyInteractive } from '../../dom/Visual'
 import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
 import { shapeReleaseVelocity } from '../../motion/ReleaseMotion'
@@ -51,6 +51,8 @@ export function createDetachMoveFromAdapter(config: {
   let dragMotion: CardMotionController | null = null
   let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number } | undefined
   let dragOffset = { x: 0, y: 0 }
+  let pickupRect: DOMRect | null = null
+  let cancelProxySequence = 0
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
 
@@ -95,6 +97,22 @@ export function createDetachMoveFromAdapter(config: {
     if (!dropState || !sessionId) return { accepted: false as const }
     pendingDrop = dropState.release()
     if (!pendingDrop) {
+      const returnProxy = createDragProxy(element, element.getBoundingClientRect())
+      const cancelToken = ++cancelProxySequence
+      returnProxy.dataset.runtimeCancelProxy = 'true'
+      returnProxy.style.transition = 'none'
+      document.body.appendChild(returnProxy)
+      const destination = pickupRect
+      requestAnimationFrame(() => {
+        if (!destination) return
+        returnProxy.style.transition = 'left 250ms cubic-bezier(.22,1,.36,1), top 250ms cubic-bezier(.22,1,.36,1), transform 250ms cubic-bezier(.22,1,.36,1), box-shadow 250ms cubic-bezier(.22,1,.36,1)'
+        returnProxy.style.left = `${destination.left}px`
+        returnProxy.style.top = `${destination.top}px`
+        returnProxy.style.transform = 'scale(1)'
+      })
+      window.setTimeout(() => {
+        if (cancelProxySequence === cancelToken) destroyDragProxy(returnProxy)
+      }, 290)
       cancelDetachWithoutDrop({
         source: element,
         cancel: () => runtime.cancel(sessionId!, 'no-valid-drop'),
@@ -170,6 +188,8 @@ export function createDetachMoveFromAdapter(config: {
   const driver: MoveBehaviorDriver = {
     prepare(ctx) {
       sessionId = ctx.session.id
+      document.querySelectorAll<HTMLElement>('[data-runtime-cancel-proxy="true"]').forEach(destroyDragProxy)
+      cancelProxySequence += 1
       autoScroller = createAutoScroller(ctx.session.cleanup, {
         onScroll: point => updateDropFromPoint(point.x, point.y),
       })
@@ -200,6 +220,7 @@ export function createDetachMoveFromAdapter(config: {
         },
       })
       dragMotion.setProfile(FOLLOW_PROFILE)
+      pickupRect = rect
       dragMotion.seed({ x: rect.left, y: rect.top, scaleX: 1.03, scaleY: 1.03, rotateX: 5, rotateZ: 0 })
       dragMotion.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
       dragMotion.start()

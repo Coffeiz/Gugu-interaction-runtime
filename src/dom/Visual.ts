@@ -588,8 +588,11 @@ export function landDragProxyWithMotion(
     y: options.motionState?.y ?? startRect.top,
     vx: options.motionState?.vx ?? 0,
     vy: options.motionState?.vy ?? 0,
-    scaleX: 1,
-    scaleY: 1,
+    // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)。
+    // 不能在 landing 起点把它重置为 1，否则目标位置相同的回放会被
+    // MotionController 判定为已到达，代理瞬间消失。
+    scaleX: options.motionState?.scaleX ?? 1,
+    scaleY: options.motionState?.scaleY ?? 1,
   })
   motion.setTarget({
     x: target.left,
