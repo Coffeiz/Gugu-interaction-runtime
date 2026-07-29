@@ -208,6 +208,9 @@ export function createDetachMoveFromAdapter(config: {
         (ev: PointerEvent) => hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, ev.clientX, ev.clientY, objectId),
         (drop: { columnId: string; index: number }, previous: { columnId: string; index: number } | null) => drop.columnId === previous?.columnId && drop.index === previous?.index,
       )
+      // regrab 后可能没有新的 pointermove 就立即松手；先用 pointerdown 坐标
+      // 初始化当前落点，避免 pendingDrop 为空而被误判为无效取消。
+      updateDropFromPoint(event.clientX, event.clientY)
     },
     update(_ctx: any, input: any) { if (input.event instanceof PointerEvent) onMove(input.event) },
     resolveDestination() { return onUp() },

@@ -64,10 +64,13 @@ export interface CoastMotionProfile {
 export interface CardMotionController {
   seed(partial: Partial<MotionState>): void
   setTarget(target: MotionTarget): void
+  retarget(target: MotionTarget): void
   setProfile(profile: MotionProfile): void
   getState(): Readonly<MotionState>
   start(): void
   startCoastThenSettle(profile: CoastMotionProfile): void
+  interrupt(): MotionState
+  cancel(): MotionState
   stop(): void
 }
 
@@ -218,6 +221,7 @@ export function createCardMotionController(options: CardMotionControllerOptions)
   return {
     seed(partial) { Object.assign(state, partial) },
     setTarget(next) { target = { ...next } },
+    retarget(next) { target = { ...next } },
     setProfile(next) { profile = next },
     getState() { return state },
     start() {
@@ -252,6 +256,18 @@ export function createCardMotionController(options: CardMotionControllerOptions)
         coastStartTime = time
         tick(time)
       })
+    },
+    interrupt() {
+      running = false
+      if (raf !== null) cancelAnimationFrame(raf)
+      raf = null
+      return { ...state }
+    },
+    cancel() {
+      running = false
+      if (raf !== null) cancelAnimationFrame(raf)
+      raf = null
+      return { ...state }
     },
     stop() {
       running = false
