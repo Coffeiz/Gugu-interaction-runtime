@@ -455,6 +455,48 @@ Runtime 内部只有一套生命周期编排”为准。
 - [x] 删除迁移期 clone 编排和重复 detach 编排
 - [x] 进入阶段 1：接 Gugu-web 看板项目卡
 
+### 阶段 0.9.5：接入 MotionController，统一 grabbing → landing 的 JS 运动链路
+
+本阶段在接入 Gugu-web 之前完成。目标不是重写业务拖拽，而是把当前由 CSS
+transition/`landDragProxy` 分散驱动的代理运动，收口为 Runtime 可控制的 JS
+MotionController。Runtime 继续负责事务状态和清理，MotionController 负责每一帧的
+位置、速度、缩放和落点目标；业务端不再直接启动 landing transition。
+
+范围固定为单代理 detach 流程：
+
+```text
+grabbing
+  → pointer follow (position + velocity)
+  → release (冻结当前 MotionState)
+  → landing (JS spring/tween，支持 retarget)
+  → settled
+  → reveal/dispose
+```
+
+执行项：
+
+- [ ] 新增 `MotionController`，使用 `requestAnimationFrame` 驱动，不依赖 CSS transition 完成通知；
+- [ ] 定义不可变 `MotionState`：`position`、`velocity`、`scale`、`rotation`、`timestamp`；
+- [ ] grabbing 阶段由 controller 接管 pointer follow，保留释放瞬间速度；
+- [ ] landing 阶段支持目标更新、速度连续、取消和 interrupt，取消返回当前帧状态；
+- [ ] 将 `VisualAdapter.createProxy/updateProxy/land/dispose` 接到 MotionController；
+- [ ] `landDragProxy` 降级为 DOM 写入适配，不再拥有动画时序和 Promise；
+- [ ] 统一 landing/reveal 的完成门，MotionController 完成后 Runtime 才允许 reveal；
+- [ ] 补充纯逻辑测试：速度连续、retarget、cancel、interrupt、重复 dispose、RAF 清理；
+- [ ] 保持现有 detach 视觉样式、FLIP、Surface 和 Action 行为不变；
+- [ ] 浏览器回归同列、跨列、无效落点、landing regrab、连续拖拽和自动滚屏。
+
+不在 0.9.5 处理：多代理、多选拖拽、CardVisualHost、文件/画布接入和业务 DOM
+重构。MotionController 只接管代理运动，不接管 Store、Hit、Surface 或业务样式。
+
+验收标准：
+
+- grabbing 到 landing 只有一个 JS motion loop；
+- 不再依赖 `transitionend` 或 CSS transition duration 判断落地完成；
+- regrab 保留当前视觉位置和速度，不回到旧 target；
+- 任意 cancel/interrupt 后 RAF、监听器和 proxy 都能清理；
+- 现有 Runtime 测试和 detach 浏览器回归不改变行为。
+
 ### 阶段 1：迁移 Gugu-web 看板项目卡
 
 首个真实接入目标改为看板项目卡。看板已有 clone/detach 两种视觉策略和
