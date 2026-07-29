@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { buildDoneGroups } from './doneGrouping'
 
 export interface Card {
   id: string
@@ -101,6 +102,11 @@ export function findColumn(cardId: string): ColumnDef | undefined {
   return columns.find(col => col.cardIds.includes(cardId))
 }
 
+function visualCardIds(column: ColumnDef): string[] {
+  if (column.id !== 'done') return [...column.cardIds]
+  return buildDoneGroups(column.cardIds, cards).flatMap(year => year.cardIds)
+}
+
 export function moveCard(cardId: string, toColumnId: string, toIndex: number) {
   const from = findColumn(cardId)
   if (!from) return
@@ -110,7 +116,14 @@ export function moveCard(cardId: string, toColumnId: string, toIndex: number) {
   if (from === to && fromIndex === toIndex) return
   from.cardIds.splice(fromIndex, 1)
   const insertAt = from === to && fromIndex < toIndex ? toIndex - 1 : toIndex
-  to.cardIds.splice(insertAt, 0, cardId)
   if (toColumnId === 'done' && !cards[cardId].doneAt) cards[cardId].doneAt = DEMO_TODAY
   if (toColumnId !== 'done') delete cards[cardId].doneAt
+
+  if (to.id === 'done') {
+    const ordered = visualCardIds(to)
+    ordered.splice(Math.max(0, Math.min(toIndex, ordered.length)), 0, cardId)
+    to.cardIds.splice(0, to.cardIds.length, ...ordered)
+  } else {
+    to.cardIds.splice(insertAt, 0, cardId)
+  }
 }
