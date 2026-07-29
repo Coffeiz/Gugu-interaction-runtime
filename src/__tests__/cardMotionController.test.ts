@@ -57,4 +57,21 @@ describe('CardMotionController', () => {
     expect(onFrame.mock.calls.length).toBe(calls)
     vi.useRealTimers()
   })
+
+  it('interrupt 返回当前帧状态并停止后续 RAF', () => {
+    vi.useFakeTimers()
+    const onFrame = vi.fn()
+    const controller = createCardMotionController({ onFrame })
+    controller.seed({ x: 12, y: 24, vx: 300, vy: -40 })
+    controller.setTarget({ x: 500, y: 200 })
+    controller.start()
+    vi.advanceTimersByTime(32)
+    const interrupted = controller.interrupt()
+    const calls = onFrame.mock.calls.length
+    expect(interrupted.x).not.toBe(0)
+    expect(interrupted.vx).not.toBe(0)
+    vi.advanceTimersByTime(100)
+    expect(onFrame.mock.calls.length).toBe(calls)
+    vi.useRealTimers()
+  })
 })
