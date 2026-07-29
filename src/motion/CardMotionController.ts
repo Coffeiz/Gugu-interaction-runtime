@@ -12,6 +12,8 @@ export interface MotionState {
   scaleVY: number
   rotateX: number
   rotateZ: number
+  rotateVX: number
+  rotateVZ: number
 }
 
 export interface MotionTarget {
@@ -88,7 +90,7 @@ export function createCardMotionController(options: CardMotionControllerOptions)
   const state: MotionState = {
     x: 0, y: 0, vx: 0, vy: 0,
     scaleX: 1, scaleY: 1, scaleVX: 0, scaleVY: 0,
-    rotateX: 0, rotateZ: 0,
+    rotateX: 0, rotateZ: 0, rotateVX: 0, rotateVZ: 0,
   }
   let target: MotionTarget = { x: 0, y: 0 }
   let profile: MotionProfile = LANDING_PROFILE
@@ -161,13 +163,28 @@ export function createCardMotionController(options: CardMotionControllerOptions)
       const smoothing = 1 - Math.exp(-smoothingRate * dt)
       smoothedVX += (state.vx - smoothedVX) * smoothing
       smoothedVY += (state.vy - smoothedVY) * smoothing
-      state.rotateZ = Math.max(-(rotation.maxSway ?? 5), Math.min(rotation.maxSway ?? 5, (smoothedVX / 60) * rotation.sway))
+      const desiredZ = Math.max(-(rotation.maxSway ?? 5), Math.min(rotation.maxSway ?? 5, (smoothedVX / 60) * rotation.sway))
       const delta = Math.max(-(rotation.maxTiltDelta ?? 4), Math.min(rotation.maxTiltDelta ?? 4, (smoothedVY / 60) * (rotation.verticalTiltFactor ?? 0.16)))
-      state.rotateX = rotation.tilt + delta
+      const desiredX = rotation.tilt + delta
+      const angular = {
+        position: { x: state.rotateX, y: state.rotateZ },
+        velocity: { x: state.rotateVX, y: state.rotateVZ },
+      }
+      integrateSpring(angular, { x: desiredX, y: desiredZ }, 150, 2 * 0.72 * Math.sqrt(150), dt)
+      state.rotateX = angular.position.x
+      state.rotateZ = angular.position.y
+      state.rotateVX = angular.velocity.x
+      state.rotateVZ = angular.velocity.y
     } else {
-      const decay = Math.exp(-10 * dt)
-      state.rotateX *= decay
-      state.rotateZ *= decay
+      const angular = {
+        position: { x: state.rotateX, y: state.rotateZ },
+        velocity: { x: state.rotateVX, y: state.rotateVZ },
+      }
+      integrateSpring(angular, { x: 0, y: 0 }, 150, 2 * 0.82 * Math.sqrt(150), dt)
+      state.rotateX = angular.position.x
+      state.rotateZ = angular.position.y
+      state.rotateVX = angular.velocity.x
+      state.rotateVZ = angular.velocity.y
     }
 
     emitFrame()

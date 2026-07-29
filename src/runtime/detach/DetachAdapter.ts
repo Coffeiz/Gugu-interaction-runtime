@@ -185,6 +185,9 @@ export function createDetachMoveFromAdapter(config: {
       const rect = motion.rect
       dragOffset = { x: motion.offsetX, y: motion.offsetY }
       applyDetachPickupVisual((_id: string, el: HTMLElement, state: any) => runtime.applyVisualState(objectId, el, state), objectId, element, rect, fromRect)
+      // grabbing 期间 transform 由 MotionController 每帧写入，不能再让 CSS transition
+      // 对每次物理更新做线性插值，否则角度回正会覆盖弹簧的非线性轨迹。
+      element.style.transition = 'none'
       draggingSnapshot = captureDetachDraggingSnapshot((_id: string, el: HTMLElement) => runtime.captureVisualState(objectId, el), objectId, element)
       element.dataset.runtimeActive = 'true'
       dragMotion = createCardMotionController({
