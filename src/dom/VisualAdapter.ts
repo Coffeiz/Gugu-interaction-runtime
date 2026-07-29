@@ -136,6 +136,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetBackground: context.targetSnapshot?.background,
       targetOpacity: context.targetSnapshot?.opacity,
       targetContent: target,
+      readTarget: () => target.getBoundingClientRect(),
     })
     if (this.runtime) {
       this.runtime.trackLandingTarget(context.sessionId, target, () => {

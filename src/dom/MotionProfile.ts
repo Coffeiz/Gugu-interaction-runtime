@@ -29,8 +29,8 @@ export interface MotionProfile {
 
 /** 默认运动参数，用作 fallback。 */
 export const DEFAULT_MOTION_PROFILE: Required<MotionProfile> = {
-  flip: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
-  resize: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
-  landing: { duration: 280, easing: 'cubic-bezier(.22,1,.36,1)' },
-  group: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+  flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  resize: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  group: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
 }

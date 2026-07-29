@@ -1,4 +1,5 @@
 import type { VisualContext } from './VisualAdapterTypes'
+import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
 
 let visualOverlay: HTMLElement | null = null
 
@@ -193,6 +194,8 @@ export interface LandingVisualOptions {
    * 内容不变的场景维持原来更轻量的路径。
    */
   targetContent?: HTMLElement
+  /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
+  readTarget?: () => LandingRect
 }
 
 /** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
@@ -322,7 +325,7 @@ export function landDragProxy(
   target: LandingRect,
   options: LandingVisualOptions = {},
 ): { finished: Promise<void>; retarget: (nextTarget: LandingRect) => void } {
-  const duration = options.duration ?? 280
+  const duration = options.duration ?? DEFAULT_MOTION_PROFILE.landing.duration
   const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
   const targetShadow = options.targetShadow
   const targetRadius = options.targetRadius
@@ -457,7 +460,7 @@ export function landDragProxy(
     lastFlyToAt = performance.now()
     // 用剩余时间而非完整 duration：retarget 只是修正航向，不应重置动画时钟。
     const remaining = Math.max(80, duration - (lastFlyToAt - startedAt))
-    flyTo(nextTarget, remaining)
+    flyTo(options.readTarget?.() ?? nextTarget, remaining)
   }
 
   const retarget = (nextTarget: LandingRect) => {

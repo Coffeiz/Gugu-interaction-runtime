@@ -11,9 +11,11 @@ function keepElementWithinColumn(column: HTMLElement, target: HTMLElement): void
   const columnRect = column.getBoundingClientRect()
   const elRect = target.getBoundingClientRect()
   if (elRect.top < columnRect.top) {
-    column.scrollTop -= columnRect.top - elRect.top
+    const correction = -(columnRect.top - elRect.top)
+    column.scrollTo({ top: column.scrollTop + correction, behavior: 'smooth' })
   } else if (elRect.bottom > columnRect.bottom) {
-    column.scrollTop += elRect.bottom - columnRect.bottom
+    const correction = elRect.bottom - columnRect.bottom
+    column.scrollTo({ top: column.scrollTop + correction, behavior: 'smooth' })
   }
 }
 
@@ -105,17 +107,6 @@ export function createDetachMoveFromAdapter(config: {
       const scrollColumn = landedEl.closest<HTMLElement>('[data-column]')
       if (scrollColumn) {
         keepElementWithinColumn(scrollColumn, landedEl)
-        // 分组高度/Vue DOM 提交可能跨多个 frame（年/月分组增删、FLIP 收尾），
-        // 单次校正可能被后续布局覆盖，参考 DrawerViewport 的做法，在接下来
-        // 几帧重新校正一次，而不是只做一次性快照。
-        let recheckFrames = 3
-        const recheck = () => {
-          if (!landedEl.isConnected || recheckFrames <= 0) return
-          recheckFrames -= 1
-          keepElementWithinColumn(scrollColumn, landedEl)
-          requestAnimationFrame(recheck)
-        }
-        requestAnimationFrame(recheck)
       }
       const targetSnapshot = captureDetachTargetSnapshot((el: HTMLElement) => runtime.captureVisualState(objectId, el), landedEl)
       const visualContext = createDetachVisualContext({
