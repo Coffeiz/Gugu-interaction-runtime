@@ -217,7 +217,7 @@ export function createDetachVisualContext<TContext extends object>(args: {
   sourceRect: DOMRect
   visualSnapshot: VisualSnapshot
   targetSnapshot: VisualSnapshot
-  motionState?: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number }
+  motionState?: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number; rotateVX: number; rotateVZ: number }
 }): TContext & {
   sourceElement: HTMLElement
   sourceRect: DOMRect
@@ -308,16 +308,22 @@ export function createDetachLandingLifecycle<TGate extends { promise: Promise<La
 
 
 export function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
+  let layoutToken = 0
   return {
-    capture: () => captureLayoutFlip(
-      Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
-        .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
-    ),
+    capture: () => {
+      layoutToken += 1
+      return captureLayoutFlip(
+        Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+          .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
+      )
+    },
     play: (_context: unknown, snapshot: unknown) => {
       // landing 生命周期也在当前提交后的下一帧创建代理并隐藏目标本体。
       // 再多延后一帧启动布局 FLIP，确保目标先完成视觉接管，避免 Surface
       // resize 先看到真实卡片、随后又被 landing proxy 替换。
+      const token = ++layoutToken
       requestAnimationFrame(() => {
+        if (token !== layoutToken) return
         scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
       })
     },

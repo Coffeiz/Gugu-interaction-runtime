@@ -29,7 +29,7 @@ export interface VisualLifecycleContext {
   /** 对象类型注册的 MotionProfile；adapter 可用此覆盖 landing 速度。 */
   readonly motion?: MotionProfile
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
-  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY'>
+  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ' | 'rotateVX' | 'rotateVZ'>
 }
 
 export interface VisualProxy {

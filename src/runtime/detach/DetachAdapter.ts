@@ -51,7 +51,7 @@ export function createDetachMoveFromAdapter(config: {
   let objectLease: { release: () => void } | null = null
   let autoScroller: AutoScrollController | null = null
   let dragMotion: CardMotionController | null = null
-  let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number } | undefined
+  let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number; rotateVX: number; rotateVZ: number } | undefined
   let dragOffset = { x: 0, y: 0 }
   let pickupRect: { left: number; top: number; width: number; height: number } | null = null
   let pickupIndex: number | null = null
