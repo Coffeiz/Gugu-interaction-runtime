@@ -1,8 +1,45 @@
 # Interaction Runtime · 设计目标
 
+> 当前实现版本：0.9.6。接入步骤和公开参数请先阅读
+> [INTEGRATION.md](./INTEGRATION.md)。
+
+## 先看结论
+
+Interaction Runtime 是一层交互执行器：它接收对象和容器的注册信息，创建并管理
+一次交互的 Session，处理命中、跟手、落点、运动、落地、揭示、取消和清理，最后
+通过语义化 Action 通知业务保存结果。
+
+业务端不需要知道 proxy、placeholder、FLIP 或 regrab 的时序。通常只需要：
+
+1. 注册对象（身份、DOM、所在 Surface、能力）；
+2. 注册 Surface（边界、类型、接受的对象）；
+3. 订阅 Action 并更新自己的 Store；
+4. 按需提供样式或 `VisualAdapter`。
+
+```text
+Vue / React
+  ├─ Object 注册 ─┐
+  ├─ Surface 注册 ├─> Runtime ─> Session / Hit / Move / Motion / Layout
+  └─ Action 订阅 ┘                         │
+                                           └─> 业务 Store/API
+```
+
+### 阅读顺序
+
+- 只想接入：阅读 [INTEGRATION.md](./INTEGRATION.md)；
+- 想理解模块职责：阅读本文的“核心原则”和“分层边界”；
+- 想继续开发：再阅读 [PLAN.md](./PLAN.md)；
+- 想排查具体历史问题：阅读 `docs/devlog/`，不要把排查过程当作设计契约。
+
+### 当前实现与规划的区别
+
+本文同时保留了一些用于解释演进方向的设计约束。凡是标注“未来/规划”的内容，
+不代表当前 API 已经提供；当前可用入口以 `src/index.ts` 和
+[INTEGRATION.md](./INTEGRATION.md) 为准。
+
 ## 背景
 
-咕goo（Gugu-web）里项目卡拖拽、状态组折叠、抽屉高度联动这类交互，本质上都是
+咕咕（Gugu-web）里项目卡拖拽、状态组折叠、抽屉高度联动这类交互，本质上都是
 "一段有时序、有中间态、需要临时视觉对象"的过程。这类过程如果完全用 Vue 的
 `Transition`/`TransitionGroup`/响应式更新去表达，会出现三类反复出现的问题：
 
@@ -63,18 +100,8 @@ Surface 捕获前后边框盒高度，播放 height resize；不尝试用 transf
 Surface 的运动所有权属于 Runtime：它负责 before/after 测量、位置/尺寸补间、
 中断重定向和 transition 清理。业务只声明节点所属的 Surface 类型与策略，不能
 在同一节点上自行写竞争性的 `height`、`width`、`transform` 或 `transition`。
-建议的声明接口如下，具体 registry 在第二类 Surface（例如 Drawer）接入时实现：
-
-```ts
-runtime.registerSurfaceLayout('kanban-column', {
-  resize: {
-    enabled: true,
-    properties: ['height'],
-    duration: 220,
-    easing: 'cubic-bezier(.22,1,.36,1)',
-  },
-})
-```
+当前 Surface resize 参数统一通过 `runtime.configureMotion({ resize })` 配置，
+不再使用单独的 `registerSurfaceLayout()` 入口。
 
 业务模板只需标注：
 
@@ -360,8 +387,7 @@ Core 可以依赖 TypeScript、Map/Set 和 AbortController；DOM 层可以依赖
 - 具体的分层结构、模块职责表、目录结构、分阶段执行计划、Gugu-web 现有
   代码到新分层的映射，见 [PLAN.md](./PLAN.md)——同样是给自己看的，关注
   "现在做到哪了、下一步做什么"。
-- 两套视觉策略（clone/detach）的能力对比和取舍，见
-  [VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
+- 当前 Demo 默认使用 detach；具体视觉策略由 `VisualAdapter` 和对象注册配置决定。
 - 怎么把一个新的业务对象接进来（注册 Object/Surface、Vue 模板怎么写、
   业务层怎么收 Action），见 [INTEGRATION.md](./INTEGRATION.md)——这份是
   写给未来接入这套 Runtime 的使用者看的，不假设读者了解 Runtime 内部

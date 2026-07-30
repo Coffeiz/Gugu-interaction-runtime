@@ -29,8 +29,9 @@ export function createDetachMoveFromAdapter(config: {
   element: HTMLElement
   event: PointerEvent
   fromRect?: DOMRect
+  returnRect?: DOMRect
 }): { driver: MoveBehaviorDriver; lifecycle: MoveVisualLifecycle } {
-  const { runtime, objectId, element, event, fromRect } = config
+  const { runtime, objectId, element, event, fromRect, returnRect } = config
   // surfaceIds 和 findColumnIdOf 从 Runtime 注册表获取，不需要用户传
   const objectItem = runtime.objects.get(objectId)
   const allSurfaces = runtime.surfaces.snapshot()
@@ -50,10 +51,12 @@ export function createDetachMoveFromAdapter(config: {
   let objectLease: { release: () => void } | null = null
   let autoScroller: AutoScrollController | null = null
   let dragMotion: CardMotionController | null = null
-  let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number } | undefined
+  let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number; rotateVX: number; rotateVZ: number } | undefined
   let dragOffset = { x: 0, y: 0 }
-  let pickupRect: DOMRect | null = null
+  let pickupRect: { left: number; top: number; width: number; height: number } | null = null
+  let pickupIndex: number | null = null
   let cancelProxySequence = 0
+  let pointerMoved = false
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
 
@@ -72,6 +75,7 @@ export function createDetachMoveFromAdapter(config: {
   }
 
   function onMove(moveEvent: PointerEvent) {
+    pointerMoved = true
     dragMotion?.setTarget({
       x: moveEvent.clientX - dragOffset.x,
       y: moveEvent.clientY - dragOffset.y,
@@ -97,6 +101,21 @@ export function createDetachMoveFromAdapter(config: {
     autoScroller?.stop()
     if (!dropState || !sessionId) return { accepted: false as const }
     pendingDrop = dropState.release()
+    // 原地按下后立即松手没有 pointermove，命中器会排除 source 自身，
+    // 因而 pendingDrop 为空；这应视为回到原位置并走完整 landing 生命周期，
+    // 而不是走没有 regrab 的 invalid-return 快路径。
+    if (!pendingDrop && !pointerMoved && releaseMotionState && Math.hypot(releaseMotionState.vx, releaseMotionState.vy) < 0.5) {
+      const sourceColumn = element.closest<HTMLElement>('[data-column]')
+        ?? (initialSurfaceId
+          ? document.querySelector<HTMLElement>(`[data-column="${CSS.escape(initialSurfaceId.replace(/^column:/, ''))}"]`)
+          : null)
+      const columnId = sourceColumn?.dataset.column
+      if (sourceColumn && columnId) {
+        const cards = Array.from(sourceColumn.querySelectorAll<HTMLElement>('[data-card]'))
+          .filter(card => card !== element && card.dataset.runtimeProxy !== 'true')
+        pendingDrop = { columnId, index: pickupIndex ?? cards.length }
+      }
+    }
     if (!pendingDrop) {
       const sourceVisibility = element.style.visibility
       const returnProxy = createDragProxy(element, element.getBoundingClientRect())
@@ -120,8 +139,6 @@ export function createDetachMoveFromAdapter(config: {
         returnProxy.style.left = `${destination.left}px`
         returnProxy.style.top = `${destination.top}px`
         returnProxy.style.transform = 'scale(1)'
-        // cancel 已经恢复了 source 的正常视觉状态；回飞同时完成抓取态
-        // 阴影到本体阴影的交接，避免一路保持 grabbing 阴影再瞬切。
         returnProxy.style.boxShadow = getComputedStyle(element).boxShadow
       })
       window.setTimeout(() => {
@@ -136,6 +153,9 @@ export function createDetachMoveFromAdapter(config: {
         clearActive: () => delete element.dataset.runtimeActive,
         releaseObject: () => objectLease?.release(),
       })
+      // cancel 内部会 clearFloatingStyle 恢复 source 原始样式；回飞 proxy
+      // 尚未结束前必须再次隐藏 source，避免 invalid drop 出现双卡。
+      element.style.visibility = 'hidden'
       return { accepted: false as const }
     }
     const beforeRect = prepareDetachLanding({
@@ -198,12 +218,14 @@ export function createDetachMoveFromAdapter(config: {
       clearRegrab: () => runtime.clearRegrab(objectId),
       disposeProxy: () => runtime.disposeVisualProxy(sessionId!),
     })
-    runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.proxyRect)
+    const targetRect = liveEl.getBoundingClientRect()
+    runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.proxyRect, targetRect)
   }
 
   const driver: MoveBehaviorDriver = {
     prepare(ctx) {
       sessionId = ctx.session.id
+      pointerMoved = false
       document.querySelectorAll<HTMLElement>('[data-runtime-cancel-proxy="true"]').forEach(destroyDragProxy)
       cancelProxySequence += 1
       autoScroller = createAutoScroller(ctx.session.cleanup, {
@@ -217,6 +239,12 @@ export function createDetachMoveFromAdapter(config: {
       objectLease = runtime.acquireObject(sessionId!, objectId)
       runtime.takeSurfaces(sessionId!, surfaceIds)
       const { beforePickup } = prepareDetachPickup(element)
+      const sourceColumnForIndex = element.closest<HTMLElement>('[data-column]')
+      if (sourceColumnForIndex) {
+        const sourceCards = Array.from(sourceColumnForIndex.querySelectorAll<HTMLElement>('[data-card]'))
+          .filter(card => card.dataset.runtimeProxy !== 'true')
+        pickupIndex = sourceCards.findIndex(card => card === element)
+      }
       beforeContent = element.cloneNode(true) as HTMLElement
       scheduleLayoutFlip(beforePickup)
       const moveContext = runtime.getMoveContext(sessionId!)
@@ -239,7 +267,8 @@ export function createDetachMoveFromAdapter(config: {
         },
       })
       dragMotion.setProfile(FOLLOW_PROFILE)
-      pickupRect = rect
+      const originRect = returnRect ?? rect
+      pickupRect = { left: originRect.left, top: originRect.top, width: originRect.width, height: originRect.height }
       dragMotion.seed({ x: rect.left, y: rect.top, scaleX: 1.03, scaleY: 1.03, rotateX: 5, rotateZ: 0 })
       dragMotion.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
       dragMotion.start()

@@ -199,7 +199,7 @@ export interface LandingVisualOptions {
   targetContent?: HTMLElement
   /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
   readTarget?: () => LandingRect
-  motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY'>
+  motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ' | 'rotateVX' | 'rotateVZ'>
   coast?: { duration: number; friction: number; maxDistance: number; minVelocity: number }
   /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
   releaseDamping?: number
@@ -339,8 +339,8 @@ export function landDragProxy(
   return landDragProxyWithMotion(proxy, target, options)
 }
 
-/** @deprecated 仅供历史对照，不应由 Runtime 调用。 */
-function legacyLandDragProxy(
+/** MotionController 可选关闭时使用的 CSS 过渡落地实现。 */
+export function landDragProxyLegacy(
   proxy: HTMLElement,
   target: LandingRect,
   options: LandingVisualOptions = {},
@@ -564,7 +564,7 @@ export function landDragProxyWithMotion(
   const motion = createCardMotionController({
     mode: 'settle',
     onFrame: frame => {
-      proxy.style.transform = `translate3d(${(frame.x - layoutLeft).toFixed(2)}px, ${(frame.y - layoutTop).toFixed(2)}px, 0)`
+      proxy.style.transform = `perspective(760px) translate3d(${(frame.x - layoutLeft).toFixed(2)}px, ${(frame.y - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
       proxy.style.width = `${(startWidth * frame.scaleX).toFixed(2)}px`
       proxy.style.height = `${(startHeight * frame.scaleY).toFixed(2)}px`
     },
@@ -593,6 +593,10 @@ export function landDragProxyWithMotion(
     // MotionController 判定为已到达，代理瞬间消失。
     scaleX: options.motionState?.scaleX ?? 1,
     scaleY: options.motionState?.scaleY ?? 1,
+    rotateX: options.motionState?.rotateX ?? 0,
+    rotateZ: options.motionState?.rotateZ ?? 0,
+    rotateVX: options.motionState?.rotateVX ?? 0,
+    rotateVZ: options.motionState?.rotateVZ ?? 0,
   })
   motion.setTarget({
     x: target.left,

@@ -8,6 +8,18 @@ export interface MotionProfile {
   scale: SpringParams
 }
 
+/** MotionController 的可调参数，和调试面板字段一一对应。 */
+export interface MotionControllerConfig {
+  follow?: { stiffness?: number; damping?: number }
+  rotation?: { tilt?: number; sway?: number; smoothing?: number }
+  release?: {
+    velocityScale?: number
+    minVelocity?: number
+    maxVelocity?: number
+    dampingRatio?: number
+  }
+}
+
 /** Gugu 卡片落地使用的默认弹簧参数。
  * 阻尼取接近临界阻尼（2 * sqrt(420) ≈ 41），长距离落地缓出但不过冲回弹。
  */

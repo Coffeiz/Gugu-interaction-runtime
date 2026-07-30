@@ -151,9 +151,21 @@ function applyPreview(): void {
   DEFAULT_RELEASE_PROFILE.minVelocity = draft.minVelocity
   DEFAULT_RELEASE_PROFILE.maxVelocity = draft.maxVelocity
   DEFAULT_RELEASE_PROFILE.dampingRatio = draft.dampingRatio
-  runtime.registerMotionProfile({
-    ...(runtime.getMotionProfile() ?? {}),
-    landing: { duration: draft.duration, easing: 'cubic-bezier(.22,1,.36,1)' },
+  runtime.configureMotion({
+    profile: {
+      ...(runtime.getMotionProfile() ?? {}),
+      landing: { duration: draft.duration, easing: 'cubic-bezier(.22,1,.36,1)' },
+    },
+    controller: {
+      follow: { stiffness: draft.followStiffness, damping: draft.followDamping },
+      rotation: { tilt: draft.tilt, sway: draft.sway, smoothing: draft.smoothing },
+      release: {
+        velocityScale: draft.velocityScale,
+        minVelocity: draft.minVelocity,
+        maxVelocity: draft.maxVelocity,
+        dampingRatio: draft.dampingRatio,
+      },
+    },
   })
 }
 

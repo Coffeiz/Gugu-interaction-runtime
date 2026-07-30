@@ -1,5 +1,8 @@
 # Interaction Runtime · 分层结构与执行计划
 
+> 当前实现版本：0.9.6。0.9.5 的 MotionController、对象级运动配置和 Vue Demo
+> 接入已完成；后续新增能力应优先扩展公开 API，避免业务端重复编排生命周期。
+
 设计动机见 [DESIGN.md](./DESIGN.md)。本文件是具体的模块划分、目录结构和
 分阶段执行计划——写给自己看的架构/进度文档。如果你是要接入这套 Runtime
 的使用者，看 [INTEGRATION.md](./INTEGRATION.md) 就够了，不用读这份。

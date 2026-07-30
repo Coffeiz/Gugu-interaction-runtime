@@ -10,6 +10,10 @@ import { BehaviorStore } from './behavior/BehaviorStore'
 import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle, type MoveVisualStrategy } from './behavior/MoveBehavior'
 import { DefaultVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
 import type { VisualState } from './dom/VisualAdapterTypes'
+import type { MotionProfile } from './dom/MotionProfile'
+import type { MotionControllerConfig } from './motion/MotionProfile'
+import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
+import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
 import type { HitResolver } from './dom/Hit'
 import type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
 import type { PointerSessionInputOptions } from './input/PointerSessionInput'
@@ -66,8 +70,8 @@ export interface ObjectTypeRegistration {
   defaultVisualMode: string
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
   visual?: ObjectVisualAdapter
-  /** 可选运动参数：flip 位移和 landing 落地速度。未设置时使用 DEFAULT_MOTION_PROFILE。 */
-  motion?: { flip?: { duration: number; easing: string }; landing?: { duration: number; easing: string } }
+  /** 运动实现与参数；默认启用 Runtime MotionController。 */
+  motion?: { enabled?: boolean; profile?: MotionProfile }
   /** 兼容旧 demo 的手动启动入口。 */
   start?(context: { objectId: string; element: HTMLElement; event: PointerEvent; mode: string }): void
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
@@ -218,8 +222,19 @@ setMotionProfiles(this.registry.motionProfile)
     this.surfaces.register(surface)
   }
 
-  registerMotionProfile(profile: import('./dom/MotionProfile').MotionProfile): void {
-    this.registry.setMotionProfile(profile)
+  configureMotion(config: {
+    profile?: import('./dom/MotionProfile').MotionProfile
+    controller?: MotionControllerConfig
+  } & import('./dom/MotionProfile').MotionProfile): void {
+    const { profile, controller, ...directProfile } = config
+    const nextProfile = profile ?? (Object.keys(directProfile).length ? directProfile : undefined)
+    if (nextProfile) this.registry.setMotionProfile(nextProfile)
+    if (controller) {
+      this.registry.setMotionController(controller)
+      if (controller.follow) Object.assign(FOLLOW_PROFILE.position, controller.follow)
+      if (controller.rotation) Object.assign(FOLLOW_ROTATION, controller.rotation)
+      if (controller.release) Object.assign(DEFAULT_RELEASE_PROFILE, controller.release)
+    }
     setMotionProfiles(this.registry.motionProfile)
   }
 
@@ -227,7 +242,7 @@ setMotionProfiles(this.registry.motionProfile)
     return this.registry.motionProfile
   }
 
-  startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect): boolean {
+  startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, returnRect?: DOMRect): boolean {
     // 对象当前已经登记了 regrab handler（悬空 landing 中的代理正等着被再次抓起）时，
     // 直接转发给它，不重新走一遍完整的 move 编排——避免代理与实体元素上的
     // pointerdown 在极端时序下重复触发两条 Session。
@@ -247,6 +262,7 @@ setMotionProfiles(this.registry.motionProfile)
       event,
       mode: object.visualMode ?? registration.defaultVisualMode,
       fromRect,
+      returnRect,
     }
     // 优先用户自定义 createMove，没有则用 DefaultVisualAdapter 的内置 createMove
     const userCreateMove = registration.visual?.createMove ?? registration.createMove
@@ -313,7 +329,19 @@ setMotionProfiles(this.registry.motionProfile)
     const sourceElement = object?.element ?? undefined
     const adapter = session ? this.getObjectVisualAdapter(session.objectId) : this.defaultVisualAdapter
     const fallback = new DefaultVisualAdapter()
-    const motionProfile = this.registry.motionProfile ?? undefined
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const registeredProfile = registration?.motion?.profile
+    const globalProfile = this.registry.motionProfile
+    const motionProfile: MotionProfile | undefined = registeredProfile || globalProfile
+      ? {
+          ...globalProfile,
+          ...registeredProfile,
+          flip: { ...globalProfile?.flip, ...registeredProfile?.flip },
+          resize: { ...globalProfile?.resize, ...registeredProfile?.resize },
+          landing: { ...globalProfile?.landing, ...registeredProfile?.landing },
+          group: { ...globalProfile?.group, ...registeredProfile?.group },
+        } as MotionProfile
+      : undefined
     return {
       objectId: session?.objectId ?? '',
       sessionId,
@@ -330,6 +358,7 @@ setMotionProfiles(this.registry.motionProfile)
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
       motion: motionProfile,
+      motionEnabled: registration?.motion?.enabled,
     }
   }
 

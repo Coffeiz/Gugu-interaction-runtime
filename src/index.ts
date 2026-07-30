@@ -58,5 +58,6 @@ export {
   type ArriveThreshold,
 } from './motion/CardMotionController'
 export { LANDING_PROFILE, FOLLOW_PROFILE, FOLLOW_ROTATION, type MotionProfile as CardMotionProfile, type SpringParams } from './motion/MotionProfile'
+export type { MotionControllerConfig } from './motion/MotionProfile'
 export { integrateSpring, type PhysicsVector, type SpringState } from './motion/physics'
 export { DEFAULT_RELEASE_PROFILE, shapeReleaseVelocity, coastOffset, type ReleaseMotionProfile } from './motion/ReleaseMotion'

@@ -7,6 +7,7 @@ import {
   concealElement,
   createDragProxy,
   destroyDragProxy,
+  landDragProxyLegacy,
   landDragProxyWithMotion,
   revealElement,
 } from './Visual'
@@ -28,8 +29,10 @@ export interface VisualLifecycleContext {
   readonly targetSnapshot?: VisualSnapshot
   /** 对象类型注册的 MotionProfile；adapter 可用此覆盖 landing 速度。 */
   readonly motion?: MotionProfile
+  /** 是否由 Runtime 内置 MotionController 驱动 landing；默认开启。 */
+  readonly motionEnabled?: boolean
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
-  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY'>
+  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ' | 'rotateVX' | 'rotateVZ'>
 }
 
 export interface VisualProxy {
@@ -133,7 +136,8 @@ export class DefaultVisualAdapter implements VisualAdapter {
     el.style.transition = 'none'
     el.style.width = `${targetRect.width}px`
     el.style.height = `${targetRect.height}px`
-    const { finished, retarget } = landDragProxyWithMotion(el, targetRect, {
+    const land = context.motionEnabled === false ? landDragProxyLegacy : landDragProxyWithMotion
+    const { finished, retarget } = land(el, targetRect, {
       duration: context.motion?.landing?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
       targetShadow: context.targetSnapshot?.boxShadow,
       targetRadius: context.targetSnapshot?.borderRadius,
@@ -183,6 +187,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     element: HTMLElement
     event: PointerEvent
     fromRect?: DOMRect
+    returnRect?: DOMRect
   }): any {
     const r = this.runtime
     if (!r || !r.objects.hasAbility(context.objectId, 'move')) return {}
@@ -193,6 +198,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       element: context.element,
       event: context.event,
       fromRect: context.fromRect,
+      returnRect: context.returnRect,
     })
   }
 }
