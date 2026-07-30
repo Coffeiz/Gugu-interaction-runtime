@@ -126,8 +126,12 @@ export function interruptDetachRegrab(args: {
   args.clearRegrab()
   releaseVisibilityOwnership(args.source, args.sessionId)
   args.interrupt()
-  args.source.style.visibility = ''
+  // Runtime interrupt 的 cancel 清理会恢复 source 的原始 style；在新
+  // session 接管前重新隐藏它，避免列表本体与新 grabbing 视觉短暂重叠。
+  args.source.style.visibility = 'hidden'
   args.disposeProxy()
+  // source 的可见性由新 session 的 pickup 阶段恢复，避免旧 proxy 销毁
+  // 与新 session 接管之间露出一帧列表态本体。
 }
 
 

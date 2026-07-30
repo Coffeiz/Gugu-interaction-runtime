@@ -1,5 +1,6 @@
 import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } from './Flip'
 import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
+import { animateRafHeight, cancelRafHeight } from './RafLayoutAnimator'
 
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
@@ -279,13 +280,13 @@ export function playSurfaceResize(
   }
 
   requestAnimationFrame(() => {
-    for (const { item, toHeight, profile } of plans) {
+    for (const { item, fromHeight, toHeight, profile } of plans) {
       const style = item.element.style
       const state = surfaceResizeStates.get(item.element)
       if (!state || item.element.dataset.runtimeSurfaceResizeToken !== state.token) continue
       const token = state.token
-      style.transition = `height ${profile.duration}ms ${profile.easing}`
-      style.height = `${toHeight}px`
+      style.transition = 'none'
+      animateRafHeight(item.element, fromHeight, toHeight, profile.duration, profile.easing)
       window.setTimeout(() => {
         if (item.element.dataset.runtimeSurfaceResizeToken !== token) return
         const state = surfaceResizeStates.get(item.element)
@@ -305,6 +306,7 @@ function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): voi
     const state = surfaceResizeStates.get(element)
     if (!state) continue
     // 先恢复自然高度再测量新布局；删 token 让旧 timeout 不能覆盖新事务。
+    cancelRafHeight(element)
     restoreSurfaceInlineStyle(element, state.baseStyle)
     surfaceResizeStates.delete(element)
     delete element.dataset.runtimeSurfaceResize

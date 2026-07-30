@@ -3,6 +3,7 @@
  * 内部内容更早或更晚到位，视觉上像发生了第二次布局。
  */
 import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
+import { animateRafTransform, cancelRafTransform } from './RafLayoutAnimator'
 
 export const FLIP_DURATION = DEFAULT_MOTION_PROFILE.flip.duration
 export const FLIP_EASING = DEFAULT_MOTION_PROFILE.flip.easing
@@ -30,8 +31,8 @@ export function resetActiveFlip(elements: readonly HTMLElement[]): void {
     // 只清 transform 而不作废回调，会在快速抓放时让旧事务复活并覆盖新 FLIP。
     element.dataset.runtimeFlipToken = String(Number(element.dataset.runtimeFlipToken ?? '0') + 1)
     delete element.dataset.runtimeFlip
+    cancelRafTransform(element)
     element.style.setProperty('transition', 'none', 'important')
-    element.style.transform = ''
   }
   // 迫使浏览器以无旧 transform 的最终布局完成下一次 rect 测量。
   void active[0].offsetHeight
@@ -71,23 +72,10 @@ export function playFlip(
     el.dataset.runtimeFlip = 'true'
     el.dataset.runtimeFlipToken = token
     void el.offsetHeight
-    requestAnimationFrame(() => {
+    animateRafTransform(el, dx, dy, duration, easing, () => {
       if (el.dataset.runtimeFlipToken !== token) return
-      el.style.setProperty('transition', `transform ${duration}ms ${easing}`, 'important')
-      el.style.transform = ''
-      el.addEventListener('transitionend', function onEnd(event) {
-        if (event.target !== el || event.propertyName !== 'transform') return
-        el.removeEventListener('transitionend', onEnd)
-        if (el.dataset.runtimeFlipToken !== token) return
-        el.style.transition = ''
-        delete el.dataset.runtimeFlip
-      })
-      window.setTimeout(() => {
-        if (el.dataset.runtimeFlipToken !== token) return
-        el.style.transition = ''
-        el.style.transform = ''
-        delete el.dataset.runtimeFlip
-      }, duration + 60)
+      el.style.transition = ''
+      delete el.dataset.runtimeFlip
     })
   }
 }
