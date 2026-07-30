@@ -15,6 +15,10 @@
     ".": {
       "types": "./dist-lib/index.d.ts",
       "import": "./dist-lib/index.js"
+    },
+    "./runtime/detach/DetachAdapter": {
+      "types": "./dist-lib/runtime/detach/DetachAdapter.d.ts",
+      "import": "./dist-lib/runtime/detach/DetachAdapter.js"
     }
   },
   "files": [

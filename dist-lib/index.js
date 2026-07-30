@@ -2538,6 +2538,7 @@ export {
   ls as bindPointerSessionInput,
   hs as coastOffset,
   Ft as createCardMotionController,
+  Ye as createDetachMoveFromAdapter,
   oe as createDomHitResolver,
   ae as hitWithResolver,
   ot as integrateSpring,
