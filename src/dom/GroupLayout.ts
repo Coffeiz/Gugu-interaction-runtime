@@ -64,6 +64,7 @@ export function captureLayoutFlip(
   cards: readonly HTMLElement[],
   root: ParentNode = document,
 ): LayoutFlipSnapshot {
+  emitLayoutProbe('before-mutation', root)
   const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root)
   const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')))
   const snapshot: LayoutFlipSnapshot = {
@@ -76,10 +77,42 @@ export function captureLayoutFlip(
 }
 
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
+  emitLayoutProbe('after-mutation', snapshot.root)
   const profile = resolveProfile()
   if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing)
   if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing)
   playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing)
+}
+
+/** 临时诊断：区分真实重排、Surface resize 与 scrollTop 导致的 viewport 位移。 */
+function emitLayoutProbe(phase: string, root: ParentNode): void {
+  const surfaces = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]'))
+  const cards = Array.from(root.querySelectorAll<HTMLElement>('[data-card]'))
+    .filter(card => card.dataset.runtimeProxy !== 'true')
+    .map(card => {
+      const rect = card.getBoundingClientRect()
+      return {
+        id: card.dataset.card ?? '',
+        rect: [rect.left, rect.top, rect.width, rect.height],
+        transform: getComputedStyle(card).transform,
+        runtimeFlip: card.dataset.runtimeFlip ?? null,
+      }
+    })
+  console.info('[runtime-layout-diagnose]', JSON.stringify({
+    phase,
+    surfaces: surfaces.map(surface => {
+      const rect = surface.getBoundingClientRect()
+      return {
+        id: surface.dataset.surfaceType ?? surface.dataset.column ?? '',
+        rect: [rect.left, rect.top, rect.width, rect.height],
+        scrollTop: surface.scrollTop,
+        scrollHeight: surface.scrollHeight,
+        clientHeight: surface.clientHeight,
+      }
+    }),
+    cards,
+    time: performance.now(),
+  }))
 }
 
 /**
@@ -294,6 +327,7 @@ export function playSurfaceResize(
         restoreSurfaceInlineStyle(item.element, state.baseStyle)
         surfaceResizeStates.delete(item.element)
         delete item.element.dataset.runtimeSurfaceResize
+        emitLayoutProbe('after-resize', document)
       }, profile.duration + 40)
     }
   })

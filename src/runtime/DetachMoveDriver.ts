@@ -314,7 +314,12 @@ export function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
         .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
     ),
     play: (_context: unknown, snapshot: unknown) => {
-      scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
+      // landing 生命周期也在当前提交后的下一帧创建代理并隐藏目标本体。
+      // 再多延后一帧启动布局 FLIP，确保目标先完成视觉接管，避免 Surface
+      // resize 先看到真实卡片、随后又被 landing proxy 替换。
+      requestAnimationFrame(() => {
+        scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
+      })
     },
   }
 }
