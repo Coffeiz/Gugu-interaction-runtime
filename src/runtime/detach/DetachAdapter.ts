@@ -58,38 +58,6 @@ export function createDetachMoveFromAdapter(config: {
   let cancelProxySequence = 0
   let pointerMoved = false
 
-  function logStationaryProbe(phase: string, extra: Record<string, unknown> = {}): void {
-    const proxy = landingProxy
-    const rectOf = (node: HTMLElement | null) => {
-      if (!node) return null
-      const rect = node.getBoundingClientRect()
-      return [rect.left, rect.top, rect.width, rect.height]
-    }
-    console.log('[runtime-stationary-landing-probe]', JSON.stringify({
-      phase,
-      objectId,
-      sessionId,
-      released,
-      source: {
-        connected: element.isConnected,
-        visibility: getComputedStyle(element).visibility,
-        transform: getComputedStyle(element).transform,
-        hovered: element.matches(':hover'),
-        runtimePhase: element.dataset.runtimePhase ?? null,
-        grabbed: element.classList.contains('is-grabbed'),
-        rect: rectOf(element),
-      },
-      proxy: proxy ? {
-        connected: proxy.isConnected,
-        interactive: proxy.style.pointerEvents,
-        regrabBound: proxy.dataset.runtimeRegrab === 'true',
-        rect: rectOf(proxy),
-      } : null,
-      ...extra,
-      time: performance.now(),
-    }))
-  }
-
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
 
   function updateDropFromPoint(x: number, y: number): void {
@@ -148,7 +116,6 @@ export function createDetachMoveFromAdapter(config: {
         pendingDrop = { columnId, index: pickupIndex ?? cards.length }
       }
     }
-    logStationaryProbe('release', { pendingDrop, motionState: releaseMotionState })
     if (!pendingDrop) {
       const sourceVisibility = element.style.visibility
       const returnProxy = createDragProxy(element, element.getBoundingClientRect())
@@ -230,7 +197,6 @@ export function createDetachMoveFromAdapter(config: {
           landingGate = null
         },
       })
-      logStationaryProbe('landing-proxy-created', { pendingDrop })
     })
     return { accepted: true as const, destination: pendingDrop }
   }
@@ -244,7 +210,6 @@ export function createDetachMoveFromAdapter(config: {
       () => document.querySelector<HTMLElement>(`[data-card="${objectId}"]`),
     )
     if (!liveEl) return
-    logStationaryProbe('regrab-request', { pointer: [regrabEvent.clientX, regrabEvent.clientY] })
     const regrabContext = runtime.createRegrabContext(sessionId!, regrabEvent, proxy, liveEl)
     if (!regrabContext) return
     interruptDetachRegrab({
@@ -255,7 +220,6 @@ export function createDetachMoveFromAdapter(config: {
     })
     const targetRect = liveEl.getBoundingClientRect()
     runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.proxyRect, targetRect)
-    logStationaryProbe('regrab-forwarded', { targetRect: [targetRect.left, targetRect.top, targetRect.width, targetRect.height] })
   }
 
   const driver: MoveBehaviorDriver = {
