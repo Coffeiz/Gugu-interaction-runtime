@@ -190,6 +190,53 @@ export function createDetachMoveFromAdapter(config: {
       () => document.querySelector<HTMLElement>(`[data-card="${objectId}"]`),
     )
     if (!liveEl) return
+    const probe = (phase: string) => {
+      const surface = liveEl.closest<HTMLElement>('[data-column]')
+      const proxies = Array.from(document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]')).map(proxyEl => ({
+        cardId: proxyEl.dataset.card ?? '',
+        cancel: proxyEl.dataset.runtimeCancelProxy === 'true',
+        connected: proxyEl.isConnected,
+        visibility: getComputedStyle(proxyEl).visibility,
+        rect: (() => { const rect = proxyEl.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
+      }))
+      const objectNodes = Array.from(document.querySelectorAll<HTMLElement>(`[data-card="${CSS.escape(objectId)}"]`)).map(node => ({
+        connected: node.isConnected,
+        parent: node.parentElement?.className ?? node.parentElement?.tagName ?? '',
+        runtimeProxy: node.dataset.runtimeProxy === 'true',
+        visibility: getComputedStyle(node).visibility,
+        display: getComputedStyle(node).display,
+        position: getComputedStyle(node).position,
+        rect: (() => { const rect = node.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
+      }))
+      const cards = surface
+        ? Array.from(surface.querySelectorAll<HTMLElement>('[data-card]')).map(card => ({
+            id: card.dataset.card ?? '',
+            connected: card.isConnected,
+            visibility: getComputedStyle(card).visibility,
+            display: getComputedStyle(card).display,
+            rect: (() => { const rect = card.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
+            runtimeFlip: card.dataset.runtimeFlip ?? null,
+          }))
+        : []
+      console.log('[runtime-bottom-regrab-probe]', JSON.stringify({
+        phase,
+        objectId,
+        sessionId,
+        proxyConnected: proxy.isConnected,
+        proxyRect: (() => { const rect = proxy.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
+        target: {
+          connected: liveEl.isConnected,
+          visibility: getComputedStyle(liveEl).visibility,
+          display: getComputedStyle(liveEl).display,
+          rect: (() => { const rect = liveEl.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
+        },
+        cards,
+        proxies,
+        objectNodes,
+        time: performance.now(),
+      }))
+    }
+    probe('before-interrupt')
     const regrabContext = runtime.createRegrabContext(sessionId!, regrabEvent, proxy, liveEl)
     if (!regrabContext) return
     interruptDetachRegrab({
@@ -198,7 +245,12 @@ export function createDetachMoveFromAdapter(config: {
       clearRegrab: () => runtime.clearRegrab(objectId),
       disposeProxy: () => runtime.disposeVisualProxy(sessionId!),
     })
+    probe('after-interrupt-before-new-session')
     runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.proxyRect)
+    probe('after-new-session')
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => probe('after-new-session-raf2'))
+    })
   }
 
   const driver: MoveBehaviorDriver = {
