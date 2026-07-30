@@ -2,8 +2,10 @@
  * 一笔布局事务中的卡片、分组和 Surface 必须使用同一节奏；否则容器会比
  * 内部内容更早或更晚到位，视觉上像发生了第二次布局。
  */
-export const FLIP_DURATION = 220
-export const FLIP_EASING = 'cubic-bezier(.22,1,.36,1)'
+import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
+
+export const FLIP_DURATION = DEFAULT_MOTION_PROFILE.flip.duration
+export const FLIP_EASING = DEFAULT_MOTION_PROFILE.flip.easing
 
 /**
  * 通用 FLIP：在一次 DOM 变化前后分别调用 capture()/play()，用 transform

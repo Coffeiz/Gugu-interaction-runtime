@@ -9,9 +9,9 @@
 > Session、landing/reveal 时机和清理；业务端仍需要提供对象的命中、Action
 > 提交及 clone/detach 这类具体视觉策略。
 
-> **冻结基线**：当前 demo 基于提交 `2153600` 冻结。clone/detach 是已验证的
-> 两种视觉策略；MotionController、CardVisualHost 以及其他对象类型接入暂不在
-> 此基线内。需要扩展时请从新分支开始，避免改变现有回归行为。
+> **MotionProfile**：`runtime.registerMotionProfile()` 已可用，一次注册控制
+> flip/resize/landing/group 四种运动速度。`registerSurfaceLayout()` 不再需要，
+> Surface resize 速度由 MotionProfile.resize 统一配置。
 
 ## 现在能怎么接
 
@@ -30,6 +30,8 @@ const { elementRef } = useObject({
   type: 'project-card',
   surface: () => `column:${project.status}`,  // getter，随业务数据变化
   abilities: ['move', 'sort'],
+  visual: 'kanban',
+  visualMode: 'detach',
 })
 ```
 
@@ -79,27 +81,59 @@ import { mountVisualOverlay } from '{path-to}/index'
 mountVisualOverlay()
 ```
 
+**3. 注册运动参数**
+
+所有运动速度通过一次全局配置控制：
+
+```ts
+runtime.registerMotionProfile({
+  flip:    { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+  resize:  { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+  landing: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+  group:   { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
+})
+```
+
+所有字段可选，未设置的字段回退到 `DEFAULT_MOTION_PROFILE`。推荐在应用
+初始化时调用一次。
+
 **3. 给对象打上可识别的标记**（供 hit test 用，见"已知限制"）
 
 ```html
-<div class="my-card" :data-card="cardId" @pointerdown="onPointerDown(cardId, $event)">
+<div class="my-card" :data-card="cardId">
 ```
 
-**4. 选一种视觉策略，调用对应的拖拽函数**
+Runtime 会根据对象注册里的 `visual` 找到适配器，自动创建 Session、绑定
+driver/lifecycle、接管输入并推进完整事务。未填写 `visual` 时按对象类型默认配置，
+未填写 `visualMode` 时默认使用 `detach`。
+
+视觉适配器只在 Runtime 集成层创建一次。`createProxy`、`updateProxy`、
+`landProxy`、`revealTarget` 和 `disposeProxy` 都封装在这个类型级适配器内部；每张
+卡片的注册只需要提供 `id`、`type`、`element` 和 `surfaceId`，不需要重复声明这些
+视觉能力。
+
+对象注册时如果已经有 DOM element，Runtime 会自动绑定 `pointerdown`；如果 element
+稍后才挂载，后续 `runtime.objects.setElement(id, element)` 也会自动完成绑定。业务端
+不需要再单独调用 `runtime.bindObjectPointer()`，也不需要为每张卡片维护 disposer。
+
+推荐在渲染框架的 ref/挂载回调里只同步 element：
 
 ```ts
-import { startCardDrag } from '{path-to}/kanbanDrag'          // clone 策略
-import { startCardDragDetach } from '{path-to}/kanbanDragDetach' // detach 策略
-
-function onPointerDown(cardId: string, event: PointerEvent) {
-  const el = event.currentTarget as HTMLElement
-  startCardDrag(event, cardId, el)       // 或 startCardDragDetach(event, cardId, el)
+function setCardElement(id: string, element: HTMLElement | null): void {
+  runtime.objects.setElement(id, element)
 }
 ```
 
-这两个函数入口处都会先查 `runtime.objects.hasAbility(cardId, 'move')`，
-没有这个能力直接拒绝——对象只要注册时不声明 `'move'`，就自动拖不动，不
-需要在业务组件里另外判断"这个能不能拖"。两种策略的选择依据见
+Runtime 会根据对象注册的 `visual` 找到对应适配器，并负责监听器的替换、卸载和
+重新绑定。对象 DOM 被 Vue/React 重建时，只要再次同步新的 element，
+输入入口仍然保持不变。
+
+`startObjectPointer()` 是 Runtime 内部入口，业务端不需要直接调用，也不需要在模板里
+手动转发 `pointerdown` 或判断 clone/detach。
+
+Runtime 会先检查 `runtime.objects.hasAbility(cardId, 'move')`，没有这个能力直接
+拒绝——对象只要注册时不声明 `'move'`，就自动拖不动，不需要在业务组件里另外判断。
+clone/detach 两种策略的选择依据见
 [VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
 
 业务层可以订阅 Runtime 输出的语义化 Action，并在自己的 Store/API 边界提交：
@@ -114,15 +148,50 @@ const stop = runtime.onAction(action => {
 
 Runtime 不直接写业务 Store；订阅者负责保存、失败处理和必要的回滚。
 
+代理由 Runtime 按 session 登记。适配器不需要维护代理注册表；Runtime 创建新代理时会替换旧代理，并在取消、打断或完成时统一清理。
+
+落地和揭示阶段由 Runtime 分别调用 `landVisualProxy(sessionId, target)` 与
+`revealVisualProxy(sessionId, target)`；适配器只返回落地结果或执行视觉过渡，不直接修改
+Session 状态，也不自行决定何时清理代理。
+
+跟手或重定位阶段使用 `updateVisualProxy(sessionId, context)`，由 Runtime 转发给适配器。
+
+最终目标使用 `resolveVisualTarget(sessionId, destination)` 解析；适配器只返回目标节点，
+Runtime 会统一检查节点仍连接在文档中。
+
+普通、抓取、落地和揭示状态使用 `applyVisualState(objectId, element, state)` 写入，
+业务适配器只负责把状态映射为 class 或样式。
+
+需要保存抓取前或落地目标样式时使用 `captureVisualState(objectId, element)`，由 Runtime
+统一获取适配器快照或默认 DOM 快照。
+
+释放时 Runtime 会先通知适配器执行 `dispose(proxy, context)`，随后调用代理对象自身的
+`dispose()`；两者都由 Runtime 保证最多执行一次。
+
 **4.1（可选）提供视觉适配器**
 
 业务端可以自定义卡片在普通、hover、抓取、落地和揭示阶段的 class 或样式，
-但不应自行编排 proxy 与本体的交接：
+但不应自行编排 proxy 与本体的交接。如果不提供，Runtime 使用内置的
+`DefaultVisualAdapter` 自动处理 detach 的 `createProxy`、`land`、`reveal`、`dispose`
+和 `createMove`，从 Runtime 注册表自动获取 surface 信息：
+
+```ts
+// DefaultVisualAdapter 已内置，用户不需要自己创建
+runtime.registerObjectType('kanban', {
+  defaultVisualMode: 'detach',
+})
+```
+
+如果需要自定义视觉，可以注册 `VisualAdapter`：
 
 ```ts
 const visual: VisualAdapter = {
-  getSourceElement: () => cardEl,
-  createProxy: snapshot => createProjectProxy(snapshot),
+  resolveSource: () => cardEl,
+  createProxy: context => createProjectProxy(context),
+  updateProxy: (proxy, context) => updateProjectProxy(proxy, context),
+  land: (proxy, target, context) => landProjectProxy(proxy, target, context),
+  reveal: (proxy, target, context) => revealProjectTarget(proxy, target, context),
+  dispose: proxy => disposeProjectProxy(proxy),
   applyState: (element, state) => {
     element.classList.toggle('is-hovered', state.hovered)
     element.classList.toggle('is-dragging', state.grabbed)
@@ -131,8 +200,8 @@ const visual: VisualAdapter = {
 }
 ```
 
-适配器负责具体的阴影、圆角、背景和 class；Runtime 负责统一 hover 状态、运动
-时序、代理到本体的渐变交接，以及取消/清理。这样不同卡片类型可以拥有不同
+适配器负责具体的阴影、圆角、背景、proxy 运动和样式；Runtime 负责统一 hover 状态、
+生命周期时序、代理到本体的渐变交接，以及取消/清理。这样不同卡片类型可以拥有不同
 视觉风格，同时不会因各自实现 hover 或 reveal 而产生交接闪烁。
 
 业务端样式可以直接按 Runtime 写入的状态 class 定义。例如项目卡：
@@ -186,7 +255,9 @@ Runtime 或适配器：
 **4.2（可选覆盖）视觉适配器**
 
 Runtime 会统一编排 source/target 解析所需的生命周期顺序、landing、handoff、reveal
-和清理；具体 proxy、样式交接和落地动画仍由当前 clone/detach 视觉 driver 实现。
+和清理；具体 proxy、样式交接、目标等待和落地动画仍由当前 clone/detach 视觉 driver
+实现。detach 使用同步 target 解析；clone 如需等待目标 mount，必须先创建 proxy，
+再在策略内部等待，Runtime 不强制阻塞所有策略。
 
 只有需要特殊视觉时才注册适配器：
 
@@ -293,24 +364,8 @@ Surface 的运动由 Runtime 执行；业务只声明 Surface 类型和期望策
 策略会补间 `height`，未来可以按类型注册更具体的策略：
 
 ```ts
-runtime.registerSurfaceLayout('kanban-column', {
-  resize: {
-    enabled: true,
-    properties: ['height'],
-    duration: 220,
-    easing: 'cubic-bezier(.22,1,.36,1)',
-  },
-})
-```
-
-```html
-<section data-layout-surface data-surface-type="kanban-column">
-  ...
-</section>
-```
-
-`registerSurfaceLayout()` 是已确定、待第二类 Surface 接入时实现的扩展接口；
-在当前默认策略下不必注册。业务不要在同一 Surface 上自行写 `height`、
+Surface 的 resize 速度由 `MotionProfile.resize` 控制，组展开/收起速度由
+`MotionProfile.group` 控制。业务不要在同一 Surface 上自行写 `height`、
 `transform` 或 `transition`，以免和 Runtime 的布局事务竞争。
 
 在业务提交前捕获、提交后播放即可：
@@ -360,15 +415,12 @@ Surface 的 `height` 或 `transition`。
 ## Runtime 入口
 
 ```ts
+runtime.registerMotionProfile({ flip, resize, landing, group })
 runtime.start({ type: 'move', objectId: card.id, input: event })
-```
-
-```ts
 runtime.onAction(async action => {
   await projectStore.applyAction(action)
 })
 ```
 
-`runtime.start()` 创建统一 Session，`runtime.onAction()` 输出明确的行为
-联合类型。当前 clone/detach demo 仍由业务入口选择视觉 driver；当有第三种
-以上稳定视觉策略时，再评估是否需要进一步抽取策略注册，而不提前扩大核心。
+`registerMotionProfile` 是全局的一次性配置，推荐在应用初始化时调用。
+`runtime.start()` 创建统一 Session，`runtime.onAction()` 输出明确的行为联合类型。

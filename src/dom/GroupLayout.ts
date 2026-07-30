@@ -1,4 +1,21 @@
 import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } from './Flip'
+import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
+
+/** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
+let currentProfile: MotionProfile | null = null
+export function setMotionProfiles(profile: MotionProfile | null): void {
+  currentProfile = profile
+}
+
+/** 读取全局 MotionProfile，不存在时返回默认值。 */
+function resolveProfile(): { flip: { duration: number; easing: string }; resize: { duration: number; easing: string } } {
+  const p = currentProfile
+  return {
+    flip: p?.flip ?? DEFAULT_MOTION_PROFILE.flip,
+    resize: p?.resize ?? DEFAULT_MOTION_PROFILE.resize,
+  }
+}
+
 
 export interface GroupRect { readonly top: number; readonly left: number; readonly width: number; readonly height: number }
 export interface GroupLayoutSnapshot {
@@ -58,9 +75,10 @@ export function captureLayoutFlip(
 }
 
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
-  if (snapshot.group) playGroupFlip(snapshot.group.before, FLIP_DURATION, FLIP_EASING)
-  if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, FLIP_DURATION, FLIP_EASING)
-  playSurfaceResize(snapshot.surfaces, FLIP_DURATION, FLIP_EASING)
+  const profile = resolveProfile()
+  if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing)
+  if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing)
+  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing)
 }
 
 /**
@@ -233,9 +251,11 @@ export function playSurfaceResize(
     .filter(item => item.element.isConnected)
     .map(item => {
       const next = readRect(item.element)
+      const type = item.element.dataset.surfaceType
+      const prof = resolveProfile()
       return {
-        item,
-        next,
+        item, next,
+        profile: prof.resize,
         fromHeight: toCssHeight(item.element, item.rect.height),
         toHeight: toCssHeight(item.element, next.height),
       }
@@ -259,12 +279,12 @@ export function playSurfaceResize(
   }
 
   requestAnimationFrame(() => {
-    for (const { item, toHeight } of plans) {
+    for (const { item, toHeight, profile } of plans) {
       const style = item.element.style
       const state = surfaceResizeStates.get(item.element)
       if (!state || item.element.dataset.runtimeSurfaceResizeToken !== state.token) continue
       const token = state.token
-      style.transition = `height ${duration}ms ${easing}`
+      style.transition = `height ${profile.duration}ms ${profile.easing}`
       style.height = `${toHeight}px`
       window.setTimeout(() => {
         if (item.element.dataset.runtimeSurfaceResizeToken !== token) return
@@ -273,7 +293,7 @@ export function playSurfaceResize(
         restoreSurfaceInlineStyle(item.element, state.baseStyle)
         surfaceResizeStates.delete(item.element)
         delete item.element.dataset.runtimeSurfaceResize
-      }, duration + 40)
+      }, profile.duration + 40)
     }
   })
 }

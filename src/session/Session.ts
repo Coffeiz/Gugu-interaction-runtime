@@ -46,9 +46,13 @@ export class Session {
     this.state = next
   }
 
-  takeObject(objectId: string) {
-    this.leases.push(this.owner.takeObject(objectId, this.id))
+  takeObject(objectId: string): Lease {
+    const lease = this.owner.takeObject(objectId, this.id)
+    this.leases.push(lease)
+    return lease
   }
+
+  trackCleanup(dispose: () => void): void { this.cleanup.track(dispose) }
 
   takeSurface(surfaceId: string) {
     this.leases.push(this.owner.takeSurface(surfaceId, this.id))

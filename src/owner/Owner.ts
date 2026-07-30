@@ -44,11 +44,20 @@ export class Owner {
   }
 
   takeSurface(id: string, sessionId: string): Lease {
+    const current = this.controlled.get(id)
+    if (current && current.ownerSessionId !== sessionId) {
+      // Surface 是事务级锁，不能静默覆盖另一个 Session 的控制权。
+      return { release: () => undefined }
+    }
     return this.takeObject(id, sessionId)
   }
 
   isControlled(id: string): boolean {
     return this.controlled.get(id)?.mode === 'runtime'
+  }
+
+  isOwnedBy(id: string, sessionId: string): boolean {
+    return this.controlled.get(id)?.ownerSessionId === sessionId
   }
 
   takeChannel(objectId: string, channel: Channel, sessionId: string): Lease {

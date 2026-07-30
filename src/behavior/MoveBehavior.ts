@@ -27,6 +27,12 @@ export interface MoveLayoutLifecycle {
   cancel?(context: BehaviorContext, snapshot: unknown, reason: string): void
 }
 
+export interface MoveSurfaceLifecycle {
+  leave?(context: BehaviorContext, surfaceId: string): void | Promise<void>
+  enter?(context: BehaviorContext, surfaceId: string): void | Promise<void>
+  dispose?(context: BehaviorContext): void
+}
+
 export interface MoveBehaviorDriver {
   prepare?(context: BehaviorContext, request: StartRequest): void | Promise<void>
   update?(context: BehaviorContext, input: RuntimeInput): void
@@ -50,9 +56,8 @@ export interface MoveBehaviorDriver {
 
 export interface MoveVisualLifecycle {
   layout?: MoveLayoutLifecycle
+  surface?: MoveSurfaceLifecycle
   beginDrag?(context: BehaviorContext): void | Promise<void>
-  /** Action 触发 Vue 重渲染前，保持当前对象的所有 live source 隐藏。 */
-  beforeAction?(context: BehaviorContext, destination: unknown): void
   landing?(context: BehaviorContext, destination: unknown): LandingResult | void | Promise<LandingResult | void>
   reveal?(context: BehaviorContext, destination: unknown): void | Promise<void>
   cancel?(context: BehaviorContext, reason: string): void
@@ -69,6 +74,7 @@ export interface MoveReleaseResult {
 export interface LandingResult {
   readonly completed: boolean
   readonly reason?: string
+  readonly reveal?: () => void
 }
 
 export class MoveBehavior implements Behavior {
@@ -193,8 +199,7 @@ export class MoveBehavior implements Behavior {
     const moveContext = this.getContext(context.session.id)
     moveContext.transaction.setPhase('release')
     const driver = this.driverFor(context.session.id)
-    // resolve 只能描述落点，不能在这里改 DOM 或 Store；否则 Runtime 无法
-    // 保证 capture → Action → commit 的固定顺序，也无法统一取消无效落点。
+    // 优先使用新 resolveDestination 流程
     if (driver.resolveDestination) {
       return Promise.resolve(driver.resolveDestination(context, input)).then(result => {
         if (result?.accepted && result.destination !== undefined) {
@@ -226,8 +231,6 @@ export class MoveBehavior implements Behavior {
 
   cancel(context: BehaviorContext, reason: string): void {
     const transaction = this.getContext(context.session.id).transaction
-    // regrab 不只是取消 Promise：先失效 token，再通知旧视觉策略，避免旧
-    // transitionend/timeout 在新 session 接管后恢复样式。
     transaction.invalidate()
     transaction.setPhase('cancelled')
     this.sessionLifecycles.get(context.session.id)?.cancel?.(context, reason)

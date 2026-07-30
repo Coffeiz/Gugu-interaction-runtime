@@ -7,6 +7,10 @@ export interface UseObjectOptions {
   /** 用 getter 而不是静态值——对象所在的 Surface 会随业务数据变化。 */
   surface: () => string
   abilities: string[]
+  /** 可选视觉适配器名；业务对象注册时一次性声明。 */
+  visual?: string
+  /** 可选视觉模式，默认 detach。 */
+  visualMode?: string
 }
 
 export interface UseObjectResult {
@@ -29,6 +33,8 @@ export function useObject(options: UseObjectOptions): UseObjectResult {
     surfaceId: options.surface(),
     element: null,
     abilities: options.abilities,
+    visual: options.visual,
+    visualMode: options.visualMode ?? 'detach',
   })
 
   watchEffect(() => {

@@ -250,9 +250,6 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 不再手动编排 Session、FLIP、target、landing、reveal 或 regrab。运动数学仍由
 业务侧现有视觉实现提供，本阶段不新增 MotionController，也不引入 CardVisualHost。
 
-> 状态：已完成。后续看板回归属于阶段 1；视觉策略内部保留的 proxy/placeholder
-> DOM 操作不再向 Runtime 上移。
-
 执行顺序固定为：
 
 1. [x] 新增 `MoveTransaction`，统一保存 source、destination、target、phase 和
@@ -260,24 +257,254 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 2. [x] 将 MoveAction 的生成收回 Runtime，业务端只订阅 `runtime.onAction()`；
 3. [x] 为事务提供统一的 Layout lifecycle（capture → play → cancel）接口，
    Runtime 在 commit 前后调用；demo 现有 FLIP driver 的迁移仍列在第 7 项；
-4. [x] 将 source/target 解析、target 等待、zero-size 处理收回 Runtime；
+4. [x] 将同步 source/target 解析收回 Runtime；target 等待不作为全局强制流程，
+   由 clone 等需要等待的视觉策略在 proxy 接管后自行处理，detach 保持同步解析；
 5. [x] 将 clone/detach 的视觉实现注册为 `VisualStrategy`，Runtime 只调用统一的
    `beginDrag/landing/reveal/cancel/dispose` 生命周期；
 6. [x] 将 regrab、旧 token 失效和旧 session cleanup 收回 Runtime；
-7. [x] 删除 demo 中重复的 Session、Action、落地 FLIP、target 和 regrab 编排；
-   pickup 阶段的 proxy/placeholder DOM 操作仍属于 clone/detach VisualStrategy，
-   不再视为 Runtime 事务编排。
+7. 删除 demo 中重复的 Session、Action、FLIP、target 和 regrab 编排（待看板接入）。
 
 验收标准：
 
-- 业务入口不再直接调用 `scheduleLayoutFlip`、`registerRegrab` 或 `emitAction`；
-  `captureLayoutFlip`、`createDragProxy`、`landDragProxy` 仅允许出现在视觉策略
-  实现内部，不属于 Runtime 事务入口；
+- 业务入口不再直接调用 `captureLayoutFlip`、`scheduleLayoutFlip`、
+  `createDragProxy`、`landDragProxy`、`registerRegrab` 或 `emitAction`；
 - 每个移动事务只产生一次 Action、landing 和 reveal；
 - commit/landing/reveal 失败都进入统一取消和清理路径；
 - interrupt 后旧 Promise、旧 listener 和旧 Lease 不再影响新 Session；
-- clone/detach 视觉行为不改变；
+- clone/detach 视觉行为不改变；clone 的 target wait 不得发生在 proxy 创建之前；
 - Runtime 不实现 MotionController，不保存业务 Store 状态。
+
+0.7 的最终边界：Runtime 不阻塞视觉代理的创建。detach 直接使用同步 target；clone
+先创建可见 proxy，再由策略内部等待目标节点 mount。目标等待不能放在 source 隐藏和
+proxy 创建之间，否则会产生 release 视觉空窗。
+
+### 阶段 0.8：Surface 与输入生命周期收口
+
+0.8 建立在 0.7 稳定实现之上，目标是让业务端只提供对象、Surface、命中和视觉
+策略，不再手动编排卡片与 Surface 的事务生命周期。本阶段不重新实现运动数学，
+不引入 `MotionController` 或 `CardVisualHost`，也不改变 clone/detach 的视觉行为。
+
+执行顺序：
+
+1. [x] 收口 Surface 生命周期：source/destination Lease、Surface enter/leave、
+   placeholder 登记与释放、跨 Surface cleanup 和事务锁；
+2. [x] 收口输入生命周期：pointerdown、pointermove、pointerup、pointercancel、
+   lostpointercapture、window blur 和 regrab；
+3. [x] Runtime 已统一推进主流程 `prepare → active → release → landing → revealing →
+   completed/cancelled → disposed`，clone/detach 视觉策略不再直接调用
+   `session.transition()` / `session.handoff()`；
+4. [x] 将 listener、RAF、ResizeObserver、Lease 和 placeholder 纳入同一清理出口；
+5. [x] 清理 clone/detach 入口中重复的 Session、Surface、输入和 Promise 编排，
+   保留项目卡专属 DOM、样式、proxy 和 target 时序。两种策略现在统一通过
+   `orchestrateMoveSession`、Runtime Lease、Runtime 输入绑定和 Session Cleanup
+   接入；策略文件仅保留各自的 DOM、proxy、target 等视觉时序。
+
+视觉策略边界保持明确：detach 使用同步 target 解析；clone 如需等待目标 mount，
+必须先创建可见 proxy，再由策略内部等待。Runtime 不强制所有策略等待 target。
+
+0.8 验收标准：
+
+- 业务入口只注册 Object、Surface、MoveBehavior、HitResolver、Action 和视觉策略；
+- 业务端不再直接管理 Session 状态、Lease、输入监听和通用 cleanup；
+- cancel、interrupt、regrab、landing-failed 都只执行一次清理；
+- clone/detach 的同列、跨列、landing regrab 和连续拖动行为保持不变；
+- 不新增 MotionController，不迁移文件卡、画布卡，不改变业务 DOM 结构。
+
+0.8 状态：已完成。后续阶段只处理真实业务接入和策略专属视觉迁移，不再扩大
+Runtime 的通用职责。
+
+### 阶段 0.9：将业务交互编排整体迁入 Runtime
+
+本阶段的目标是：把当前业务端已经验证过的 detach/clone 编排逻辑整体迁入
+Runtime 内部，业务端最终只注册 Object 和 Surface。迁移不是重写动画，而是把现有
+`Visual`、`GroupLayout`、`Hit` 和策略逻辑收进 Runtime 的内部模块，避免业务侧继续
+维护 Session、landing、reveal、regrab、FLIP 和清理顺序。
+
+#### 0.9.1 Runtime 内部职责重组
+
+内部模块按功能域收敛，不再按单个动作继续拆文件。最终目标是：
+
+```text
+RuntimeRegistry  Object / Surface / Visual 注册
+RuntimeSession   Session / Lease / Gate / Cleanup
+RuntimeMove      start / update / release / commit / landing / reveal / Action
+RuntimeVisual    VisualState / Target / Proxy / VisualAdapter
+RuntimeInput     pointer 输入、capture 和 regrab
+```
+
+- [x] `Runtime.ts` 保留公共注册和统一输入 API，内部实现开始拆到协调器模块；
+- [x] 将 object/surface/adapter 注册移入 `RuntimeRegistry`；
+- [x] 建立 `start/update/release/cancel/interrupt` 的 `RuntimeDispatcher` 分发入口；
+- [x] 将上述操作的实际实现完全移出 `Runtime.ts`；Runtime 仅保留端口适配和公共 API；
+- [x] 将移动目标规范化和 Action 去重提交移入 `MoveActionCoordinator`；
+- [x] 将 Session 到视觉代理的唯一引用移入 `VisualProxyCoordinator`；
+- [x] 将 active 阶段的 pointer update 分发移入 `MoveUpdateCoordinator`；
+- [x] 将 release 前置状态判断移入 `MoveReleaseCoordinator`；
+- [x] 将 commit、Surface leave/enter、布局播放和 Action 提交移入 `MoveCommitCoordinator`；
+- [x] 将 landing、handoff、reveal 和成功结束移入 `MoveLandingCoordinator`；
+- [x] 将 Session 索引、CompletionGate、对象 Lease 获取和 Cleanup 注册移入
+  `SessionCoordinator`；
+- [x] 将 Session 的最终 dispose/release 顺序和 cancel/interrupt 清理移入
+  `RuntimeSession`；
+- [x] 成功结束路径的 Session dispose、CompletionGate 收束和索引删除已移入
+  `SessionCoordinator`；
+- [x] cancel/interrupt 的 Session 终止、Lease/Cleanup 和索引删除已移入
+  `SessionCoordinator`；
+- [x] 将 VisualAdapter 的状态快照、状态写入和 target 解析移入
+  `VisualStateCoordinator`；
+- [x] 将 VisualProxy 的 create/update/land/reveal 调度移入
+  `VisualMotionCoordinator`；
+- [x] 将 landing target tracking 和 Cleanup 登记归入 `RuntimeVisual` 功能域；
+- [x] 将落地阶段 regrab 监听和 Session Cleanup 绑定归入 `RuntimeInput` 功能域；
+- [x] 将 pointermove/up/cancel/blur/lost-capture 监听归入 `RuntimeInput` 功能域；
+
+收尾时合并当前细分协调器：Move*Coordinator 归入 `RuntimeMove`，
+VisualState/VisualMotion/VisualProxy 归入 `RuntimeVisual`，
+`SessionCoordinator` 整理为 `RuntimeSession`，Dispatcher 根据最终入口归入
+`RuntimeInput` 或 `RuntimeMove`。这一步只做文件和职责合并，不改变行为。
+
+#### 0.9.1 Runtime 接入基础收口
+
+- [x] 看板业务的 pointerdown 不再直接调用 `startCardDragDetach` 或其他 legacy 启动函数；
+- [x] Runtime 输入层根据 ObjectStore 的元素绑定自动启动默认 detach driver；
+- [x] Runtime 负责创建 MoveSession、绑定输入、终止 Session、释放 Lease 和登记 Cleanup；
+- [x] 业务侧只保留 Object/Surface 注册、元素绑定和 Action 订阅；
+- [x] detach driver 迁移完成，Runtime 通过 `DefaultVisualAdapter.createMove()` 自动启动；
+
+当前进度补充：Session 的创建、索引、查找、CompletionGate、对象 Lease 获取、
+事务 Cleanup 注册以及终态清理均已迁入 `RuntimeSession` 功能域。
+
+当前进度：Registry、Dispatcher、SessionCoordinator、RuntimeInput 和内置 detach driver
+均已由 Runtime 使用；看板元素绑定后的 pointerdown 直接进入 Runtime 默认移动事务。
+
+现状核对：detach 的 pickup、跟手、落点判定、regrab、landing/reveal、CompletionGate
+和取消清理已经由 `DetachAdapter`/`DetachMoveDriver` 在 Runtime 内部统一编排，业务侧
+只保留 Object/Surface 注册、元素绑定和 Action 订阅。
+
+#### 0.9.2 迁移 DetachMoveDriver
+
+- [x] `Visual.ts` 作为 Runtime 内部的运动原语；
+- [x] `GroupLayout.ts` 作为 Runtime 内部的 Group/Surface FLIP 实现；
+- [x] `Hit.ts` 作为 Runtime 内部的统一命中实现；
+- [x] detach 视觉策略已迁入 Runtime 内部策略目录（`DetachAdapter`）；
+- [x] 已删除 `kanbanDragDetach.ts` 和 `DetachReleaseCoordinator.ts`，编排全量迁入 `DetachAdapter`/`DetachMoveDriver`；
+
+当前迁移进度：0.9.2 已完成。Runtime 侧统一提供 Session/Lease、pickup、dragging/update、
+release、landing/reveal、regrab 和 dispose，业务入口不再保留 detach 事务闭包。
+
+#### 0.9.2 业务编排收口顺序
+
+下一步按以下顺序执行，不改变现有动画实现：
+
+1. [x] Runtime 根据对象注册自动创建移动事务；
+2. [x] detach 的 pickup、跟手、落点判定和 regrab 编排已迁入 `DetachMoveDriver`；
+3. [x] landing、reveal、CompletionGate、cancel/dispose 顺序已迁入同一个 driver；
+4. [x] `kanbanVisualAdapter.ts` 已删除，视觉实现由 Runtime 内置；
+5. [x] 已删除迁移期 `legacyStart` 接口、Runtime fallback 分支和对应旧测试；
+6. [x] `KanbanBoard.vue` 只保留 Object/Surface 注册、元素绑定和 Action 订阅。
+
+目标调用链固定为：
+
+```text
+pointerdown → Runtime.start → DetachMoveDriver.prepare
+→ Runtime.update → resolveDestination → emitAction
+→ landing → reveal → Runtime.dispose
+```
+
+`DetachMoveDriver` 只组合现有 Runtime 能力，不重新实现 `Visual`、`Hit`、
+`GroupLayout` 或运动参数。
+
+#### 0.9.3 单一生命周期所有者
+
+- [x] `DetachAdapter.createDetachMoveFromAdapter` 是唯一生命周期所有者，内部调用 Runtime 协调器；
+- [x] cancel/interrupt/regrab/dispose 均由 detach adapter 内部闭包统一触发；
+- [x] 业务入口不再传递 legacy 启动函数，不接触 Lease/proxy/FLIP；
+- [x] `kanbanDragDetach.ts` 已删除，编排全在 `DetachMoveDriver.ts`；
+
+0.9 不负责：重写 MotionController、创建 CardVisualHost、改变现有动画参数、迁移
+文件/画布对象或重做业务 DOM。阶段验收以“业务只注册 Object/Surface、行为不变、
+Runtime 内部只有一套生命周期编排”为准。
+
+**0.9 完成情况（2026-07-27）**：detach 策略迁移已全部完成。
+- `kanbanDragDetach.ts` → 已删除，编排迁入 `src/runtime/detach/DetachAdapter.ts`
+- `DetachReleaseCoordinator.ts` → 已删除，幂等保护内联为 `released` 布尔
+- `legacyStart` 已删除，默认视觉模式通过 `DefaultVisualAdapter.createMove()` 启动 detach driver
+- demo 不再保留 clone 编排；clone 代码已删除，detach 是当前唯一内置策略
+
+**接下来（阶段 1 前置工作）**：
+- [x] detach 策略迁移完成（`createMove` + `DetachAdapter` + `DefaultVisualAdapter` 内置）
+- [x] Teleport fly-to 修复（`objectLease.release()` 释放控制权，Teleport 关闭后元素回到列容器）
+- [x] 删除 `kanbanDrag.ts`（legacy clone 编排）
+- [x] 删除 `kanbanVisualAdapter.ts`（能力内联到 `DefaultVisualAdapter`，用户不需要手动创建）
+- [x] 浏览器验证 detach 拖拽全场景（同列/跨列/无效落点/landing regrab/连续拖动）
+- [x] 新增拖拽自动滚屏能力（`dom/AutoScroll.ts`），指针贴近列边缘时持续滚动，滚动期间通过
+      `onScroll` 回调重新计算命中/落点索引，避免指针静止时索引停留在滚动前的旧值上
+- [x] 收拢重复的 detach 编排（2026-07-27）：
+      旧的 `executeDetachDrag`／`createDetachMoveRequest`／`startDetachSession`／`createDetachMoveDriver`
+      已从 `DetachMoveDriver.ts` 删除；regrab 改为调用 `Runtime.startObjectPointer(objectId, liveEl,
+      event, fromRect)`，与首次拾取走同一条 `createMove → createDetachMoveFromAdapter` 路径；
+      `startObjectPointer` 新增可选的 `fromRect` 透传参数，以及原本只在 `executeDetachDrag` 里的
+      "已登记 regrab handler 时直接转发"兜底检查，现在挪到 `startObjectPointer` 顶部对所有对象通用
+- [x] 落地时把目标滚动进列容器可视范围（`DetachAdapter.ts` 的 `keepElementWithinColumn`）：
+      年/月分组增删、FLIP 收尾可能跨多个 frame 才提交完，参考
+      `Gugu-web-drag-animation-refactor` 里 `DrawerViewport.vue` 的做法，落地那一帧校正一次后，
+      接下来几帧再重新校正，而不是只做一次性快照
+- [x] `landDragProxy` 的 `retarget` 加最小间隔节流（60ms）：兄弟卡 FLIP 期间目标位置逐帧变化，
+      之前每次 `retarget` 都立即重启一次过渡（冻结当前状态→强制回流→下一帧写新终点），逐帧重启
+      会打断浏览器正在合成的动画，表现为落地途中卡顿；现在把高频 retarget 合并到较低频率补一次
+- [x] 删除迁移期 clone 编排和重复 detach 编排
+- [x] 进入阶段 1：接 Gugu-web 看板项目卡
+
+### 阶段 0.9.5：接入 MotionController，统一 grabbing → landing 的 JS 运动链路
+
+本阶段在接入 Gugu-web 之前完成。目标不是重写业务拖拽，而是把当前由 CSS
+transition/`landDragProxy` 分散驱动的代理运动，收口为 Runtime 可控制的 JS
+MotionController。Runtime 继续负责事务状态和清理，MotionController 负责每一帧的
+位置、速度、缩放和落点目标；业务端不再直接启动 landing transition。
+
+范围固定为单代理 detach 流程：
+
+```text
+grabbing
+  → pointer follow (position + velocity)
+  → release (冻结当前 MotionState)
+  → landing (JS spring/tween，支持 retarget)
+  → settled
+  → reveal/dispose
+```
+
+执行项：
+
+- [x] 从 Gugu-web 历史提交 `4b0b742` 提取纯运动部分：`integrateSpring`、位置/缩放二阶弹簧、follow/settle
+      两种模式、速度驱动姿态和 RAF 生命周期；对应 Runtime 文件为 `src/motion/`。没有迁入
+      clone/holder DOM、命中、FLIP、Store、Surface、滚动或 reveal/cleanup。
+- [x] 将提取出的 `MotionController` 首先接入 detach landing：proxy 的位置、尺寸和完成通知由
+      JS controller 驱动；阴影、圆角、背景、内容交叉淡变仍由现有视觉适配器处理。
+- [x] landing 默认弹簧改为接近临界阻尼，长距离移动缓出且不回弹；跟手阶段参数暂不改变。
+- [x] demo 增加 Motion 调参面板：滑块实时预览，保存写入浏览器本地调试配置，重置回到已保存值；
+      业务接入 API 不依赖该面板。
+- [x] 定义位置、速度、缩放和旋转状态；`timestamp` 由 RAF 时间戳在控制器内部维护，不暴露给业务视觉层；
+- [x] grabbing 阶段由 controller 接管 detach pointer follow，保留现有 dragOffset、DOM/Lease/FLIP
+      编排；跟手使用 Gugu 原有 360/0.85 弹簧参数，landing 参数仍可独立调节。
+- [x] landing 阶段支持目标更新、速度连续、取消和 interrupt，取消返回当前帧状态；
+- [x] `VisualAdapter.land` 已接到 MotionController；`createProxy/updateProxy/dispose` 暂不改变，
+      以保证本轮只替换 landing 的运动来源。
+- [x] `landDragProxy` 降级为 DOM 写入适配，不再拥有动画时序和 Promise；
+- [x] 统一 landing/reveal 的完成门，MotionController 完成后 Runtime 才允许 reveal；
+- [x] 补充纯逻辑测试：速度连续、retarget、cancel、interrupt、完成门和 RAF 清理；
+- [x] 保持现有 detach 视觉样式、FLIP、Surface 和 Action 行为不变；
+- [x] 浏览器回归同列、跨列、无效落点、landing regrab、连续拖拽和自动滚屏。
+
+不在 0.9.5 处理：多代理、多选拖拽、CardVisualHost、文件/画布接入和业务 DOM
+重构。MotionController 只接管代理运动，不接管 Store、Hit、Surface 或业务样式。
+
+验收标准：
+
+- grabbing 到 landing 只有一个 JS motion loop；
+- 不再依赖 `transitionend` 或 CSS transition duration 判断落地完成；
+- regrab 保留当前视觉位置和速度，不回到旧 target；
+- 任意 cancel/interrupt 后 RAF、监听器和 proxy 都能清理；
+- 现有 Runtime 测试和 detach 浏览器回归不改变行为。
 
 ### 阶段 1：迁移 Gugu-web 看板项目卡
 

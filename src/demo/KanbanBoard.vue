@@ -1,7 +1,6 @@
 <template>
   <div class="kb-strategy-switch">
-    <label><input type="radio" value="clone" v-model="strategy" /> clone 策略（proxy + 隐藏本体）</label>
-    <label><input type="radio" value="detach" v-model="strategy" /> detach 策略（全程一个对象）</label>
+    <span>默认视觉模式：detach</span>
   </div>
   <div class="kb-board">
     <div v-for="col in columns" :key="col.id" class="kb-column" :data-column="col.id" data-layout-surface data-surface-type="kanban-column" :ref="el => setColumnRef(col.id, el as HTMLElement | null)">
@@ -32,7 +31,7 @@
                       class="kb-card kb-card-done"
                       :class="{ 'kb-card-locked': isLocked(cardId) }"
                       :data-card="cardId"
-                      @pointerdown="onCardPointerDown($event, cardId)"
+                      :ref="el => bindCardPointer(cardId, el as HTMLElement | null)"
                     >
                       {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
                       <span class="kb-done-badge">✓ 完成</span>
@@ -57,7 +56,7 @@
             class="kb-card"
             :class="{ 'kb-card-locked': isLocked(cardId) }"
             :data-card="cardId"
-            @pointerdown="onCardPointerDown($event, cardId)"
+            :ref="el => bindCardPointer(cardId, el as HTMLElement | null)"
           >
             {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
           </div>
@@ -71,17 +70,27 @@
 import { computed, reactive, ref, watchEffect, onUnmounted } from 'vue'
 import { columns, cards, moveCard } from './store'
 import { buildDoneGroups } from './doneGrouping'
-import { startCardDrag } from './kanbanDrag'
-import { startCardDragDetach } from './kanbanDragDetach'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
+import { DEFAULT_MOTION_PROFILE } from '../dom/MotionProfile'
 import { useSurface } from '../vue/useSurface'
 import { runtime } from '../Runtime'
 import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 
-const strategy = ref<'clone' | 'detach'>('clone')
+// Runtime 默认使用 DefaultVisualAdapter 内置的 detach 策略，
+// registerObjectType 不需要传 visual adapter
+runtime.registerObjectType('kanban', {
+  defaultVisualMode: 'detach',
+})
+
+runtime.registerMotionProfile({
+  flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  resize: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  group: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+})
 
 // 阶段 D：业务数据怎么变，由业务层订阅 Runtime 的 Action 通道自己决定，
-// 不是 kanbanDrag.ts/kanbanDragDetach.ts 直接调 moveCard——这两个文件现在
+// 不是 kanbanDrag.ts 直接调 moveCard——这两个文件现在
 // 只负责生成"发生了什么"（Action），不负责"这意味着业务数据要怎么改"。
 const stopActionSubscription = runtime.onAction(action => {
   if (action.type !== 'move') return
@@ -94,7 +103,15 @@ onUnmounted(stopActionSubscription)
 // （不是在 v-for 里动态调用）。每个列注册成一个 Surface，只接受
 // 'kanban-card' 类型的对象——见 docs/DESIGN.md 原则 4、docs/PLAN.md 阶段 0.5。
 const columnSurfaces = Object.fromEntries(
-  columns.map(col => [col.id, useSurface({ id: `column:${col.id}`, type: 'list', accepts: ['kanban-card'] })]),
+  columns.map(col => [
+    col.id,
+    useSurface({
+      id: `column:${col.id}`,
+      type: 'kanban-column',
+      accepts: ['kanban-card'],
+
+    }),
+  ]),
 )
 function setColumnRef(colId: string, el: HTMLElement | null) {
   columnSurfaces[colId].elementRef.value = el
@@ -111,11 +128,17 @@ Object.keys(cards).forEach(cardId => {
   runtime.objects.register({
     id: cardId,
     type: 'kanban-card',
+    visual: 'kanban',
+    visualMode: 'detach',
     surfaceId: '',
     element: null,
     abilities: cardId === 'c3' ? [] : ['move', 'sort'],
   })
 })
+
+function bindCardPointer(cardId: string, element: HTMLElement | null): void {
+  runtime.objects.setElement(cardId, element)
+}
 
 function isLocked(cardId: string): boolean {
   return !runtime.objects.hasAbility(cardId, 'move')
@@ -167,6 +190,8 @@ function setGroupContentRef(refs: Record<string, HTMLElement | null>, key: strin
   refs[key] = el
 }
 
+let groupToggleSeq = 0
+
 function toggleGroup(level: 'year' | 'month', key: string) {
   const refs = level === 'year' ? yearContentRefs : monthContentRefs
   const openSet = level === 'year' ? openYears : openMonths
@@ -177,56 +202,51 @@ function toggleGroup(level: 'year' | 'month', key: string) {
   else next.delete(key)
   openSet.value = next
   if (!el) return
-  const duration = FLIP_DURATION
-  const easing = FLIP_EASING
+  const token = String(++groupToggleSeq)
+  el.dataset.runtimeToggleToken = token
+  const profile = runtime.getMotionProfile()?.group ?? DEFAULT_MOTION_PROFILE.group
+  const duration = profile.duration
+  const easing = profile.easing
   const current = el.getBoundingClientRect().height
+  el.style.transition = ''
   el.style.height = `${current}px`
   el.style.overflow = 'hidden'
   void el.offsetHeight
   if (opening) {
-    requestAnimationFrame(() => {
-      const target = el.scrollHeight
-      el.style.transition = `height ${duration}ms ${easing}`
-      el.style.height = `${target}px`
-    })
-    // 展开方向的终点就是内容的自然高度，动画结束后把内联样式还原成空
-    // 是安全的空操作——跟 Gugu-web flipCoordinator.ts 里 isOpening 分支
-    // 同一个道理。
+    const target = el.scrollHeight
+    el.style.transition = `height ${duration}ms ${easing}`
+    el.style.height = `${target}px`
     window.setTimeout(() => {
+      if (el.dataset.runtimeToggleToken !== token) return
       el.style.height = ''
       el.style.overflow = ''
       el.style.transition = ''
     }, duration + 40)
   } else {
-    requestAnimationFrame(() => {
-      el.style.transition = `height ${duration}ms ${easing}`
-      el.style.height = '0px'
-    })
-    // 收起方向动画结束后不能把 height 复位成空字符串：内容其实还挂在
-    // DOM 里（没有被卸载），复位成 auto 会让它瞬间弹回自然高度、再次
-    // "收起"——这正是这次会话里在 Gugu-web 抽屉状态组上踩过、后来专门
-    // 修掉的"高度闪回"bug 的同一个根因，这里从一开始就不踩这个坑：
-    // height:0/overflow:hidden 一直钉到下次展开为止。
+    el.style.transition = `height ${duration}ms ${easing}`
+    el.style.height = '0px'
     window.setTimeout(() => {
+      if (el.dataset.runtimeToggleToken !== token) return
       el.style.transition = ''
     }, duration + 40)
   }
 }
 
-function onCardPointerDown(event: PointerEvent, cardId: string) {
-  const el = (event.currentTarget as HTMLElement) ?? null
-  if (!el) return
-  if (strategy.value === 'detach') startCardDragDetach(event, cardId, el)
-  else startCardDrag(event, cardId, el)
-}
 </script>
 
+<style>
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+#app { height: 100%; }
+
+</style>
+
 <style scoped>
+
 .kb-strategy-switch { display: flex; gap: 16px; padding: 12px 24px 0; font-family: system-ui, sans-serif; font-size: 13px; }
-.kb-board { display: flex; gap: 16px; padding: 24px; align-items: flex-start; font-family: system-ui, sans-serif; }
-.kb-column {
+.kb-board { display: flex; gap: 16px; padding: 24px; align-items: flex-start; font-family: system-ui, sans-serif; height: calc(100vh - 40px); }
+.kb-column { max-height: calc(100vh - 40px - 48px); overflow-y: auto; overflow-anchor: none;
   width: 220px; background: #f4f5f7; border-radius: 10px; padding: 10px;
-  display: flex; flex-direction: column; gap: 8px; min-height: 80px; overflow: hidden;
+  display: flex; flex-direction: column; gap: 8px; min-height: 80px;
 }
 .kb-column-title { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; color: #444; padding: 2px 4px; }
 .kb-card-list { display: flex; flex-direction: column; gap: 8px; min-height: 4px; }

@@ -9,6 +9,8 @@ export interface PointerSessionInputRuntime {
 export interface PointerSessionInputOptions {
   /** 默认绑定到 window；测试或 iframe 场景可以注入其他 Window。 */
   target?: Window
+  /** 使用 setPointerCapture 时，传入实际捕获元素以监听丢失捕获。 */
+  captureTarget?: EventTarget
 }
 
 /**
@@ -24,6 +26,7 @@ export function bindPointerSessionInput(
   options: PointerSessionInputOptions = {},
 ): () => void {
   const target = options.target ?? window
+  const captureTarget = options.captureTarget
   let disposed = false
 
   const onPointerMove = (event: PointerEvent): void => {
@@ -35,15 +38,36 @@ export function bindPointerSessionInput(
     void runtime.release(session.id, { kind: 'pointerup', event })
   }
 
+  const onPointerCancel = (event: PointerEvent): void => {
+    stop()
+    runtime.release(session.id, { kind: 'pointercancel', event })
+  }
+
+  const onBlur = (): void => {
+    stop()
+    runtime.release(session.id, { kind: 'blur' })
+  }
+
+  const onLostPointerCapture = (event: Event): void => {
+    stop()
+    runtime.release(session.id, { kind: 'lostpointercapture', event })
+  }
+
   function stop(): void {
     if (disposed) return
     disposed = true
     target.removeEventListener('pointermove', onPointerMove)
     target.removeEventListener('pointerup', onPointerUp)
+    target.removeEventListener('pointercancel', onPointerCancel)
+    target.removeEventListener('blur', onBlur)
+    captureTarget?.removeEventListener('lostpointercapture', onLostPointerCapture)
   }
 
   target.addEventListener('pointermove', onPointerMove)
   target.addEventListener('pointerup', onPointerUp)
+  target.addEventListener('pointercancel', onPointerCancel)
+  target.addEventListener('blur', onBlur)
+  captureTarget?.addEventListener('lostpointercapture', onLostPointerCapture)
   session.cleanup.track(stop)
 
   return stop

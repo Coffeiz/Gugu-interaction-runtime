@@ -1,4 +1,8 @@
 import type { VisualContext } from './VisualAdapterTypes'
+import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
+import { createCardMotionController } from '../motion/CardMotionController'
+import type { MotionState } from '../motion/CardMotionController'
+import { LANDING_PROFILE } from '../motion/MotionProfile'
 
 let visualOverlay: HTMLElement | null = null
 
@@ -193,6 +197,12 @@ export interface LandingVisualOptions {
    * 内容不变的场景维持原来更轻量的路径。
    */
   targetContent?: HTMLElement
+  /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
+  readTarget?: () => LandingRect
+  motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY'>
+  coast?: { duration: number; friction: number; maxDistance: number; minVelocity: number }
+  /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
+  releaseDamping?: number
 }
 
 /** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
@@ -317,12 +327,25 @@ type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
  * 重新排位），飞行终点会跟着更新，而不是飞向一个已经过期的坐标。不调用
  * retarget 的调用方行为不变，仍然是"一次性快照、不追踪"。
  */
+/**
+ * 兼容旧调用方的 landing 入口。动画时序统一转交 MotionController；
+ * 下面的 legacy 实现仅保留作历史对照，不再被 Runtime 使用。
+ */
 export function landDragProxy(
   proxy: HTMLElement,
   target: LandingRect,
   options: LandingVisualOptions = {},
 ): { finished: Promise<void>; retarget: (nextTarget: LandingRect) => void } {
-  const duration = options.duration ?? 280
+  return landDragProxyWithMotion(proxy, target, options)
+}
+
+/** @deprecated 仅供历史对照，不应由 Runtime 调用。 */
+function legacyLandDragProxy(
+  proxy: HTMLElement,
+  target: LandingRect,
+  options: LandingVisualOptions = {},
+): { finished: Promise<void>; retarget: (nextTarget: LandingRect) => void } {
+  const duration = options.duration ?? DEFAULT_MOTION_PROFILE.landing.duration
   const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
   const targetShadow = options.targetShadow
   const targetRadius = options.targetRadius
@@ -363,10 +386,22 @@ export function landDragProxy(
       && Math.abs(rect.width - currentTarget.width) < 2
       && Math.abs(rect.height - currentTarget.height) < 2
   }
+  let pendingRetarget: LandingRect | null = null
+  let pendingRetargetTimer: number | null = null
+  let lastFlyToAt = 0
+  // retarget 之间强制间隔的下限：每次 flyTo 都会重启过渡（冻结当前视觉状态→强制
+  // 回流→下一帧写新终点），如果目标位置在兄弟卡 FLIP 期间逐帧变化，每帧都重启一次
+  // 过渡会打断浏览器正在合成的动画，表现为落地途中卡顿。用这个间隔把高频 retarget
+  // 合并成较低频率的重启，落点仍然会追上，只是不再逐帧强制回流。
+  const RETARGET_MIN_INTERVAL = 60
   const settle = (via: string) => {
     if (settled) return
     settled = true
     proxy.removeEventListener('transitionend', onEnd)
+    if (pendingRetargetTimer !== null) {
+      window.clearTimeout(pendingRetargetTimer)
+      pendingRetargetTimer = null
+    }
     resolveFinished()
   }
   const waitForTarget = () => {
@@ -441,6 +476,13 @@ export function landDragProxy(
   flyTo(target)
   window.setTimeout(waitForTarget, duration + 40)
 
+  const applyRetarget = (nextTarget: LandingRect) => {
+    lastFlyToAt = performance.now()
+    // 用剩余时间而非完整 duration：retarget 只是修正航向，不应重置动画时钟。
+    const remaining = Math.max(80, duration - (lastFlyToAt - startedAt))
+    flyTo(options.readTarget?.() ?? nextTarget, remaining)
+  }
+
   const retarget = (nextTarget: LandingRect) => {
     if (settled) return
     const dx = Math.abs(nextTarget.left - currentTarget.left)
@@ -448,12 +490,168 @@ export function landDragProxy(
     const dw = Math.abs(nextTarget.width - currentTarget.width)
     const dh = Math.abs(nextTarget.height - currentTarget.height)
     if (dx < 0.5 && dy < 0.5 && dw < 0.5 && dh < 0.5) return
-    // 用剩余时间而非完整 duration：retarget 只是修正航向，不应重置动画时钟。
-    const remaining = Math.max(80, duration - (performance.now() - startedAt))
-    flyTo(nextTarget, remaining)
+    const elapsed = performance.now() - lastFlyToAt
+    if (elapsed >= RETARGET_MIN_INTERVAL) {
+      applyRetarget(nextTarget)
+      return
+    }
+    // 距上次 flyTo 还不到最小间隔：先记下最新目标，等间隔到了再统一补一次，
+    // 而不是每帧都重启过渡。
+    pendingRetarget = nextTarget
+    if (pendingRetargetTimer === null) {
+      pendingRetargetTimer = window.setTimeout(() => {
+        pendingRetargetTimer = null
+        if (settled || !pendingRetarget) return
+        const target = pendingRetarget
+        pendingRetarget = null
+        applyRetarget(target)
+      }, RETARGET_MIN_INTERVAL - elapsed)
+    }
   }
 
   return { finished, retarget }
+}
+
+/**
+ * MotionController 驱动的 landing 版本。
+ * DOM 视觉属性仍由本文件处理，控制器只负责连续的位置、尺寸和完成时机。
+ */
+export function landDragProxyWithMotion(
+  proxy: HTMLElement,
+  target: LandingRect,
+  options: LandingVisualOptions = {},
+): { finished: Promise<void>; retarget: (nextTarget: LandingRect) => void } {
+  const duration = options.duration ?? DEFAULT_MOTION_PROFILE.landing.duration
+  const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
+  const targetShadow = options.targetShadow
+  const targetRadius = options.targetRadius
+  const targetBackground = options.targetBackground
+  const targetOpacity = options.targetOpacity
+  const contentLayers = options.targetContent ? wrapContentForMorph(proxy, options.targetContent) : null
+  if (contentLayers) {
+    for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
+    for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
+  }
+
+  // proxy 创建时仍使用 source snapshot；landing 必须在启动控制器前切到
+  // grabbing 的最后一帧，否则第一帧会从鼠标/旧 source 位置直接跳入。
+  if (options.motionState) {
+    proxy.style.left = `${options.motionState.x}px`
+    proxy.style.top = `${options.motionState.y}px`
+    proxy.style.transform = 'none'
+  }
+  const layoutLeft = parseFloat(proxy.style.left) || proxy.getBoundingClientRect().left
+  const layoutTop = parseFloat(proxy.style.top) || proxy.getBoundingClientRect().top
+  const startRect = proxy.getBoundingClientRect()
+  const startWidth = startRect.width || target.width
+  const startHeight = startRect.height || target.height
+  let currentTarget = target
+  let settled = false
+  let timeoutId: number | null = null
+  let timeoutDeadline = 0
+  let resolveFinished: () => void = () => undefined
+  const finished = new Promise<void>(resolve => { resolveFinished = resolve })
+
+  const settle = () => {
+    if (settled) return
+    settled = true
+    motion.stop()
+    if (timeoutId !== null) window.clearTimeout(timeoutId)
+    timeoutId = null
+    resolveFinished()
+  }
+
+  const motion = createCardMotionController({
+    mode: 'settle',
+    onFrame: frame => {
+      proxy.style.transform = `translate3d(${(frame.x - layoutLeft).toFixed(2)}px, ${(frame.y - layoutTop).toFixed(2)}px, 0)`
+      proxy.style.width = `${(startWidth * frame.scaleX).toFixed(2)}px`
+      proxy.style.height = `${(startHeight * frame.scaleY).toFixed(2)}px`
+    },
+    onArrived: settle,
+  })
+  const releaseSpeed = Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0)
+  const releaseDamping = options.releaseDamping ?? 0.78
+  motion.setProfile(releaseSpeed > 30
+    ? {
+        ...LANDING_PROFILE,
+        position: {
+          ...LANDING_PROFILE.position,
+          damping: LANDING_PROFILE.position.damping * releaseDamping,
+        },
+      }
+    : LANDING_PROFILE)
+  motion.seed({
+    // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
+    // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
+    x: options.motionState?.x ?? startRect.left,
+    y: options.motionState?.y ?? startRect.top,
+    vx: options.motionState?.vx ?? 0,
+    vy: options.motionState?.vy ?? 0,
+    // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)。
+    // 不能在 landing 起点把它重置为 1，否则目标位置相同的回放会被
+    // MotionController 判定为已到达，代理瞬间消失。
+    scaleX: options.motionState?.scaleX ?? 1,
+    scaleY: options.motionState?.scaleY ?? 1,
+  })
+  motion.setTarget({
+    x: target.left,
+    y: target.top,
+    scaleX: target.width / startWidth,
+    scaleY: target.height / startHeight,
+  })
+
+  // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
+  proxy.style.transition = [
+    `box-shadow ${duration}ms ${easing}`,
+    `border-radius ${duration}ms ${easing}`,
+    `background-color ${duration}ms ${easing}`,
+    `opacity ${duration}ms ${easing}`,
+  ].join(', ')
+  requestAnimationFrame(() => {
+    if (settled) return
+    if (targetShadow != null) proxy.style.boxShadow = targetShadow
+    if (targetRadius != null) proxy.style.borderRadius = targetRadius
+    if (targetBackground != null) proxy.style.background = targetBackground
+    if (targetOpacity != null) proxy.style.opacity = targetOpacity
+    if (contentLayers) {
+      for (const el of contentLayers.enteringEls) el.style.opacity = '1'
+      for (const el of contentLayers.leavingEls) el.style.opacity = '0'
+    }
+  })
+  const scheduleMotionTimeout = (extraMs = 0) => {
+    if (timeoutId !== null) window.clearTimeout(timeoutId)
+    timeoutDeadline = performance.now() + Math.max(2000, duration * 8, 5000) + extraMs
+    timeoutId = window.setTimeout(() => {
+      timeoutId = null
+      // 超时只作为异常状态的最终保险，不参与正常 landing 完成判断。
+      if (!settled && performance.now() >= timeoutDeadline) settle()
+    }, Math.max(2000, duration * 8, 5000) + extraMs)
+  }
+  scheduleMotionTimeout()
+  const coast = options.coast
+  if (coast && coast.maxDistance > 0 && Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0) > coast.minVelocity) {
+    motion.startCoastThenSettle(coast)
+  } else {
+    motion.start()
+  }
+
+  return {
+    finished,
+    retarget(nextTarget) {
+      if (settled) return
+      currentTarget = nextTarget
+      // 目标发生布局移动时，给新的弹簧轨迹完整的收敛窗口，避免旧 duration
+      // 到期后提前 reveal，造成“移动到一半瞬间到目标”的假跳变。
+      scheduleMotionTimeout(1000)
+      motion.setTarget({
+        x: currentTarget.left,
+        y: currentTarget.top,
+        scaleX: currentTarget.width / startWidth,
+        scaleY: currentTarget.height / startHeight,
+      })
+    },
+  }
 }
 
 export function destroyDragProxy(proxy: HTMLElement) {

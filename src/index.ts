@@ -4,6 +4,17 @@
  */
 export { Runtime, runtime } from './Runtime'
 export type { RuntimeEvent, RuntimeLandingTargetOptions } from './Runtime'
+export { RuntimeRegistry } from './runtime/RuntimeRegistry'
+export { RuntimeDispatcher } from './runtime/RuntimeInput'
+export { SessionCoordinator, RuntimeSessionCoordinator } from './runtime/RuntimeSession'
+export { MoveActionCoordinator } from './runtime/RuntimeMove'
+export { VisualProxyCoordinator, VisualStateCoordinator, VisualMotionCoordinator } from './runtime/RuntimeVisual'
+export { MoveUpdateCoordinator, MoveReleaseCoordinator } from './runtime/RuntimeMove'
+export { MoveCommitCoordinator, MoveLandingCoordinator } from './runtime/RuntimeMove'
+export * from './runtime/RuntimeMove'
+export * from './runtime/RuntimeVisual'
+export * from './runtime/RuntimeSession'
+export * from './runtime/RuntimeInput'
 export { Session } from './session/Session'
 export type { SessionState } from './session/Session'
 export { MoveBehavior } from './behavior/MoveBehavior'
@@ -36,3 +47,16 @@ export type {
 } from './input/PointerSessionInput'
 export type { Action, MoveAction, TransferAction, SortAction, ResizeAction, LinkAction } from './action/Action'
 export type { RuntimeInput, StartRequest, SessionHandle } from './core/Interaction'
+export {
+  createCardMotionController,
+  type CardMotionController,
+  type CardMotionControllerOptions,
+  type MotionState,
+  type MotionTarget,
+  type MotionFrame,
+  type FollowRotationConfig,
+  type ArriveThreshold,
+} from './motion/CardMotionController'
+export { LANDING_PROFILE, FOLLOW_PROFILE, FOLLOW_ROTATION, type MotionProfile as CardMotionProfile, type SpringParams } from './motion/MotionProfile'
+export { integrateSpring, type PhysicsVector, type SpringState } from './motion/physics'
+export { DEFAULT_RELEASE_PROFILE, shapeReleaseVelocity, coastOffset, type ReleaseMotionProfile } from './motion/ReleaseMotion'
