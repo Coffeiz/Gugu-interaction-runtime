@@ -227,7 +227,7 @@ setMotionProfiles(this.registry.motionProfile)
     return this.registry.motionProfile
   }
 
-  startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect): boolean {
+  startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, returnRect?: DOMRect): boolean {
     // 对象当前已经登记了 regrab handler（悬空 landing 中的代理正等着被再次抓起）时，
     // 直接转发给它，不重新走一遍完整的 move 编排——避免代理与实体元素上的
     // pointerdown 在极端时序下重复触发两条 Session。
@@ -247,6 +247,7 @@ setMotionProfiles(this.registry.motionProfile)
       event,
       mode: object.visualMode ?? registration.defaultVisualMode,
       fromRect,
+      returnRect,
     }
     // 优先用户自定义 createMove，没有则用 DefaultVisualAdapter 的内置 createMove
     const userCreateMove = registration.visual?.createMove ?? registration.createMove

@@ -29,8 +29,9 @@ export function createDetachMoveFromAdapter(config: {
   element: HTMLElement
   event: PointerEvent
   fromRect?: DOMRect
+  returnRect?: DOMRect
 }): { driver: MoveBehaviorDriver; lifecycle: MoveVisualLifecycle } {
-  const { runtime, objectId, element, event, fromRect } = config
+  const { runtime, objectId, element, event, fromRect, returnRect } = config
   // surfaceIds 和 findColumnIdOf 从 Runtime 注册表获取，不需要用户传
   const objectItem = runtime.objects.get(objectId)
   const allSurfaces = runtime.surfaces.snapshot()
@@ -52,7 +53,7 @@ export function createDetachMoveFromAdapter(config: {
   let dragMotion: CardMotionController | null = null
   let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number } | undefined
   let dragOffset = { x: 0, y: 0 }
-  let pickupRect: DOMRect | null = null
+  let pickupRect: { left: number; top: number; width: number; height: number } | null = null
   let cancelProxySequence = 0
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
@@ -120,8 +121,6 @@ export function createDetachMoveFromAdapter(config: {
         returnProxy.style.left = `${destination.left}px`
         returnProxy.style.top = `${destination.top}px`
         returnProxy.style.transform = 'scale(1)'
-        // cancel 已经恢复了 source 的正常视觉状态；回飞同时完成抓取态
-        // 阴影到本体阴影的交接，避免一路保持 grabbing 阴影再瞬切。
         returnProxy.style.boxShadow = getComputedStyle(element).boxShadow
       })
       window.setTimeout(() => {
@@ -136,6 +135,9 @@ export function createDetachMoveFromAdapter(config: {
         clearActive: () => delete element.dataset.runtimeActive,
         releaseObject: () => objectLease?.release(),
       })
+      // cancel 内部会 clearFloatingStyle 恢复 source 原始样式；回飞 proxy
+      // 尚未结束前必须再次隐藏 source，避免 invalid drop 出现双卡。
+      element.style.visibility = 'hidden'
       return { accepted: false as const }
     }
     const beforeRect = prepareDetachLanding({
@@ -190,53 +192,6 @@ export function createDetachMoveFromAdapter(config: {
       () => document.querySelector<HTMLElement>(`[data-card="${objectId}"]`),
     )
     if (!liveEl) return
-    const probe = (phase: string) => {
-      const surface = liveEl.closest<HTMLElement>('[data-column]')
-      const proxies = Array.from(document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]')).map(proxyEl => ({
-        cardId: proxyEl.dataset.card ?? '',
-        cancel: proxyEl.dataset.runtimeCancelProxy === 'true',
-        connected: proxyEl.isConnected,
-        visibility: getComputedStyle(proxyEl).visibility,
-        rect: (() => { const rect = proxyEl.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
-      }))
-      const objectNodes = Array.from(document.querySelectorAll<HTMLElement>(`[data-card="${CSS.escape(objectId)}"]`)).map(node => ({
-        connected: node.isConnected,
-        parent: node.parentElement?.className ?? node.parentElement?.tagName ?? '',
-        runtimeProxy: node.dataset.runtimeProxy === 'true',
-        visibility: getComputedStyle(node).visibility,
-        display: getComputedStyle(node).display,
-        position: getComputedStyle(node).position,
-        rect: (() => { const rect = node.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
-      }))
-      const cards = surface
-        ? Array.from(surface.querySelectorAll<HTMLElement>('[data-card]')).map(card => ({
-            id: card.dataset.card ?? '',
-            connected: card.isConnected,
-            visibility: getComputedStyle(card).visibility,
-            display: getComputedStyle(card).display,
-            rect: (() => { const rect = card.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
-            runtimeFlip: card.dataset.runtimeFlip ?? null,
-          }))
-        : []
-      console.log('[runtime-bottom-regrab-probe]', JSON.stringify({
-        phase,
-        objectId,
-        sessionId,
-        proxyConnected: proxy.isConnected,
-        proxyRect: (() => { const rect = proxy.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
-        target: {
-          connected: liveEl.isConnected,
-          visibility: getComputedStyle(liveEl).visibility,
-          display: getComputedStyle(liveEl).display,
-          rect: (() => { const rect = liveEl.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height] })(),
-        },
-        cards,
-        proxies,
-        objectNodes,
-        time: performance.now(),
-      }))
-    }
-    probe('before-interrupt')
     const regrabContext = runtime.createRegrabContext(sessionId!, regrabEvent, proxy, liveEl)
     if (!regrabContext) return
     interruptDetachRegrab({
@@ -245,12 +200,8 @@ export function createDetachMoveFromAdapter(config: {
       clearRegrab: () => runtime.clearRegrab(objectId),
       disposeProxy: () => runtime.disposeVisualProxy(sessionId!),
     })
-    probe('after-interrupt-before-new-session')
-    runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.proxyRect)
-    probe('after-new-session')
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => probe('after-new-session-raf2'))
-    })
+    const targetRect = liveEl.getBoundingClientRect()
+    runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.proxyRect, targetRect)
   }
 
   const driver: MoveBehaviorDriver = {
@@ -291,7 +242,8 @@ export function createDetachMoveFromAdapter(config: {
         },
       })
       dragMotion.setProfile(FOLLOW_PROFILE)
-      pickupRect = rect
+      const originRect = returnRect ?? rect
+      pickupRect = { left: originRect.left, top: originRect.top, width: originRect.width, height: originRect.height }
       dragMotion.seed({ x: rect.left, y: rect.top, scaleX: 1.03, scaleY: 1.03, rotateX: 5, rotateZ: 0 })
       dragMotion.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
       dragMotion.start()

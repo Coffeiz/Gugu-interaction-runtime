@@ -183,6 +183,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     element: HTMLElement
     event: PointerEvent
     fromRect?: DOMRect
+    returnRect?: DOMRect
   }): any {
     const r = this.runtime
     if (!r || !r.objects.hasAbility(context.objectId, 'move')) return {}
@@ -193,6 +194,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       element: context.element,
       event: context.event,
       fromRect: context.fromRect,
+      returnRect: context.returnRect,
     })
   }
 }
