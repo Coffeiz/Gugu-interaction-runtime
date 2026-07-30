@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.9.6
+
+### 新增
+- 接入 MotionController 的 grabbing、landing、retarget 和释放运动链路。
+- 新增 `configureMotion()`，支持配置跟手、旋转、释放、FLIP、Surface resize、landing 和分组动画参数。
+
+### 改进
+- Vue Demo 改为通过 Runtime 注册对象、Surface 和 Motion 配置。
+- 重整接入、设计和执行计划文档，补充 API 参数说明与完整示例。
+
+### 修复
+- 修复落地交接、Surface resize 时序、快速 regrab 和无效落点回飞相关问题。
+
 ## v0.7.1
 - 修复 detach 策略落地时内容徽章瞬间出现/消失、没有交叉淡变的问题。
 
