@@ -1,0 +1,96 @@
+import { RuntimeInput, SessionHandle, StartRequest } from '../core/Interaction';
+import { Session } from '../session/Session';
+import { MoveBehavior, MoveVisualStrategy, MoveContext } from '../behavior/MoveBehavior';
+import { Behavior, BehaviorContext } from '../behavior/Behavior';
+import { Action } from '../action/Action';
+import { MoveActionDestination } from '../behavior/MoveTransaction';
+/** 移动事务功能域入口；Runtime 只通过该入口转发移动阶段操作。 */
+export declare class RuntimeMoveCoordinator {
+    private readonly updateCoordinator;
+    private readonly releaseCoordinator;
+    private readonly commitCoordinator;
+    private readonly landingCoordinator;
+    constructor(updateCoordinator: MoveUpdateCoordinator, releaseCoordinator: MoveReleaseCoordinator, commitCoordinator: MoveCommitCoordinator, landingCoordinator: MoveLandingCoordinator);
+    static fromPorts(updatePort: MoveUpdatePort, commitCoordinator: MoveCommitCoordinator, landingCoordinator: MoveLandingCoordinator): RuntimeMoveCoordinator;
+    update(sessionId: string, input: RuntimeInput): void;
+    prepareRelease(session: Session | undefined, input: RuntimeInput): ReleasePreflight;
+    commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
+    land(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
+    release(sessionId: string, input: RuntimeInput, port: MoveReleasePort): Promise<void>;
+    start(request: StartRequest, port: MoveStartPort): SessionHandle;
+}
+export interface MoveStartPort {
+    getBehavior(type: string): Behavior | undefined;
+    createSession(type: string, objectId: string): Session;
+    getVisualStrategy(objectId: string): MoveVisualStrategy | undefined;
+    bindLifecycle(sessionId: string, strategy: MoveVisualStrategy): void;
+    createContext(session: Session): BehaviorContext;
+    isCurrent(sessionId: string): boolean;
+    cancel(sessionId: string, reason: string): void;
+    interrupt(sessionId: string, reason: string): void;
+}
+export interface MoveReleasePort {
+    getSession(sessionId: string): Session | undefined;
+    getBehavior(type: string): Behavior | undefined;
+    createContext(session: Session): BehaviorContext;
+    cancel(sessionId: string, reason: string): void;
+    end(session: Session): void;
+}
+export interface MoveActionPort {
+    getObjectSurface(objectId: string): string | undefined;
+    emit(action: Action): void;
+}
+export interface MoveUpdatePort {
+    getSession(id: string): {
+        type: string;
+        state: string;
+    } | undefined;
+    getBehavior(type: string): Behavior | undefined;
+    createContext(id: string): BehaviorContext;
+}
+export declare class MoveUpdateCoordinator {
+    private readonly port;
+    constructor(port: MoveUpdatePort);
+    update(sessionId: string, input: RuntimeInput): void;
+}
+export type ReleasePreflight = {
+    kind: 'cancel';
+    reason: string;
+} | {
+    kind: 'continue';
+    session: Session;
+} | {
+    kind: 'ignore';
+};
+export declare class MoveReleaseCoordinator {
+    prepare(session: Session | undefined, input: RuntimeInput): ReleasePreflight;
+}
+export interface MoveCommitPort {
+    createContext(session: Session): BehaviorContext;
+    getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined;
+    normalize(objectId: string, destination: unknown): MoveActionDestination | null;
+}
+export declare class MoveCommitCoordinator {
+    private readonly port;
+    private readonly actions;
+    constructor(port: MoveCommitPort, actions: MoveActionCoordinator);
+    commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
+}
+export interface MoveLandingPort {
+    createContext(session: Session): BehaviorContext;
+    getSession(id: string): Session | undefined;
+    cancel(id: string, reason: string): void;
+    end(session: Session): void;
+}
+export declare class MoveLandingCoordinator {
+    private readonly port;
+    constructor(port: MoveLandingPort);
+    run(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
+}
+export declare class MoveActionCoordinator {
+    private readonly port;
+    constructor(port: MoveActionPort);
+    normalize(objectId: string, value: unknown): MoveActionDestination | null;
+    emit(objectId: string, destination: unknown, transaction: MoveContext['transaction']): boolean;
+    private isDestination;
+}
