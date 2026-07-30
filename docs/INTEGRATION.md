@@ -9,7 +9,7 @@
 > Session、landing/reveal 时机和清理；业务端仍需要提供对象的命中、Action
 > 提交及 clone/detach 这类具体视觉策略。
 
-> **MotionProfile**：`runtime.registerMotionProfile()` 已可用，一次注册控制
+> **MotionProfile**：`runtime.configureMotion()` 已可用，一次注册控制
 > flip/resize/landing/group 四种运动速度。`registerSurfaceLayout()` 不再需要，
 > Surface resize 速度由 MotionProfile.resize 统一配置。
 
@@ -86,7 +86,7 @@ mountVisualOverlay()
 所有运动速度通过一次全局配置控制：
 
 ```ts
-runtime.registerMotionProfile({
+runtime.configureMotion({
   flip:    { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
   resize:  { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
   landing: { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
@@ -181,6 +181,26 @@ runtime.registerObjectType('kanban', {
   defaultVisualMode: 'detach',
 })
 ```
+
+对象类型也可以选择是否使用 Runtime 内置的 MotionController，并覆盖该对象的运动参数。
+未填写 `enabled` 时默认启用；未填写的参数继续回退到全局配置和 Runtime 默认值：
+
+```ts
+runtime.registerObjectType('kanban', {
+  defaultVisualMode: 'detach',
+  motion: {
+    enabled: true,
+    profile: {
+      landing: { duration: 320, easing: 'cubic-bezier(.22,1,.36,1)' },
+      flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+    },
+  },
+})
+```
+
+如果业务需要自行提供落地运动实现，可将 `enabled` 设为 `false`；Runtime 仍负责
+Session、目标解析、landing/reveal 顺序和清理，只把落地运动交给适配器的 `land()`。
+这不会关闭跟手阶段的输入或生命周期编排。
 
 如果需要自定义视觉，可以注册 `VisualAdapter`：
 
@@ -415,12 +435,12 @@ Surface 的 `height` 或 `transition`。
 ## Runtime 入口
 
 ```ts
-runtime.registerMotionProfile({ flip, resize, landing, group })
+runtime.configureMotion({ flip, resize, landing, group })
 runtime.start({ type: 'move', objectId: card.id, input: event })
 runtime.onAction(async action => {
   await projectStore.applyAction(action)
 })
 ```
 
-`registerMotionProfile` 是全局的一次性配置，推荐在应用初始化时调用。
+`configureMotion` 是全局的一次性配置，推荐在应用初始化时调用。
 `runtime.start()` 创建统一 Session，`runtime.onAction()` 输出明确的行为联合类型。

@@ -151,7 +151,7 @@ function applyPreview(): void {
   DEFAULT_RELEASE_PROFILE.minVelocity = draft.minVelocity
   DEFAULT_RELEASE_PROFILE.maxVelocity = draft.maxVelocity
   DEFAULT_RELEASE_PROFILE.dampingRatio = draft.dampingRatio
-  runtime.registerMotionProfile({
+  runtime.configureMotion({
     ...(runtime.getMotionProfile() ?? {}),
     landing: { duration: draft.duration, easing: 'cubic-bezier(.22,1,.36,1)' },
   })

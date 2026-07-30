@@ -339,8 +339,8 @@ export function landDragProxy(
   return landDragProxyWithMotion(proxy, target, options)
 }
 
-/** @deprecated 仅供历史对照，不应由 Runtime 调用。 */
-function legacyLandDragProxy(
+/** MotionController 可选关闭时使用的 CSS 过渡落地实现。 */
+export function landDragProxyLegacy(
   proxy: HTMLElement,
   target: LandingRect,
   options: LandingVisualOptions = {},

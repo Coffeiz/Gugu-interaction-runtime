@@ -80,9 +80,15 @@ import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 // registerObjectType 不需要传 visual adapter
 runtime.registerObjectType('kanban', {
   defaultVisualMode: 'detach',
+  motion: {
+    enabled: true,
+    profile: {
+      landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+    },
+  },
 })
 
-runtime.registerMotionProfile({
+runtime.configureMotion({
   flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
   resize: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
   landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
