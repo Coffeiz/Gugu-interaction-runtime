@@ -11,6 +11,9 @@ import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisua
 import { DefaultVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
 import type { VisualState } from './dom/VisualAdapterTypes'
 import type { MotionProfile } from './dom/MotionProfile'
+import type { MotionControllerConfig } from './motion/MotionProfile'
+import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
+import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
 import type { HitResolver } from './dom/Hit'
 import type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
 import type { PointerSessionInputOptions } from './input/PointerSessionInput'
@@ -219,8 +222,19 @@ setMotionProfiles(this.registry.motionProfile)
     this.surfaces.register(surface)
   }
 
-  configureMotion(profile: import('./dom/MotionProfile').MotionProfile): void {
-    this.registry.setMotionProfile(profile)
+  configureMotion(config: {
+    profile?: import('./dom/MotionProfile').MotionProfile
+    controller?: MotionControllerConfig
+  } & import('./dom/MotionProfile').MotionProfile): void {
+    const { profile, controller, ...directProfile } = config
+    const nextProfile = profile ?? (Object.keys(directProfile).length ? directProfile : undefined)
+    if (nextProfile) this.registry.setMotionProfile(nextProfile)
+    if (controller) {
+      this.registry.setMotionController(controller)
+      if (controller.follow) Object.assign(FOLLOW_PROFILE.position, controller.follow)
+      if (controller.rotation) Object.assign(FOLLOW_ROTATION, controller.rotation)
+      if (controller.release) Object.assign(DEFAULT_RELEASE_PROFILE, controller.release)
+    }
     setMotionProfiles(this.registry.motionProfile)
   }
 

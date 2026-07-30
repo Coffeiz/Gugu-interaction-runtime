@@ -1,13 +1,50 @@
 # Interaction Runtime · 接入指南
 
+## 五分钟接入
+
+Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
+默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器
+样式和数据保存。
+
+```ts
+import { runtime } from 'gugu-interaction-runtime'
+import { useObject } from 'gugu-interaction-runtime/vue/useObject'
+import { useSurface } from 'gugu-interaction-runtime/vue/useSurface'
+
+runtime.registerObjectType('project-card', {
+  defaultVisualMode: 'detach',
+})
+
+const { elementRef } = useObject({
+  id: `project:${project.id}`,
+  type: 'project-card',
+  surface: () => `column:${project.status}`,
+  abilities: ['move', 'sort'],
+})
+
+const { elementRef: columnRef } = useSurface({
+  id: `column:${status}`,
+  type: 'project-column',
+  accepts: ['project-card'],
+})
+
+const stop = runtime.onAction(action => {
+  if (action.type === 'move' || action.type === 'transfer') {
+    projectStore.applyMove(action)
+  }
+})
+```
+
+对象节点只需绑定 `elementRef`，容器节点只需绑定 `columnRef`。Runtime 自动处理
+抓取、跟手、落点、落地、揭示、取消、中断和资源清理。
+
 这份文档是写给**使用**这套 Runtime 的人看的：接入一个新的可拖拽对象类型
 需要做什么。不假设你了解 Runtime 内部怎么实现——原理和设计取舍见
 [DESIGN.md](./DESIGN.md)。
 
-> **现状提示**：`ObjectStore`/`SurfaceStore`/`useObject`/`useSurface`、
-> `runtime.start()` 和 `runtime.onAction()` 都已经可用。Runtime 统一管理
-> Session、landing/reveal 时机和清理；业务端仍需要提供对象的命中、Action
-> 提交及 clone/detach 这类具体视觉策略。
+> **职责边界**：Runtime 统一管理输入、Session、命中、Action、landing/reveal、
+> MotionController 和清理；业务端只负责注册对象/Surface、提供样式和提交 Action。
+> 只有需要特殊视觉时才需要实现 `VisualAdapter`。
 
 > **MotionProfile**：`runtime.configureMotion()` 已可用，一次注册控制
 > flip/resize/landing/group 四种运动速度。`registerSurfaceLayout()` 不再需要，
@@ -81,7 +118,27 @@ import { mountVisualOverlay } from '{path-to}/index'
 mountVisualOverlay()
 ```
 
-**3. 注册运动参数**
+## 核心 API 参数
+
+| API | 参数 | 用途 |
+| --- | --- | --- |
+| `registerObjectType(type, options)` | `defaultVisualMode` | 默认视觉策略，通常为 `detach` |
+|  | `visual` | 可选的对象级 `VisualAdapter` |
+|  | `motion.enabled` | 是否使用内置 MotionController，默认 `true` |
+|  | `motion.profile` | 该对象类型的运动参数覆盖 |
+| `useObject(options)` | `id` | 对象唯一标识 |
+|  | `type` | 对象类型，必须匹配 Surface 的 `accepts` |
+|  | `surface` | 当前 Surface ID，可传 getter |
+|  | `abilities` | 能力列表，包含 `move` 才允许拖动 |
+| `useSurface(options)` | `id` | Surface 唯一标识 |
+|  | `type` | Surface 类型 |
+|  | `accepts` | 接受的对象类型，空数组表示不限 |
+| `runtime.onAction(handler)` | `action` | 业务保存移动结果的语义化事件 |
+
+Action 的常用字段为 `type`、`objectId`、`fromSurfaceId`、`toSurfaceId`、`toIndex`
+和 `timestamp`。Runtime 不直接修改业务 Store。
+
+**3. 配置运动参数**
 
 所有运动速度通过一次全局配置控制：
 
@@ -94,10 +151,30 @@ runtime.configureMotion({
 })
 ```
 
-所有字段可选，未设置的字段回退到 `DEFAULT_MOTION_PROFILE`。推荐在应用
-初始化时调用一次。
+跟手和释放物理参数通过同一个入口配置：`follow.stiffness/damping` 控制跟手弹簧，
+`rotation.tilt/sway/smoothing` 控制抓取姿态，`release.velocityScale` 控制释放速度，
+`minVelocity/maxVelocity` 控制抛出阈值和速度上限，`dampingRatio` 控制落地阻尼。
 
-**3. 给对象打上可识别的标记**（供 hit test 用，见"已知限制"）
+```ts
+runtime.configureMotion({
+  controller: {
+    follow: { stiffness: 360, damping: 32 },
+    rotation: { tilt: 5, sway: 0.25, smoothing: 0.2 },
+    release: {
+      velocityScale: 1,
+      minVelocity: 30,
+      maxVelocity: 5000,
+      dampingRatio: 0.78,
+    },
+  },
+})
+```
+
+`flip` 控制兄弟节点位移，`resize` 控制 Surface 高度，`landing` 控制落地，
+`group` 控制分组展开/收起。所有字段可选，未设置时回退到 Runtime 默认值。
+推荐在应用初始化时调用一次。
+
+**4. 给对象打上可识别的标记**（供 hit test 用，见“已知限制”）
 
 ```html
 <div class="my-card" :data-card="cardId">
@@ -168,7 +245,7 @@ Runtime 会统一检查节点仍连接在文档中。
 释放时 Runtime 会先通知适配器执行 `dispose(proxy, context)`，随后调用代理对象自身的
 `dispose()`；两者都由 Runtime 保证最多执行一次。
 
-**4.1（可选）提供视觉适配器**
+**5.（可选）提供视觉适配器**
 
 业务端可以自定义卡片在普通、hover、抓取、落地和揭示阶段的 class 或样式，
 但不应自行编排 proxy 与本体的交接。如果不提供，Runtime 使用内置的
@@ -272,7 +349,7 @@ Runtime 或适配器：
 }
 ```
 
-**4.2（可选覆盖）视觉适配器**
+**5.1（可选覆盖）视觉适配器**
 
 Runtime 会统一编排 source/target 解析所需的生命周期顺序、landing、handoff、reveal
 和清理；具体 proxy、样式交接、目标等待和落地动画仍由当前 clone/detach 视觉 driver
@@ -295,7 +372,7 @@ runtime.registerVisualAdapter('project-card', {
 适配器只覆盖提供的字段；Runtime 负责 Session、landing/reveal 顺序、幂等和
 清理，source/target 的具体 DOM 操作仍由视觉 driver 负责。
 
-**4.3 视觉 driver 的落地交接**
+**5.2 视觉 driver 的落地交接**
 
 以下代码展示视觉 driver 如何执行交接；Runtime 负责在 landing 完成后调用
 reveal，业务端不应自行编排 Session。目标只读取一次
@@ -329,7 +406,7 @@ destroyDragProxy(proxyEl)
 修改 proxy 的 `left`、`top`、`box-shadow` 或 `transform`，这些属性由 Runtime
 独占，避免两个动画源互相覆盖。
 
-**5.（仅 detach 策略需要）模板里包一层 `<Teleport>`**
+**6.（仅 detach 策略需要）模板里包一层 `<Teleport>`**
 
 ```html
 <Teleport to="body" :disabled="!isDetached(cardId)">
@@ -346,7 +423,7 @@ function isDetached(cardId: string) {
 }
 ```
 
-**6. 让容器的 `TransitionGroup` 在被接管期间关闭**
+**7. 让容器的 `TransitionGroup` 在被接管期间关闭**
 
 ```html
 <TransitionGroup :css="!controlled">

@@ -2,6 +2,7 @@ import { VisualAdapters, type VisualAdapter } from '../dom/VisualAdapter'
 import type { MoveVisualStrategy } from '../behavior/MoveBehavior'
 import type { ObjectTypeRegistration } from '../Runtime'
 import type { MotionProfile } from '../dom/MotionProfile'
+import type { MotionControllerConfig } from '../motion/MotionProfile'
 
 /** Runtime 的注册状态；不参与 Session 或视觉生命周期。 */
 export class RuntimeRegistry {
@@ -9,6 +10,7 @@ export class RuntimeRegistry {
   readonly objectTypes = new Map<string, ObjectTypeRegistration>()
   readonly visualStrategies = new Map<string, MoveVisualStrategy>()
   motionProfile: MotionProfile | null = null
+  motionController: MotionControllerConfig = {}
 
   registerVisualAdapter(type: string, adapter: VisualAdapter): void {
     this.visuals.register(type, adapter)
@@ -25,5 +27,9 @@ export class RuntimeRegistry {
 
   setMotionProfile(profile: MotionProfile): void {
     this.motionProfile = profile
+  }
+
+  setMotionController(config: MotionControllerConfig): void {
+    this.motionController = config
   }
 }
