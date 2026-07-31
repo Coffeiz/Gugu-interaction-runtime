@@ -166,25 +166,18 @@ export class MoveCommitCoordinator {
   async commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction = true): Promise<void> {
     const context = this.port.createContext(session)
     await behavior.commit(context, destination)
+    behavior.playLayout(context)
     if (!emitAction) {
       // 无效落点回原 Surface 没有业务 Action，但目标等待仍需要知道这是
       // 同 Surface 事务，避免把隐藏源节点误判成跨列尚未重挂载的旧节点。
       const normalized = this.port.normalize(session.objectId, destination)
       if (normalized) behavior.getContext(session.id).transaction.destination = normalized
-      behavior.playLayout(context)
       return
     }
     const lifecycle = this.port.getLifecycle(session.id)
     const normalized = this.port.normalize(session.objectId, destination)
     if (normalized) await lifecycle?.surface?.leave?.(context, normalized.fromSurfaceId)
     await this.actions.emit(session.objectId, behavior.getContext(session.id).destination, behavior.getContext(session.id).transaction)
-    // playLayout 必须在 emit 之后、所有 Vue patch 微任务入队后再调用：
-    // scheduleLayoutFlip 用 queueMicrotask 排 Invert，若在 emit 前调用，
-    // Invert 会排在 emit 触发的 Vue patch 之前，读到旧布局——卡片进入列
-    // 时底部 surface 的 resize 与卡片 FLIP 起点不匹配，表现为整列卡片被
-    // 往上推一下。移到 emit 后，Invert 读到的是最终布局；同时 microtask
-    // 保证 Invert 在任何绘制之前写入，松手不会闪现。
-    behavior.playLayout(context)
     if (normalized) await lifecycle?.surface?.enter?.(context, normalized.toSurfaceId)
   }
 }
