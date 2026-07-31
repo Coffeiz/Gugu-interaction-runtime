@@ -175,7 +175,9 @@ export function createDetachMoveFromAdapter(config: {
         }),
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
-      if (!landedEl) { landingGate?.complete({ completed: true, reason: '' }); landingGate = null; return }
+      if (!landedEl) {
+        landingGate?.complete({ completed: true, reason: '' }); landingGate = null; return
+      }
       const scrollColumn = landedEl.closest<HTMLElement>('[data-column]')
       if (scrollColumn) {
         keepElementWithinColumn(scrollColumn, landedEl)
