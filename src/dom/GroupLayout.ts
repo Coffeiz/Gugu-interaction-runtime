@@ -92,17 +92,15 @@ export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
  * 事务会接管旧快照：抓起后立刻放下就不会先启动"收束"，再被第二笔 FLIP
  * 硬清空。
  *
- * 这里原来用的是 requestAnimationFrame，而不是 queueMicrotask——两者都能
- * 实现"合并同一批同步调用"这个效果，但 rAF 只保证"下一次绘制之前执行"，
- * 不保证"这一帧还没画完就执行"：如果 DOM 变化（松手、Vue 重渲染、兄弟卡
- * 让位）发生在一次不是由 rAF 驱动的事件（比如 pointerup）里，浏览器完全
- * 可能在当前任务结束后先画一帧——这时候 FLIP 的 Invert 步骤（读取"变化后"
- * 位置、写入反向 transform 把视觉冻结在"变化前"）还没执行，画出来的就是
- * "已经变化完、但动画还没开始"的最终布局，下一帧才突然摁回起点开始播放，
- * 表现为松手瞬间"闪一下排布好的最终布局，然后才回到起点做动画"。
- * queueMicrotask 保证在任何绘制之前执行，同时仍然能被同步执行的后续调用
- * 覆盖（微任务队列在当前同步代码跑完之后、下一次绘制之前统一清空），批量
- * 合并的效果不受影响。
+ * 必须用 queueMicrotask：FLIP 的 Invert 步骤必须在任何一次绘制之前写入，
+ * 否则松手那一帧浏览器先画出"已排好但未 Invert"的最终布局，下一帧才被
+ * 摁回起点，表现为闪现。微任务在同步代码之后、绘制之前统一清空，批量合
+ * 并的效果不受影响，也保证不会出现未 Invert 的中间帧。
+ *
+ * 顶动问题的修复不依赖这里的调度时机，而是依赖调用方把 playLayout 排在
+ * 所有 DOM 变更（含 emit 触发的 Vue patch）之后——见 RuntimeMove 的
+ * MoveCommitCoordinator.commit。若调用方在 patch 前调用，用 rAF 或
+ * queueMicrotask 都无法让 Invert 读到最终布局。
  */
 export function scheduleLayoutFlip(snapshot: LayoutFlipSnapshot): void {
   pendingLayoutFlips.set(snapshot.root, snapshot)
