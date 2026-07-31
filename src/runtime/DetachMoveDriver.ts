@@ -64,9 +64,12 @@ export interface DetachPickupPreparation {
 
 
 
-export function prepareDetachPickup(sourceElement: HTMLElement): DetachPickupPreparation {
+export function prepareDetachPickup(
+  sourceElement: HTMLElement,
+  registeredElements: () => HTMLElement[],
+): DetachPickupPreparation {
   const beforeContent = sourceElement.cloneNode(true) as HTMLElement
-  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+  const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
   return { beforeContent, beforePickup: captureLayoutFlip(cards) }
 }
@@ -83,7 +86,11 @@ export function createDetachDropState<TDrop>(
   return {
     update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null {
       const drop = resolve(event)
-      if (!drop || same(drop, pending)) return pending
+      if (!drop) {
+        pending = null
+        return null
+      }
+      if (same(drop, pending)) return pending
       currentSurface = getSurface(drop)
       pending = drop
       return pending
@@ -138,13 +145,14 @@ export function interruptDetachRegrab(args: {
 
 export function cancelDetachWithoutDrop(args: {
   source: HTMLElement
+  registeredElements: () => HTMLElement[]
   cancel: () => void
   releaseObject: () => void
   clearFloating: (element: HTMLElement) => void
   clearActive: () => void
 }): void {
   document.body.classList.remove('kb-dragging')
-  const returnCards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+  const returnCards = args.registeredElements()
     .filter(element => element !== args.source && element.dataset.runtimeProxy !== 'true')
   const returnBefore = captureLayoutFlip(returnCards)
   args.cancel()
@@ -307,13 +315,16 @@ export function createDetachLandingLifecycle<TGate extends { promise: Promise<La
 
 
 
-export function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
+export function createDetachLayoutLifecycle(
+  sourceEl: HTMLElement,
+  registeredElements: () => HTMLElement[],
+) {
   let layoutToken = 0
   return {
     capture: () => {
       layoutToken += 1
       return captureLayoutFlip(
-        Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+        registeredElements()
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
       )
     },

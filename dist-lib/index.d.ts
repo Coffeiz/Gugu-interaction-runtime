@@ -31,6 +31,8 @@ export { mountVisualOverlay } from './dom/Visual';
 export { createDetachMoveFromAdapter } from './runtime/detach/DetachAdapter';
 export type { HitResolver, HitResult } from './dom/Hit';
 export { createDomHitResolver, hitWithResolver } from './dom/Hit';
+export { createRegisteredHitResolver } from './dom/RegisteredHit';
+export { acquireSourceVisualLease, type SourceVisualLease } from './dom/SourceVisualLease';
 export { trackLandingTarget } from './dom/LandingTargetTracker';
 export type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker';
 export { bindPointerSessionInput } from './input/PointerSessionInput';

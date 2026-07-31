@@ -4,7 +4,6 @@ import { createCardMotionController } from '../motion/CardMotionController'
 import type { MotionState } from '../motion/CardMotionController'
 import { LANDING_PROFILE } from '../motion/MotionProfile'
 
-let visualOverlay: HTMLElement | null = null
 
 /**
  * 从元素捕获 CSS 继承属性上下文。
@@ -72,38 +71,6 @@ export function verifyVisualContextConsistency(
   return mismatches
 }
 
-/**
- * Runtime 的临时视觉层。proxy/landing visual 必须脱离 Surface、应用壳和
- * body 的裁剪树，否则卡片越过列边界或飞往目标时会被中途截断。
- */
-export function mountVisualOverlay(): HTMLElement {
-  if (!visualOverlay || !visualOverlay.isConnected) {
-    visualOverlay = document.createElement('div')
-    visualOverlay.dataset.runtimeOverlay = 'true'
-    Object.assign(visualOverlay.style, {
-      position: 'fixed',
-      inset: '0',
-      overflow: 'visible',
-      pointerEvents: 'none',
-      zIndex: '2147483647',
-    })
-    new MutationObserver(mutations => {
-      for (const m of mutations) {
-        for (const node of Array.from(m.removedNodes)) {
-          if (!(node instanceof HTMLElement)) continue
-          if (node.dataset.runtimeProxy !== 'true') continue
-        }
-      }
-    }).observe(visualOverlay, { childList: true })
-  }
-  // body 常被应用壳设置 overflow/transform；把 overlay 直接作为 html 的
-  // 子节点，才是 Runtime 能保证不受任何业务 Surface 裁剪的最外层位置。
-  if (visualOverlay.parentElement !== document.documentElement) {
-    document.documentElement.appendChild(visualOverlay)
-  }
-  return visualOverlay
-}
-
 export function setProxyInteractive(
   proxy: HTMLElement,
   enabled: boolean,
@@ -160,17 +127,27 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   proxy.style.width = `${rect.width}px`
   proxy.style.height = `${rect.height}px`
   proxy.style.margin = '0'
-  proxy.style.zIndex = '1'
+  // 之前经一个 data-runtime-overlay 中间容器（fixed + z-index 2147483647）来
+  // 统一压 z-index，代理自己只需要 z-index:1。现在代理直接挂到 <html> 下，
+  // 逃出玻璃裁切靠的是"脱离被裁切祖先的 DOM 子树"这件事本身（重新挂载到
+  // document.documentElement），不是那层 overlay 容器；容器唯一的另一个作用
+  // 是集中管理 z-index，去掉之后这个值要留在代理自己身上，直接顶到最高层。
+  proxy.style.zIndex = '2147483647'
   proxy.style.pointerEvents = 'none'
   proxy.style.visibility = 'visible'
-  proxy.style.display = 'block'
+  // 不强制 display——源节点若是 flex/grid，克隆会保留其布局；强制
+  // block 会破坏 flex 子项（如右侧推进按钮 align-self:stretch）的布局。
+  proxy.style.display = ''
   proxy.dataset.runtimeProxy = 'true'
   // 拖拽期间就用 0 0 原点，避免 landing 时从 center 跳变到 0 0 导致内容偏移。
   proxy.style.transformOrigin = '0 0'
   proxy.style.transform = 'scale(1.03)'
   proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
   proxy.style.transition = 'transform .15s ease, box-shadow .15s ease'
-  mountVisualOverlay().appendChild(proxy)
+  // 逃出玻璃裁切（overflow:hidden / backdrop-filter 祖先）靠的就是这次重新
+  // 挂载：只要还在被裁切祖先的子树里，z-index 再高也没用；只要挂到 <html>
+  // 下，不需要额外一层 overlay 容器。
+  document.documentElement.appendChild(proxy)
   activeDragProxies.add(proxy)
   return proxy
 }
@@ -186,6 +163,9 @@ export interface LandingVisualOptions {
   targetShadow?: string
   targetRadius?: string
   targetBackground?: string
+  /** 目标背景图（渐变等）。backgroundColor 与 backgroundImage 分设，避免
+   *  background 简写把渐变覆盖成透明。 */
+  targetBackgroundImage?: string
   targetOpacity?: string
   /**
    * 落点内容本身会变化时用（比如落点比源多/少某个子元素——徽章、按钮这类
@@ -280,12 +260,31 @@ function wrapContentForMorph(
 
   const beforeLayer = document.createElement('div')
   Object.assign(beforeLayer.style, { ...layerStyle })
+  // beforeLayer 承载源卡片的子节点，同样需要源卡片的 flex 布局，否则
+  // flex 子项（右侧按钮）在 block 层里掉位。
+  const sourceStyle = getComputedStyle(proxy)
+  beforeLayer.style.display = sourceStyle.display
+  beforeLayer.style.flexDirection = sourceStyle.flexDirection
+  beforeLayer.style.flexWrap = sourceStyle.flexWrap
+  beforeLayer.style.alignItems = sourceStyle.alignItems
+  beforeLayer.style.justifyContent = sourceStyle.justifyContent
+  beforeLayer.style.gap = sourceStyle.gap
   while (proxy.firstChild) beforeLayer.appendChild(proxy.firstChild)
   const fromEls = normalizeToElements(beforeLayer)
   const fromSignatures = new Set(fromEls.map(childSignature))
 
   const contentLayer = document.createElement('div')
   Object.assign(contentLayer.style, { ...layerStyle, pointerEvents: '' })
+  // contentLayer 是绝对定位层，但子节点（如右侧推进按钮）依赖目标卡片
+  // 的 flex 布局才排得正确——不带 display，子节点会退化成块级堆叠、
+  // flex 子项（align-self:stretch 的按钮）从右侧掉走。
+  contentLayer.style.display = targetStyle.display
+  contentLayer.style.flexDirection = targetStyle.flexDirection
+  contentLayer.style.flexWrap = targetStyle.flexWrap
+  contentLayer.style.alignItems = targetStyle.alignItems
+  contentLayer.style.justifyContent = targetStyle.justifyContent
+  contentLayer.style.gap = targetStyle.gap
+  contentLayer.style.overflow = 'hidden'
   // cloneNode 会带走 toContent 当下的内联样式——调用方传进来的目标节点常常
   // 这一刻正被业务代码隐藏（等着落地动画接管），得先复位再搬子节点。
   const toContentClone = toContent.cloneNode(true) as HTMLElement
@@ -402,6 +401,10 @@ export function landDragProxyLegacy(
       window.clearTimeout(pendingRetargetTimer)
       pendingRetargetTimer = null
     }
+    // ── 探针（临时调试，1.0.1 完成后移除）────────────────────────
+    // eslint-disable-next-line no-console
+    console.warn(`[probe settle] via=${via} proxyConnected=${proxy.isConnected} proxyVisibility=${getComputedStyle(proxy).visibility} proxyDisplay=${getComputedStyle(proxy).display}`)
+    // ── 探针结束 ────────────────────────────────────────────────
     resolveFinished()
   }
   const waitForTarget = () => {
@@ -457,7 +460,12 @@ export function landDragProxyLegacy(
       proxy.style.height = `${nextTarget.height.toFixed(2)}px`
       if (targetShadow != null) proxy.style.boxShadow = targetShadow
       if (targetRadius != null) proxy.style.borderRadius = targetRadius
-      if (targetBackground != null) proxy.style.background = targetBackground
+      if (targetBackground != null) {
+        proxy.style.backgroundColor = targetBackground
+        if (options.targetBackgroundImage) {
+          proxy.style.backgroundImage = options.targetBackgroundImage
+        }
+      }
       if (targetOpacity != null) proxy.style.opacity = targetOpacity
       if (contentLayers) {
         for (const el of contentLayers.enteringEls) el.style.opacity = '1'
@@ -538,7 +546,10 @@ export function landDragProxyWithMotion(
   if (options.motionState) {
     proxy.style.left = `${options.motionState.x}px`
     proxy.style.top = `${options.motionState.y}px`
-    proxy.style.transform = 'none'
+    // 保留 grabbing 的倾斜（rotateX/rotateZ），避免 transform:none 让
+    // proxy 在松手瞬间突然变平造成视觉卡顿；后续 spring 每帧都会用
+    // rotateX/rotateZ 覆盖 transform，这里只需一个合法的 transform 初始值。
+    proxy.style.transform = 'translate3d(0px, 0px, 0)'
   }
   const layoutLeft = parseFloat(proxy.style.left) || proxy.getBoundingClientRect().left
   const layoutTop = parseFloat(proxy.style.top) || proxy.getBoundingClientRect().top
@@ -616,7 +627,15 @@ export function landDragProxyWithMotion(
     if (settled) return
     if (targetShadow != null) proxy.style.boxShadow = targetShadow
     if (targetRadius != null) proxy.style.borderRadius = targetRadius
-    if (targetBackground != null) proxy.style.background = targetBackground
+    if (targetBackground != null) {
+      // 分开设置：background 简写会重置 background-image，业务卡片常用
+      // linear-gradient（在 backgroundImage），渐变会被 backgroundColor
+      // 覆盖丢失（透明底）。先设 backgroundColor，再设 backgroundImage。
+      proxy.style.backgroundColor = targetBackground
+      if (options.targetBackgroundImage) {
+        proxy.style.backgroundImage = options.targetBackgroundImage
+      }
+    }
     if (targetOpacity != null) proxy.style.opacity = targetOpacity
     if (contentLayers) {
       for (const el of contentLayers.enteringEls) el.style.opacity = '1'
@@ -754,6 +773,11 @@ const visibilityOwner = new Map<HTMLElement, string>()
  * 只有登记的 owner 才能通过 revealElement() 恢复可见性。
  */
 export function concealElement(el: HTMLElement, ownerId: string): void {
+  // ── 探针（临时调试，1.0.1 完成后移除）────────────────────────
+  // eslint-disable-next-line no-console
+  console.warn(`[probe conceal] owner=${ownerId} el=${el.dataset?.cardId ?? el.id ?? 'el'} prevVisibility=${el.style.visibility || '(inline empty)'} computed=${getComputedStyle(el).visibility} time=${performance.now().toFixed(1)}`)
+  console.warn(`[probe live-proxies] at-conceal count=${document.querySelectorAll('[data-runtime-proxy="true"]').length}`)
+  // ── 探针结束 ────────────────────────────────────────────────
   visibilityOwner.set(el, ownerId)
   el.style.visibility = 'hidden'
 }
@@ -767,6 +791,11 @@ export function revealElement(el: HTMLElement, ownerId: string): boolean {
   if (isOwner) {
     el.style.visibility = ''
     visibilityOwner.delete(el)
+    // ── 探针（临时调试，1.0.1 完成后移除）────────────────────────
+    // eslint-disable-next-line no-console
+    console.warn(`[probe reveal] owner=${ownerId} el=${el.dataset?.cardId ?? el.id ?? 'el'} connected=${el.isConnected} time=${performance.now().toFixed(1)}`)
+    console.warn(`[probe live-proxies] at-reveal count=${document.querySelectorAll('[data-runtime-proxy="true"]').length}`)
+    // ── 探针结束 ────────────────────────────────────────────────
   }
   return isOwner
 }

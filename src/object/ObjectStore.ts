@@ -14,10 +14,15 @@ export type ObjectStoreEvent =
 export class ObjectStore {
   private items = new Map<string, ObjectItem>()
   private readonly events = new Emitter<ObjectStoreEvent>()
+  /** 每个 id 的注册代次计数器——register 覆盖旧 item 时递增。 */
+  private generations = new Map<string, number>()
 
-  register(item: ObjectItem): void {
-    this.items.set(item.id, item)
+  register(item: ObjectItem): number {
+    const generation = (this.generations.get(item.id) ?? 0) + 1
+    this.generations.set(item.id, generation)
+    this.items.set(item.id, { ...item, generation })
     this.events.emit({ type: 'object-added', id: item.id })
+    return generation
   }
 
   unregister(id: string): boolean {

@@ -490,7 +490,7 @@ describe('Runtime move orchestration', () => {
   it('由 Runtime 为移动目标生成一次 MoveAction', async () => {
     const runtime = createRuntime()
     const actions: unknown[] = []
-    runtime.onAction(action => actions.push(action))
+    runtime.onAction(action => { actions.push(action) })
     const handle = runtime.start(createRequest())
     runtime.bindMoveSession(handle.id, createDriver(() => undefined))
 
@@ -503,6 +503,28 @@ describe('Runtime move orchestration', () => {
       toSurfaceId: 'column:done',
       toIndex: 0,
     })])
+  })
+
+  it('无效落点的视觉回归不输出业务 Action，仍进入一次 landing', async () => {
+    const runtime = createRuntime()
+    const actions: unknown[] = []
+    const landing = vi.fn(() => ({ completed: true }))
+    runtime.onAction(action => { actions.push(action) })
+    const handle = runtime.start(createRequest())
+    runtime.bindMoveSession(handle.id, {
+      resolveDestination: () => ({
+        accepted: true,
+        emitAction: false,
+        destination: { columnId: 'column:todo', index: 0 },
+      }),
+      commit: () => undefined,
+    })
+    runtime.bindMoveLifecycle(handle.id, { landing })
+
+    await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
+
+    expect(actions).toEqual([])
+    expect(landing).toHaveBeenCalledOnce()
   })
 
   it('由 Runtime 编排 Surface leave → Action → enter → dispose', async () => {
@@ -532,7 +554,7 @@ describe('Runtime move orchestration', () => {
   it('将业务侧 columnId/index 落点归一为 MoveAction', async () => {
     const runtime = createRuntime()
     const actions: unknown[] = []
-    runtime.onAction(action => actions.push(action))
+    runtime.onAction(action => { actions.push(action) })
     const handle = runtime.start(createRequest())
     runtime.bindMoveSession(handle.id, {
       resolveDestination: () => ({ accepted: true, destination: { columnId: 'done', index: 0 } }),
@@ -543,7 +565,8 @@ describe('Runtime move orchestration', () => {
 
     expect(actions).toEqual([expect.objectContaining({
       fromSurfaceId: 'column:todo',
-      toSurfaceId: 'column:done',
+      // Surface ID 是业务注册的 opaque ID；Runtime 不追加 demo 的 column: 前缀。
+      toSurfaceId: 'done',
       toIndex: 0,
     })])
   })
@@ -565,9 +588,14 @@ describe('Runtime move orchestration', () => {
     expect(runtime.getSession(handle.id)).toBeUndefined()
   })
 
-  it('由 Runtime 在 commit 前后编排布局 capture/play', async () => {
+  it('由 Runtime 在 Action 与渲染门后编排布局 capture/play', async () => {
     const runtime = createRuntime()
     const events: string[] = []
+    runtime.onAction(async () => {
+      events.push('action')
+      await Promise.resolve()
+      events.push('rendered')
+    })
     const handle = runtime.start(createRequest())
     runtime.bindMoveSession(handle.id, createDriver(() => { events.push('commit') }))
     runtime.bindMoveLifecycle(handle.id, {
@@ -580,7 +608,7 @@ describe('Runtime move orchestration', () => {
 
     await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
 
-    expect(events).toEqual(['capture', 'commit', 'play:layout-1'])
+    expect(events).toEqual(['capture', 'commit', 'action', 'rendered', 'play:layout-1'])
   })
 
   it('commit 失败时不进入 landing/reveal 且清理 session', async () => {

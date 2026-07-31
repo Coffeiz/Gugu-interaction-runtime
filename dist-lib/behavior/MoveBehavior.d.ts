@@ -65,11 +65,13 @@ export type MoveVisualStrategy = MoveVisualLifecycle;
 export interface MoveReleaseResult {
     readonly accepted: boolean;
     readonly destination?: unknown;
+    /** 无效落点的视觉回归仍走 landing，但不应提交业务 Action。 */
+    readonly emitAction?: boolean;
 }
 export interface LandingResult {
     readonly completed: boolean;
     readonly reason?: string;
-    readonly reveal?: () => void;
+    readonly reveal?: () => void | Promise<void>;
 }
 export declare class MoveBehavior implements Behavior {
     private driver;

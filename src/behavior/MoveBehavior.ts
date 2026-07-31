@@ -69,12 +69,14 @@ export type MoveVisualStrategy = MoveVisualLifecycle
 export interface MoveReleaseResult {
   readonly accepted: boolean
   readonly destination?: unknown
+  /** 无效落点的视觉回归仍走 landing，但不应提交业务 Action。 */
+  readonly emitAction?: boolean
 }
 
 export interface LandingResult {
   readonly completed: boolean
   readonly reason?: string
-  readonly reveal?: () => void
+  readonly reveal?: () => void | Promise<void>
 }
 
 export class MoveBehavior implements Behavior {
@@ -201,8 +203,8 @@ export class MoveBehavior implements Behavior {
     const driver = this.driverFor(context.session.id)
     // 优先使用新 resolveDestination 流程
     if (driver.resolveDestination) {
-      return Promise.resolve(driver.resolveDestination(context, input)).then(result => {
-        if (result?.accepted && result.destination !== undefined) {
+      return Promise.resolve(driver.resolveDestination(context, input)).then((result: MoveReleaseResult | void) => {
+        if (result && result.accepted && result.destination !== undefined) {
           moveContext.destination = result.destination
           moveContext.transaction.destination = result.destination
         }
@@ -211,8 +213,8 @@ export class MoveBehavior implements Behavior {
     }
     // fallback: 旧 release
     const result = driver.release?.(context, input)
-    return Promise.resolve(result).then(releaseResult => {
-      if (releaseResult?.accepted && releaseResult.destination !== undefined) {
+    return Promise.resolve(result).then((releaseResult: MoveReleaseResult | void) => {
+      if (releaseResult && releaseResult.accepted && releaseResult.destination !== undefined) {
         moveContext.destination = releaseResult.destination
         moveContext.transaction.destination = releaseResult.destination
       }

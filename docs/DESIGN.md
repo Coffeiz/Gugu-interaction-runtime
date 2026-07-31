@@ -117,10 +117,16 @@ FLIP 不会被年/月容器截断。只有折叠中的内容包装层可以临�
 `overflow: hidden`。
 
 proxy 和 landing visual 不属于真实内容树。包括 detach 策略在松手后的短暂
-交接 visual，Runtime DOM 层都通过
-`mountVisualOverlay()` 将它们挂到 `document.documentElement` 下的固定 overlay，
-永远绕过 Surface、应用壳和 Group 裁剪；业务不需要也不应把临时 proxy 插入自己
+交接 visual，Runtime DOM 层都直接把它们挂到 `document.documentElement`（`<html>`）
+下，永远绕过 Surface、应用壳和 Group 裁剪；业务不需要也不应把临时 proxy 插入自己
 的列表容器。
+
+早期版本经过一个中间 `data-runtime-overlay` 固定容器统一管理这些代理，实际逃出
+裁切靠的是"挂到 `<html>`"这个动作本身，不是这层容器——容器只是把 z-index/
+pointer-events 集中管理，代价是多一层间接引用，曾导致代理销毁时机被拖到比
+本体揭示晚好几步（`session.handoff()` → `finishReveal()` → `port.end()` 这条链
+路），本体和代理短暂同时可见。现在代理直接挂到 `<html>`、自带最高 z-index，
+销毁时机改为紧跟在本体揭示的同一个微任务里执行。
 
 ### 视觉适配器与状态交接
 

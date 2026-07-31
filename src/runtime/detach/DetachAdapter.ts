@@ -1,12 +1,11 @@
-import { createDomHitResolver, hitWithResolver } from '../../dom/Hit'
 import { createAutoScroller, type AutoScrollController } from '../../dom/AutoScroll'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../../dom/GroupLayout'
-import { clearFloatingStyle, createDragProxy, destroyDragProxy, settleFloatingLayout, setProxyInteractive } from '../../dom/Visual'
-import { preserveProxyVisualContext } from '../../dom/ProxyVisualContext'
+import { applyFloatingStyle, setProxyInteractive } from '../../dom/Visual'
+import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
 import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
 import { shapeReleaseVelocity } from '../../motion/ReleaseMotion'
-import { captureDetachDraggingSnapshot, prepareDetachMotion, applyDetachPickupVisual, prepareDetachPickup, createDetachDropState, updateDetachDrop, prepareDetachLanding, resolveDetachLandingTarget, captureDetachTargetSnapshot, createDetachVisualContext, startDetachLandingVisual, completeDetachLanding, cancelDetachWithoutDrop, resolveDetachRegrabTarget, interruptDetachRegrab, scheduleDetachLandingFrame, createDetachLayoutLifecycle, createDetachLandingLifecycle } from '../DetachMoveDriver'
+import { captureDetachDraggingSnapshot, prepareDetachMotion, prepareDetachPickup, createDetachDropState, updateDetachDrop, resolveDetachLandingTarget, captureDetachTargetSnapshot, createDetachVisualContext, startDetachLandingVisual, completeDetachLanding, resolveDetachRegrabTarget, interruptDetachRegrab, scheduleDetachLandingFrame, createDetachLayoutLifecycle, createDetachLandingLifecycle } from '../DetachMoveDriver'
 import type { Runtime, RuntimeCompletionGate } from '../../Runtime'
 import type { LandingResult, MoveBehaviorDriver, MoveVisualLifecycle } from '../../behavior/MoveBehavior'
 
@@ -31,14 +30,16 @@ export function createDetachMoveFromAdapter(config: {
   fromRect?: DOMRect
   returnRect?: DOMRect
 }): { driver: MoveBehaviorDriver; lifecycle: MoveVisualLifecycle } {
-  const { runtime, objectId, element, event, fromRect, returnRect } = config
+  const { runtime, objectId, element, event, fromRect } = config
   // surfaceIds 和 findColumnIdOf 从 Runtime 注册表获取，不需要用户传
   const objectItem = runtime.objects.get(objectId)
   const allSurfaces = runtime.surfaces.snapshot()
   const surfaceIds = allSurfaces.map(s => s.id)
   const findColumnIdOf = (oid: string) => runtime.objects.get(oid)?.surfaceId
   const initialSurfaceId = objectItem?.surfaceId ?? allSurfaces[0]?.id
-  const kanbanHitResolver = createDomHitResolver({ surfaceSelector: '[data-column]', targetSelector: '[data-card]' })
+  const registeredElements = (): HTMLElement[] => [...runtime.objects.values()]
+    .map(item => item.element)
+    .filter((candidate): candidate is HTMLElement => Boolean(candidate?.isConnected))
   let beforeContent: HTMLElement | undefined
   let draggingSnapshot: ReturnType<typeof captureDetachDraggingSnapshot> | undefined
   let dropState: ReturnType<typeof createDetachDropState<{ columnId: string; index: number }>> | undefined
@@ -49,13 +50,12 @@ export function createDetachMoveFromAdapter(config: {
   let released = false
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
+  let sourceLease: SourceVisualLease | null = null
   let autoScroller: AutoScrollController | null = null
   let dragMotion: CardMotionController | null = null
   let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number; rotateVX: number; rotateVZ: number } | undefined
   let dragOffset = { x: 0, y: 0 }
-  let pickupRect: { left: number; top: number; width: number; height: number } | null = null
   let pickupIndex: number | null = null
-  let cancelProxySequence = 0
   let pointerMoved = false
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
@@ -67,8 +67,8 @@ export function createDetachMoveFromAdapter(config: {
       active: getSessionState() === 'active',
       event: { clientX: x, clientY: y } as PointerEvent,
       state: dropState,
-      resolve: (ev: PointerEvent) => hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, ev.clientX, ev.clientY, objectId),
-      getSurface: (drop: { columnId: string }) => drop.columnId,
+      resolve: (ev: PointerEvent) => runtime.resolveMoveHit(objectId, ev.clientX, ev.clientY),
+      getSurface: (drop: { columnId: string; index: number }) => drop.columnId,
     })
     if (!hit) return
     pendingDrop = hit
@@ -82,12 +82,12 @@ export function createDetachMoveFromAdapter(config: {
     })
     updateDropFromPoint(moveEvent.clientX, moveEvent.clientY)
     autoScroller?.update(
-      (runtime.getHitResolver() ?? kanbanHitResolver).findSurface({ x: moveEvent.clientX, y: moveEvent.clientY }),
+      runtime.resolveMoveSurfaceElement(objectId, moveEvent.clientX, moveEvent.clientY),
       { x: moveEvent.clientX, y: moveEvent.clientY },
     )
   }
 
-  function onUp() {
+  function onUp(releaseEvent?: PointerEvent) {
     if (released) return { accepted: false as const }
     released = true
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
@@ -100,105 +100,98 @@ export function createDetachMoveFromAdapter(config: {
     dragMotion = null
     autoScroller?.stop()
     if (!dropState || !sessionId) return { accepted: false as const }
+    if (releaseEvent) updateDropFromPoint(releaseEvent.clientX, releaseEvent.clientY)
     pendingDrop = dropState.release()
     // 原地按下后立即松手没有 pointermove，命中器会排除 source 自身，
     // 因而 pendingDrop 为空；这应视为回到原位置并走完整 landing 生命周期，
     // 而不是走没有 regrab 的 invalid-return 快路径。
     if (!pendingDrop && !pointerMoved && releaseMotionState && Math.hypot(releaseMotionState.vx, releaseMotionState.vy) < 0.5) {
-      const sourceColumn = element.closest<HTMLElement>('[data-column]')
-        ?? (initialSurfaceId
-          ? document.querySelector<HTMLElement>(`[data-column="${CSS.escape(initialSurfaceId.replace(/^column:/, ''))}"]`)
-          : null)
-      const columnId = sourceColumn?.dataset.column
-      if (sourceColumn && columnId) {
-        const cards = Array.from(sourceColumn.querySelectorAll<HTMLElement>('[data-card]'))
-          .filter(card => card !== element && card.dataset.runtimeProxy !== 'true')
-        pendingDrop = { columnId, index: pickupIndex ?? cards.length }
+      if (initialSurfaceId) {
+        pendingDrop = {
+          columnId: initialSurfaceId,
+          index: pickupIndex ?? Math.max(0, runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)),
+        }
       }
     }
-    if (!pendingDrop) {
-      const sourceVisibility = element.style.visibility
-      const returnProxy = createDragProxy(element, element.getBoundingClientRect())
-      const cancelToken = ++cancelProxySequence
-      returnProxy.dataset.runtimeCancelProxy = 'true'
-      preserveProxyVisualContext(element, returnProxy)
-      // getBoundingClientRect 包含 grabbing 的 scale；createDragProxy 再把该
-      // 尺寸与 scale 叠加会放大一遍。回飞代理使用未变换的 border-box 尺寸，
-      // 与本体及普通 landing 的尺寸基准保持一致。
-      const sourceStyle = getComputedStyle(element)
-      returnProxy.style.width = sourceStyle.width
-      returnProxy.style.height = sourceStyle.height
-      returnProxy.style.transition = 'none'
-      // createDragProxy 已经挂到 runtime overlay；不要再 reparent 到 body，
-      // 否则会绕过统一的裁剪/层级/样式上下文。
-      element.style.visibility = 'hidden'
-      const destination = pickupRect
-      requestAnimationFrame(() => {
-        if (!destination) return
-        returnProxy.style.transition = 'left 250ms cubic-bezier(.22,1,.36,1), top 250ms cubic-bezier(.22,1,.36,1), transform 250ms cubic-bezier(.22,1,.36,1), box-shadow 250ms cubic-bezier(.22,1,.36,1)'
-        returnProxy.style.left = `${destination.left}px`
-        returnProxy.style.top = `${destination.top}px`
-        returnProxy.style.transform = 'scale(1)'
-        returnProxy.style.boxShadow = getComputedStyle(element).boxShadow
-      })
-      window.setTimeout(() => {
-        if (cancelProxySequence !== cancelToken) return
-        destroyDragProxy(returnProxy)
-        element.style.visibility = sourceVisibility
-      }, 290)
-      cancelDetachWithoutDrop({
-        source: element,
-        cancel: () => runtime.cancel(sessionId!, 'no-valid-drop'),
-        clearFloating: clearFloatingStyle,
-        clearActive: () => delete element.dataset.runtimeActive,
-        releaseObject: () => objectLease?.release(),
-      })
-      // cancel 内部会 clearFloatingStyle 恢复 source 原始样式；回飞 proxy
-      // 尚未结束前必须再次隐藏 source，避免 invalid drop 出现双卡。
-      element.style.visibility = 'hidden'
-      return { accepted: false as const }
+    const invalidReturn = !pendingDrop
+    if (invalidReturn && initialSurfaceId) {
+      // 无效落点不是另一条“回飞 proxy”路径：仍复用抓取阶段的唯一 proxy，
+      // 飞回原 Surface 的真实业务节点。仅跳过 Action，避免业务 Store 发生假移动。
+      pendingDrop = {
+        columnId: initialSurfaceId,
+        index: pickupIndex ?? Math.max(0, runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)),
+      }
     }
-    const beforeRect = prepareDetachLanding({
-      source: element,
-      settle: settleFloatingLayout,
-      clearActive: () => delete element.dataset.runtimeActive,
-      releaseObject: () => objectLease?.release(),
-    })
-    // 释放控制权后，Vue nextTick 会把元素从 Teleport 移回列容器
-    // resolveDetachLandingTarget 在下一帧（scheduleDetachLandingFrame 的 rAF）执行时，
-    // 元素已在列容器中，getBoundingClientRect 返回正确位置
-    landingPlan = scheduleDetachLandingFrame(() => clearFloatingStyle(element), () => {
-      const sid = sessionId!
+    if (!pendingDrop) return { accepted: false as const }
+    // 抓取阶段是源节点自己在飞（0.9.6 式单节点），这里松手交给 landing proxy 接管：
+    // 恢复源节点的正常布局占位、保持隐藏，proxy 才是接下来唯一的可见视觉主体。
+    const destination = pendingDrop
+    const beforeRect = landingProxy?.getBoundingClientRect() ?? element.getBoundingClientRect()
+    sourceLease?.restoreLayoutHidden()
+    delete element.dataset.runtimeActive
+    objectLease?.release()
+    const proceedWithTarget = (sid: string, target: HTMLElement | null) => {
+      if (getSessionState() !== 'landing') return
       const landedEl = resolveDetachLandingTarget({
-        resolve: () => runtime.resolveMoveTarget(sid, pendingDrop, () => {
-          return document.querySelector<HTMLElement>(`[data-card="${objectId}"]`) ?? null
-        }),
+        resolve: () => target,
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
-      if (!landedEl) { landingGate?.complete({ completed: true, reason: '' }); landingGate = null; return }
-      const scrollColumn = landedEl.closest<HTMLElement>('[data-column]')
+      if (!landedEl) {
+        landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
+      }
+      const scrollColumn = runtime.resolveMoveSurfaceViewport(destination.columnId)
       if (scrollColumn) {
         keepElementWithinColumn(scrollColumn, landedEl)
       }
       const targetSnapshot = captureDetachTargetSnapshot((el: HTMLElement) => runtime.captureVisualState(objectId, el), landedEl)
       const visualContext = createDetachVisualContext({
-        createContext: () => runtime.createVisualLifecycleContext(sid, pendingDrop, landedEl, beforeContent!),
+        createContext: () => runtime.createVisualLifecycleContext(sid, destination, landedEl, beforeContent!),
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,
         motionState: releaseMotionState,
       })
       landingProxy = startDetachLandingVisual({
-        createProxy: () => runtime.createVisualProxy(sid, visualContext) ?? null,
+        // 抓取阶段没有 proxy（源节点自己飞），这里现建；getVisualProxy 兜底只是防御
+        // regrab 等场景下 proxy 已经存在的情况，不是复用 prepare 阶段建的实例。
+        createProxy: () => runtime.getVisualProxy(sid) ?? runtime.createVisualProxy(sid, visualContext) ?? null,
         enableProxy: (proxy: HTMLElement) => setProxyInteractive(proxy, true),
         bindRegrab: (proxy: HTMLElement) => runtime.bindRegrabTarget(sid, objectId, proxy, onRegrab),
         land: () => runtime.landVisualProxy(sid, landedEl, visualContext),
         onMissing: () => { landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' }); landingGate = null },
         onComplete: (landingResult: LandingResult) => {
-          completeDetachLanding({ active: getSessionState() === 'landing', result: landingResult, complete: (result: LandingResult) => landingGate?.complete(result), reveal: () => { void runtime.revealVisualProxy(sid, landedEl, visualContext) } })
+          completeDetachLanding({
+            active: getSessionState() === 'landing',
+            result: landingResult,
+            complete: (result: LandingResult) => landingGate?.complete(result),
+            // 本体揭示后立刻在同一个微任务里销毁飞行代理，不要等 MoveLandingCoordinator.run
+            // 后续的 session.handoff() → behavior.reveal()（我们自己的 finishReveal，只关
+            // pointerEvents）→ port.end()（真正 disposeVisualProxy 的地方）——那条链隔了两次
+            // await，代理在本体已可见之后还会多留几帧甚至更久，表现为本体和代理短暂重叠。
+            reveal: () => runtime.revealVisualProxy(sid, landedEl, visualContext).then(() => {
+              if (landingProxy) { runtime.disposeVisualProxy(sid); landingProxy = null }
+            }),
+          })
           landingGate = null
         },
       })
+    }
+    landingPlan = scheduleDetachLandingFrame(() => undefined, () => {
+      const sid = sessionId!
+      // 0.9.6 是同步解析（resolveMoveTarget + 兜底 querySelector），拿到目标就在
+      // 同一个 rAF 回调里同步 applyState + conceal，跟 Vue 挂载目标节点在同一帧
+      // 完成，不会露出一帧未隐藏的本体。1.0.1 为了修跨 Surface 拿错/拿空目标的
+      // 问题，改成了 waitForMoveTarget 的多帧异步轮询——但轮询本身要等目标出现
+      // 在新 Surface 容器里才 resolve，而 Vue 的挂载/绘制发生在轮询检测到之前，
+      // 这段异步等待就是本体一闪的来源。这里先按 0.9.6 的方式同步尝试一次，
+      // 拿到就立刻走同帧流程；只有同步解析真的拿不到（需要等 Vue 异步挂载到新
+      // Surface）时才退回多帧轮询兜底，两边都要。
+      const syncTarget = runtime.resolveMoveTarget(sid, destination)
+      if (syncTarget) {
+        proceedWithTarget(sid, syncTarget)
+        return
+      }
+      void runtime.waitForMoveTarget(sid, destination).then(target => proceedWithTarget(sid, target))
     })
-    return { accepted: true as const, destination: pendingDrop }
+    return { accepted: true as const, destination: pendingDrop, ...(invalidReturn ? { emitAction: false } : {}) }
   }
 
   function onRegrab(regrabEvent: PointerEvent) {
@@ -207,7 +200,7 @@ export function createDetachMoveFromAdapter(config: {
     if (!proxy || !sessionId) return
     const liveEl = resolveDetachRegrabTarget(
       () => runtime.resolveVisualTarget(sessionId!, pendingDrop),
-      () => document.querySelector<HTMLElement>(`[data-card="${objectId}"]`),
+      () => runtime.objects.get(objectId)?.element ?? null,
     )
     if (!liveEl) return
     const regrabContext = runtime.createRegrabContext(sessionId!, regrabEvent, proxy, liveEl)
@@ -226,8 +219,6 @@ export function createDetachMoveFromAdapter(config: {
     prepare(ctx) {
       sessionId = ctx.session.id
       pointerMoved = false
-      document.querySelectorAll<HTMLElement>('[data-runtime-cancel-proxy="true"]').forEach(destroyDragProxy)
-      cancelProxySequence += 1
       autoScroller = createAutoScroller(ctx.session.cleanup, {
         onScroll: point => updateDropFromPoint(point.x, point.y),
       })
@@ -238,43 +229,58 @@ export function createDetachMoveFromAdapter(config: {
       element.style.visibility = ''
       objectLease = runtime.acquireObject(sessionId!, objectId)
       runtime.takeSurfaces(sessionId!, surfaceIds)
-      const { beforePickup } = prepareDetachPickup(element)
-      const sourceColumnForIndex = element.closest<HTMLElement>('[data-column]')
-      if (sourceColumnForIndex) {
-        const sourceCards = Array.from(sourceColumnForIndex.querySelectorAll<HTMLElement>('[data-card]'))
-          .filter(card => card.dataset.runtimeProxy !== 'true')
-        pickupIndex = sourceCards.findIndex(card => card === element)
-      }
+      const { beforePickup } = prepareDetachPickup(element, registeredElements)
+      pickupIndex = runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)
       beforeContent = element.cloneNode(true) as HTMLElement
-      scheduleLayoutFlip(beforePickup)
       const moveContext = runtime.getMoveContext(sessionId!)
       const motion = prepareDetachMotion(moveContext, element, event, fromRect)
       const rect = motion.rect
       dragOffset = { x: motion.offsetX, y: motion.offsetY }
-      applyDetachPickupVisual((_id: string, el: HTMLElement, state: any) => runtime.applyVisualState(objectId, el, state), objectId, element, rect, fromRect)
-      // grabbing 期间 transform 由 MotionController 每帧写入，不能再让 CSS transition
-      // 对每次物理更新做线性插值，否则角度回正会覆盖弹簧的非线性轨迹。
-      element.style.transition = 'none'
+      runtime.applyVisualState(objectId, element, {
+        phase: 'dragging',
+        hovered: element.matches(':hover'),
+        selected: element.classList.contains('is-selected'),
+        grabbed: true,
+      })
       draggingSnapshot = captureDetachDraggingSnapshot((_id: string, el: HTMLElement) => runtime.captureVisualState(objectId, el), objectId, element)
+      // 单节点：抓取阶段不建独立 proxy，直接让源节点自己飞（position:fixed 原地
+      // 悬浮，不 reparent）。落地阶段仍然走独立 proxy（onUp 里现建），源节点只在
+      // "松手→落地"这个窗口才会被隐藏、交给 proxy 接管。
+      //
+      // 曾经试过在这里把 element 手动 appendChild 到 document.documentElement
+      // 逃裁切（跟 landing proxy 一样），但业务侧实测会导致 Vue 重渲染时认不出
+      // 这个被搬移过的节点，在新列另外挂一份新的，旧节点没被回收——变成两张卡片
+      // 同时存在。手动 reparent 业务 DOM 节点这条路径被证实不安全，已经撤销，
+      // 不要再加回来。真要在抓取阶段也逃出玻璃裁切，得走 Vue 自己的 <Teleport>
+      // （业务组件自己声明，Vue 的 vnode 追踪能正确处理），不能由 Runtime 在业务
+      // 节点身上做无 Vue 感知的 DOM 手术。
+      //
+      // 必须先拿 lease（快照抓取前的原始 inline style）再让元素浮动，否则
+      // restore() 会把"悬浮中"的样式当成原始态存下来。
+      sourceLease = acquireSourceVisualLease(element, sessionId!)
+      applyFloatingStyle(element, rect)
+      // grabbing 期间 transform 由 MotionController 每帧写入，不能再让 CSS transition
+      // 对每次物理更新做线性插值，否则角度回正会覆盖弹簧的非线性轨迹（0.9.6 原有的坑）。
+      element.style.transition = 'none'
+      scheduleLayoutFlip(beforePickup)
       element.dataset.runtimeActive = 'true'
       dragMotion = createCardMotionController({
         mode: 'follow',
         followRotation: FOLLOW_ROTATION,
         onFrame: frame => {
+          if (!element.isConnected) return
           element.style.left = `${frame.x}px`
           element.style.top = `${frame.y}px`
           element.style.transform = `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
         },
       })
       dragMotion.setProfile(FOLLOW_PROFILE)
-      const originRect = returnRect ?? rect
-      pickupRect = { left: originRect.left, top: originRect.top, width: originRect.width, height: originRect.height }
       dragMotion.seed({ x: rect.left, y: rect.top, scaleX: 1.03, scaleY: 1.03, rotateX: 5, rotateZ: 0 })
       dragMotion.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
       dragMotion.start()
       dropState = createDetachDropState(
         findColumnIdOf(objectId),
-        (ev: PointerEvent) => hitWithResolver(runtime.getHitResolver() ?? kanbanHitResolver, ev.clientX, ev.clientY, objectId),
+        (ev: PointerEvent) => runtime.resolveMoveHit(objectId, ev.clientX, ev.clientY),
         (drop: { columnId: string; index: number }, previous: { columnId: string; index: number } | null) => drop.columnId === previous?.columnId && drop.index === previous?.index,
       )
       // regrab 后可能没有新的 pointermove 就立即松手；先用 pointerdown 坐标
@@ -282,9 +288,11 @@ export function createDetachMoveFromAdapter(config: {
       updateDropFromPoint(event.clientX, event.clientY)
     },
     update(_ctx: any, input: any) { if (input.event instanceof PointerEvent) onMove(input.event) },
-    resolveDestination() { return onUp() },
+    resolveDestination(_ctx: unknown, input) {
+      return onUp(input.event instanceof PointerEvent ? input.event : undefined)
+    },
     commit: () => {
-      settleFloatingLayout(element)
+      sourceLease?.restoreLayoutHidden()
       document.body.classList.remove('kb-dragging')
     },
     cancel(_ctx: any, _reason: string) {
@@ -295,19 +303,24 @@ export function createDetachMoveFromAdapter(config: {
       runtime.clearRegrab(objectId)
       document.body.classList.remove('kb-dragging')
       delete element.dataset.runtimeActive
-      clearFloatingStyle(element)
+      sourceLease?.restore()
+      sourceLease = null
     },
   }
 
   const lifecycle: MoveVisualLifecycle = {
-    layout: createDetachLayoutLifecycle(element),
+    layout: createDetachLayoutLifecycle(element, registeredElements),
     ...createDetachLandingLifecycle({
       createGate: () => runtime.createCompletionGate(sessionId!, { completed: false, reason: 'landing-cancelled' }),
       onGate: (gate: RuntimeCompletionGate<LandingResult>) => { landingGate = gate },
       clearDragging: () => document.body.classList.remove('kb-dragging'),
       scheduleLanding: () => { landingPlan?.(); landingPlan = null },
       clearRegrab: () => runtime.clearRegrab(objectId),
-      finishReveal: () => { if (landingProxy) setProxyInteractive(landingProxy, false) },
+      finishReveal: () => {
+        if (landingProxy) setProxyInteractive(landingProxy, false)
+        sourceLease?.restore()
+        sourceLease = null
+      },
     }),
   }
 

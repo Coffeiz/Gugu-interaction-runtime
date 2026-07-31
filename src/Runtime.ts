@@ -14,7 +14,9 @@ import type { MotionProfile } from './dom/MotionProfile'
 import type { MotionControllerConfig } from './motion/MotionProfile'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
-import type { HitResolver } from './dom/Hit'
+import type { HitResolver, HitResult } from './dom/Hit'
+import { createRegisteredHitResolver } from './dom/RegisteredHit'
+import type { Surface } from './surface/Surface'
 import type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
 import type { PointerSessionInputOptions } from './input/PointerSessionInput'
 import type { Action } from './action/Action'
@@ -157,12 +159,13 @@ export class Runtime {
     })
     this.moveActions = new MoveActionCoordinator({
       getObjectSurface: objectId => this.objects.get(objectId)?.surfaceId,
-      emit: action => this.actions.emit(action),
+      emit: action => this.actions.emitAsync(action),
     })
     this.moveCommit = new MoveCommitCoordinator({
       createContext: session => this.createBehaviorContext(session),
       getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
       normalize: (objectId, destination) => this.moveActions.normalize(objectId, destination),
+      waitForRender: (session, destination) => this.waitForMoveRender(session, destination),
     }, this.moveActions)
     this.moveLanding = new MoveLandingCoordinator({
       createContext: session => this.createBehaviorContext(session),
@@ -289,7 +292,10 @@ setMotionProfiles(this.registry.motionProfile)
           driver: move.driver,
           lifecycle: move.lifecycle,
           pointerInput: move.pointerInput,
-          followElement: element,
+          // 默认 detach driver 已由 MotionController 接管跟手；这里再把业务
+          // 本体设为 followElement 会在同一 pointermove 写两次 left/top。
+          // 跟手节点应由 Runtime visual driver 自行指定，业务 DOM 不参与。
+          followElement: null,
         },
       )
       return true
@@ -461,16 +467,81 @@ setMotionProfiles(this.registry.motionProfile)
     return this.hitResolver
   }
 
+  /** 默认命中由已注册 Object/Surface 推导；特殊几何才需 setHitResolver()。 */
+  createRegisteredHitResolver(objectId: string): HitResolver<Surface, HTMLElement> {
+    return createRegisteredHitResolver(this.objects, this.surfaces, objectId)
+  }
+
+  /** 将自定义或注册表默认命中统一归一成业务无关的 Surface id 与插入索引。 */
+  resolveMoveHit(objectId: string, x: number, y: number): HitResult | null {
+    if (this.hitResolver) {
+      const surface = this.hitResolver.findSurface({ x, y })
+      if (!surface?.dataset.column) return null
+      return {
+        columnId: surface.dataset.column,
+        index: this.hitResolver.findIndex(surface, { x, y }, objectId),
+      }
+    }
+    const resolver = this.createRegisteredHitResolver(objectId)
+    const surface = resolver.findSurface({ x, y })
+    if (!surface) return null
+    return { columnId: surface.id, index: resolver.findIndex(surface, { x, y }, objectId) }
+  }
+
+  /** 自动滚动只需要当前命中 Surface 的真实滚动元素。 */
+  resolveMoveSurfaceElement(objectId: string, x: number, y: number): HTMLElement | null {
+    if (this.hitResolver) return this.hitResolver.findSurface({ x, y })
+    const surface = this.createRegisteredHitResolver(objectId).findSurface({ x, y })
+    return surface?.viewport?.() ?? surface?.element ?? null
+  }
+
+  /** 取得指定 Surface 的滚动视口，不让视觉 driver 探查业务 DOM 结构。 */
+  resolveMoveSurfaceViewport(surfaceId: string): HTMLElement | null {
+    const surface = this.surfaces.get(surfaceId)
+    return surface?.viewport?.() ?? surface?.element ?? null
+  }
+
+  /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */
+  getObjectSurfaceIndex(objectId: string, surfaceId?: string): number {
+    const object = this.objects.get(objectId)
+    const ownerSurface = surfaceId ?? object?.surfaceId
+    if (!object || !ownerSurface) return -1
+    return [...this.objects.values()]
+      .filter(item => item.surfaceId === ownerSurface)
+      .map(item => item.id)
+      .sort((leftId, rightId) => {
+        const left = this.objects.get(leftId)?.element?.getBoundingClientRect()
+        const right = this.objects.get(rightId)?.element?.getBoundingClientRect()
+        if (!left || !right) return 0
+        return left.top - right.top || left.left - right.left
+      })
+      .indexOf(objectId)
+  }
+
   subscribe(listener: (event: RuntimeEvent) => void): () => void {
     return this.events.subscribe(listener)
   }
 
-  onAction(listener: (action: Action) => void): () => void {
+  onAction(listener: (action: Action) => void | Promise<void>): () => void {
     return this.actions.subscribe(listener)
   }
 
   emitAction(action: Action): void {
     this.actions.emit(action)
+  }
+
+  /**
+   * 等待 Action 触发的 Vue/React DOM 提交。两帧覆盖同步 Store 更新与框架
+   * patch；每帧都校验 Session，避免旧事务在 regrab 后继续读取 target。
+   */
+  private async waitForMoveRender(session: Session, _destination: unknown): Promise<boolean> {
+    for (let frame = 0; frame < 2; frame += 1) {
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      if (this.sessionCoordinator.get(session.id) !== session || session.state === 'disposed' || session.state === 'interrupt') {
+        return false
+      }
+    }
+    return true
   }
 
   snapshot() {
@@ -510,10 +581,61 @@ setMotionProfiles(this.registry.motionProfile)
     const context = this.createBehaviorContext(session)
     const resolveResult = context.visual?.resolveTarget?.(session.objectId, destination)
     const fallbackResult = fallback?.()
-    const target = resolveResult ?? fallbackResult ?? null
+    const registeredElement = this.objects.get(session.objectId)?.element
+    const target = resolveResult ?? fallbackResult ?? registeredElement ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
     return target
+  }
+
+  /**
+   * 等待 Action 引起的业务 DOM 重渲染并取得落地目标。
+   *
+   * 跨 Surface 时框架通常会先更新对象所属 Surface，再在随后一两帧销毁旧
+   * 组件、登记新组件。不能把仍是源节点的 hidden element 当成 target；同
+   * Surface 放回则允许复用原业务节点。业务 adapter 不需要自行轮询 DOM。
+   */
+  async waitForMoveTarget(sessionId: string, destination: unknown, maxFrames = 6): Promise<HTMLElement | null> {
+    const session = this.sessionCoordinator.get(sessionId)
+    if (!session) return null
+    const moveContext = this.moveBehavior.getContext(sessionId)
+    const source = moveContext.sourceElement
+    const expectedSurface = this.getDestinationSurfaceId(destination)
+    const transactionDestination = moveContext.transaction.destination as Partial<import('./behavior/MoveTransaction').MoveActionDestination> | null
+    const sourceSurface = typeof transactionDestination?.fromSurfaceId === 'string'
+      ? transactionDestination.fromSurfaceId
+      : null
+    const crossSurface = !!expectedSurface && expectedSurface !== sourceSurface
+    for (let frame = 0; frame < maxFrames; frame += 1) {
+      const current = this.sessionCoordinator.get(sessionId)
+      if (current !== session || current.state === 'disposed' || current.state === 'interrupt') return null
+      const object = this.objects.get(session.objectId)
+      const target = this.resolveMoveTarget(sessionId, destination)
+      const surfaceReady = !expectedSurface || object?.surfaceId === expectedSurface
+      // 同列放回：target 就是业务节点的最终落点（原地放回时 DOM 不动、
+      // target === source；换位时 Vue 复用实例则 target 仍是同一节点但
+      // rect 已随业务 patch 更新到新位置）——只要节点有效即可放行，
+      // 不能要求 target !== source（复用实例时永远相等）。
+      // 跨列：Vue 用 :key 复用时组件实例不会重挂载，source 节点会被直接
+      // 复用为 target（仍是同一个节点），此时不能以 surfaceId 判完成——
+      // watchEffect(flush:'pre') 在 Vue DOM patch 前就更新 surfaceId，
+      // rect 还是旧列位置。要用 DOM 级信号：目标 Surface 容器已包含
+      // target，说明 Vue 已把节点 patch 到新列文档流。
+      const movedToSurface = !!expectedSurface && !!target
+        ? (this.surfaces.get(expectedSurface)?.element?.contains(target) ?? false)
+        : false
+      const moved = crossSurface ? movedToSurface : true
+      if (target && surfaceReady && moved) return target
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    }
+    return null
+  }
+
+  private getDestinationSurfaceId(destination: unknown): string | null {
+    if (!destination || typeof destination !== 'object') return null
+    const candidate = destination as { toSurfaceId?: unknown; columnId?: unknown }
+    if (typeof candidate.toSurfaceId === 'string') return candidate.toSurfaceId
+    return typeof candidate.columnId === 'string' ? candidate.columnId : null
   }
 
   registerRegrab(objectId: string, handler: (event: PointerEvent) => void): void {

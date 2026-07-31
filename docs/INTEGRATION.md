@@ -1,6 +1,14 @@
 # Interaction Runtime · 接入指南
 
-## 五分钟接入
+## 接入状态
+
+本文描述的是 1.0.1 的目标 API。0.9.6 已在 Demo 中验证 Runtime 事务与 Motion，
+但尚未满足“任意真实业务页面只注册 Object/Surface 即可零编排接入”的发布条件。
+当前以 Gugu-web 项目看板作为 1.0.1 回归场景，联调直接使用 Runtime 源码而非 npm 包；
+在该回归完成前，下面的“自动处理”表述均是正在落地并验证的契约，不应据此判断已有
+业务页面无需适配。
+
+## 五分钟接入（1.0.1 目标）
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
 默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器
@@ -108,15 +116,9 @@ Surface 的尺寸动画：
 .group-content.is-collapsing { overflow: hidden; }
 ```
 
-clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下的固定
-overlay，不受这些容器或应用壳裁剪。若需要提前挂载该层（通常不需要），可在
-浏览器入口调用：
-
-```ts
-import { mountVisualOverlay } from '{path-to}/index'
-
-mountVisualOverlay()
-```
+clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下，不受这些
+容器或应用壳裁剪——逃出裁切靠的是重新挂载到 `<html>` 这个动作本身，不需要额外的
+固定 overlay 容器；代理自己带 `z-index: 2147483647` 顶到最高层。
 
 ## 核心 API 参数
 

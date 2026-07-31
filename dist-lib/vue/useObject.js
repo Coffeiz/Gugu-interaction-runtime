@@ -1,6 +1,6 @@
 import { ref as c, watchEffect as a, watch as l, onUnmounted as i } from "vue";
-import { runtime as t } from "../index.js";
-function s(e) {
+import { s as t } from "../Runtime-CpYebZ_v.js";
+function d(e) {
   const r = c(null);
   return t.objects.register({
     id: e.id,
@@ -19,5 +19,5 @@ function s(e) {
   }), { elementRef: r };
 }
 export {
-  s as useObject
+  d as useObject
 };

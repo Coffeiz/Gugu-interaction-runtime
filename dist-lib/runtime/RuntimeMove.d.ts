@@ -14,7 +14,7 @@ export declare class RuntimeMoveCoordinator {
     static fromPorts(updatePort: MoveUpdatePort, commitCoordinator: MoveCommitCoordinator, landingCoordinator: MoveLandingCoordinator): RuntimeMoveCoordinator;
     update(sessionId: string, input: RuntimeInput): void;
     prepareRelease(session: Session | undefined, input: RuntimeInput): ReleasePreflight;
-    commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
+    commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction?: boolean): Promise<void>;
     land(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
     release(sessionId: string, input: RuntimeInput, port: MoveReleasePort): Promise<void>;
     start(request: StartRequest, port: MoveStartPort): SessionHandle;
@@ -38,7 +38,7 @@ export interface MoveReleasePort {
 }
 export interface MoveActionPort {
     getObjectSurface(objectId: string): string | undefined;
-    emit(action: Action): void;
+    emit(action: Action): void | Promise<void>;
 }
 export interface MoveUpdatePort {
     getSession(id: string): {
@@ -69,12 +69,14 @@ export interface MoveCommitPort {
     createContext(session: Session): BehaviorContext;
     getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined;
     normalize(objectId: string, destination: unknown): MoveActionDestination | null;
+    /** Action 已提交后等待应用渲染并重新登记业务 DOM。 */
+    waitForRender(session: Session, destination: unknown): Promise<boolean>;
 }
 export declare class MoveCommitCoordinator {
     private readonly port;
     private readonly actions;
     constructor(port: MoveCommitPort, actions: MoveActionCoordinator);
-    commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
+    commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction?: boolean): Promise<void>;
 }
 export interface MoveLandingPort {
     createContext(session: Session): BehaviorContext;
@@ -91,6 +93,6 @@ export declare class MoveActionCoordinator {
     private readonly port;
     constructor(port: MoveActionPort);
     normalize(objectId: string, value: unknown): MoveActionDestination | null;
-    emit(objectId: string, destination: unknown, transaction: MoveContext['transaction']): boolean;
+    emit(objectId: string, destination: unknown, transaction: MoveContext['transaction']): Promise<boolean>;
     private isDestination;
 }

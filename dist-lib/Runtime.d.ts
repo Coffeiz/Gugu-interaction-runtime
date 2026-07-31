@@ -10,7 +10,8 @@ import { VisualAdapter, VisualLifecycleContext, VisualProxy } from './dom/Visual
 import { VisualState } from './dom/VisualAdapterTypes';
 import { MotionProfile } from './dom/MotionProfile';
 import { MotionControllerConfig } from './motion/MotionProfile';
-import { HitResolver } from './dom/Hit';
+import { HitResolver, HitResult } from './dom/Hit';
+import { Surface } from './surface/Surface';
 import { LandingTargetTrackerOptions } from './dom/LandingTargetTracker';
 import { PointerSessionInputOptions } from './input/PointerSessionInput';
 import { Action } from './action/Action';
@@ -173,12 +174,27 @@ export declare class Runtime {
     createCompletionGate<T>(sessionId: string, failureValue: T): RuntimeCompletionGate<T>;
     setHitResolver(resolver: HitResolver | null): void;
     getHitResolver(): HitResolver | null;
+    /** 默认命中由已注册 Object/Surface 推导；特殊几何才需 setHitResolver()。 */
+    createRegisteredHitResolver(objectId: string): HitResolver<Surface, HTMLElement>;
+    /** 将自定义或注册表默认命中统一归一成业务无关的 Surface id 与插入索引。 */
+    resolveMoveHit(objectId: string, x: number, y: number): HitResult | null;
+    /** 自动滚动只需要当前命中 Surface 的真实滚动元素。 */
+    resolveMoveSurfaceElement(objectId: string, x: number, y: number): HTMLElement | null;
+    /** 取得指定 Surface 的滚动视口，不让视觉 driver 探查业务 DOM 结构。 */
+    resolveMoveSurfaceViewport(surfaceId: string): HTMLElement | null;
+    /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */
+    getObjectSurfaceIndex(objectId: string, surfaceId?: string): number;
     subscribe(listener: (event: RuntimeEvent) => void): () => void;
-    onAction(listener: (action: Action) => void): () => void;
+    onAction(listener: (action: Action) => void | Promise<void>): () => void;
     emitAction(action: Action): void;
+    /**
+     * 等待 Action 触发的 Vue/React DOM 提交。两帧覆盖同步 Store 更新与框架
+     * patch；每帧都校验 Session，避免旧事务在 regrab 后继续读取 target。
+     */
+    private waitForMoveRender;
     snapshot(): {
         objects: import('./object/ObjectItem').ObjectItem[];
-        surfaces: import('./surface/Surface').Surface[];
+        surfaces: Surface[];
     };
     registerBehavior(behavior: Behavior): void;
     setMoveDriver(driver: MoveBehaviorDriver): void;
@@ -186,6 +202,15 @@ export declare class Runtime {
     bindMoveLifecycle(sessionId: string, lifecycle: MoveVisualLifecycle): void;
     getMoveContext(sessionId: string): MoveContext;
     resolveMoveTarget(sessionId: string, destination: unknown, fallback?: () => HTMLElement | null): HTMLElement | null;
+    /**
+     * 等待 Action 引起的业务 DOM 重渲染并取得落地目标。
+     *
+     * 跨 Surface 时框架通常会先更新对象所属 Surface，再在随后一两帧销毁旧
+     * 组件、登记新组件。不能把仍是源节点的 hidden element 当成 target；同
+     * Surface 放回则允许复用原业务节点。业务 adapter 不需要自行轮询 DOM。
+     */
+    waitForMoveTarget(sessionId: string, destination: unknown, maxFrames?: number): Promise<HTMLElement | null>;
+    private getDestinationSurfaceId;
     registerRegrab(objectId: string, handler: (event: PointerEvent) => void): void;
     getRegrab(objectId: string): ((event: PointerEvent) => void) | undefined;
     regrab(objectId: string, event: PointerEvent): boolean;

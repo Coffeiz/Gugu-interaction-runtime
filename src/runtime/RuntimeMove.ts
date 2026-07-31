@@ -36,8 +36,8 @@ export class RuntimeMoveCoordinator {
     return this.releaseCoordinator.prepare(session, input)
   }
 
-  async commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void> {
-    return this.commitCoordinator.commit(session, behavior, destination)
+  async commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction = true): Promise<void> {
+    return this.commitCoordinator.commit(session, behavior, destination, emitAction)
   }
 
   async land(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void> {
@@ -63,7 +63,7 @@ export class RuntimeMoveCoordinator {
       return
     }
     if (port.getSession(session.id) !== session) return
-    const releaseResult = result as { accepted?: boolean; destination?: unknown } | undefined
+    const releaseResult = result as { accepted?: boolean; destination?: unknown; emitAction?: boolean } | undefined
     if (releaseResult?.accepted === false) {
       port.cancel(session.id, 'no-valid-drop')
       return
@@ -79,7 +79,7 @@ export class RuntimeMoveCoordinator {
       return
     }
     try {
-      await this.commit(session, behavior, destination)
+      await this.commit(session, behavior, destination, releaseResult?.emitAction !== false)
     } catch (error) {
       port.cancel(session.id, error instanceof Error ? error.message : 'commit-failed')
       return
@@ -133,7 +133,7 @@ export interface MoveReleasePort {
   end(session: Session): void
 }
 
-export interface MoveActionPort { getObjectSurface(objectId: string): string | undefined; emit(action: Action): void }
+export interface MoveActionPort { getObjectSurface(objectId: string): string | undefined; emit(action: Action): void | Promise<void> }
 
 export interface MoveUpdatePort { getSession(id: string): { type: string; state: string } | undefined; getBehavior(type: string): Behavior | undefined; createContext(id: string): BehaviorContext }
 export class MoveUpdateCoordinator {
@@ -156,18 +156,36 @@ export class MoveReleaseCoordinator {
   }
 }
 
-export interface MoveCommitPort { createContext(session: Session): BehaviorContext; getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined; normalize(objectId: string, destination: unknown): MoveActionDestination | null }
+export interface MoveCommitPort {
+  createContext(session: Session): BehaviorContext
+  getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined
+  normalize(objectId: string, destination: unknown): MoveActionDestination | null
+  /** Action 已提交后等待应用渲染并重新登记业务 DOM。 */
+  waitForRender(session: Session, destination: unknown): Promise<boolean>
+}
 export class MoveCommitCoordinator {
   constructor(private readonly port: MoveCommitPort, private readonly actions: MoveActionCoordinator) {}
-  async commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void> {
+  async commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction = true): Promise<void> {
     const context = this.port.createContext(session)
     await behavior.commit(context, destination)
-    behavior.playLayout(context)
+    if (!emitAction) {
+      // 无效落点回原 Surface 没有业务 Action，但目标等待仍需要知道这是
+      // 同 Surface 事务，避免把隐藏源节点误判成跨列尚未重挂载的旧节点。
+      const normalized = this.port.normalize(session.objectId, destination)
+      if (normalized) behavior.getContext(session.id).transaction.destination = normalized
+      behavior.playLayout(context)
+      return
+    }
     const lifecycle = this.port.getLifecycle(session.id)
     const normalized = this.port.normalize(session.objectId, destination)
     if (normalized) await lifecycle?.surface?.leave?.(context, normalized.fromSurfaceId)
-    this.actions.emit(session.objectId, behavior.getContext(session.id).destination, behavior.getContext(session.id).transaction)
+    await this.actions.emit(session.objectId, behavior.getContext(session.id).destination, behavior.getContext(session.id).transaction)
     if (normalized) await lifecycle?.surface?.enter?.(context, normalized.toSurfaceId)
+    // 只在当前事务仍有效时读取 Action 造成的最新业务 DOM。旧 Session 在
+    // async Store/nextTick 中被 interrupt 后不能再启动自己的 FLIP。
+    if (await this.port.waitForRender(session, destination)) {
+      behavior.playLayout(context)
+    }
   }
 }
 
@@ -180,7 +198,7 @@ export class MoveLandingCoordinator {
       const live = this.port.getSession(session.id)
       if (live !== session || live.state === 'disposed' || live.state === 'interrupt') return
       if (result && !result.completed) return this.port.cancel(session.id, result.reason ?? 'landing-failed')
-      result?.reveal?.()
+      if (result && result.reveal) await result.reveal()
       session.handoff()
       if (behavior.reveal) await behavior.reveal(this.port.createContext(session), destination)
       if (this.port.getSession(session.id) === session) this.port.end(session)
@@ -199,14 +217,18 @@ export class MoveActionCoordinator {
     if (typeof candidate.columnId !== 'string') return null
     const fromSurfaceId = this.port.getObjectSurface(objectId)
     if (!fromSurfaceId) return null
-    return { fromSurfaceId, toSurfaceId: candidate.columnId.startsWith('column:') ? candidate.columnId : `column:${candidate.columnId}`, ...(typeof candidate.index === 'number' ? { toIndex: candidate.index } : {}) }
+    // Surface ID 是业务注册表的稳定标识，不是看板列名。Runtime 不能擅自添加
+    // `column:` 前缀，否则 file/drawer/canvas 等 Surface 以及真实业务 Store
+    // 会收到与注册值不同的 Action。
+    return { fromSurfaceId, toSurfaceId: candidate.columnId, ...(typeof candidate.index === 'number' ? { toIndex: candidate.index } : {}) }
   }
-  emit(objectId: string, destination: unknown, transaction: MoveContext['transaction']): boolean {
+  async emit(objectId: string, destination: unknown, transaction: MoveContext['transaction']): Promise<boolean> {
     if (transaction.actionEmitted) return false
     const normalized = this.normalize(objectId, destination)
     if (!normalized) return false
     transaction.actionEmitted = true
-    this.port.emit({ type: 'move', objectId, fromSurfaceId: normalized.fromSurfaceId, toSurfaceId: normalized.toSurfaceId, ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }), timestamp: Date.now() })
+    transaction.destination = normalized
+    await this.port.emit({ type: 'move', objectId, fromSurfaceId: normalized.fromSurfaceId, toSurfaceId: normalized.toSurfaceId, ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }), timestamp: Date.now() })
     return true
   }
   private isDestination(value: unknown): value is MoveActionDestination {

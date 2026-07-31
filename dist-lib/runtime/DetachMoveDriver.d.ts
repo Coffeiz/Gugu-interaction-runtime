@@ -12,7 +12,7 @@ export interface DetachPickupPreparation {
     readonly beforeContent: HTMLElement;
     readonly beforePickup: ReturnType<typeof captureLayoutFlip>;
 }
-export declare function prepareDetachPickup(sourceElement: HTMLElement): DetachPickupPreparation;
+export declare function prepareDetachPickup(sourceElement: HTMLElement, registeredElements: () => HTMLElement[]): DetachPickupPreparation;
 export declare function createDetachDropState<TDrop>(initialSurface: string | undefined, resolve: (event: PointerEvent) => TDrop | null, same: (drop: TDrop, previous: TDrop | null) => boolean): {
     update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null;
     release(): TDrop | null;
@@ -36,6 +36,7 @@ export declare function interruptDetachRegrab(args: {
 }): void;
 export declare function cancelDetachWithoutDrop(args: {
     source: HTMLElement;
+    registeredElements: () => HTMLElement[];
     cancel: () => void;
     releaseObject: () => void;
     clearFloating: (element: HTMLElement) => void;
@@ -107,7 +108,7 @@ export declare function createDetachLandingLifecycle<TGate extends {
     landing: () => Promise<LandingResult>;
     reveal: () => void;
 };
-export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement): {
+export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement, registeredElements: () => HTMLElement[]): {
     capture: () => import('../dom').LayoutFlipSnapshot;
     play: (_context: unknown, snapshot: unknown) => void;
 };
