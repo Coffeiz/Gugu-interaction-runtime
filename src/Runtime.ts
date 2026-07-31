@@ -165,7 +165,6 @@ export class Runtime {
       createContext: session => this.createBehaviorContext(session),
       getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
       normalize: (objectId, destination) => this.moveActions.normalize(objectId, destination),
-      waitForRender: (session, destination) => this.waitForMoveRender(session, destination),
     }, this.moveActions)
     this.moveLanding = new MoveLandingCoordinator({
       createContext: session => this.createBehaviorContext(session),
@@ -528,20 +527,6 @@ setMotionProfiles(this.registry.motionProfile)
 
   emitAction(action: Action): void {
     this.actions.emit(action)
-  }
-
-  /**
-   * 等待 Action 触发的 Vue/React DOM 提交。两帧覆盖同步 Store 更新与框架
-   * patch；每帧都校验 Session，避免旧事务在 regrab 后继续读取 target。
-   */
-  private async waitForMoveRender(session: Session, _destination: unknown): Promise<boolean> {
-    for (let frame = 0; frame < 2; frame += 1) {
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-      if (this.sessionCoordinator.get(session.id) !== session || session.state === 'disposed' || session.state === 'interrupt') {
-        return false
-      }
-    }
-    return true
   }
 
   snapshot() {

@@ -401,10 +401,6 @@ export function landDragProxyLegacy(
       window.clearTimeout(pendingRetargetTimer)
       pendingRetargetTimer = null
     }
-    // ── 探针（临时调试，1.0.1 完成后移除）────────────────────────
-    // eslint-disable-next-line no-console
-    console.warn(`[probe settle] via=${via} proxyConnected=${proxy.isConnected} proxyVisibility=${getComputedStyle(proxy).visibility} proxyDisplay=${getComputedStyle(proxy).display}`)
-    // ── 探针结束 ────────────────────────────────────────────────
     resolveFinished()
   }
   const waitForTarget = () => {
@@ -709,28 +705,51 @@ export function destroyDragProxiesByCardId(cardId: string): void {
  * docs/DESIGN.md 对"手工挪动 Vue 追踪的节点"的风险提示）。
  */
 const floatingSnapshots = new WeakMap<HTMLElement, { style: string }>()
+/** source 节点 ↔ 抓取阶段独立 proxy 的映射。proxy 挂在 <html> 下，避免
+ *  .glass-card 祖先的 backdrop-filter 创建 containing block 拦截 fixed
+ *  坐标系，同时不 reparent 业务 DOM，Vue 追踪不受影响。 */
+const floatingProxies = new WeakMap<HTMLElement, HTMLElement>()
 
 export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
-  el.style.position = 'fixed'
-  el.style.left = `${rect.left}px`
-  el.style.top = `${rect.top}px`
-  el.style.width = `${rect.width}px`
-  el.style.height = `${rect.height}px`
-  el.style.margin = '0'
-  el.style.zIndex = '1000'
-  el.style.boxSizing = 'border-box'
-  el.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-  el.style.transform = 'scale(1.03)'
-  el.style.transition = 'transform .15s ease, box-shadow .15s ease'
+  // 抓取阶段的视觉交给独立 proxy：挂在 <html> 下，containing block 是 viewport，
+  // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
+  // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
+  // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
+  const proxy = el.cloneNode(true) as HTMLElement
+  proxy.style.position = 'fixed'
+  proxy.style.left = `${rect.left}px`
+  proxy.style.top = `${rect.top}px`
+  proxy.style.width = `${rect.width}px`
+  proxy.style.height = `${rect.height}px`
+  proxy.style.margin = '0'
+  proxy.style.zIndex = '1000'
+  proxy.style.boxSizing = 'border-box'
+  proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  proxy.style.transform = 'scale(1.03)'
+  proxy.style.transition = 'transform .15s ease, box-shadow .15s ease'
+  proxy.dataset.runtimeProxy = 'true'
+  document.documentElement.appendChild(proxy)
+  floatingProxies.set(el, proxy)
+  el.style.visibility = 'hidden'
+}
+
+export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
+  return floatingProxies.get(el)
 }
 
 export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: number, offsetY: number) {
-  el.style.left = `${x - offsetX}px`
-  el.style.top = `${y - offsetY}px`
+  const target = floatingProxies.get(el) ?? el
+  target.style.left = `${x - offsetX}px`
+  target.style.top = `${y - offsetY}px`
 }
 
 export function clearFloatingStyle(el: HTMLElement) {
+  const proxy = floatingProxies.get(el)
+  if (proxy) {
+    proxy.remove()
+    floatingProxies.delete(el)
+  }
   const snapshot = floatingSnapshots.get(el)
   el.setAttribute('style', snapshot?.style ?? '')
   floatingSnapshots.delete(el)
@@ -773,11 +792,6 @@ const visibilityOwner = new Map<HTMLElement, string>()
  * 只有登记的 owner 才能通过 revealElement() 恢复可见性。
  */
 export function concealElement(el: HTMLElement, ownerId: string): void {
-  // ── 探针（临时调试，1.0.1 完成后移除）────────────────────────
-  // eslint-disable-next-line no-console
-  console.warn(`[probe conceal] owner=${ownerId} el=${el.dataset?.cardId ?? el.id ?? 'el'} prevVisibility=${el.style.visibility || '(inline empty)'} computed=${getComputedStyle(el).visibility} time=${performance.now().toFixed(1)}`)
-  console.warn(`[probe live-proxies] at-conceal count=${document.querySelectorAll('[data-runtime-proxy="true"]').length}`)
-  // ── 探针结束 ────────────────────────────────────────────────
   visibilityOwner.set(el, ownerId)
   el.style.visibility = 'hidden'
 }
@@ -791,11 +805,6 @@ export function revealElement(el: HTMLElement, ownerId: string): boolean {
   if (isOwner) {
     el.style.visibility = ''
     visibilityOwner.delete(el)
-    // ── 探针（临时调试，1.0.1 完成后移除）────────────────────────
-    // eslint-disable-next-line no-console
-    console.warn(`[probe reveal] owner=${ownerId} el=${el.dataset?.cardId ?? el.id ?? 'el'} connected=${el.isConnected} time=${performance.now().toFixed(1)}`)
-    console.warn(`[probe live-proxies] at-reveal count=${document.querySelectorAll('[data-runtime-proxy="true"]').length}`)
-    // ── 探针结束 ────────────────────────────────────────────────
   }
   return isOwner
 }

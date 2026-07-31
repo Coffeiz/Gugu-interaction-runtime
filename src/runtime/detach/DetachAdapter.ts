@@ -1,6 +1,6 @@
 import { createAutoScroller, type AutoScrollController } from '../../dom/AutoScroll'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../../dom/GroupLayout'
-import { applyFloatingStyle, setProxyInteractive } from '../../dom/Visual'
+import { applyFloatingStyle, clearFloatingStyle, getFloatingProxy, setProxyInteractive } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
 import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
@@ -264,14 +264,15 @@ export function createDetachMoveFromAdapter(config: {
       element.style.transition = 'none'
       scheduleLayoutFlip(beforePickup)
       element.dataset.runtimeActive = 'true'
+      const floatingProxy = getFloatingProxy(element)!
       dragMotion = createCardMotionController({
         mode: 'follow',
         followRotation: FOLLOW_ROTATION,
         onFrame: frame => {
-          if (!element.isConnected) return
-          element.style.left = `${frame.x}px`
-          element.style.top = `${frame.y}px`
-          element.style.transform = `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
+          if (!floatingProxy.isConnected) return
+          floatingProxy.style.left = `${frame.x}px`
+          floatingProxy.style.top = `${frame.y}px`
+          floatingProxy.style.transform = `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
         },
       })
       dragMotion.setProfile(FOLLOW_PROFILE)
@@ -292,6 +293,9 @@ export function createDetachMoveFromAdapter(config: {
       return onUp(input.event instanceof PointerEvent ? input.event : undefined)
     },
     commit: () => {
+      // floatingProxy 是 grab 阶段的独立视觉节点；commit 后 landing 会接管视觉，
+      // 必须先销毁，否则会和 landing proxy 一起留在屏幕上。
+      clearFloatingStyle(element)
       sourceLease?.restoreLayoutHidden()
       document.body.classList.remove('kb-dragging')
     },
@@ -303,6 +307,7 @@ export function createDetachMoveFromAdapter(config: {
       runtime.clearRegrab(objectId)
       document.body.classList.remove('kb-dragging')
       delete element.dataset.runtimeActive
+      clearFloatingStyle(element)
       sourceLease?.restore()
       sourceLease = null
     },
@@ -318,6 +323,9 @@ export function createDetachMoveFromAdapter(config: {
       clearRegrab: () => runtime.clearRegrab(objectId),
       finishReveal: () => {
         if (landingProxy) setProxyInteractive(landingProxy, false)
+        // landing 完成后再保险清理一次 floatingProxy，防止 commit 时 element 已
+        // 被 Vue 重渲染导致 WeakMap 查不到而漏掉。
+        clearFloatingStyle(element)
         sourceLease?.restore()
         sourceLease = null
       },

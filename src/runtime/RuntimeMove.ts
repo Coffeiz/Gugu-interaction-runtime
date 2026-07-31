@@ -160,20 +160,18 @@ export interface MoveCommitPort {
   createContext(session: Session): BehaviorContext
   getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined
   normalize(objectId: string, destination: unknown): MoveActionDestination | null
-  /** Action 已提交后等待应用渲染并重新登记业务 DOM。 */
-  waitForRender(session: Session, destination: unknown): Promise<boolean>
 }
 export class MoveCommitCoordinator {
   constructor(private readonly port: MoveCommitPort, private readonly actions: MoveActionCoordinator) {}
   async commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction = true): Promise<void> {
     const context = this.port.createContext(session)
     await behavior.commit(context, destination)
+    behavior.playLayout(context)
     if (!emitAction) {
       // 无效落点回原 Surface 没有业务 Action，但目标等待仍需要知道这是
       // 同 Surface 事务，避免把隐藏源节点误判成跨列尚未重挂载的旧节点。
       const normalized = this.port.normalize(session.objectId, destination)
       if (normalized) behavior.getContext(session.id).transaction.destination = normalized
-      behavior.playLayout(context)
       return
     }
     const lifecycle = this.port.getLifecycle(session.id)
@@ -181,11 +179,6 @@ export class MoveCommitCoordinator {
     if (normalized) await lifecycle?.surface?.leave?.(context, normalized.fromSurfaceId)
     await this.actions.emit(session.objectId, behavior.getContext(session.id).destination, behavior.getContext(session.id).transaction)
     if (normalized) await lifecycle?.surface?.enter?.(context, normalized.toSurfaceId)
-    // 只在当前事务仍有效时读取 Action 造成的最新业务 DOM。旧 Session 在
-    // async Store/nextTick 中被 interrupt 后不能再启动自己的 FLIP。
-    if (await this.port.waitForRender(session, destination)) {
-      behavior.playLayout(context)
-    }
   }
 }
 
