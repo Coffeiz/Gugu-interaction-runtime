@@ -14,6 +14,8 @@ import {
   applyDraggingGlassStyle,
   isDefaultDraggingGlassEnabled,
   revealElement,
+  clampLandingRectToBounds,
+  type LandingRect,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
 import { createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
@@ -35,6 +37,8 @@ export interface VisualLifecycleContext {
   readonly motion?: MotionProfile
   /** 是否由 Runtime 内置 MotionController 驱动 landing；默认开启。 */
   readonly motionEnabled?: boolean
+  /** landing 视觉目标所在 Surface 的 viewport 边界。 */
+  readonly landingBounds?: () => DOMRect | null
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
   readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
 }
@@ -147,12 +151,17 @@ export class DefaultVisualAdapter implements VisualAdapter {
       return Promise.resolve({ completed: false, reason: 'target-disconnected' })
     }
     const rawTargetRect = context.targetSnapshot?.rect ?? target.getBoundingClientRect()
-    const targetRect = {
+    const rawLandingRect = {
       left: rawTargetRect.left ?? rawTargetRect.x,
       top: rawTargetRect.top ?? rawTargetRect.y,
       width: rawTargetRect.width,
       height: rawTargetRect.height,
     }
+    const clampTarget = (rect: LandingRect): LandingRect => {
+      const bounds = context.landingBounds?.()
+      return bounds ? clampLandingRectToBounds(rect, bounds) : rect
+    }
+    const targetRect = clampTarget(rawLandingRect)
     concealElement(target, context.sessionId)
     el.style.transition = 'none'
     // 先把代理的布局尺寸切到目标 border box；landing 的内容层和目标卡片
@@ -168,7 +177,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetBackgroundImage: context.targetSnapshot?.backgroundImage,
       targetOpacity: context.targetSnapshot?.opacity,
       targetContent: target,
-      readTarget: () => target.getBoundingClientRect(),
+      readTarget: () => clampTarget(target.getBoundingClientRect()),
       motionState: context.motionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
@@ -181,14 +190,14 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (this.runtime) {
       this.runtime.trackLandingTarget(context.sessionId, target, () => {
         if (context.targetSnapshot?.rect && !target.closest('[data-layout-surface]')) {
-          retarget({
+          retarget(clampTarget({
             left: context.targetSnapshot.rect.x,
             top: context.targetSnapshot.rect.y,
             width: context.targetSnapshot.rect.width,
             height: context.targetSnapshot.rect.height,
-          })
+          }))
         } else {
-          retarget(target.getBoundingClientRect())
+          retarget(clampTarget(target.getBoundingClientRect()))
         }
       })
     }

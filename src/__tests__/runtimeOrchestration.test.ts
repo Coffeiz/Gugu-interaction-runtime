@@ -70,8 +70,19 @@ describe('Runtime move orchestration', () => {
     const runtime = createRuntime()
     const viewport = document.createElement('div')
     const target = document.createElement('div')
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback)
+      return rafCallbacks.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
     let targetTop = 40
-    Object.defineProperty(viewport, 'scrollTop', { writable: true, value: 10 })
+    let scrollTop = 10
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value },
+    })
     vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 200, 300))
     vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, targetTop, 100, 40))
     Object.defineProperty(viewport, 'scrollTo', {
@@ -82,10 +93,16 @@ describe('Runtime move orchestration', () => {
     runtime.registerSurface({ id: 'surface:scroll', type: 'list', element: viewport, viewport: () => viewport, accepts: ['project-card'] })
 
     runtime.keepSurfaceTargetVisible('surface:scroll', target)
+    expect(viewport.scrollTop).toBe(10)
+    const firstFrame = rafCallbacks.shift()
+    firstFrame?.(performance.now() + 250)
     expect(viewport.scrollTop).toBe(-50)
 
     targetTop = 380
     runtime.keepSurfaceTargetVisible('surface:scroll', target)
+    expect(viewport.scrollTop).toBe(-50)
+    const secondFrame = rafCallbacks.shift()
+    secondFrame?.(performance.now() + 250)
     expect(viewport.scrollTop).toBe(-30)
   })
 

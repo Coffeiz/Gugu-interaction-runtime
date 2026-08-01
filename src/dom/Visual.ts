@@ -355,7 +355,19 @@ function wrapContentForMorph(
   return { enteringEls, leavingEls }
 }
 
-type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
+export type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
+
+/** 将 landing 目标限制在 Surface viewport 内，不等待滚动动画结束。 */
+export function clampLandingRectToBounds(rect: LandingRect, bounds: DOMRect): LandingRect {
+  const maxLeft = Math.max(bounds.left, bounds.right - rect.width)
+  const maxTop = Math.max(bounds.top, bounds.bottom - rect.height)
+  return {
+    left: Math.min(Math.max(rect.left, bounds.left), maxLeft),
+    top: Math.min(Math.max(rect.top, bounds.top), maxTop),
+    width: rect.width,
+    height: rect.height,
+  }
+}
 
 /**
  * 把代理从当前帧交接到最终目标。目标默认只提供一次几何快照——但调用方

@@ -175,6 +175,7 @@ export class Runtime {
   private readonly moveLanding: MoveLandingCoordinator
   private readonly visualState: VisualStateCoordinator
   private readonly visualMotion: VisualMotionCoordinator
+  private readonly surfaceScrollFrames = new WeakMap<HTMLElement, number>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
@@ -409,6 +410,11 @@ setMotionProfiles(this.registry.motionProfile)
       targetSnapshot: targetElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
+      landingBounds: () => {
+        const surfaceId = this.getDestinationSurfaceId(destination)
+        const viewport = surfaceId ? this.resolveMoveSurfaceViewport(surfaceId) : null
+        return viewport?.getBoundingClientRect() ?? null
+      },
       motion: motionProfile,
       motionEnabled: registration?.motion?.enabled,
     }
@@ -567,17 +573,51 @@ setMotionProfiles(this.registry.motionProfile)
     return session ? createAutoScroller(session.cleanup, options) : null
   }
 
-  /** 将落地目标滚动到注册 Surface 的可视范围内。 */
+  /**
+   * 将落地目标滚动到注册 Surface 的可视范围内。
+   *
+   * 松手后的滚动由 Runtime 用 rAF 驱动，时长跟 landing 基准时长一致，
+   * 不再交给浏览器的原生 smooth scroll。这样代理从松手立即开始飞行时，
+   * 容器滚动不会比代理慢一大截，避免代理先完成并被销毁而容器仍在滚动。
+   */
   keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void {
     const viewport = this.resolveMoveSurfaceViewport(surfaceId)
     if (!viewport || !target.isConnected) return
+    const previousFrame = this.surfaceScrollFrames.get(viewport)
+    if (previousFrame !== undefined) {
+      cancelAnimationFrame(previousFrame)
+      this.surfaceScrollFrames.delete(viewport)
+    }
     const viewportRect = viewport.getBoundingClientRect()
     const targetRect = target.getBoundingClientRect()
-    if (targetRect.top < viewportRect.top) {
-      viewport.scrollTo({ top: viewport.scrollTop - (viewportRect.top - targetRect.top), behavior: 'smooth' })
-    } else if (targetRect.bottom > viewportRect.bottom) {
-      viewport.scrollTo({ top: viewport.scrollTop + (targetRect.bottom - viewportRect.bottom), behavior: 'smooth' })
+    const targetScrollTop = targetRect.top < viewportRect.top
+      ? viewport.scrollTop - (viewportRect.top - targetRect.top)
+      : targetRect.bottom > viewportRect.bottom
+        ? viewport.scrollTop + (targetRect.bottom - viewportRect.bottom)
+        : viewport.scrollTop
+    if (Math.abs(targetScrollTop - viewport.scrollTop) < 0.5) return
+
+    const startScrollTop = viewport.scrollTop
+    const distance = targetScrollTop - startScrollTop
+    const duration = Math.max(200, this.registry.motionProfile?.landing?.duration ?? 250)
+    if (typeof requestAnimationFrame === 'undefined') {
+      viewport.scrollTop = targetScrollTop
+      return
     }
+    const startedAt = performance.now()
+    const tick = (time: number): void => {
+      const progress = Math.min(1, (time - startedAt) / duration)
+      const eased = 1 - (1 - progress) ** 3
+      viewport.scrollTop = startScrollTop + distance * eased
+      if (progress >= 1) {
+        this.surfaceScrollFrames.delete(viewport)
+        return
+      }
+      const frame = requestAnimationFrame(tick)
+      this.surfaceScrollFrames.set(viewport, frame)
+    }
+    const frame = requestAnimationFrame(tick)
+    this.surfaceScrollFrames.set(viewport, frame)
   }
 
   /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */
