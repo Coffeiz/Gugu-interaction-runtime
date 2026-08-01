@@ -8,6 +8,7 @@
 ### 改进
 - Runtime 统一编排项目卡的输入、Session、目标解析、视觉代理、landing/reveal、regrab、滚动、FLIP、组动画和 collection presence。
 - Gugu-web 项目页移除旧拖拽与完成列布局编排，直接通过 Runtime 源码接入。
+- 合并布局读取与动画写入，复用事务内几何测量结果，并限制 collection presence 扫描范围、延迟幽灵节点创建，降低 release 阶段的主线程阻塞。
 
 ### 修复
 - 清理项目页残留的旧目标等待、完成列特判和重复生命周期入口，避免与 Runtime 事务竞争。
