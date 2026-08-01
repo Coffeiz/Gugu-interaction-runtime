@@ -268,7 +268,7 @@ export function createDetachMoveFromAdapter(config: {
       pickupIndex = runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)
       beforeContent = element.cloneNode(true) as HTMLElement
       const moveContext = runtime.getMoveContext(sessionId!)
-      const motion = prepareDetachMotion(moveContext, element, event, fromRect)
+      const motion = prepareDetachMotion(moveContext, element, event, fromRect, runtime.getObjectGrabAlign(objectId))
       const rect = motion.rect
       dragOffset = { x: motion.offsetX, y: motion.offsetY }
       runtime.applyVisualState(objectId, element, {

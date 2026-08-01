@@ -3,7 +3,7 @@
  * 接入方不需要了解 src 下的目录结构，也不应直接依赖 demo 实现。
  */
 export { Runtime, runtime } from './Runtime'
-export type { RuntimeEvent, RuntimeLandingTargetOptions } from './Runtime'
+export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, GrabAlignConfig } from './Runtime'
 export { RuntimeRegistry } from './runtime/RuntimeRegistry'
 export { RuntimeDispatcher } from './runtime/RuntimeInput'
 export { SessionCoordinator, RuntimeSessionCoordinator } from './runtime/RuntimeSession'

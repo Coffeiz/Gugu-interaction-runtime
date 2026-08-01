@@ -128,6 +128,8 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `visual` | 可选的对象级 `VisualAdapter` |
 |  | `motion.enabled` | 是否使用内置 MotionController，默认 `true` |
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
+|  | `grabAlign.align` | 抓取基准对齐方式：`'center'`（默认，卡片中心对指针）或 `'pointer'`（点哪抓哪） |
+|  | `grabAlign.offsetX` / `offsetY` | 在基准对齐结果上叠加的固定像素偏移，正值往右/往下 |
 | `useObject(options)` | `id` | 对象唯一标识 |
 |  | `type` | 对象类型，必须匹配 Surface 的 `accepts` |
 |  | `surface` | 当前 Surface ID，可传 getter |
@@ -139,6 +141,22 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 
 Action 的常用字段为 `type`、`objectId`、`fromSurfaceId`、`toSurfaceId`、`toIndex`
 和 `timestamp`。Runtime 不直接修改业务 Store。
+
+**抓取对齐（`grabAlign`）**
+
+默认 `align:'center'`：不管指针点在卡片哪个位置，抓起后卡片几何中心都会对齐
+指针。想要"点哪抓哪"（保留实际点击位置在卡片里的相对偏移）时传 `align:'pointer'`；
+`offsetX`/`offsetY` 是在基准对齐结果上再叠加的固定像素偏移，可以跟任意 `align`
+组合，比如居中之外再往下偏几 px，做出"被拎着"的悬垂感：
+
+```ts
+runtime.registerObjectType('project-card', {
+  defaultVisualMode: 'detach',
+  grabAlign: { offsetY: 8 },
+})
+```
+
+没有注册 `grabAlign` 的类型等价于 `{ align: 'center' }`（纯几何中心对齐）。
 
 **3. 配置运动参数**
 

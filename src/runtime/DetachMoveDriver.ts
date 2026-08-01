@@ -3,6 +3,7 @@ import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
 import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
 import { applyFloatingStyle } from '../dom/Visual'
 import { releaseVisibilityOwnership, setProxyInteractive } from '../dom/Visual'
+import type { GrabAlignConfig } from '../Runtime'
 
 
 
@@ -21,15 +22,32 @@ export function captureDetachDraggingSnapshot(
 
 
 
+/**
+ * 抓取点默认取卡片几何中心，不管实际点在卡片哪个位置——对应咕咕旧版
+ * （main 分支 usePhysicsDrag.ts）的 centerGrab:true：卡片水平/垂直中心
+ * 始终跟指针对齐，不是"点哪抓哪"。按 grabAlign.align 也可以切回
+ * 'pointer'（保留点击位置在卡片里的相对偏移），再叠加 offsetX/offsetY
+ * 做额外的固定偏移（比如往下偏几 px，做出"被拎着"的悬垂感）。
+ * regrab（fromRect 有值）时用当时飞行中代理的 rect 重新量一次，保持
+ * 抓取点在卡片里的相对位置不因为落地途中尺寸变化（缩放）而跑偏。
+ */
 export function prepareDetachMotion(
   context: MoveContext,
   element: HTMLElement,
   event: PointerEvent,
   fromRect?: DOMRect,
+  grabAlign?: GrabAlignConfig,
 ): { rect: DOMRect; offsetX: number; offsetY: number } {
   const rect = fromRect ?? element.getBoundingClientRect()
-  const offsetX = fromRect ? event.clientX - rect.left : context.dragOffset.x
-  const offsetY = fromRect ? event.clientY - rect.top : context.dragOffset.y
+  const align = grabAlign?.align ?? 'center'
+  const baseX = align === 'pointer' ? event.clientX - rect.left : rect.width / 2
+  const baseY = align === 'pointer' ? event.clientY - rect.top : rect.height / 2
+  // offsetX/offsetY 返回的是"指针到卡片左上角"的距离（target.x = pointerX -
+  // offsetX 就是左上角落点），这个距离跟卡片实际往哪边挪是反着的：距离变大，
+  // 左上角（连带整张卡片）反而往指针的反方向移。grabAlign.offsetY 想要的是
+  // "卡片往下挪"（正值往下），所以这里要用减法，不能直接加。
+  const offsetX = baseX - (grabAlign?.offsetX ?? 0)
+  const offsetY = baseY - (grabAlign?.offsetY ?? 0)
   if (fromRect) context.dragOffset = { x: offsetX, y: offsetY }
   return { rect, offsetX, offsetY }
 }

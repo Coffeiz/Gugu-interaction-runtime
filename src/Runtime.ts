@@ -69,12 +69,28 @@ export interface MoveSessionHandle extends SessionHandle {
   dispose(): void
 }
 
+/** 抓取时卡片跟指针的对齐方式，按对象类型注册（见 ObjectTypeRegistration.grabAlign）。 */
+export interface GrabAlignConfig {
+  /**
+   * 基准对齐方式：
+   * - 'center'（默认）：卡片几何中心对指针，不管实际点在卡片哪个位置。
+   * - 'pointer'：保留实际点击位置在卡片里的相对偏移，点哪抓哪。
+   */
+  align?: 'center' | 'pointer'
+  /** 在基准对齐结果上再叠加的水平偏移(px)，正值往右；默认 0。 */
+  offsetX?: number
+  /** 在基准对齐结果上再叠加的垂直偏移(px)，正值往下；默认 0。 */
+  offsetY?: number
+}
+
 export interface ObjectTypeRegistration {
   defaultVisualMode: string
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
   visual?: ObjectVisualAdapter
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
   motion?: { enabled?: boolean; profile?: MotionProfile }
+  /** 抓取对齐方式；不传就是纯几何中心对齐（等价于 { align: 'center' }）。 */
+  grabAlign?: GrabAlignConfig
   /** 兼容旧 demo 的手动启动入口。 */
   start?(context: { objectId: string; element: HTMLElement; event: PointerEvent; mode: string }): void
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
@@ -326,6 +342,13 @@ setMotionProfiles(this.registry.motionProfile)
 
   getVisualAdapter(type: string): VisualAdapter {
     return this.registry.visuals.get(type) ?? this.defaultVisualAdapter
+  }
+
+  /** 按对象类型读取抓取对齐配置；未注册的类型返回 undefined，调用方按纯居中兜底。 */
+  getObjectGrabAlign(objectId: string): GrabAlignConfig | undefined {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    return registration?.grabAlign
   }
 
   getObjectVisualAdapter(objectId: string): VisualAdapter {
@@ -674,47 +697,11 @@ setMotionProfiles(this.registry.motionProfile)
   ): RegrabContext | null {
     const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return null
-    const surface = sourceElement.closest<HTMLElement>('[data-layout-surface], .col-body')
     const proxyRect = proxyElement.getBoundingClientRect()
     const sourceRect = sourceElement.getBoundingClientRect()
     const layoutWidth = sourceElement.offsetWidth || sourceRect.width
     const layoutHeight = sourceElement.offsetHeight || sourceRect.height
     const regrabRect = new DOMRect(proxyRect.left, proxyRect.top, layoutWidth, layoutHeight)
-    console.log('[runtime-regrab-probe]', JSON.stringify({
-      phase: 'context-created',
-      sessionId,
-      objectId: session.objectId,
-      state: session.state,
-      proxy: {
-        connected: proxyElement.isConnected,
-        rect: proxyRect.toJSON(),
-        inlineWidth: proxyElement.style.width,
-        inlineHeight: proxyElement.style.height,
-        transform: getComputedStyle(proxyElement).transform,
-      },
-      regrabRect: {
-        left: regrabRect.left,
-        top: regrabRect.top,
-        width: regrabRect.width,
-        height: regrabRect.height,
-      },
-      source: {
-        connected: sourceElement.isConnected,
-        rect: sourceElement.getBoundingClientRect().toJSON(),
-        inlineHeight: sourceElement.style.height,
-        inlineTransform: sourceElement.style.transform,
-        visibility: getComputedStyle(sourceElement).visibility,
-      },
-      surface: surface ? {
-        className: surface.className,
-        rect: surface.getBoundingClientRect().toJSON(),
-        scrollTop: 'scrollTop' in surface ? surface.scrollTop : null,
-        scrollHeight: 'scrollHeight' in surface ? surface.scrollHeight : null,
-        inlineHeight: surface.style.height,
-        inlineOverflow: surface.style.overflow,
-      } : null,
-      time: performance.now(),
-    }))
     return {
       sessionId,
       objectId: session.objectId,
