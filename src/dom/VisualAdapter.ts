@@ -9,6 +9,8 @@ import {
   destroyDragProxy,
   landDragProxyLegacy,
   landDragProxyWithMotion,
+  getProxyAttitude,
+  getProxyContent,
   revealElement,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
@@ -109,23 +111,24 @@ export class DefaultVisualAdapter implements VisualAdapter {
       throw new Error('visual proxy requires source snapshot')
     }
     const proxy = createDragProxy(context.beforeContent, context.sourceRect)
-    preserveProxyVisualContext(context.sourceElement, proxy)
+    const content = getProxyContent(proxy)
+    preserveProxyVisualContext(context.sourceElement, content)
     const snapshot = context.visualSnapshot
     if (snapshot) {
-      proxy.style.boxShadow = snapshot.boxShadow
-      proxy.style.borderRadius = snapshot.borderRadius
-      proxy.style.backgroundColor = snapshot.background
+      content.style.boxShadow = snapshot.boxShadow
+      content.style.borderRadius = snapshot.borderRadius
+      content.style.backgroundColor = snapshot.background
       if (snapshot.backgroundImage && snapshot.backgroundImage !== 'none') {
-        proxy.style.backgroundImage = snapshot.backgroundImage
+        content.style.backgroundImage = snapshot.backgroundImage
       }
-      proxy.style.opacity = snapshot.opacity
-      proxy.style.transform = snapshot.transform || 'scale(1.03)'
+      content.style.opacity = snapshot.opacity
+      getProxyAttitude(proxy).style.transform = 'scale(1.03)'
     }
     // 业务卡片常把操作按钮做成默认 opacity:0、hover 时显示；proxy 是
     // pointer-events:none 的克隆，永远没有 hover 态，按钮会保持透明。
     // 抓取时应保留原卡片的完整样式（按钮可见），这里把 hover 才显示
     // 的子元素强制置为可见。
-    proxy.querySelectorAll<HTMLElement>('[class]').forEach(el => {
+    content.querySelectorAll<HTMLElement>('[class]').forEach(el => {
       const computed = getComputedStyle(el)
       if (computed.opacity === '0' && computed.pointerEvents === 'none') {
         el.style.opacity = '1'

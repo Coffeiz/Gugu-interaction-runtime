@@ -111,10 +111,26 @@ export function restoreProxyVisualState(
  * 的真实 DOM——见 docs/DESIGN.md "Vue 创建真实 DOM，Runtime 创建临时 DOM"。
  */
 export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getBoundingClientRect()): HTMLElement {
-  const proxy = source.cloneNode(true) as HTMLElement
+  // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
+  // perspective/rotate 由定位壳统一承载，不额外引入业务侧不存在的姿态节点。
+  const proxy = document.createElement('div')
+  const scaleShell = document.createElement('div')
+  const content = source.cloneNode(true) as HTMLElement
+  scaleShell.dataset.runtimeProxyScaleShell = 'true'
+  content.dataset.runtimeProxyContent = 'true'
+  Object.assign(scaleShell.style, {
+    position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
+    transformOrigin: '0 0', pointerEvents: 'none',
+  })
+  Object.assign(content.style, {
+    position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
+    boxSizing: 'border-box', margin: '0', pointerEvents: 'none',
+  })
+  scaleShell.appendChild(content)
+  proxy.appendChild(scaleShell)
   // 源节点在 clone 策略中会暂时使用隐藏类保留列表占位；代理必须是唯一可见
   // 的视觉主体，不能把源节点的隐藏状态一起复制过来。
-  proxy.classList.remove('kb-card-dragging-source')
+  proxy.className = ''
   proxy.style.position = 'fixed'
   proxy.style.left = `${rect.left}px`
   proxy.style.top = `${rect.top}px`
@@ -148,18 +164,24 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   // 而不是"左上角钉住、右边甩得更远"。translate3d 是位置平移，不受
   // transform-origin 影响，只改这一个值不需要连带调整任何位置计算。
   proxy.style.transformOrigin = '50% 50%'
-  proxy.style.transform = 'scale(1.03)'
-  // 明确写出抓取阶段的缩放原点。浏览器默认也是中心，但 landing 同样以
-  // transform scale 做尺寸过渡；两阶段不能依赖默认值“碰巧一致”。
-  proxy.style.transformOrigin = '50% 50%'
-  proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-  proxy.style.transition = 'transform .15s ease, box-shadow .15s ease'
+  proxy.style.transform = 'perspective(760px) rotateX(5deg) scale(1.03)'
+  content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  content.style.transition = 'box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease'
+  proxy.style.transition = 'transform .15s ease'
   // 逃出玻璃裁切（overflow:hidden / backdrop-filter 祖先）靠的就是这次重新
   // 挂载：只要还在被裁切祖先的子树里，z-index 再高也没用；只要挂到 <html>
   // 下，不需要额外一层 overlay 容器。
   document.documentElement.appendChild(proxy)
   activeDragProxies.add(proxy)
   return proxy
+}
+
+export function getProxyAttitude(proxy: HTMLElement): HTMLElement {
+  return proxy
+}
+
+export function getProxyContent(proxy: HTMLElement): HTMLElement {
+  return proxy.querySelector<HTMLElement>('[data-runtime-proxy-content]') ?? proxy
 }
 
 export function moveDragProxy(proxy: HTMLElement, x: number, y: number, offsetX: number, offsetY: number) {
@@ -360,7 +382,8 @@ export function landDragProxyLegacy(
   const targetRadius = options.targetRadius
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
-  const contentLayers = options.targetContent ? wrapContentForMorph(proxy, options.targetContent) : null
+  const content = getProxyContent(proxy)
+  const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
   if (contentLayers) {
     // 缓动曲线必须跟下面容器 transform 用的是同一条（easing，不是硬编码 ease）——
     // 两条速度曲线不一致时，中途会出现"容器已经飞到大半、新增内容才淡了不到
@@ -441,6 +464,7 @@ export function landDragProxyLegacy(
     proxy.style.height = `${startRect.height.toFixed(2)}px`
     proxy.style.transform =
       `translate3d(${(startRect.left - layoutLeft).toFixed(2)}px, ${(startRect.top - layoutTop).toFixed(2)}px, 0)`
+    proxy.style.transform = 'none'
     void proxy.offsetWidth
     const targetTransform =
       `translate3d(${(nextTarget.left - layoutLeft).toFixed(2)}px, ${(nextTarget.top - layoutTop).toFixed(2)}px, 0)`
@@ -464,15 +488,15 @@ export function landDragProxyLegacy(
       proxy.style.transform = targetTransform
       proxy.style.width = `${nextTarget.width.toFixed(2)}px`
       proxy.style.height = `${nextTarget.height.toFixed(2)}px`
-      if (targetShadow != null) proxy.style.boxShadow = targetShadow
-      if (targetRadius != null) proxy.style.borderRadius = targetRadius
+      if (targetShadow != null) content.style.boxShadow = targetShadow
+      if (targetRadius != null) content.style.borderRadius = targetRadius
       if (targetBackground != null) {
-        proxy.style.backgroundColor = targetBackground
+        content.style.backgroundColor = targetBackground
         if (options.targetBackgroundImage) {
-          proxy.style.backgroundImage = options.targetBackgroundImage
+          content.style.backgroundImage = options.targetBackgroundImage
         }
       }
-      if (targetOpacity != null) proxy.style.opacity = targetOpacity
+      if (targetOpacity != null) content.style.opacity = targetOpacity
       if (contentLayers) {
         for (const el of contentLayers.enteringEls) el.style.opacity = '1'
         for (const el of contentLayers.leavingEls) el.style.opacity = '0'
@@ -541,7 +565,8 @@ export function landDragProxyWithMotion(
   const targetRadius = options.targetRadius
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
-  const contentLayers = options.targetContent ? wrapContentForMorph(proxy, options.targetContent) : null
+  const content = getProxyContent(proxy)
+  const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
   if (contentLayers) {
     for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
     for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
@@ -562,6 +587,15 @@ export function landDragProxyWithMotion(
   const startRect = proxy.getBoundingClientRect()
   const startWidth = startRect.width || target.width
   const startHeight = startRect.height || target.height
+  // 宽高过渡不能把左上角当作唯一锚点：源卡与目标卡尺寸不同时，左边会先
+  // 对齐而右边在收缩期间继续漂移。让控制器追踪中心点，帧内再换算回左上角，
+  // 最终仍精确落到目标 rect。
+  const centeredTarget = (next: LandingRect) => ({
+    left: next.left - (startWidth - next.width) / 2,
+    top: next.top - (startHeight - next.height) / 2,
+    width: next.width,
+    height: next.height,
+  })
   let currentTarget = target
   let settled = false
   let timeoutId: number | null = null
@@ -581,9 +615,13 @@ export function landDragProxyWithMotion(
   const motion = createCardMotionController({
     mode: 'settle',
     onFrame: frame => {
-      proxy.style.transform = `perspective(760px) translate3d(${(frame.x - layoutLeft).toFixed(2)}px, ${(frame.y - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
-      proxy.style.width = `${(startWidth * frame.scaleX).toFixed(2)}px`
-      proxy.style.height = `${(startHeight * frame.scaleY).toFixed(2)}px`
+      const width = startWidth * frame.scaleX
+      const height = startHeight * frame.scaleY
+      const left = frame.x + (startWidth - width) / 2
+      const top = frame.y + (startHeight - height) / 2
+      proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
+      proxy.style.width = `${width.toFixed(2)}px`
+      proxy.style.height = `${height.toFixed(2)}px`
     },
     onArrived: settle,
   })
@@ -615,11 +653,12 @@ export function landDragProxyWithMotion(
     rotateVX: options.motionState?.rotateVX ?? 0,
     rotateVZ: options.motionState?.rotateVZ ?? 0,
   })
+  const initialTarget = centeredTarget(target)
   motion.setTarget({
-    x: target.left,
-    y: target.top,
-    scaleX: target.width / startWidth,
-    scaleY: target.height / startHeight,
+    x: initialTarget.left,
+    y: initialTarget.top,
+    scaleX: initialTarget.width / startWidth,
+    scaleY: initialTarget.height / startHeight,
   })
 
   // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
@@ -631,18 +670,18 @@ export function landDragProxyWithMotion(
   ].join(', ')
   requestAnimationFrame(() => {
     if (settled) return
-    if (targetShadow != null) proxy.style.boxShadow = targetShadow
-    if (targetRadius != null) proxy.style.borderRadius = targetRadius
+    if (targetShadow != null) content.style.boxShadow = targetShadow
+    if (targetRadius != null) content.style.borderRadius = targetRadius
     if (targetBackground != null) {
       // 分开设置：background 简写会重置 background-image，业务卡片常用
       // linear-gradient（在 backgroundImage），渐变会被 backgroundColor
       // 覆盖丢失（透明底）。先设 backgroundColor，再设 backgroundImage。
-      proxy.style.backgroundColor = targetBackground
+      content.style.backgroundColor = targetBackground
       if (options.targetBackgroundImage) {
-        proxy.style.backgroundImage = options.targetBackgroundImage
+        content.style.backgroundImage = options.targetBackgroundImage
       }
     }
-    if (targetOpacity != null) proxy.style.opacity = targetOpacity
+    if (targetOpacity != null) content.style.opacity = targetOpacity
     if (contentLayers) {
       for (const el of contentLayers.enteringEls) el.style.opacity = '1'
       for (const el of contentLayers.leavingEls) el.style.opacity = '0'
@@ -673,11 +712,12 @@ export function landDragProxyWithMotion(
       // 目标发生布局移动时，给新的弹簧轨迹完整的收敛窗口，避免旧 duration
       // 到期后提前 reveal，造成“移动到一半瞬间到目标”的假跳变。
       scheduleMotionTimeout(1000)
+      const next = centeredTarget(currentTarget)
       motion.setTarget({
-        x: currentTarget.left,
-        y: currentTarget.top,
-        scaleX: currentTarget.width / startWidth,
-        scaleY: currentTarget.height / startHeight,
+        x: next.left,
+        y: next.top,
+        scaleX: next.width / startWidth,
+        scaleY: next.height / startHeight,
       })
     },
   }
