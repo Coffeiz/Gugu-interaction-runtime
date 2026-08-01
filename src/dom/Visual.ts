@@ -165,7 +165,8 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   // transform-origin 影响，只改这一个值不需要连带调整任何位置计算。
   proxy.style.transformOrigin = '50% 50%'
   proxy.style.transform = 'perspective(760px) rotateX(5deg) scale(1.03)'
-  content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
+  else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
   content.style.transition = 'box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease'
   proxy.style.transition = 'transform .15s ease'
   // 逃出玻璃裁切（overflow:hidden / backdrop-filter 祖先）靠的就是这次重新
@@ -777,8 +778,8 @@ export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
   proxy.style.margin = '0'
   proxy.style.zIndex = '1000'
   proxy.style.boxSizing = 'border-box'
-  proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-  proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(proxy)
+  else proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
   proxy.style.transform = 'scale(1.03)'
   proxy.style.transition = 'transform .15s ease, box-shadow .15s ease'
   proxy.dataset.runtimeProxy = 'true'
@@ -846,6 +847,20 @@ export function settleFloatingLayout(el: HTMLElement): void {
   el.style.visibility = 'hidden'
 }
 const activeDragProxies = new Set<HTMLElement>()
+let defaultDraggingGlassEnabled = false
+
+export function setDefaultDraggingGlassEnabled(enabled: boolean): void {
+  defaultDraggingGlassEnabled = enabled
+}
+
+export function applyDraggingGlassStyle(element: HTMLElement): void {
+  element.style.background = 'rgba(255, 255, 255, 0.42)'
+  element.style.backdropFilter = 'blur(12px) saturate(1.15)'
+  element.style.setProperty('-webkit-backdrop-filter', 'blur(12px) saturate(1.15)')
+  element.style.border = '1px solid rgba(255, 255, 255, 0.72)'
+  element.style.boxShadow = '0 22px 50px rgba(30, 35, 60, 0.30)'
+  element.style.opacity = '0.97'
+}
 
 /**
  * visibility ownership guard：记录每个 DOM 元素当前 visibility 的 owner sessionId。

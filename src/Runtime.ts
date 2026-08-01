@@ -27,6 +27,7 @@ import { VisualProxyCoordinator, VisualStateCoordinator, VisualMotionCoordinator
 import { MoveCommitCoordinator, MoveLandingCoordinator } from './runtime/RuntimeMove'
 import { RuntimeInputCoordinator, RuntimeDispatcher } from './runtime/RuntimeInput'
 import { RuntimeMoveCoordinator, type MoveReleasePort } from './runtime/RuntimeMove'
+import { setDefaultDraggingGlassEnabled } from './dom/Visual'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
 import { setMotionProfiles } from './dom/GroupLayout'
 
@@ -241,6 +242,11 @@ setMotionProfiles(this.registry.motionProfile)
       if (controller.release) Object.assign(DEFAULT_RELEASE_PROFILE, controller.release)
     }
     setMotionProfiles(this.registry.motionProfile)
+  }
+
+  /** 配置 Runtime 默认代理视觉；业务也可以完全关闭并由 VisualAdapter 自行绘制。 */
+  configureVisual(config: { dragGlass?: boolean }): void {
+    if (config.dragGlass !== undefined) setDefaultDraggingGlassEnabled(config.dragGlass)
   }
 
   getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null {
