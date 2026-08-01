@@ -165,7 +165,7 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   // transform-origin 影响，只改这一个值不需要连带调整任何位置计算。
   proxy.style.transformOrigin = '50% 50%'
   proxy.style.transform = 'perspective(760px) rotateX(5deg) scale(1.03)'
-  content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  applyDraggingGlassStyle(content)
   content.style.transition = 'box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease'
   proxy.style.transition = 'transform .15s ease'
   // 逃出玻璃裁切（overflow:hidden / backdrop-filter 祖先）靠的就是这次重新
@@ -174,6 +174,16 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   document.documentElement.appendChild(proxy)
   activeDragProxies.add(proxy)
   return proxy
+}
+
+/** 全局抓取态：与 main 看板旧版 phys-drag-clone 保持一致。 */
+export function applyDraggingGlassStyle(element: HTMLElement): void {
+  element.style.background = 'rgba(255, 255, 255, 0.42)'
+  element.style.backdropFilter = 'blur(12px) saturate(1.15)'
+  element.style.setProperty('-webkit-backdrop-filter', 'blur(12px) saturate(1.15)')
+  element.style.border = '1px solid rgba(255, 255, 255, 0.72)'
+  element.style.boxShadow = '0 22px 50px rgba(30, 35, 60, 0.30)'
+  element.style.opacity = '0.97'
 }
 
 export function getProxyAttitude(proxy: HTMLElement): HTMLElement {
@@ -759,6 +769,7 @@ const floatingSnapshots = new WeakMap<HTMLElement, { style: string }>()
  *  .glass-card 祖先的 backdrop-filter 创建 containing block 拦截 fixed
  *  坐标系，同时不 reparent 业务 DOM，Vue 追踪不受影响。 */
 const floatingProxies = new WeakMap<HTMLElement, HTMLElement>()
+const pickupHandoffPending = new WeakSet<HTMLElement>()
 
 export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
@@ -776,9 +787,11 @@ export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
   proxy.style.zIndex = '1000'
   proxy.style.boxSizing = 'border-box'
   proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  applyDraggingGlassStyle(proxy)
   proxy.style.transform = 'scale(1.03)'
   proxy.style.transition = 'transform .15s ease, box-shadow .15s ease'
   proxy.dataset.runtimeProxy = 'true'
+  pickupHandoffPending.add(proxy)
   document.documentElement.appendChild(proxy)
   floatingProxies.set(el, proxy)
   el.style.visibility = 'hidden'
@@ -790,13 +803,28 @@ export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
 
 export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: number, offsetY: number) {
   const target = floatingProxies.get(el) ?? el
-  target.style.left = `${x - offsetX}px`
-  target.style.top = `${y - offsetY}px`
+  const left = `${x - offsetX}px`
+  const top = `${y - offsetY}px`
+  if (pickupHandoffPending.has(target)) {
+    pickupHandoffPending.delete(target)
+    target.style.transition = 'left 120ms cubic-bezier(.22,1,.36,1), top 120ms cubic-bezier(.22,1,.36,1), transform 120ms cubic-bezier(.22,1,.36,1), box-shadow 120ms ease'
+    requestAnimationFrame(() => {
+      target.style.left = left
+      target.style.top = top
+      window.setTimeout(() => {
+        if (target.isConnected) target.style.transition = 'none'
+      }, 140)
+    })
+    return
+  }
+  target.style.left = left
+  target.style.top = top
 }
 
 export function clearFloatingStyle(el: HTMLElement) {
   const proxy = floatingProxies.get(el)
   if (proxy) {
+    pickupHandoffPending.delete(proxy)
     proxy.remove()
     floatingProxies.delete(el)
   }
