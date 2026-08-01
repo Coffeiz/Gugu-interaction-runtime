@@ -261,10 +261,18 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
 
 export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING, fromHeight?: number): void {
   const currentHeight = fromHeight ?? element.getBoundingClientRect().height
+  // 分组高度按位移决定时长：小月份保持轻快，大分组不会在缓出曲线前段
+  // 一次性完成。duration 作为基准上限，保留最小值避免小组过快。
+  const distance = Math.abs(Math.max(0, targetHeight) - currentHeight)
+  const speed = 8
+  const effectiveDuration = Math.min(Math.max(distance / speed, 200), 350)
   element.dataset.runtimeGroupAnimating = 'true'
   element.style.overflow = 'hidden'
   element.style.height = `${currentHeight}px`
-  element.style.transition = `height ${duration}ms ${easing}`
+  element.style.transition = `height ${effectiveDuration}ms ${easing}`
+  // 与 Demo 的分组动画保持一致：先让起始高度提交到布局，再写目标高度，
+  // 避免大内容组在同一帧被浏览器合并成一次性展开。
+  void element.offsetHeight
   requestAnimationFrame(() => { element.style.height = `${Math.max(0, targetHeight)}px` })
   window.setTimeout(() => {
     if (targetHeight <= 0) {
@@ -276,7 +284,7 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
     }
     element.style.transition = ''
     delete element.dataset.runtimeGroupAnimating
-  }, duration + 40)
+  }, effectiveDuration + 40)
 }
 
 /** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
