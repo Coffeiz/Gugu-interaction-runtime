@@ -171,7 +171,7 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
 - Phase3 回归测试已覆盖 proxy dispose、regrab 接管、landing/reveal 顺序和旧 Promise
   失效。
 
-### Phase 4：迁移目标、FLIP 和滚动（进行中）
+### Phase 4：迁移目标、FLIP 和滚动（已完成）
 
 - Runtime 已统一调用 HitResolver、LandingTargetTracker 和 `resolveLandingTarget()`。
 - 同列、跨列、完成列目标等待已统一到 Runtime。
@@ -187,7 +187,8 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
 - collection presence 已作为布局快照的一部分由 Runtime FLIP 管线统一播放。
 - 已完成的部分已覆盖目标等待、同列/跨列落点、Surface viewport 滚动、列尾 rAF FLIP、
   group resize、collection presence 和快速连续事务。
-- 待完成：删除项目页 `single.ts` 中残留的 `.done-layout-root`、`animateOpen` 和旧目标等待分支。
+- 已删除项目页 `single.ts` 中残留的 `.done-layout-root` 特判、项目专用目标等待分支和
+  `onPickupFromDoneLayout` 入口；通用拖拽仍保留 `animateOpen`，供文件、画布和抽屉策略使用。
 
 ### Phase 5：删除项目页旧编排（已完成）
 
