@@ -1,4 +1,3 @@
-import { createAutoScroller, type AutoScrollController } from '../../dom/AutoScroll'
 import { captureLayoutFlip, scheduleLayoutFlip } from '../../dom/GroupLayout'
 import { applyFloatingStyle, clearFloatingStyle, getFloatingProxy, setProxyInteractive } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
@@ -45,7 +44,7 @@ export function createDetachMoveFromAdapter(config: {
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
   let sourceLease: SourceVisualLease | null = null
-  let autoScroller: AutoScrollController | null = null
+  let autoScroller: { update: (container: HTMLElement | null, point: { x: number; y: number }) => void; stop: () => void } | null = null
   let dragMotion: CardMotionController | null = null
   let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number } | undefined
   let dragOffset = { x: 0, y: 0 }
@@ -216,7 +215,7 @@ export function createDetachMoveFromAdapter(config: {
     prepare(ctx) {
       sessionId = ctx.session.id
       pointerMoved = false
-      autoScroller = createAutoScroller(ctx.session.cleanup, {
+      autoScroller = runtime.createAutoScroller(sessionId!, {
         onScroll: point => updateDropFromPoint(point.x, point.y),
       })
       if (ctx.session.state !== 'prepare') return

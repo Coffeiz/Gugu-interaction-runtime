@@ -30,6 +30,7 @@ import { RuntimeMoveCoordinator, type MoveReleasePort } from './runtime/RuntimeM
 import { setDefaultDraggingGlassEnabled } from './dom/Visual'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
 import { setLayoutPresenceEnabled, setMotionProfiles } from './dom/GroupLayout'
+import { createAutoScroller, type AutoScrollController, type AutoScrollOptions } from './dom/AutoScroll'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -546,6 +547,15 @@ setMotionProfiles(this.registry.motionProfile)
   resolveMoveSurfaceViewport(surfaceId: string): HTMLElement | null {
     const surface = this.surfaces.get(surfaceId)
     return surface?.viewport?.() ?? surface?.element ?? null
+  }
+
+  /** 创建绑定当前 Session 的自动滚动控制器；滚动资源随 Session 自动清理。 */
+  createAutoScroller(
+    sessionId: string,
+    options: AutoScrollOptions = {},
+  ): AutoScrollController | null {
+    const session = this.sessionCoordinator.get(sessionId)
+    return session ? createAutoScroller(session.cleanup, options) : null
   }
 
   /** 将落地目标滚动到注册 Surface 的可视范围内。 */
