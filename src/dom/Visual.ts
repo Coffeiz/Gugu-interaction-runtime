@@ -217,7 +217,7 @@ export interface LandingVisualOptions {
   targetContent?: HTMLElement
   /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
   readTarget?: () => LandingRect
-  motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ' | 'rotateVX' | 'rotateVZ'>
+  motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
   coast?: { duration: number; friction: number; maxDistance: number; minVelocity: number }
   /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
   releaseDamping?: number
@@ -655,8 +655,6 @@ export function landDragProxyWithMotion(
     scaleY: options.motionState?.scaleY ?? 1,
     rotateX: options.motionState?.rotateX ?? 0,
     rotateZ: options.motionState?.rotateZ ?? 0,
-    rotateVX: options.motionState?.rotateVX ?? 0,
-    rotateVZ: options.motionState?.rotateVZ ?? 0,
   })
   const initialTarget = centeredTarget(target)
   motion.setTarget({

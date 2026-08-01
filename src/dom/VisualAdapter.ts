@@ -36,7 +36,7 @@ export interface VisualLifecycleContext {
   /** 是否由 Runtime 内置 MotionController 驱动 landing；默认开启。 */
   readonly motionEnabled?: boolean
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
-  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ' | 'rotateVX' | 'rotateVZ'>
+  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
 }
 
 export interface VisualProxy {

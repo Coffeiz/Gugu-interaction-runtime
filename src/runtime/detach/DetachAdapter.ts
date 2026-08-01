@@ -60,7 +60,7 @@ export function createDetachMoveFromAdapter(config: {
   let sourceLease: SourceVisualLease | null = null
   let autoScroller: AutoScrollController | null = null
   let dragMotion: CardMotionController | null = null
-  let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number; rotateVX: number; rotateVZ: number } | undefined
+  let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number } | undefined
   let dragOffset = { x: 0, y: 0 }
   let pickupIndex: number | null = null
   let pointerMoved = false

@@ -225,7 +225,7 @@ export function createDetachVisualContext<TContext extends object>(args: {
   sourceRect: DOMRect
   visualSnapshot: VisualSnapshot
   targetSnapshot: VisualSnapshot
-  motionState?: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number; rotateVX: number; rotateVZ: number }
+  motionState?: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }
 }): TContext & {
   sourceElement: HTMLElement
   sourceRect: DOMRect

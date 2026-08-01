@@ -12,8 +12,6 @@ export interface MotionState {
   scaleVY: number
   rotateX: number
   rotateZ: number
-  rotateVX: number
-  rotateVZ: number
 }
 
 export interface MotionTarget {
@@ -93,7 +91,7 @@ export function createCardMotionController(options: CardMotionControllerOptions)
   const state: MotionState = {
     x: 0, y: 0, vx: 0, vy: 0,
     scaleX: 1, scaleY: 1, scaleVX: 0, scaleVY: 0,
-    rotateX: 0, rotateZ: 0, rotateVX: 0, rotateVZ: 0,
+    rotateX: 0, rotateZ: 0,
   }
   let target: MotionTarget = { x: 0, y: 0 }
   let profile: MotionProfile = LANDING_PROFILE
@@ -164,37 +162,18 @@ export function createCardMotionController(options: CardMotionControllerOptions)
       const rotation = options.followRotation!
       const smoothingRate = -Math.log(1 - (rotation.smoothing ?? 0.2)) * 60
       const smoothing = 1 - Math.exp(-smoothingRate * dt)
-      const previousVX = smoothedVX
-      const previousVY = smoothedVY
       smoothedVX += (state.vx - smoothedVX) * smoothing
       smoothedVY += (state.vy - smoothedVY) * smoothing
-      // 急停产生角动量：速度突然下降时，保留原方向的旋转惯性，
-      // 让卡片先越过水平线，再由角度弹簧回正，而不是直接收回。
-      const stopImpulse = 0.025
-      state.rotateVZ += (previousVX - smoothedVX) * stopImpulse
-      state.rotateVX += (previousVY - smoothedVY) * stopImpulse * 0.7
-      const desiredZ = Math.max(-(rotation.maxSway ?? 5), Math.min(rotation.maxSway ?? 5, (smoothedVX / 60) * rotation.sway))
+      // 角度不走弹簧，直接由平滑后的速度算出来赋值——没有独立惯性，
+      // 角度这一帧该是多少就是多少，不会过冲/回弹。
+      state.rotateZ = Math.max(-(rotation.maxSway ?? 5), Math.min(rotation.maxSway ?? 5, (smoothedVX / 60) * rotation.sway))
       const delta = Math.max(-(rotation.maxTiltDelta ?? 4), Math.min(rotation.maxTiltDelta ?? 4, (smoothedVY / 60) * (rotation.verticalTiltFactor ?? 0.16)))
-      const desiredX = rotation.tilt + delta
-      const angular = {
-        position: { x: state.rotateX, y: state.rotateZ },
-        velocity: { x: state.rotateVX, y: state.rotateVZ },
-      }
-      integrateSpring(angular, { x: desiredX, y: desiredZ }, 150, 2 * 0.72 * Math.sqrt(150), dt)
-      state.rotateX = angular.position.x
-      state.rotateZ = angular.position.y
-      state.rotateVX = angular.velocity.x
-      state.rotateVZ = angular.velocity.y
+      state.rotateX = rotation.tilt + delta
     } else {
-      const angular = {
-        position: { x: state.rotateX, y: state.rotateZ },
-        velocity: { x: state.rotateVX, y: state.rotateVZ },
-      }
-      integrateSpring(angular, { x: 0, y: 0 }, 150, 2 * 0.82 * Math.sqrt(150), dt)
-      state.rotateX = angular.position.x
-      state.rotateZ = angular.position.y
-      state.rotateVX = angular.velocity.x
-      state.rotateVZ = angular.velocity.y
+      // 简单指数衰减到 0，不走弹簧（不会过冲/回弹）。
+      const rotationDecay = Math.exp(-10 * dt)
+      state.rotateX *= rotationDecay
+      state.rotateZ *= rotationDecay
     }
 
     emitFrame()
