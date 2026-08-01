@@ -114,6 +114,23 @@ export function scheduleLayoutFlip(snapshot: LayoutFlipSnapshot): void {
 }
 
 /**
+ * rAF 版调度：等下一帧、Vue patch 全部落地后再量布局执行 Invert。
+ * 只用于"列尾追加"——此时目标列已有卡片无位移（没有 transform Invert），
+ * 只有容器 resize + 被拖卡片滑入，rAF 不会产生闪现；而 rAF 保证量到的是
+ * 最终布局（容器高度含新卡片），resize 冻结与播放同帧起步，不会顶动。
+ * 中间插入/重排有卡片位移 FLIP（有 Invert），必须走 microtask 版
+ * scheduleLayoutFlip，Invert 才能在 paint 前写入、不闪现。
+ */
+export function scheduleLayoutFlipOnRaf(snapshot: LayoutFlipSnapshot): void {
+  pendingLayoutFlips.set(snapshot.root, snapshot)
+  requestAnimationFrame(() => {
+    if (pendingLayoutFlips.get(snapshot.root) !== snapshot) return
+    pendingLayoutFlips.delete(snapshot.root)
+    playLayoutFlip(snapshot)
+  })
+}
+
+/**
  * 若上一笔事务还未进入播放帧，屏幕最后展示的仍是它的 before 布局。把该
  * before 继承给新事务，直接从旧视觉状态飞向最新布局，而非经过中间布局。
  */

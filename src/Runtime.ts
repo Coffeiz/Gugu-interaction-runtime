@@ -165,6 +165,9 @@ export class Runtime {
       createContext: session => this.createBehaviorContext(session),
       getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
       normalize: (objectId, destination) => this.moveActions.normalize(objectId, destination),
+      getSurfaceObjectCount: surfaceId =>
+        [...this.objects.values()].filter(item => item.surfaceId === surfaceId).length,
+      getObjectIndex: (objectId, surfaceId) => this.getObjectSurfaceIndex(objectId, surfaceId),
     }, this.moveActions)
     this.moveLanding = new MoveLandingCoordinator({
       createContext: session => this.createBehaviorContext(session),

@@ -22,7 +22,7 @@ export interface MoveLayoutLifecycle {
   /** 在业务 commit 前捕获兄弟节点/Surface 的布局。 */
   capture?(context: BehaviorContext): unknown
   /** 在 commit 后播放或调度布局过渡。 */
-  play?(context: BehaviorContext, snapshot: unknown): void
+  play?(context: BehaviorContext, snapshot: unknown, useRaf?: boolean): void
   /** 事务取消时清理尚未播放的布局事务。 */
   cancel?(context: BehaviorContext, snapshot: unknown, reason: string): void
 }
@@ -129,12 +129,17 @@ export class MoveBehavior implements Behavior {
     moveContext.layoutSnapshot = snapshot
   }
 
-  playLayout(context: BehaviorContext): void {
+  playLayout(context: BehaviorContext, useRaf = false): void {
     const moveContext = this.getContext(context.session.id)
     const lifecycle = this.sessionLifecycles.get(context.session.id)
     if (moveContext.layoutSnapshot !== undefined) {
-      lifecycle?.layout?.play?.(context, moveContext.layoutSnapshot)
+      lifecycle?.layout?.play?.(context, moveContext.layoutSnapshot, useRaf)
     }
+  }
+
+  /** 列尾追加专用：等下一帧（Vue patch 落地）再量布局执行 Invert。 */
+  playLayoutOnRaf(context: BehaviorContext): void {
+    this.playLayout(context, true)
   }
 
   cancelLayout(context: BehaviorContext, reason: string): void {

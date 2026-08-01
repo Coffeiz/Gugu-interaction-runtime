@@ -1,4 +1,4 @@
-import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
+import { captureLayoutFlip, scheduleLayoutFlip, scheduleLayoutFlipOnRaf } from '../dom/GroupLayout'
 import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
 import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
 import { applyFloatingStyle } from '../dom/Visual'
@@ -328,15 +328,23 @@ export function createDetachLayoutLifecycle(
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
       )
     },
-    play: (_context: unknown, snapshot: unknown) => {
-      // landing 生命周期也在当前提交后的下一帧创建代理并隐藏目标本体。
-      // 再多延后一帧启动布局 FLIP，确保目标先完成视觉接管，避免 Surface
-      // resize 先看到真实卡片、随后又被 landing proxy 替换。
+    play: (_context: unknown, snapshot: unknown, useRaf = false) => {
       const token = ++layoutToken
-      requestAnimationFrame(() => {
-        if (token !== layoutToken) return
-        scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
-      })
+      if (useRaf) {
+        // 列尾追加：等下一帧、Vue patch 落地后再量布局执行 Invert。
+        // 目标列已有卡片无位移（没有 transform Invert），rAF 不会闪现；
+        // 且 rAF 必然晚于 emit 的 Vue patch 微任务，resize 冻结与播放
+        // 同帧起步，不顶动。
+        requestAnimationFrame(() => {
+          if (token !== layoutToken) return
+          scheduleLayoutFlipOnRaf(snapshot as ReturnType<typeof captureLayoutFlip>)
+        })
+        return
+      }
+      // 中间插入/重排：有卡片位移 FLIP（有 Invert），必须 microtask 让
+      // Invert 在 paint 前写入，不闪现；playLayout 在 emit 后调用，此时
+      // Vue patch 已完成，microtask 量到的也是最终布局，不顶动。
+      scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
     },
   }
 }
