@@ -155,7 +155,7 @@ resolveDestination
 下一步进入 Phase 3：将 detach 的 source/proxy/landing/reveal 生命周期进一步收拢为
 Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果不变。
 
-### Phase 3：迁移 VisualAdapter（进行中）
+### Phase 3：迁移 VisualAdapter（已完成）
 
 - detach 的 source/proxy/landing/reveal 主链路已接入 Runtime VisualAdapter。
 - 已修正代理销毁边界：adapter 提供 `dispose` 时由 adapter 完整接管，Runtime 不再重复调用
@@ -166,10 +166,12 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
   detach adapter 不再自行组合两套解析路径。
 - 已增加 `runtime.takeoverRegrab()`，统一 landing → regrab 的旧 Session 失效、
   completion gate 清理和视觉代理失效；detach adapter 只保留 source 可见性与监听器处理。
-- 待完成：将 landing 前后的布局顺序继续收进 Runtime 公共协议，并补齐项目页 adapter
-  接入验证。
+- landing 前后的 capture、commit、surface enter、FLIP 播放顺序已经由
+  `RuntimeMoveCoordinator` 统一执行；detach adapter 不再自行决定这条顺序。
+- Phase3 回归测试已覆盖 proxy dispose、regrab 接管、landing/reveal 顺序和旧 Promise
+  失效。
 
-### Phase 4：迁移目标、FLIP 和滚动
+### Phase 4：迁移目标、FLIP 和滚动（进行中）
 
 - Runtime 统一调用 HitResolver 和 LandingTargetTracker。
 - 将同列、跨列、完成列目标等待统一到 Runtime。
