@@ -50,6 +50,19 @@ export function createDetachMoveFromAdapter(config: {
   let pickupIndex: number | null = null
   let pointerMoved = false
 
+  // 布局 FLIP 只需要比较当前源 Surface 与最后命中的目标 Surface。
+  // 这样已完成列之外的大量项目不会参与每次拖拽的分组、Surface 和
+  // collection presence 测量；没有有效目标时自然只保留源 Surface。
+  const layoutScopeSurfaces = (): readonly HTMLElement[] => {
+    const ids = new Set<string>()
+    if (initialSurfaceId) ids.add(initialSurfaceId)
+    if (pendingDrop?.columnId) ids.add(pendingDrop.columnId)
+    return runtime.surfaces.snapshot()
+      .filter(surface => ids.has(surface.id))
+      .map(surface => surface.element)
+      .filter((surface): surface is HTMLElement => Boolean(surface?.isConnected))
+  }
+
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
 
   function updateDropFromPoint(x: number, y: number): void {
@@ -232,7 +245,7 @@ export function createDetachMoveFromAdapter(config: {
       element.style.pointerEvents = ''
       objectLease = runtime.acquireObject(sessionId!, objectId)
       runtime.takeSurfaces(sessionId!, surfaceIds)
-      const { beforePickup } = prepareDetachPickup(element, registeredElements)
+      const { beforePickup } = prepareDetachPickup(element, registeredElements, layoutScopeSurfaces)
       pickupIndex = runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)
       beforeContent = element.cloneNode(true) as HTMLElement
       const moveContext = runtime.getMoveContext(sessionId!)
@@ -317,7 +330,7 @@ export function createDetachMoveFromAdapter(config: {
   }
 
   const lifecycle: MoveVisualLifecycle = {
-    layout: createDetachLayoutLifecycle(element, registeredElements),
+    layout: createDetachLayoutLifecycle(element, registeredElements, layoutScopeSurfaces),
     surface: {
       // emit() 成功之后触发（见 RuntimeMove.ts MoveCommitCoordinator.commit），
       // 此时业务 store 已经落地在新 Surface，这里释放 ownership，业务

@@ -53,11 +53,17 @@ export interface LayoutFlipSnapshot {
 function splitLayoutFlipParticipants(
   cards: readonly HTMLElement[],
   root: ParentNode,
+  scopeSurfaces?: readonly HTMLElement[],
 ): { groups: HTMLElement[]; groupLeaves: HTMLElement[]; flatCards: HTMLElement[] } {
-  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group]'))
+  const inScope = (element: HTMLElement): boolean => {
+    if (!scopeSurfaces || scopeSurfaces.length === 0) return true
+    return scopeSurfaces.some(surface => surface === element || surface.contains(element))
+  }
+  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group]')).filter(inScope)
   const groupLeaves: HTMLElement[] = []
   const flatCards: HTMLElement[] = []
   for (const card of cards) {
+    if (!inScope(card)) continue
     if (card.closest('[data-layout-group]') !== null) groupLeaves.push(card)
     else flatCards.push(card)
   }
@@ -76,28 +82,37 @@ export function captureLayoutFlip(
    * 在抓取→落地全程都拿得到确定的源节点引用，直接传进来最可靠。
    */
   presenceIgnore?: (element: HTMLElement) => boolean,
+  options: { readonly scopeSurfaces?: readonly HTMLElement[] } = {},
 ): LayoutFlipSnapshot {
   // 新事务开始时先终止上一笔仍在运行的 Surface resize，避免旧 timeout
   // 在本事务中恢复过期高度。
+  const inScope = (element: HTMLElement): boolean => {
+    const surfaces = options.scopeSurfaces
+    if (!surfaces || surfaces.length === 0) return true
+    return surfaces.some(surface => surface === element || surface.contains(element))
+  }
   const activeSurfaces = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]'))
+    .filter(inScope)
     .map(element => ({ element, rect: readRect(element), inlineStyle: readSurfaceInlineStyle(element) }))
   resetActiveSurfaceResize(activeSurfaces)
-  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root)
-  const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')))
+  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root, options.scopeSurfaces)
+  const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')).filter(inScope))
   // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
   // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
   // 显式开启。collection 通常标在列表容器上，卡片节点只标
   // data-layout-role="card"，不能要求两个属性出现在同一个节点上。
-  const hasPresenceCollection = root.querySelector<HTMLElement>(
-    '[data-layout-collection]',
-  ) !== null
+  const hasPresenceCollection = (options.scopeSurfaces ?? [root]).some(scope =>
+    scope instanceof HTMLElement
+      ? scope.matches('[data-layout-collection]') || scope.querySelector('[data-layout-collection]') !== null
+      : root.querySelector('[data-layout-collection]') !== null,
+  )
   const snapshot: LayoutFlipSnapshot = {
     root,
     group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves]) } : undefined,
     flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards) } : undefined,
     surfaces,
     presence: includePresence && hasPresenceCollection
-      ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore)
+      ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore, options.scopeSurfaces)
       : undefined,
   }
   return mergePendingLayoutSnapshot(root, snapshot)

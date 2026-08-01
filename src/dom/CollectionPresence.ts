@@ -11,6 +11,8 @@ export interface CollectionPresenceSnapshot {
   }>
   /** capture 时登记的忽略判断，play 阶段必须用同一份，否则两边判断口径不一致。 */
   readonly ignore?: (element: HTMLElement) => boolean
+  /** 只在受影响的 Surface 内比较 collection，避免扫描整个页面。 */
+  readonly scopeSurfaces?: readonly HTMLElement[]
 }
 
 export interface CollectionPresenceOptions {
@@ -56,11 +58,17 @@ function resolveCollectionCard(element: HTMLElement): { collectionId: string } |
   return { collectionId: collection.dataset.layoutCollection ?? '' }
 }
 
+function isWithinScope(element: HTMLElement, surfaces?: readonly HTMLElement[]): boolean {
+  if (!surfaces || surfaces.length === 0) return true
+  return surfaces.some(surface => surface === element || surface.contains(element))
+}
+
 export function captureCollectionPresence(
   root: ParentNode,
   selector: string,
   key: (element: HTMLElement) => string = defaultKey,
   ignore?: (element: HTMLElement) => boolean,
+  scopeSurfaces?: readonly HTMLElement[],
 ): CollectionPresenceSnapshot {
   const collectionByKey = new Map<string, string>()
   const entries = Array.from(root.querySelectorAll<HTMLElement>(selector))
@@ -72,6 +80,7 @@ export function captureCollectionPresence(
       // 还在交互中"；调用方（DetachMoveDriver）在整段抓取→落地生命周期内
       // 都能拿到确定的源节点引用，直接把它传进来最可靠。
       if (ignore?.(element)) return null
+      if (!isWithinScope(element, scopeSurfaces)) return null
       const resolved = resolveCollectionCard(element)
       if (!resolved) return null
       const id = key(element)
@@ -86,7 +95,7 @@ export function captureCollectionPresence(
       }
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-  return { root, selector, collectionByKey, entries, ignore }
+  return { root, selector, collectionByKey, entries, ignore, scopeSurfaces }
 }
 
 export function playCollectionPresence(
@@ -100,6 +109,7 @@ export function playCollectionPresence(
   const current = Array.from(snapshot.root.querySelectorAll<HTMLElement>(snapshot.selector))
     .filter(element => {
       if (snapshot.ignore?.(element)) return false
+      if (!isWithinScope(element, snapshot.scopeSurfaces)) return false
       const resolved = resolveCollectionCard(element)
       if (!resolved) return false
       const id = key(element)

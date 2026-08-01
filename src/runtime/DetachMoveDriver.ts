@@ -95,11 +95,17 @@ function ignoreDetachSource(sourceElement: HTMLElement): (element: HTMLElement) 
 export function prepareDetachPickup(
   sourceElement: HTMLElement,
   registeredElements: () => HTMLElement[],
+  scopeSurfaces?: () => readonly HTMLElement[],
 ): DetachPickupPreparation {
   const beforeContent = sourceElement.cloneNode(true) as HTMLElement
   const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
-  return { beforeContent, beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement)) }
+  return {
+    beforeContent,
+    beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement), {
+      scopeSurfaces: scopeSurfaces?.(),
+    }),
+  }
 }
 
 
@@ -344,6 +350,7 @@ export function createDetachLandingLifecycle<TGate extends { promise: Promise<La
 export function createDetachLayoutLifecycle(
   sourceEl: HTMLElement,
   registeredElements: () => HTMLElement[],
+  scopeSurfaces?: () => readonly HTMLElement[],
 ) {
   let layoutToken = 0
   return {
@@ -355,6 +362,7 @@ export function createDetachLayoutLifecycle(
         document,
         true,
         ignoreDetachSource(sourceEl),
+        { scopeSurfaces: scopeSurfaces?.() },
       )
     },
     play: (_context: unknown, snapshot: unknown, useRaf = false) => {
