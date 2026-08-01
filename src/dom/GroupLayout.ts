@@ -84,12 +84,21 @@ export function captureLayoutFlip(
   resetActiveSurfaceResize(activeSurfaces)
   const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root)
   const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')))
+  // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
+  // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
+  // 显式开启。collection 通常标在列表容器上，卡片节点只标
+  // data-layout-role="card"，不能要求两个属性出现在同一个节点上。
+  const hasPresenceCollection = root.querySelector<HTMLElement>(
+    '[data-layout-collection]',
+  ) !== null
   const snapshot: LayoutFlipSnapshot = {
     root,
     group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves]) } : undefined,
     flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards) } : undefined,
     surfaces,
-    presence: includePresence ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore) : undefined,
+    presence: includePresence && hasPresenceCollection
+      ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore)
+      : undefined,
   }
   return mergePendingLayoutSnapshot(root, snapshot)
 }
