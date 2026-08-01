@@ -139,9 +139,19 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   // block 会破坏 flex 子项（如右侧推进按钮 align-self:stretch）的布局。
   proxy.style.display = ''
   proxy.dataset.runtimeProxy = 'true'
-  // 拖拽期间就用 0 0 原点，避免 landing 时从 center 跳变到 0 0 导致内容偏移。
-  proxy.style.transformOrigin = '0 0'
+  // 全程只设一次、不切换，避免中途跳变导致内容偏移（这条约束本身没错，但
+  // 原来定的是 0 0——rotateX 前后倾配合 perspective() 时，屏幕水平偏移量
+  // 跟该点离原点的水平距离成正比：原点在左上角，卡片左边缘离原点近（偏移
+  // 量趋近 0，看起来是平的），右边缘离原点有整张卡片宽度那么远，偏移量被
+  // 放大很多倍，表现为"左边平、右边还在倾"这种明显不对称的前后倾斜。改成
+  // 卡片几何中心，左右两边离原点等距，偏移量对称，倾斜才是"整张卡在转"
+  // 而不是"左上角钉住、右边甩得更远"。translate3d 是位置平移，不受
+  // transform-origin 影响，只改这一个值不需要连带调整任何位置计算。
+  proxy.style.transformOrigin = '50% 50%'
   proxy.style.transform = 'scale(1.03)'
+  // 明确写出抓取阶段的缩放原点。浏览器默认也是中心，但 landing 同样以
+  // transform scale 做尺寸过渡；两阶段不能依赖默认值“碰巧一致”。
+  proxy.style.transformOrigin = '50% 50%'
   proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
   proxy.style.transition = 'transform .15s ease, box-shadow .15s ease'
   // 逃出玻璃裁切（overflow:hidden / backdrop-filter 祖先）靠的就是这次重新

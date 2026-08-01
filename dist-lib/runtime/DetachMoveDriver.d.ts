@@ -110,5 +110,5 @@ export declare function createDetachLandingLifecycle<TGate extends {
 };
 export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement, registeredElements: () => HTMLElement[]): {
     capture: () => import('../dom').LayoutFlipSnapshot;
-    play: (_context: unknown, snapshot: unknown) => void;
+    play: (_context: unknown, snapshot: unknown, useRaf?: boolean) => void;
 };

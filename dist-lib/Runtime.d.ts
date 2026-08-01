@@ -187,11 +187,6 @@ export declare class Runtime {
     subscribe(listener: (event: RuntimeEvent) => void): () => void;
     onAction(listener: (action: Action) => void | Promise<void>): () => void;
     emitAction(action: Action): void;
-    /**
-     * 等待 Action 触发的 Vue/React DOM 提交。两帧覆盖同步 Store 更新与框架
-     * patch；每帧都校验 Session，避免旧事务在 regrab 后继续读取 target。
-     */
-    private waitForMoveRender;
     snapshot(): {
         objects: import('./object/ObjectItem').ObjectItem[];
         surfaces: Surface[];

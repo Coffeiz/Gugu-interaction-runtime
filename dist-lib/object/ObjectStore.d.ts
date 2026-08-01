@@ -17,7 +17,9 @@ export type ObjectStoreEvent = {
 export declare class ObjectStore {
     private items;
     private readonly events;
-    register(item: ObjectItem): void;
+    /** 每个 id 的注册代次计数器——register 覆盖旧 item 时递增。 */
+    private generations;
+    register(item: ObjectItem): number;
     unregister(id: string): boolean;
     get(id: string): ObjectItem | undefined;
     has(id: string): boolean;

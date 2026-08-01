@@ -1,8 +1,7 @@
-import { ref as c, watchEffect as a, watch as l, onUnmounted as i } from "vue";
-import { s as t } from "../Runtime-CpYebZ_v.js";
-function d(e) {
-  const r = c(null);
-  return t.objects.register({
+import { ref as l, watchEffect as s, watch as f, onUnmounted as d } from "vue";
+import { s as r } from "../Runtime-B_ImftMX.js";
+function b(e) {
+  const i = l(null), u = r.objects.register({
     id: e.id,
     type: e.type,
     surfaceId: e.surface(),
@@ -10,14 +9,20 @@ function d(e) {
     abilities: e.abilities,
     visual: e.visual,
     visualMode: e.visualMode ?? "detach"
-  }), a(() => {
-    t.objects.setSurface(e.id, e.surface());
-  }), l(r, (u) => {
-    t.objects.setElement(e.id, u);
-  }), i(() => {
-    t.objects.unregister(e.id);
-  }), { elementRef: r };
+  });
+  return s(() => {
+    r.objects.setSurface(e.id, e.surface());
+  }), f(i, (t, a) => {
+    if (t === null) {
+      const c = r.objects.get(e.id);
+      if (c != null && c.element && c.element !== a) return;
+    }
+    r.objects.setElement(e.id, t);
+  }), d(() => {
+    const t = r.objects.get(e.id);
+    (t == null ? void 0 : t.generation) === u && r.objects.unregister(e.id);
+  }), { elementRef: i };
 }
 export {
-  d as useObject
+  b as useObject
 };

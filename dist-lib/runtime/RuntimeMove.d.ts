@@ -69,13 +69,21 @@ export interface MoveCommitPort {
     createContext(session: Session): BehaviorContext;
     getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined;
     normalize(objectId: string, destination: unknown): MoveActionDestination | null;
-    /** Action 已提交后等待应用渲染并重新登记业务 DOM。 */
-    waitForRender(session: Session, destination: unknown): Promise<boolean>;
+    /** 目标 Surface 当前的对象数（用于列尾判定兜底：toIndex >= count 即追加）。 */
+    getSurfaceObjectCount?(surfaceId: string): number;
+    /**
+     * 对象在目标 Surface 里真实的、按屏幕布局排序算出的索引（不依赖拖拽落点
+     * 算出的 toIndex）。业务可能对目标列有自己的排序/分组规则（比如已完成列
+     * 按日期分年月分组），拖拽落点算出的 toIndex 未必是卡片最终真实停留的
+     * 位置——用这个量到的才是"卡片实际会不会在最后一个位置"的真相。
+     */
+    getObjectIndex?(objectId: string, surfaceId: string): number | undefined;
 }
 export declare class MoveCommitCoordinator {
     private readonly port;
     private readonly actions;
     constructor(port: MoveCommitPort, actions: MoveActionCoordinator);
+    private resolveIsAppend;
     commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction?: boolean): Promise<void>;
 }
 export interface MoveLandingPort {

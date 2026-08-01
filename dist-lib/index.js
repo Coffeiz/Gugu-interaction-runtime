@@ -1,5 +1,5 @@
-import { D as f, M as m, a as R, b as g, c as S, d as C, e as A, f as L, O as v, R as O, g as h, h as y, i as M, j as p, k as I, S as x, l as V, m as D, V as E, n as F, o as P, p as T, q as b, r as q, s as _, t as B } from "./Runtime-CpYebZ_v.js";
-import { D as W, F as j, a as k, L as H, b as U, c as G, d as w, e as z, i as J, m as K, s as Q } from "./DetachAdapter-CsjtZIYW.js";
+import { D as f, M as m, a as R, b as g, c as S, d as C, e as A, f as L, O as h, R as v, g as M, h as O, i as y, j as p, k as I, S as x, l as D, m as E, V as F, n as V, o as P, p as T, q as b, r as q, s as _, t as B } from "./Runtime-B_ImftMX.js";
+import { D as W, F as j, a as k, L as H, b as U, c as G, d as w, e as z, i as J, s as K } from "./DetachAdapter-DN4d8m1t.js";
 function i(o, e) {
   const t = o.getBoundingClientRect();
   return e.x >= t.left && e.x <= t.right && e.y >= t.top && e.y <= t.bottom;
@@ -43,18 +43,18 @@ export {
   C as MoveReleaseCoordinator,
   A as MoveTransaction,
   L as MoveUpdateCoordinator,
-  v as ObjectStore,
-  O as Runtime,
-  h as RuntimeDispatcher,
-  y as RuntimeInputCoordinator,
-  M as RuntimeMoveCoordinator,
+  h as ObjectStore,
+  v as Runtime,
+  M as RuntimeDispatcher,
+  O as RuntimeInputCoordinator,
+  y as RuntimeMoveCoordinator,
   p as RuntimeRegistry,
   I as RuntimeSessionCoordinator,
   x as Session,
-  V as SessionCoordinator,
-  D as SurfaceStore,
-  E as VisualAdapters,
-  F as VisualMotionCoordinator,
+  D as SessionCoordinator,
+  E as SurfaceStore,
+  F as VisualAdapters,
+  V as VisualMotionCoordinator,
   P as VisualProxyCoordinator,
   T as VisualStateCoordinator,
   U as acquireSourceVisualLease,
@@ -66,8 +66,7 @@ export {
   q as createRegisteredHitResolver,
   u as hitWithResolver,
   J as integrateSpring,
-  K as mountVisualOverlay,
   _ as runtime,
-  Q as shapeReleaseVelocity,
+  K as shapeReleaseVelocity,
   B as trackLandingTarget
 };

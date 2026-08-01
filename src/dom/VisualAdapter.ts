@@ -148,6 +148,8 @@ export class DefaultVisualAdapter implements VisualAdapter {
     }
     concealElement(target, context.sessionId)
     el.style.transition = 'none'
+    // 先把代理的布局尺寸切到目标 border box；landing 的内容层和目标卡片
+    // 以这个尺寸进行布局，运动控制器只负责连续地过渡到该尺寸。
     el.style.width = `${targetRect.width}px`
     el.style.height = `${targetRect.height}px`
     const land = context.motionEnabled === false ? landDragProxyLegacy : landDragProxyWithMotion

@@ -10,6 +10,8 @@ export interface VisualSnapshot {
     readonly borderRadius: string;
     readonly boxShadow: string;
     readonly background: string;
+    /** 背景图（渐变等）。background 简写只取 backgroundColor，渐变在 backgroundImage 里。 */
+    readonly backgroundImage?: string;
     readonly opacity: string;
     readonly transform: string;
 }

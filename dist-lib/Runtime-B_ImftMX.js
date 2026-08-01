@@ -1,4 +1,4 @@
-import { f as L, g as E, l as j, h as k, D as y, j as O, r as V, k as A, e as I, n as T, o as x, F as B, a as F } from "./DetachAdapter-CsjtZIYW.js";
+import { f as k, g as P, l as E, h as I, D as y, j as O, r as A, k as V, e as T, m as B, n as j, F, a as D } from "./DetachAdapter-DN4d8m1t.js";
 class b {
   constructor() {
     this.listeners = /* @__PURE__ */ new Set();
@@ -17,7 +17,7 @@ class b {
     await Promise.all([...this.listeners].map((e) => Promise.resolve(e(t))));
   }
 }
-class D {
+class G {
   constructor() {
     this.controlled = /* @__PURE__ */ new Map(), this.channelOwners = /* @__PURE__ */ new Map(), this.events = new b();
   }
@@ -66,10 +66,11 @@ class D {
 }
 class z {
   constructor() {
-    this.items = /* @__PURE__ */ new Map(), this.events = new b();
+    this.items = /* @__PURE__ */ new Map(), this.events = new b(), this.generations = /* @__PURE__ */ new Map();
   }
   register(t) {
-    this.items.set(t.id, t), this.events.emit({ type: "object-added", id: t.id });
+    const e = (this.generations.get(t.id) ?? 0) + 1;
+    return this.generations.set(t.id, e), this.items.set(t.id, { ...t, generation: e }), this.events.emit({ type: "object-added", id: t.id }), e;
   }
   unregister(t) {
     const e = this.items.delete(t);
@@ -103,7 +104,7 @@ class z {
     s && s.surfaceId !== e && (s.surfaceId = e, this.events.emit({ type: "object-changed", id: t }));
   }
 }
-class G {
+class _ {
   constructor() {
     this.items = /* @__PURE__ */ new Map(), this.events = new b();
   }
@@ -139,7 +140,7 @@ class G {
     return s ? s.accepts.length === 0 || s.accepts.includes(e) : !1;
   }
 }
-class _ {
+class H {
   constructor() {
     this.items = /* @__PURE__ */ new Map();
   }
@@ -204,10 +205,14 @@ class v {
     const e = this.getContext(t.session.id), s = (r = (n = (i = this.sessionLifecycles.get(t.session.id)) == null ? void 0 : i.layout) == null ? void 0 : n.capture) == null ? void 0 : r.call(n, t);
     e.layoutSnapshot = s;
   }
-  playLayout(t) {
-    var i, n;
-    const e = this.getContext(t.session.id), s = this.sessionLifecycles.get(t.session.id);
-    e.layoutSnapshot !== void 0 && ((n = (i = s == null ? void 0 : s.layout) == null ? void 0 : i.play) == null || n.call(i, t, e.layoutSnapshot));
+  playLayout(t, e = !1) {
+    var n, r;
+    const s = this.getContext(t.session.id), i = this.sessionLifecycles.get(t.session.id);
+    s.layoutSnapshot !== void 0 && ((r = (n = i == null ? void 0 : i.layout) == null ? void 0 : n.play) == null || r.call(n, t, s.layoutSnapshot, e));
+  }
+  /** 列尾追加专用：等下一帧（Vue patch 落地）再量布局执行 Invert。 */
+  playLayoutOnRaf(t) {
+    this.playLayout(t, !0);
   }
   cancelLayout(t, e) {
     var n, r, o;
@@ -300,7 +305,7 @@ class v {
       return s.revealCommitted = !0, s.transaction.setPhase("handoff"), (n = (i = this.sessionLifecycles.get(t.session.id)) == null ? void 0 : i.reveal) == null ? void 0 : n.call(i, t, e);
   }
 }
-const H = [
+const N = [
   "fontFamily",
   "fontSize",
   "fontWeight",
@@ -313,17 +318,17 @@ const H = [
   "direction",
   "writingMode"
 ];
-function N(l) {
+function U(l) {
   const t = getComputedStyle(l);
   return Object.fromEntries(
-    H.map((e) => [e, t[e]])
+    N.map((e) => [e, t[e]])
   );
 }
-function U(l, t) {
+function W(l, t) {
   Object.assign(l.style, t);
 }
-function W(l, t) {
-  U(t, N(l));
+function X(l, t) {
+  W(t, U(l));
 }
 class C {
   constructor(t) {
@@ -351,6 +356,7 @@ class C {
       borderRadius: e.borderRadius,
       boxShadow: e.boxShadow,
       background: e.backgroundColor,
+      backgroundImage: e.backgroundImage,
       opacity: e.opacity,
       transform: e.transform
     };
@@ -361,13 +367,16 @@ class C {
   createProxy(t) {
     if (!t.sourceElement || !t.sourceRect || !t.beforeContent)
       throw new Error("visual proxy requires source snapshot");
-    const e = L(t.beforeContent, t.sourceRect);
-    W(t.sourceElement, e);
+    const e = k(t.beforeContent, t.sourceRect);
+    X(t.sourceElement, e);
     const s = t.visualSnapshot;
-    return s && (e.style.boxShadow = s.boxShadow, e.style.borderRadius = s.borderRadius, e.style.backgroundColor = s.background, e.style.opacity = s.opacity, e.style.transform = s.transform || "scale(1.03)"), { element: e };
+    return s && (e.style.boxShadow = s.boxShadow, e.style.borderRadius = s.borderRadius, e.style.backgroundColor = s.background, s.backgroundImage && s.backgroundImage !== "none" && (e.style.backgroundImage = s.backgroundImage), e.style.opacity = s.opacity, e.style.transform = s.transform || "scale(1.03)"), e.querySelectorAll("[class]").forEach((i) => {
+      const n = getComputedStyle(i);
+      n.opacity === "0" && n.pointerEvents === "none" && (i.style.opacity = "1");
+    }), { element: e };
   }
   land(t, e, s) {
-    var h, u, d, p, f, g, m, w;
+    var h, u, d, p, f, g, m, S, R;
     const i = t.element;
     if (!((h = s.targetSnapshot) != null && h.rect) && !e.isConnected)
       return Promise.resolve({ completed: !1, reason: "target-disconnected" });
@@ -377,27 +386,28 @@ class C {
       width: n.width,
       height: n.height
     };
-    E(e, s.sessionId), i.style.transition = "none", i.style.width = `${r.width}px`, i.style.height = `${r.height}px`;
-    const o = s.motionEnabled === !1 ? j : k, { finished: a, retarget: c } = o(i, r, {
+    P(e, s.sessionId), i.style.transition = "none";
+    const o = s.motionEnabled === !1 ? E : I, { finished: a, retarget: c } = o(i, r, {
       duration: ((p = (d = s.motion) == null ? void 0 : d.landing) == null ? void 0 : p.duration) ?? O.landing.duration,
       targetShadow: (f = s.targetSnapshot) == null ? void 0 : f.boxShadow,
       targetRadius: (g = s.targetSnapshot) == null ? void 0 : g.borderRadius,
       targetBackground: (m = s.targetSnapshot) == null ? void 0 : m.background,
-      targetOpacity: (w = s.targetSnapshot) == null ? void 0 : w.opacity,
+      targetBackgroundImage: (S = s.targetSnapshot) == null ? void 0 : S.backgroundImage,
+      targetOpacity: (R = s.targetSnapshot) == null ? void 0 : R.opacity,
       targetContent: e,
       readTarget: () => e.getBoundingClientRect(),
       motionState: s.motionState,
       coast: {
         duration: y.coastSeconds,
-        friction: T,
+        friction: B,
         maxDistance: y.maxCoast,
         minVelocity: y.minVelocity
       },
       releaseDamping: y.dampingRatio
     });
     return this.runtime && this.runtime.trackLandingTarget(s.sessionId, e, () => {
-      var R;
-      (R = s.targetSnapshot) != null && R.rect && !e.closest("[data-layout-surface]") ? c({
+      var w;
+      (w = s.targetSnapshot) != null && w.rect && !e.closest("[data-layout-surface]") ? c({
         left: s.targetSnapshot.rect.x,
         top: s.targetSnapshot.rect.y,
         width: s.targetSnapshot.rect.width,
@@ -406,17 +416,17 @@ class C {
     }), a.then(() => ({ completed: !0 }));
   }
   reveal(t, e, s) {
-    V(e, s.sessionId);
+    A(e, s.sessionId);
   }
   dispose(t, e) {
     var i;
     const s = t.element;
-    (i = t.dispose) == null || i.call(t), A(s);
+    (i = t.dispose) == null || i.call(t), V(s);
   }
   /** 创建 detach 拖拽 move，从 Runtime 注册表自动获取 surface 信息 */
   createMove(t) {
     const e = this.runtime;
-    return !e || !e.objects.hasAbility(t.objectId, "move") ? {} : (t.event.preventDefault(), I({
+    return !e || !e.objects.hasAbility(t.objectId, "move") ? {} : (t.event.preventDefault(), T({
       runtime: e,
       objectId: t.objectId,
       element: t.element,
@@ -426,7 +436,7 @@ class C {
     }));
   }
 }
-class X {
+class Y {
   constructor() {
     this.adapters = /* @__PURE__ */ new Map();
   }
@@ -440,26 +450,26 @@ class X {
     this.adapters.delete(t);
   }
 }
-function M(l, t) {
+function L(l, t) {
   const e = l.getBoundingClientRect();
   return t.x >= e.left && t.x <= e.right && t.y >= e.top && t.y <= e.bottom;
 }
-function P(l) {
+function M(l) {
   var e;
   const t = (e = l.element) == null ? void 0 : e.getBoundingClientRect();
   return t ? t.width * t.height : Number.POSITIVE_INFINITY;
 }
-function Y(l, t, e) {
+function q(l, t, e) {
   const s = l.get(e), i = () => t.snapshot().filter((n) => {
     var r;
     return (r = n.element) == null ? void 0 : r.isConnected;
   }).filter((n) => s ? t.accepts(n.id, s.type) : !1);
   return {
     findSurface(n) {
-      return i().filter((r) => M(r.element, n)).sort((r, o) => P(r) - P(o))[0] ?? null;
+      return i().filter((r) => L(r.element, n)).sort((r, o) => M(r) - M(o))[0] ?? null;
     },
     findTarget(n, r, o) {
-      return [...l.values()].filter((a) => a.id !== o && a.surfaceId === n.id).map((a) => a.element).filter((a) => !!(a != null && a.isConnected)).find((a) => M(a, r)) ?? null;
+      return [...l.values()].filter((a) => a.id !== o && a.surfaceId === n.id).map((a) => a.element).filter((a) => !!(a != null && a.isConnected)).find((a) => L(a, r)) ?? null;
     },
     findIndex(n, r, o) {
       const a = [...l.values()].filter((c) => c.id !== o && c.surfaceId === n.id).map((c) => c.element).filter((c) => !!(c != null && c.isConnected)).sort((c, h) => {
@@ -474,9 +484,9 @@ function Y(l, t, e) {
     }
   };
 }
-class q {
+class J {
   constructor() {
-    this.visuals = new X(), this.objectTypes = /* @__PURE__ */ new Map(), this.visualStrategies = /* @__PURE__ */ new Map(), this.motionProfile = null, this.motionController = {};
+    this.visuals = new Y(), this.objectTypes = /* @__PURE__ */ new Map(), this.visualStrategies = /* @__PURE__ */ new Map(), this.motionProfile = null, this.motionController = {};
   }
   registerVisualAdapter(t, e) {
     this.visuals.register(t, e);
@@ -494,7 +504,7 @@ class q {
     this.motionController = t;
   }
 }
-class J {
+class K {
   constructor() {
     this.disposers = [], this.disposed = !1;
   }
@@ -551,7 +561,7 @@ class J {
     e.length > 0 && console.error("Cleanup disposal failed", e);
   }
 }
-const K = {
+const Q = {
   prepare: ["active", "interrupt", "cancelled"],
   active: ["release", "landing", "interrupt", "cancelled"],
   release: ["landing", "saving", "interrupt", "cancelled"],
@@ -564,14 +574,14 @@ const K = {
   cancelled: ["disposed"],
   disposed: []
 };
-let Q = 1;
-class Z {
+let Z = 1;
+class tt {
   constructor(t, e, s) {
-    this.type = t, this.objectId = e, this.owner = s, this.state = "prepare", this.endReason = "finish", this.cleanup = new J(), this.leases = [], this.id = `session-${Q++}`;
+    this.type = t, this.objectId = e, this.owner = s, this.state = "prepare", this.endReason = "finish", this.cleanup = new K(), this.leases = [], this.id = `session-${Z++}`;
   }
   transition(t) {
     if (this.state !== t) {
-      if (!K[this.state].includes(t))
+      if (!Q[this.state].includes(t))
         throw new Error(`Invalid session transition: ${this.state} -> ${t}`);
       this.state = t;
     }
@@ -598,18 +608,18 @@ class Z {
   interrupt(t = "cancel") {
     if (this.endReason = t, t === "regrab") {
       if (this.state === "disposed") return;
-      this.state !== "interrupt" && this.state !== "cancelled" && this.state !== "done" && this.transition("interrupt"), (this.state === "interrupt" || this.state === "cancelled" || this.state === "done") && this.transition("disposed"), this.leases.forEach((e) => e.release()), this.leases = [];
+      this.state !== "interrupt" && this.state !== "cancelled" && this.state !== "done" && this.transition("interrupt"), (this.state === "interrupt" || this.state === "cancelled" || this.state === "done") && this.transition("disposed"), this.leases.forEach((e) => e.release()), this.leases = [], this.cleanup.disposeAll();
       return;
     }
     (this.state === "prepare" || this.state === "active" || this.state === "release" || this.state === "landing" || this.state === "saving") && this.transition("interrupt"), this.dispose();
   }
 }
-class tt {
+class et {
   constructor() {
     this.sessions = /* @__PURE__ */ new Map(), this.completionGates = /* @__PURE__ */ new Map();
   }
   create(t, e, s) {
-    const i = new Z(t, e, s);
+    const i = new tt(t, e, s);
     return this.sessions.set(i.id, i), i;
   }
   get(t) {
@@ -660,7 +670,7 @@ class tt {
       return s == null || s(i), i.interrupt(e), this.sessions.delete(t), i;
   }
 }
-class et {
+class st {
   constructor(t) {
     this.sessions = t;
   }
@@ -685,14 +695,14 @@ class et {
     }
   }
 }
-class S {
+class x {
   constructor(t, e, s, i) {
     this.updateCoordinator = t, this.releaseCoordinator = e, this.commitCoordinator = s, this.landingCoordinator = i;
   }
   static fromPorts(t, e, s) {
-    return new S(
-      new st(t),
-      new it(),
+    return new x(
+      new it(t),
+      new rt(),
       e,
       s
     );
@@ -774,7 +784,7 @@ class S {
     };
   }
 }
-class st {
+class it {
   constructor(t) {
     this.port = t;
   }
@@ -784,27 +794,34 @@ class st {
     !s || s.state !== "active" || (n = (i = this.port.getBehavior(s.type)) == null ? void 0 : i.update) == null || n.call(i, this.port.createContext(t), e);
   }
 }
-class it {
+class rt {
   prepare(t, e) {
     return t ? e.kind === "pointercancel" || e.kind === "blur" || e.kind === "lostpointercapture" ? { kind: "cancel", reason: e.kind } : t.state === "prepare" ? { kind: "cancel", reason: "interaction-not-ready" } : (t.state === "active" && t.transition("release"), t.state === "release" ? { kind: "continue", session: t } : { kind: "ignore" }) : { kind: "ignore" };
   }
 }
-class rt {
+class nt {
   constructor(t, e) {
     this.port = t, this.actions = e;
+  }
+  resolveIsAppend(t, e) {
+    var n, r, o, a;
+    if (!e) return !1;
+    const s = (r = (n = this.port).getObjectIndex) == null ? void 0 : r.call(n, t, e.toSurfaceId), i = (a = (o = this.port).getSurfaceObjectCount) == null ? void 0 : a.call(o, e.toSurfaceId);
+    return s !== void 0 && s >= 0 && i !== void 0 ? s >= i - 1 : e.toIndex !== void 0 && i !== void 0 && e.toIndex >= i - 1;
   }
   async commit(t, e, s, i = !0) {
     var a, c, h, u;
     const n = this.port.createContext(t);
     if (await e.commit(n, s), !i) {
-      e.playLayout(n);
+      const d = this.port.normalize(t.objectId, s);
+      d && (e.getContext(t.id).transaction.destination = d), this.resolveIsAppend(t.objectId, d) ? e.playLayoutOnRaf(n) : e.playLayout(n);
       return;
     }
     const r = this.port.getLifecycle(t.id), o = this.port.normalize(t.objectId, s);
-    o && await ((c = (a = r == null ? void 0 : r.surface) == null ? void 0 : a.leave) == null ? void 0 : c.call(a, n, o.fromSurfaceId)), await this.actions.emit(t.objectId, e.getContext(t.id).destination, e.getContext(t.id).transaction), o && await ((u = (h = r == null ? void 0 : r.surface) == null ? void 0 : h.enter) == null ? void 0 : u.call(h, n, o.toSurfaceId)), await this.port.waitForRender(t, s) && e.playLayout(n);
+    o && await ((c = (a = r == null ? void 0 : r.surface) == null ? void 0 : a.leave) == null ? void 0 : c.call(a, n, o.fromSurfaceId)), await this.actions.emit(t.objectId, e.getContext(t.id).destination, e.getContext(t.id).transaction), o && await ((u = (h = r == null ? void 0 : r.surface) == null ? void 0 : h.enter) == null ? void 0 : u.call(h, n, o.toSurfaceId)), this.resolveIsAppend(t.objectId, o) ? e.playLayoutOnRaf(n) : e.playLayout(n);
   }
 }
-class nt {
+class ot {
   constructor(t) {
     this.port = t;
   }
@@ -819,7 +836,7 @@ class nt {
     }
   }
 }
-class ot {
+class at {
   constructor(t) {
     this.port = t;
   }
@@ -842,7 +859,7 @@ class ot {
     return typeof e.fromSurfaceId == "string" && typeof e.toSurfaceId == "string";
   }
 }
-function at(l) {
+function ct(l) {
   let t = null, e = null, s = !1;
   const i = () => {
     s || (s = !0, e !== null && cancelAnimationFrame(e), e = null, t == null || t.disconnect(), t = null);
@@ -865,7 +882,7 @@ function at(l) {
   };
   return e = requestAnimationFrame(o), l.cleanup.track(i), i;
 }
-class ct {
+class lt {
   constructor(t) {
     this.port = t;
   }
@@ -881,10 +898,10 @@ class ct {
     return (this.port.getAdapter(t).captureVisualState ?? new C().captureVisualState)(e);
   }
   trackTarget(t, e, s, i = {}) {
-    return at({ ...i, cleanup: t, target: e, retarget: s });
+    return ct({ ...i, cleanup: t, target: e, retarget: s });
   }
 }
-class lt {
+class dt {
   constructor() {
     this.proxies = /* @__PURE__ */ new Map();
   }
@@ -900,7 +917,7 @@ class lt {
     return this.proxies.delete(t), e;
   }
 }
-class dt {
+class ht {
   constructor(t, e) {
     this.port = t, this.proxies = e;
   }
@@ -930,7 +947,7 @@ class dt {
     !i || !n || await ((o = (r = this.port.getAdapter(i.objectId)).reveal) == null ? void 0 : o.call(r, n, e, s ?? this.port.createContext(t, void 0, e)));
   }
 }
-function ht(l, t, e = {}) {
+function ut(l, t, e = {}) {
   const s = e.target ?? window, i = e.captureTarget;
   let n = !1;
   const r = (d) => {
@@ -949,7 +966,7 @@ function ht(l, t, e = {}) {
   }
   return s.addEventListener("pointermove", r), s.addEventListener("pointerup", o), s.addEventListener("pointercancel", a), s.addEventListener("blur", c), i == null || i.addEventListener("lostpointercapture", h), t.cleanup.track(u), u;
 }
-class ut {
+class gt {
   constructor(t) {
     this.port = t, this.bindings = /* @__PURE__ */ new WeakMap(), this.disposers = /* @__PURE__ */ new Map();
   }
@@ -980,7 +997,7 @@ class ut {
     s.addEventListener("pointerdown", n), t.cleanup.trackTargetListener(s, "pointerdown", n);
   }
   bindSession(t, e = {}) {
-    return ht({
+    return ut({
       update: (s, i) => this.port.update(s, i),
       release: (s, i) => this.port.release(s, i)
     }, t, e);
@@ -1006,9 +1023,9 @@ class pt {
     this.handlers.interrupt(t, e);
   }
 }
-class gt {
+class ft {
   constructor() {
-    this.owner = new D(), this.objects = new z(), this.surfaces = new G(), this.behaviors = new _(), this.registry = new q(), this.hitResolver = null, this.sessionCoordinator = new tt(), this.runtimeSession = new et(this.sessionCoordinator), this.events = new b(), this.actions = new b(), this.visualProxyCoordinator = new lt(), this.defaultVisualAdapter = new C(this), this.moveBehavior = new v(), this.inputCoordinator = new ut({
+    this.owner = new G(), this.objects = new z(), this.surfaces = new _(), this.behaviors = new H(), this.registry = new J(), this.hitResolver = null, this.sessionCoordinator = new et(), this.runtimeSession = new st(this.sessionCoordinator), this.events = new b(), this.actions = new b(), this.visualProxyCoordinator = new dt(), this.defaultVisualAdapter = new C(this), this.moveBehavior = new v(), this.inputCoordinator = new gt({
       objects: this.objects,
       registry: this.registry,
       startObjectPointer: (t, e, s) => this.startObjectPointer(t, e, s),
@@ -1016,27 +1033,28 @@ class gt {
       regrab: (t, e) => this.regrab(t, e),
       update: (t, e) => this.update(t, e),
       release: (t, e) => this.release(t, e)
-    }), this.moveActions = new ot({
+    }), this.moveActions = new at({
       getObjectSurface: (t) => {
         var e;
         return (e = this.objects.get(t)) == null ? void 0 : e.surfaceId;
       },
       emit: (t) => this.actions.emitAsync(t)
-    }), this.moveCommit = new rt({
+    }), this.moveCommit = new nt({
       createContext: (t) => this.createBehaviorContext(t),
       getLifecycle: (t) => this.moveBehavior.getLifecycle(t),
       normalize: (t, e) => this.moveActions.normalize(t, e),
-      waitForRender: (t, e) => this.waitForMoveRender(t, e)
-    }, this.moveActions), this.moveLanding = new nt({
+      getSurfaceObjectCount: (t) => [...this.objects.values()].filter((e) => e.surfaceId === t).length,
+      getObjectIndex: (t, e) => this.getObjectSurfaceIndex(t, e)
+    }, this.moveActions), this.moveLanding = new ot({
       createContext: (t) => this.createBehaviorContext(t),
       getSession: (t) => this.sessionCoordinator.get(t),
       cancel: (t, e) => this.cancel(t, e),
       end: (t) => this.endSession(t)
-    }), this.runtimeMove = S.fromPorts({
+    }), this.runtimeMove = x.fromPorts({
       getSession: (t) => this.sessionCoordinator.get(t),
       getBehavior: (t) => this.behaviors.get(t),
       createContext: (t) => this.createBehaviorContext(this.sessionCoordinator.get(t))
-    }, this.moveCommit, this.moveLanding), this.visualState = new ct({ getAdapter: (t) => this.getObjectVisualAdapter(t) }), this.visualMotion = new dt({
+    }, this.moveCommit, this.moveLanding), this.visualState = new lt({ getAdapter: (t) => this.getObjectVisualAdapter(t) }), this.visualMotion = new ht({
       getSession: (t) => this.sessionCoordinator.get(t),
       getAdapter: (t) => this.getObjectVisualAdapter(t),
       createContext: (t, e, s) => this.createVisualLifecycleContext(t, e, s)
@@ -1046,7 +1064,7 @@ class gt {
       release: (t, e) => this.releaseInternal(t, e),
       cancel: (t, e) => this.cancelInternal(t, e),
       interrupt: (t, e) => this.interruptInternal(t, e)
-    }), this.behaviors.register(this.moveBehavior), x(this.registry.motionProfile), this.objects.subscribe((t) => {
+    }), this.behaviors.register(this.moveBehavior), j(this.registry.motionProfile), this.objects.subscribe((t) => {
       this.events.emit(t), (t.type === "object-added" || t.type === "object-changed") && this.syncObjectPointerBinding(t.id), t.type === "object-removed" && this.inputCoordinator.remove(t.id);
     }), this.surfaces.subscribe((t) => this.events.emit(t)), this.owner.subscribe((t) => this.events.emit({ type: "ownership-changed", id: t }));
   }
@@ -1070,7 +1088,7 @@ class gt {
   }
   configureMotion(t) {
     const { profile: e, controller: s, ...i } = t, n = e ?? (Object.keys(i).length ? i : void 0);
-    n && this.registry.setMotionProfile(n), s && (this.registry.setMotionController(s), s.follow && Object.assign(B.position, s.follow), s.rotation && Object.assign(F, s.rotation), s.release && Object.assign(y, s.release)), x(this.registry.motionProfile);
+    n && this.registry.setMotionProfile(n), s && (this.registry.setMotionController(s), s.follow && Object.assign(F.position, s.follow), s.rotation && Object.assign(D, s.rotation), s.release && Object.assign(y, s.release)), j(this.registry.motionProfile);
   }
   getMotionProfile() {
     return this.registry.motionProfile;
@@ -1221,7 +1239,7 @@ class gt {
   }
   /** 默认命中由已注册 Object/Surface 推导；特殊几何才需 setHitResolver()。 */
   createRegisteredHitResolver(t) {
-    return Y(this.objects, this.surfaces, t);
+    return q(this.objects, this.surfaces, t);
   }
   /** 将自定义或注册表默认命中统一归一成业务无关的 Surface id 与插入索引。 */
   resolveMoveHit(t, e, s) {
@@ -1266,16 +1284,6 @@ class gt {
   emitAction(t) {
     this.actions.emit(t);
   }
-  /**
-   * 等待 Action 触发的 Vue/React DOM 提交。两帧覆盖同步 Store 更新与框架
-   * patch；每帧都校验 Session，避免旧事务在 regrab 后继续读取 target。
-   */
-  async waitForMoveRender(t, e) {
-    for (let s = 0; s < 2; s += 1)
-      if (await new Promise((i) => requestAnimationFrame(() => i())), this.sessionCoordinator.get(t.id) !== t || t.state === "disposed" || t.state === "interrupt")
-        return !1;
-    return !0;
-  }
   snapshot() {
     return {
       objects: this.objects.snapshot(),
@@ -1312,15 +1320,18 @@ class gt {
    * Surface 放回则允许复用原业务节点。业务 adapter 不需要自行轮询 DOM。
    */
   async waitForMoveTarget(t, e, s = 6) {
+    var h, u;
     const i = this.sessionCoordinator.get(t);
     if (!i) return null;
-    const n = this.moveBehavior.getContext(t), r = n.sourceElement, o = this.getDestinationSurfaceId(e), a = n.transaction.destination, c = typeof (a == null ? void 0 : a.fromSurfaceId) == "string" ? a.fromSurfaceId : null;
-    for (let h = 0; h < s; h += 1) {
-      const u = this.sessionCoordinator.get(t);
-      if (u !== i || u.state === "disposed" || u.state === "interrupt") return null;
-      const d = this.objects.get(i.objectId), p = this.resolveMoveTarget(t, e), f = !o || (d == null ? void 0 : d.surfaceId) === o;
-      if (p && f && (o === c || p !== r)) return p;
-      await new Promise((m) => requestAnimationFrame(() => m()));
+    const n = this.moveBehavior.getContext(t);
+    n.sourceElement;
+    const r = this.getDestinationSurfaceId(e), o = n.transaction.destination, a = typeof (o == null ? void 0 : o.fromSurfaceId) == "string" ? o.fromSurfaceId : null, c = !!r && r !== a;
+    for (let d = 0; d < s; d += 1) {
+      const p = this.sessionCoordinator.get(t);
+      if (p !== i || p.state === "disposed" || p.state === "interrupt") return null;
+      const f = this.objects.get(i.objectId), g = this.resolveMoveTarget(t, e), m = !r || (f == null ? void 0 : f.surfaceId) === r, S = r && g ? ((u = (h = this.surfaces.get(r)) == null ? void 0 : h.element) == null ? void 0 : u.contains(g)) ?? !1 : !1;
+      if (g && m && (c ? S : !0)) return g;
+      await new Promise((w) => requestAnimationFrame(() => w()));
     }
     return null;
   }
@@ -1549,32 +1560,32 @@ class gt {
     };
   }
 }
-const vt = new gt();
+const mt = new ft();
 export {
   C as D,
-  ot as M,
+  at as M,
   z as O,
-  gt as R,
-  Z as S,
-  X as V,
+  ft as R,
+  tt as S,
+  Y as V,
   v as a,
-  rt as b,
-  nt as c,
-  it as d,
+  nt as b,
+  ot as c,
+  rt as d,
   $ as e,
-  st as f,
+  it as f,
   pt as g,
-  ut as h,
-  S as i,
-  q as j,
-  et as k,
-  tt as l,
-  G as m,
-  dt as n,
-  lt as o,
-  ct as p,
-  ht as q,
-  Y as r,
-  vt as s,
-  at as t
+  gt as h,
+  x as i,
+  J as j,
+  st as k,
+  et as l,
+  _ as m,
+  ht as n,
+  dt as o,
+  lt as p,
+  ut as q,
+  q as r,
+  mt as s,
+  ct as t
 };

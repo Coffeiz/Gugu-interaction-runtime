@@ -15,11 +15,6 @@ export declare function applyInheritedStyleContext(target: HTMLElement, context:
  * 返回不一致的属性列表，空数组表示全部一致。
  */
 export declare function verifyVisualContextConsistency(source: HTMLElement, proxy: HTMLElement): string[];
-/**
- * Runtime 的临时视觉层。proxy/landing visual 必须脱离 Surface、应用壳和
- * body 的裁剪树，否则卡片越过列边界或飞往目标时会被中途截断。
- */
-export declare function mountVisualOverlay(): HTMLElement;
 export declare function setProxyInteractive(proxy: HTMLElement, enabled: boolean): void;
 export interface ProxyVisualState {
     transform: string;
@@ -40,6 +35,9 @@ export interface LandingVisualOptions {
     targetShadow?: string;
     targetRadius?: string;
     targetBackground?: string;
+    /** 目标背景图（渐变等）。backgroundColor 与 backgroundImage 分设，避免
+     *  background 简写把渐变覆盖成透明。 */
+    targetBackgroundImage?: string;
     targetOpacity?: string;
     /**
      * 落点内容本身会变化时用（比如落点比源多/少某个子元素——徽章、按钮这类
@@ -97,6 +95,7 @@ export declare function destroyDragProxy(proxy: HTMLElement): void;
 export declare function destroyAllDragProxies(): void;
 export declare function destroyDragProxiesByCardId(cardId: string): void;
 export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect): void;
+export declare function getFloatingProxy(el: HTMLElement): HTMLElement | undefined;
 export declare function moveFloating(el: HTMLElement, x: number, y: number, offsetX: number, offsetY: number): void;
 export declare function clearFloatingStyle(el: HTMLElement): void;
 /**
