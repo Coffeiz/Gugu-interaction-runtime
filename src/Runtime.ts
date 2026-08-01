@@ -588,17 +588,21 @@ setMotionProfiles(this.registry.motionProfile)
       cancelAnimationFrame(previousFrame)
       this.surfaceScrollFrames.delete(viewport)
     }
-    const viewportRect = viewport.getBoundingClientRect()
-    const targetRect = target.getBoundingClientRect()
-    const targetScrollTop = targetRect.top < viewportRect.top
-      ? viewport.scrollTop - (viewportRect.top - targetRect.top)
-      : targetRect.bottom > viewportRect.bottom
-        ? viewport.scrollTop + (targetRect.bottom - viewportRect.bottom)
-        : viewport.scrollTop
+    const resolveTargetScrollTop = (): number => {
+      const currentViewportRect = viewport.getBoundingClientRect()
+      const currentTargetRect = target.getBoundingClientRect()
+      const desired = currentTargetRect.top < currentViewportRect.top
+        ? viewport.scrollTop - (currentViewportRect.top - currentTargetRect.top)
+        : currentTargetRect.bottom > currentViewportRect.bottom
+          ? viewport.scrollTop + (currentTargetRect.bottom - currentViewportRect.bottom)
+          : viewport.scrollTop
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+      return Math.max(0, Math.min(desired, maxScrollTop))
+    }
+    let targetScrollTop = resolveTargetScrollTop()
     if (Math.abs(targetScrollTop - viewport.scrollTop) < 0.5) return
 
     const startScrollTop = viewport.scrollTop
-    const distance = targetScrollTop - startScrollTop
     const duration = Math.max(200, this.registry.motionProfile?.landing?.duration ?? 250)
     if (typeof requestAnimationFrame === 'undefined') {
       viewport.scrollTop = targetScrollTop
@@ -608,7 +612,9 @@ setMotionProfiles(this.registry.motionProfile)
     const tick = (time: number): void => {
       const progress = Math.min(1, (time - startedAt) / duration)
       const eased = 1 - (1 - progress) ** 3
-      viewport.scrollTop = startScrollTop + distance * eased
+      targetScrollTop = resolveTargetScrollTop()
+      viewport.scrollTop = startScrollTop + (targetScrollTop - startScrollTop) * eased
+      if (progress >= 1) viewport.scrollTop = targetScrollTop
       if (progress >= 1) {
         this.surfaceScrollFrames.delete(viewport)
         return
