@@ -173,10 +173,11 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
 
 ### Phase 4：迁移目标、FLIP 和滚动（进行中）
 
-- Runtime 统一调用 HitResolver 和 LandingTargetTracker。
-- 将同列、跨列、完成列目标等待统一到 Runtime。
+- Runtime 已统一调用 HitResolver、LandingTargetTracker 和 `resolveLandingTarget()`。
+- 同列、跨列、完成列目标等待已统一到 Runtime。
 - 将 surface FLIP、group FLIP、collection presence 和 resize 排序统一编排。
-- 将 keep-visible 和滚动补偿收进 Surface/AutoScroll 协议。
+- keep-visible 已收进 `runtime.keepSurfaceTargetVisible()`，并增加 Surface viewport 回归测试；
+  AutoScroll 补偿仍待继续收口。
 - 删除 `single.ts` 中项目页专用的 `.done-layout-root`、`animateOpen` 和目标等待分支。
 
 ### Phase 5：删除项目页旧编排

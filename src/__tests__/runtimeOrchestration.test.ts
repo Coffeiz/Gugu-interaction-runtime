@@ -66,6 +66,29 @@ describe('Runtime move orchestration', () => {
     expect(proxyDispose).toHaveBeenCalledOnce()
   })
 
+  it('Surface 目标滚动由 Runtime 统一保持在视口内', () => {
+    const runtime = createRuntime()
+    const viewport = document.createElement('div')
+    const target = document.createElement('div')
+    let targetTop = 40
+    Object.defineProperty(viewport, 'scrollTop', { writable: true, value: 10 })
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 200, 300))
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, targetTop, 100, 40))
+    Object.defineProperty(viewport, 'scrollTo', {
+      value: ({ top }: ScrollToOptions) => { viewport.scrollTop = top ?? viewport.scrollTop },
+    })
+    viewport.append(target)
+    document.body.append(viewport)
+    runtime.registerSurface({ id: 'surface:scroll', type: 'list', element: viewport, viewport: () => viewport, accepts: ['project-card'] })
+
+    runtime.keepSurfaceTargetVisible('surface:scroll', target)
+    expect(viewport.scrollTop).toBe(-50)
+
+    targetTop = 380
+    runtime.keepSurfaceTargetVisible('surface:scroll', target)
+    expect(viewport.scrollTop).toBe(-30)
+  })
+
   it('Surface Lease 不允许后续 Session 覆盖当前控制权', () => {
     const runtime = createRuntime()
     const first = runtime.start(createRequest())
