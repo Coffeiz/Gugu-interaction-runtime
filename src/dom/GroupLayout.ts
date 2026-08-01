@@ -323,7 +323,10 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
     ) {
       // resetActiveFlip 可能给这个元素设置了 transition: none，
       // 如果跳过 FLIP，需要清除以免永久锁定 transition。
-      item.element.style.transition = ''
+      // 但组高度动画由 transitionGroupHeight 独立持有，不能在这里清掉。
+      if (item.element.dataset.runtimeGroupAnimating !== 'true') {
+        item.element.style.transition = ''
+      }
       continue
     }
     item.element.style.transform = `translate(${dx}px, ${dy}px)`
@@ -361,7 +364,9 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
   // 与 Demo 的分组动画保持一致：先让起始高度提交到布局，再写目标高度，
   // 避免大内容组在同一帧被浏览器合并成一次性展开。
   void element.offsetHeight
-  requestAnimationFrame(() => { element.style.height = `${Math.max(0, targetHeight)}px` })
+  requestAnimationFrame(() => {
+    element.style.height = `${Math.max(0, targetHeight)}px`
+  })
   window.setTimeout(() => {
     if (element.dataset.runtimeGroupToken !== heightToken) return
     if (targetHeight <= 0) {
