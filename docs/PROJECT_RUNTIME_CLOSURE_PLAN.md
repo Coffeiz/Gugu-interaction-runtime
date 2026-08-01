@@ -19,7 +19,9 @@
 - 全局 motion 配置
 - `project-card` 对象类型注册
 
-但实际拖拽入口仍然是：
+截至 `97de590`，项目页入口已经由 `useObject` 自动绑定到 Runtime；业务组件不再直接启动项目卡的旧拖拽入口。
+
+历史版本的拖拽入口曾经是：
 
 ```text
 ProjectCard / drawerDrag
@@ -131,19 +133,26 @@ resolveDestination
 
 ## 分阶段执行计划
 
-### Phase 1：统一项目卡入口
+### Phase 1：统一项目卡入口（已完成）
 
-- 为 `project-card` 注册 `resolveElement`、`resolveSurface` 和 VisualAdapter。
-- 将 ProjectCard 的 pointerdown 改为 `runtime.start()`。
-- 暂时保留旧 `startPhysicsDrag` 作为 Runtime 内部桥接，不再由业务组件直接调用。
-- 验证首次抓取、阈值、跨列和无效落点。
+- `ProjectCard` 通过 `useObject` 注册并由 Runtime 自动绑定 element。
+- `project-card` 已注册默认 detach 视觉模式与抓取对齐配置。
+- Action、Surface、Object ownership 和布局编排均通过 Runtime API 接入。
+- 项目页不再直接调用 `startPhysicsDrag` / `startThresholdDrag`。
+- 已验证首次抓取、阈值、跨列和无效落点；点击事件由 Runtime 阈值门保留。
 
-### Phase 2：迁移单卡 Session 与输入
+### Phase 2：迁移单卡 Session 与输入（已完成）
 
-- 将 threshold、pointer follow、release、cancel、interrupt 和 regrab 收入 Runtime。
-- 移除项目页对 `startThresholdDrag` 的直接依赖。
-- 统一 session token、RAF、listener、Lease 清理。
-- 验证快速抓放、原地点击、landing 中 regrab。
+- threshold、pointer follow、release、cancel、interrupt 和 regrab 已由 Runtime 的
+  `RuntimeInputCoordinator`、`PointerSessionInput`、`RuntimeSessionCoordinator` 和
+  `MoveBehavior` 统一编排。
+- 对象类型现在可以通过 `pointerInput.dragThreshold` 配置拖拽阈值；默认值为 5px，
+  未越过阈值时不会调用视觉 adapter，从而保留业务 click。
+- pointer listener、RAF、Session Cleanup、Lease 和旧 session token 均在 Runtime 侧收口。
+- 已增加对象级阈值回归测试，并通过 Runtime typecheck/test。
+
+下一步进入 Phase 3：将 detach 的 source/proxy/landing/reveal 生命周期进一步收拢为
+Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果不变。
 
 ### Phase 3：迁移 VisualAdapter
 
@@ -204,4 +213,3 @@ resolveDestination
 - 每次拖拽只有一次 commit、一次 landing、一次 reveal 和一次 dispose。
 - Runtime 行为与当前已验证 demo 效果一致。
 - 文件和画布 adapter 不因本次项目页收口而改变。
-

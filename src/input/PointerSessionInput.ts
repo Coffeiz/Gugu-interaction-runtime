@@ -7,6 +7,8 @@ export interface PointerSessionInputRuntime {
 }
 
 export interface PointerSessionInputOptions {
+  /** 从 pointerdown 移动多少像素后才启动拖拽；默认 5px。 */
+  dragThreshold?: number
   /** 默认绑定到 window；测试或 iframe 场景可以注入其他 Window。 */
   target?: Window
   /** 使用 setPointerCapture 时，传入实际捕获元素以监听丢失捕获。 */

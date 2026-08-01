@@ -91,6 +91,8 @@ export interface ObjectTypeRegistration {
   motion?: { enabled?: boolean; profile?: MotionProfile }
   /** 抓取对齐方式；不传就是纯几何中心对齐（等价于 { align: 'center' }）。 */
   grabAlign?: GrabAlignConfig
+  /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
+  pointerInput?: PointerSessionInputOptions
   /** 兼容旧 demo 的手动启动入口。 */
   start?(context: { objectId: string; element: HTMLElement; event: PointerEvent; mode: string }): void
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */

@@ -21,7 +21,7 @@ export class RuntimeInputCoordinator {
 
   constructor(private readonly port: RuntimeInputPort) {}
 
-  bind(objectId: string, element: HTMLElement): () => void {
+  bind(objectId: string, element: HTMLElement, options: PointerSessionInputOptions = {}): () => void {
     this.disposers.get(objectId)?.()
     this.bindings.get(element)?.()
     let pending: {
@@ -54,7 +54,8 @@ export class RuntimeInputCoordinator {
       const startY = event.clientY
       const move = (moveEvent: Event) => {
         if (!(moveEvent instanceof PointerEvent)) return
-        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 5) return
+        const threshold = Math.max(0, options.dragThreshold ?? 5)
+        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < threshold) return
         clearPending()
         moveEvent.preventDefault()
         this.port.startObjectPointer(objectId, element, event)
@@ -80,7 +81,8 @@ export class RuntimeInputCoordinator {
     this.disposers.get(objectId)?.()
     this.disposers.delete(objectId)
     if (!object?.element || !this.port.registry.objectTypes.has(object.visual ?? object.type)) return
-    this.bind(objectId, object.element)
+    const registration = this.port.registry.objectTypes.get(object.visual ?? object.type)
+    this.bind(objectId, object.element, registration?.pointerInput)
   }
 
   remove(objectId: string): void {

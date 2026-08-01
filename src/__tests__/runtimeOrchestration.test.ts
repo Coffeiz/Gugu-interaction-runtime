@@ -442,6 +442,31 @@ describe('Runtime move orchestration', () => {
     expect(start).toHaveBeenCalledTimes(1)
   })
 
+  it('对象级 pointerInput 由 Runtime 统一执行拖拽阈值，未越过阈值保留 click', () => {
+    const runtime = createRuntime()
+    const start = vi.fn()
+    runtime.registerObjectType('project-card', {
+      defaultVisualMode: 'detach',
+      pointerInput: { dragThreshold: 10 },
+      createMove: () => ({}),
+      start,
+    })
+    const element = document.createElement('div')
+    runtime.objects.setElement('card-1', element)
+
+    element.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      pointerType: 'mouse',
+      clientX: 10,
+      clientY: 10,
+    }))
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 15, clientY: 10 }))
+    expect(start).not.toHaveBeenCalled()
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 21, clientY: 10 }))
+    expect(start).toHaveBeenCalledOnce()
+    window.dispatchEvent(new PointerEvent('pointerup'))
+  })
+
   it('统一输入入口会把 pointercancel 转为一次性 cancel', async () => {
     const runtime = createRuntime()
     const handle = runtime.orchestrateMoveSession(createRequest(), {
