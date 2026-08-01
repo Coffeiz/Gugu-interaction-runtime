@@ -24,11 +24,52 @@ export class RuntimeInputCoordinator {
   bind(objectId: string, element: HTMLElement): () => void {
     this.disposers.get(objectId)?.()
     this.bindings.get(element)?.()
+    let pending: {
+      down: PointerEvent
+      move: (event: Event) => void
+      up: (event: Event) => void
+    } | null = null
+
+    const clearPending = () => {
+      if (!pending) return
+      window.removeEventListener('pointermove', pending.move)
+      window.removeEventListener('pointerup', pending.up)
+      window.removeEventListener('pointercancel', pending.up)
+      pending = null
+    }
+
     const listener = (event: Event) => {
-      if (event instanceof PointerEvent) this.port.startObjectPointer(objectId, element, event)
+      if (!(event instanceof PointerEvent)) return
+      // 保留原生 click：只有真正越过拖拽阈值后才启动 VisualAdapter，避免
+      // adapter 的 preventDefault() 把普通项目卡片点击吞掉。
+      if (event.button !== 0 && event.pointerType === 'mouse') return
+      // 某些非浏览器测试环境不会填充 pointerType；保留原有同步入口，避免
+      // 让这类环境的显式 pointerdown 测试被阈值监听拖延。
+      if (!event.pointerType) {
+        this.port.startObjectPointer(objectId, element, event)
+        return
+      }
+      clearPending()
+      const startX = event.clientX
+      const startY = event.clientY
+      const move = (moveEvent: Event) => {
+        if (!(moveEvent instanceof PointerEvent)) return
+        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 5) return
+        clearPending()
+        moveEvent.preventDefault()
+        this.port.startObjectPointer(objectId, element, event)
+      }
+      const up = () => clearPending()
+      pending = { down: event, move, up }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+      window.addEventListener('pointercancel', up)
     }
     element.addEventListener('pointerdown', listener)
-    const dispose = () => element.removeEventListener('pointerdown', listener)
+    const dispose = () => {
+      element.removeEventListener('pointerdown', listener)
+      clearPending()
+    }
     this.bindings.set(element, dispose)
     this.disposers.set(objectId, dispose)
     return dispose
