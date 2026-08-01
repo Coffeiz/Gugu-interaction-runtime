@@ -67,7 +67,7 @@ export class RuntimeMoveCoordinator {
       return Promise.resolve()
     }
     if (isPromiseLike(result)) {
-      return result
+      return Promise.resolve(result)
         .then(releaseResult => this.finishRelease(session, behavior, releaseResult, port), error => {
           port.cancel(session.id, error instanceof Error ? error.message : 'release-failed')
         })

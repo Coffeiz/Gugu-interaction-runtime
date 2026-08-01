@@ -35,6 +35,31 @@ export function createAutoScroller(cleanup: Cleanup, options: AutoScrollOptions 
   let point: { x: number; y: number } | null = null
   let rafId: number | null = null
   let stopped = false
+  let containerRect: DOMRect | null = null
+  let rectFrame = 0
+  let observedContainer: HTMLElement | null = null
+  let resizeObserver: ResizeObserver | null = null
+
+  const refreshContainerRect = (): void => {
+    if (!container || !container.isConnected) {
+      containerRect = null
+      return
+    }
+    containerRect = container.getBoundingClientRect()
+    rectFrame = 0
+  }
+
+  const observeContainer = (nextContainer: HTMLElement | null): void => {
+    if (observedContainer === nextContainer) return
+    resizeObserver?.disconnect()
+    observedContainer = nextContainer
+    if (!nextContainer || typeof ResizeObserver === 'undefined') {
+      resizeObserver = null
+      return
+    }
+    resizeObserver = new ResizeObserver(refreshContainerRect)
+    resizeObserver.observe(nextContainer)
+  }
 
   const speedFor = (distanceToEdge: number): number => {
     const ratio = (edgeSize - distanceToEdge) / edgeSize
@@ -45,17 +70,23 @@ export function createAutoScroller(cleanup: Cleanup, options: AutoScrollOptions 
     if (stopped) return
     rafId = requestAnimationFrame(tick)
     if (!container || !point || !container.isConnected) return
-    const rect = container.getBoundingClientRect()
+    // 容器边界在滚动时不会变化；ResizeObserver 负责尺寸变化，低频
+    // 兜底刷新则覆盖祖先滚动/布局移动等 Observer 感知不到的情况。
+    if (!containerRect || rectFrame++ >= 8) refreshContainerRect()
+    const rect = containerRect
+    if (!rect) return
     if (point.x < rect.left || point.x > rect.right) return
 
     const distanceToTop = point.y - rect.top
     const distanceToBottom = rect.bottom - point.y
     if (distanceToTop < edgeSize) {
+      const before = container.scrollTop
       container.scrollTop -= speedFor(distanceToTop)
-      options.onScroll?.(point)
+      if (container.scrollTop !== before) options.onScroll?.(point)
     } else if (distanceToBottom < edgeSize) {
+      const before = container.scrollTop
       container.scrollTop += speedFor(distanceToBottom)
-      options.onScroll?.(point)
+      if (container.scrollTop !== before) options.onScroll?.(point)
     }
   }
 
@@ -64,6 +95,10 @@ export function createAutoScroller(cleanup: Cleanup, options: AutoScrollOptions 
     stopped = true
     if (rafId !== null) cancelAnimationFrame(rafId)
     rafId = null
+    resizeObserver?.disconnect()
+    resizeObserver = null
+    observedContainer = null
+    containerRect = null
   }
 
   rafId = requestAnimationFrame(tick)
@@ -72,8 +107,14 @@ export function createAutoScroller(cleanup: Cleanup, options: AutoScrollOptions 
   return {
     update(nextContainer, nextPoint) {
       if (stopped) return
+      if (container !== nextContainer) {
+        containerRect = null
+        rectFrame = 0
+        observeContainer(nextContainer)
+      }
       container = nextContainer
       point = nextPoint
+      if (containerRect === null) refreshContainerRect()
     },
     stop,
   }
