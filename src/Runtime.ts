@@ -31,6 +31,7 @@ import { setDefaultDraggingGlassEnabled } from './dom/Visual'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
 import {
   captureLayoutFlip,
+  runGroupToggle,
   scheduleLayoutFlip,
   scheduleLayoutFlipOnRaf,
   setLayoutPresenceEnabled,
@@ -665,6 +666,11 @@ setMotionProfiles(this.registry.motionProfile)
   scheduleLayout(snapshot: LayoutFlipSnapshot, useRaf = false): void {
     if (useRaf) scheduleLayoutFlipOnRaf(snapshot)
     else scheduleLayoutFlip(snapshot)
+  }
+
+  /** 统一编排组展开/收起、容器 resize、兄弟 FLIP 与可选 presence。 */
+  runGroupToggle(options: import('./dom/GroupLayout').GroupToggleOptions): Promise<void> {
+    return runGroupToggle(options)
   }
 
   resolveMoveTarget(

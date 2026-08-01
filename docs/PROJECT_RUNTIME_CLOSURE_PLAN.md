@@ -182,6 +182,8 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
   不再直接驱动 `MoveBehavior` 的布局播放。
 - `runtime.captureLayout()` / `runtime.scheduleLayout()` 已开放统一的
   Surface/group/collection FLIP 快照入口，detach adapter 不再直接调度抓取后的初始 FLIP。
+- `runtime.runGroupToggle()` 已成为组展开/收起的统一门面，项目页不再直接调用底层
+  `runGroupToggle` 函数。
 - 删除 `single.ts` 中项目页专用的 `.done-layout-root`、`animateOpen` 和目标等待分支。
 
 ### Phase 5：删除项目页旧编排
