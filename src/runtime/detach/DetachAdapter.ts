@@ -292,7 +292,7 @@ export function createDetachMoveFromAdapter(config: {
         },
       })
       dragMotion.setProfile(FOLLOW_PROFILE)
-      dragMotion.seed({ x: rect.left, y: rect.top, scaleX: 1.03, scaleY: 1.03, rotateX: 5, rotateZ: 0 })
+      dragMotion.seed({ x: rect.left, y: rect.top, scaleX: 1.03, scaleY: 1.03, rotateX: FOLLOW_ROTATION.tilt, rotateZ: 0 })
       dragMotion.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
       dragMotion.start()
       dropState = createDetachDropState(

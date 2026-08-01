@@ -474,7 +474,6 @@ export function playSurfaceResize(
     .filter(item => item.element.isConnected)
     .map(item => {
       const next = readRect(item.element, measurement)
-      const type = item.element.dataset.surfaceType
       const prof = resolveProfile()
       return {
         item, next,

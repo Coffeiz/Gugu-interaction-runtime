@@ -29,6 +29,15 @@ function defaultKey(element: HTMLElement): string {
 }
 
 /**
+ * 同一元素短时间内被 playCollectionPresence 处理两次（比如快速拖出又拖回）
+ * 会各自起一个入场淡入 Animation，WAAPI 允许同一属性叠加多个动画实例，
+ * 靠隐式合成顺序兜底，不是显式保证。这里主动记住上一次的 Animation，
+ * 新一轮入场开始前先取消掉，跟 GroupLayout.ts 里 FLIP/resize 那批用
+ * token 主动作废旧动画是同一个模式。
+ */
+const activeEnterAnimations = new WeakMap<HTMLElement, Animation>()
+
+/**
  * 卡片可能同时属于好几个结构上独立的 collection（比如"最近完成"和各个年/
  * 月分组，都是各自独立的 v-for 作用域，不是同一个列表内部分区）。只判断
  * "这个 key 现在存不存在"不够——卡片从一个 collection 搬到另一个 collection
@@ -151,7 +160,12 @@ export function playCollectionPresence(
     const previousCollection = snapshot.collectionByKey.get(id)
     return previousCollection === undefined || previousCollection !== currentCollectionByKey.get(id)
   }).forEach(element => {
-    element.animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing, fill: 'both' })
+    activeEnterAnimations.get(element)?.cancel()
+    const animation = element.animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing, fill: 'both' })
+    activeEnterAnimations.set(element, animation)
+    animation.finished.then(() => {
+      if (activeEnterAnimations.get(element) === animation) activeEnterAnimations.delete(element)
+    }).catch(() => undefined)
   })
 
   // 离场幽灵只用来提示"这张卡彻底从视图里消失了"（比如挤出最近完成、又
