@@ -1,3 +1,5 @@
+import type { LayoutMeasurement } from './LayoutMeasurement'
+
 export interface CollectionPresenceSnapshot {
   readonly root: ParentNode
   readonly selector: string
@@ -44,12 +46,12 @@ function isInsideCollapsedGroup(element: HTMLElement): boolean {
   return collapsed !== null && collapsed.dataset.runtimeGroupAnimating !== 'true'
 }
 
-function resolveCollectionCard(element: HTMLElement): { collectionId: string } | null {
+function resolveCollectionCard(element: HTMLElement, measurement?: LayoutMeasurement): { collectionId: string } | null {
   if (isInsideCollapsedGroup(element)) return null
   const collection = element.closest<HTMLElement>('[data-layout-collection]')
   if (!collection) return null
-  const rect = element.getBoundingClientRect()
-  const parent = collection.getBoundingClientRect()
+  const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
+  const parent = measurement?.rect(collection) ?? collection.getBoundingClientRect()
   const valid = rect.width > 0 && rect.height > 0 && parent.width > 0
     && rect.width <= parent.width * 1.25
     && rect.left >= parent.left - 1
@@ -69,6 +71,7 @@ export function captureCollectionPresence(
   key: (element: HTMLElement) => string = defaultKey,
   ignore?: (element: HTMLElement) => boolean,
   scopeSurfaces?: readonly HTMLElement[],
+  measurement?: LayoutMeasurement,
 ): CollectionPresenceSnapshot {
   const collectionByKey = new Map<string, string>()
   const entries = Array.from(root.querySelectorAll<HTMLElement>(selector))
@@ -81,11 +84,11 @@ export function captureCollectionPresence(
       // 都能拿到确定的源节点引用，直接把它传进来最可靠。
       if (ignore?.(element)) return null
       if (!isWithinScope(element, scopeSurfaces)) return null
-      const resolved = resolveCollectionCard(element)
+      const resolved = resolveCollectionCard(element, measurement)
       if (!resolved) return null
       const id = key(element)
       if (!id) return null
-      const rect = element.getBoundingClientRect()
+      const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
       collectionByKey.set(id, resolved.collectionId)
       return {
         key: id,
@@ -101,6 +104,7 @@ export function captureCollectionPresence(
 export function playCollectionPresence(
   snapshot: CollectionPresenceSnapshot,
   options: CollectionPresenceOptions = {},
+  measurement?: LayoutMeasurement,
 ): void {
   const duration = options.duration ?? 250
   const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
@@ -110,7 +114,7 @@ export function playCollectionPresence(
     .filter(element => {
       if (snapshot.ignore?.(element)) return false
       if (!isWithinScope(element, snapshot.scopeSurfaces)) return false
-      const resolved = resolveCollectionCard(element)
+      const resolved = resolveCollectionCard(element, measurement)
       if (!resolved) return false
       const id = key(element)
       if (!id) return false

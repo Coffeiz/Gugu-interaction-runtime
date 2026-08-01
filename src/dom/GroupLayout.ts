@@ -2,6 +2,7 @@ import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } f
 import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { animateRafHeight, cancelRafHeight } from './RafLayoutAnimator'
 import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
+import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasurement'
 
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
@@ -98,8 +99,9 @@ export function captureLayoutFlip(
     .filter(inScope)
     .map(element => ({ element, rect: readRect(element), inlineStyle: readSurfaceInlineStyle(element) }))
   resetActiveSurfaceResize(activeSurfaces)
+  const measurement = createLayoutMeasurement()
   const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root, options.scopeSurfaces)
-  const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')).filter(inScope))
+  const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')).filter(inScope), measurement)
   // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
   // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
   // 显式开启。collection 通常标在列表容器上，卡片节点只标
@@ -111,28 +113,29 @@ export function captureLayoutFlip(
   )
   const snapshot: LayoutFlipSnapshot = {
     root,
-    group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves]) } : undefined,
-    flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards) } : undefined,
+    group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves], measurement) } : undefined,
+    flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards, measurement) } : undefined,
     surfaces,
     presence: includePresence && hasPresenceCollection
-      ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore, options.scopeSurfaces)
+      ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore, options.scopeSurfaces, measurement)
       : undefined,
   }
   return mergePendingLayoutSnapshot(root, snapshot)
 }
 
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
+  const measurement = createLayoutMeasurement()
   const profile = resolveProfile()
   const groupClip = snapshot.group
     ? releaseGroupClip(snapshot.group.before)
     : null
-  if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing)
-  if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing)
-  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing)
+  if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing, measurement)
+  if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing, measurement)
+  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing, measurement)
   if (snapshot.presence) playCollectionPresence(snapshot.presence, {
       duration: profile.flip.duration,
       easing: profile.flip.easing,
-  })
+  }, measurement)
   if (groupClip) restoreGroupClip(groupClip, profile.flip.duration + 50)
 }
 
@@ -264,23 +267,23 @@ function mergeSurfaceSnapshots(
 
 const pendingLayoutFlips = new WeakMap<ParentNode, LayoutFlipSnapshot>()
 
-function readRect(element: HTMLElement): GroupRect {
-  const rect = element.getBoundingClientRect()
+function readRect(element: HTMLElement, measurement?: LayoutMeasurement): GroupRect {
+  const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
   return { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
 }
 
-export function captureGroupLayout(elements: readonly HTMLElement[]): GroupLayoutSnapshot[] {
+export function captureGroupLayout(elements: readonly HTMLElement[], measurement?: LayoutMeasurement): GroupLayoutSnapshot[] {
   // display:none 的折叠子树没有有效的上一帧坐标；若把零矩形带进 FLIP，
   // 打开时会被误算成从视口左上角飞入。
   const visible = elements.filter(element => {
-    const rect = element.getBoundingClientRect()
+    const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
     return rect.width > 0 && rect.height > 0
   })
   const groupSet = new Set(visible)
   return visible.map(element => ({
     element,
     parent: findGroupParent(element, groupSet),
-    rect: readRect(element),
+    rect: readRect(element, measurement),
   }))
 }
 
@@ -298,12 +301,12 @@ function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement
  * 只播放它在父布局内真正产生的局部位移。父组 transform 会自然带动局部
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
-export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING): void {
+export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING, measurement?: LayoutMeasurement): void {
   resetActiveFlip(before.map(item => item.element))
   const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
 
   for (const item of before) {
-    const next = readRect(item.element)
+    const next = readRect(item.element, measurement)
     viewportDeltas.set(item.element, {
       x: item.rect.left - next.left,
       y: item.rect.top - next.top,
@@ -446,10 +449,10 @@ function playGroupPresence(state: GroupPresenceState, opening: boolean): void {
 }
 
 /** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
-export function captureSurfaceLayout(elements: readonly HTMLElement[]): SurfaceLayoutSnapshot[] {
+export function captureSurfaceLayout(elements: readonly HTMLElement[], measurement?: LayoutMeasurement): SurfaceLayoutSnapshot[] {
   return elements.map(element => ({
     element,
-    rect: readRect(element),
+    rect: readRect(element, measurement),
     // 事务被打断时，当前 inline height 是 Runtime 上一笔动画写入的临时值，
     // 不能把它错当成业务样式保存，否则取消落点后会永久留下旧高度。
     inlineStyle: surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element),
@@ -464,12 +467,13 @@ export function playSurfaceResize(
   before: readonly SurfaceLayoutSnapshot[],
   duration = FLIP_DURATION,
   easing = FLIP_EASING,
+  measurement?: LayoutMeasurement,
 ): void {
   resetActiveSurfaceResize(before)
   const plans = before
     .filter(item => item.element.isConnected)
     .map(item => {
-      const next = readRect(item.element)
+      const next = readRect(item.element, measurement)
       const type = item.element.dataset.surfaceType
       const prof = resolveProfile()
       return {
