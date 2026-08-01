@@ -11,6 +11,8 @@ import {
   landDragProxyWithMotion,
   getProxyAttitude,
   getProxyContent,
+  applyDraggingGlassStyle,
+  isDefaultDraggingGlassEnabled,
   revealElement,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
@@ -124,6 +126,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       content.style.opacity = snapshot.opacity
       getProxyAttitude(proxy).style.transform = 'scale(1.03)'
     }
+    if (isDefaultDraggingGlassEnabled()) applyDraggingGlassStyle(content)
     // 业务卡片常把操作按钮做成默认 opacity:0、hover 时显示；proxy 是
     // pointer-events:none 的克隆，永远没有 hover 态，按钮会保持透明。
     // 抓取时应保留原卡片的完整样式（按钮可见），这里把 hover 才显示

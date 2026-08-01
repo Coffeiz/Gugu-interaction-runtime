@@ -110,7 +110,11 @@ export function restoreProxyVisualState(
  * proxy：跟随指针的临时视觉对象，随 Session 创建/销毁，不属于 Vue 管理
  * 的真实 DOM——见 docs/DESIGN.md "Vue 创建真实 DOM，Runtime 创建临时 DOM"。
  */
-export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getBoundingClientRect()): HTMLElement {
+export function createDragProxy(
+  source: HTMLElement,
+  rect: DOMRect = source.getBoundingClientRect(),
+  options: { glass?: boolean } = {},
+): HTMLElement {
   // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
   // perspective/rotate 由定位壳统一承载，不额外引入业务侧不存在的姿态节点。
   const proxy = document.createElement('div')
@@ -165,7 +169,7 @@ export function createDragProxy(source: HTMLElement, rect: DOMRect = source.getB
   // transform-origin 影响，只改这一个值不需要连带调整任何位置计算。
   proxy.style.transformOrigin = '50% 50%'
   proxy.style.transform = 'perspective(760px) rotateX(5deg) scale(1.03)'
-  if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
+  if (defaultDraggingGlassEnabled && options.glass !== false) applyDraggingGlassStyle(content)
   else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
   content.style.transition = 'box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease'
   proxy.style.transition = 'transform .15s ease'
@@ -770,7 +774,8 @@ export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
-  const proxy = createDragProxy(el, rect)
+  const proxy = createDragProxy(el, rect, { glass: false })
+  const content = getProxyContent(proxy)
   proxy.style.zIndex = '1000'
   // 首帧保留源卡片样式；下一帧才进入 grabbing 视觉，形成从原位被拎起的过渡。
   proxy.style.transform = 'scale(1)'
@@ -780,8 +785,8 @@ export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
   el.style.visibility = 'hidden'
   requestAnimationFrame(() => {
     if (!proxy.isConnected) return
-    if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(proxy)
-    else proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+    if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
+    else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
     proxy.style.transform = 'scale(1.03)'
   })
 }
@@ -849,6 +854,10 @@ let defaultDraggingGlassEnabled = false
 
 export function setDefaultDraggingGlassEnabled(enabled: boolean): void {
   defaultDraggingGlassEnabled = enabled
+}
+
+export function isDefaultDraggingGlassEnabled(): boolean {
+  return defaultDraggingGlassEnabled
 }
 
 export function applyDraggingGlassStyle(element: HTMLElement): void {
