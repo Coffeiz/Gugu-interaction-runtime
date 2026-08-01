@@ -534,7 +534,6 @@ function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): voi
     delete element.dataset.runtimeSurfaceResize
     delete element.dataset.runtimeSurfaceResizeToken
   }
-  void active[0].element.offsetHeight
 }
 
 type SurfaceInlineStyle = SurfaceLayoutSnapshot['inlineStyle']

@@ -35,8 +35,6 @@ export function resetActiveFlip(elements: readonly HTMLElement[]): void {
     cancelRafTransform(element)
     element.style.setProperty('transition', 'none', 'important')
   }
-  // 迫使浏览器以无旧 transform 的最终布局完成下一次 rect 测量。
-  void active[0].offsetHeight
 }
 
 export function playFlip(
@@ -49,6 +47,9 @@ export function playFlip(
   // 新 FLIP 必须先作废同一批元素上的旧 rAF、timeout 和 transitionend，
   // 否则快速抓放会出现旧事务补写 transform，表现为二次让位或瞬间展开。
   resetActiveFlip(elements)
+  const plans: Array<{ element: HTMLElement; dx: number; dy: number }> = []
+  // Read phase: measure every participant before writing any new transform.
+  // Interleaving these operations forces one layout flush per card.
   for (const el of elements) {
     // Runtime 临时视觉对象和当前拖动对象不属于兄弟布局动画参与者。
     // 统一在 Layout 层过滤，适配器无需每次重复维护排除条件。
@@ -72,12 +73,16 @@ export function playFlip(
       el.style.transition = ''
       continue
     }
+    plans.push({ element: el, dx, dy })
+  }
+
+  // Write phase: apply all inversions only after the read phase is complete.
+  for (const { element: el, dx, dy } of plans) {
     el.style.setProperty('transition', 'none', 'important')
     el.style.transform = `translate(${dx}px, ${dy}px)`
     const token = String(Number(el.dataset.runtimeFlipToken ?? '0') + 1)
     el.dataset.runtimeFlip = 'true'
     el.dataset.runtimeFlipToken = token
-    void el.offsetHeight
     animateRafTransform(el, dx, dy, duration, easing, () => {
       if (el.dataset.runtimeFlipToken !== token) return
       el.style.transition = ''
