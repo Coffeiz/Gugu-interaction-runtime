@@ -209,6 +209,18 @@ export class MoveCommitCoordinator {
     const normalized = this.port.normalize(session.objectId, destination)
     if (normalized) await lifecycle?.surface?.leave?.(context, normalized.fromSurfaceId)
     await this.actions.emit(session.objectId, behavior.getContext(session.id).destination, behavior.getContext(session.id).transaction)
+    // surface.enter 必须在 playLayout 之前调用：detach 策略在这里释放对象
+    // ownership，触发业务 <Teleport :disabled="!isDetached(...)"> 把卡片
+    // 传送回真实 DOM（这时 store 已经落地在新 Surface，传送回来的就是最终
+    // 位置）。release() 内部同步 emit 事件，Vue 监听者同步把 ownershipVersion
+    // 加一，但 Vue 自己的渲染/DOM patch 是异步排到它自己的微任务队列的。
+    // 这里的 await 会先让出一轮微任务：Vue 的渲染 job 比 playLayout 内部
+    // scheduleLayoutFlip 排的 job 先入队（因为 release() 在 await 之前同步
+    // 触发），因此也会先执行，FLIP 拿到的就是 Teleport 落位后的最终布局。
+    // 顺序反过来（先 playLayout 再 surface.enter）会导致 FLIP 的微任务先于
+    // Vue 的 DOM patch 执行，量到还没搬回真实位置的旧布局，表现为松手瞬间
+    // 闪一帧最终布局——这正是 devlog 记录过的三帧问题的另一个诱因。
+    if (normalized) await lifecycle?.surface?.enter?.(context, normalized.toSurfaceId)
     // playLayout 必须等 emit 的 Vue patch 落地后再量布局：emit 触发的 store
     // 变更、卡片 DOM 重挂载都发生在这一步，之前的调用会量到旧布局（顶动）。
     // isAppend 判定也放到这里之后算：只有 DOM 真正落地后，getObjectIndex
@@ -226,7 +238,6 @@ export class MoveCommitCoordinator {
     } else {
       behavior.playLayout(context)
     }
-    if (normalized) await lifecycle?.surface?.enter?.(context, normalized.toSurfaceId)
   }
 }
 

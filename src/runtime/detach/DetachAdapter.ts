@@ -9,12 +9,6 @@ import { captureDetachDraggingSnapshot, prepareDetachMotion, prepareDetachPickup
 import type { Runtime, RuntimeCompletionGate } from '../../Runtime'
 import type { LandingResult, MoveBehaviorDriver, MoveVisualLifecycle } from '../../behavior/MoveBehavior'
 
-/** 临时诊断专用：console 打点 + performance.mark，方便跟 Performance 面板的 trace 对上号。 */
-function markProbe(name: string, detail: Record<string, unknown>): void {
-  console.info(`[probe:${name}]`, JSON.stringify(detail))
-  performance.mark(`probe:${name}`, { detail })
-}
-
 /** 把 target 滚动进 column 的可视范围内（贴边对齐，不居中）。 */
 function keepElementWithinColumn(column: HTMLElement, target: HTMLElement): void {
   const columnRect = column.getBoundingClientRect()
@@ -144,7 +138,22 @@ export function createDetachMoveFromAdapter(config: {
     const beforeRect = landingProxy?.getBoundingClientRect() ?? element.getBoundingClientRect()
     sourceLease?.restoreLayoutHidden()
     delete element.dataset.runtimeActive
-    objectLease?.release()
+    // objectLease 释放时机分两种情况：
+    // - 无效落点（invalidReturn）：destination 就是原位置，没有 emit，业务
+    //   <Teleport> 传送回去的本来就是正确位置，这里立刻释放没有风险，也不能
+    //   拖到 surface.enter——那个钩子只在有 emitAction 时才会触发，无效落点
+    //   永远等不到。
+    // - 有效落点：这里立刻释放会让 <Teleport :disabled="!isDetached(...)">
+    //   在 emit() 真正把卡片挪到新位置之前就把它传送回原列（store 还没变），
+    //   等 emit 生效后又要再传送一次——两次传送中间隔着至少一次 Vue 渲染
+    //   节拍，足够露出"原位占位符突然出现、兄弟卡收位"这一帧。这种情况改到
+    //   emit() 成功之后触发的 lifecycle.surface.enter 里释放（见下方
+    //   lifecycle 定义），这时 store 已经落地，传送回来的就是最终位置。
+    //   （曾经试过挪到 finishReveal——landing 动画结束才释放——结果太晚：
+    //   landing 阶段解析真实落点目标的 resolveMoveTarget/waitForMoveTarget
+    //   本身就要等卡片被 Teleport 传送回真实 DOM 才能找到它，一直不释放会
+    //   直接找不到目标，表现为飞向页面默认兜底位置。）
+    if (invalidReturn) objectLease?.release()
     const proceedWithTarget = (sid: string, target: HTMLElement | null) => {
       if (getSessionState() !== 'landing') return
       const landedEl = resolveDetachLandingTarget({
@@ -210,7 +219,6 @@ export function createDetachMoveFromAdapter(config: {
   }
 
   function onRegrab(regrabEvent: PointerEvent) {
-    markProbe('regrab-fired', { objectId, interruptedSessionId: sessionId, sessionState: getSessionState() })
     if (getSessionState() !== 'landing') return
     const proxy = landingProxy
     if (!proxy || !sessionId) return
@@ -234,7 +242,6 @@ export function createDetachMoveFromAdapter(config: {
   const driver: MoveBehaviorDriver = {
     prepare(ctx) {
       sessionId = ctx.session.id
-      markProbe('prepare', { objectId, sessionId, sessionState: ctx.session.state })
       pointerMoved = false
       autoScroller = createAutoScroller(ctx.session.cleanup, {
         onScroll: point => updateDropFromPoint(point.x, point.y),
@@ -340,6 +347,14 @@ export function createDetachMoveFromAdapter(config: {
 
   const lifecycle: MoveVisualLifecycle = {
     layout: createDetachLayoutLifecycle(element, registeredElements),
+    surface: {
+      // emit() 成功之后触发（见 RuntimeMove.ts MoveCommitCoordinator.commit），
+      // 此时业务 store 已经落地在新 Surface，这里释放 ownership，业务
+      // <Teleport :disabled="!isDetached(...)"> 传送回来的就是最终正确位置，
+      // 不会有"先传送回原列、emit 生效后再传送一次"的中间态闪烁。
+      // 无效落点（没有 emit）不会走到这里，在 onUp 里已经立刻释放过了。
+      enter: () => objectLease?.release(),
+    },
     ...createDetachLandingLifecycle({
       createGate: () => runtime.createCompletionGate(sessionId!, { completed: false, reason: 'landing-cancelled' }),
       onGate: (gate: RuntimeCompletionGate<LandingResult>) => { landingGate = gate },
@@ -347,7 +362,6 @@ export function createDetachMoveFromAdapter(config: {
       scheduleLanding: () => { landingPlan?.(); landingPlan = null },
       clearRegrab: () => runtime.clearRegrab(objectId),
       finishReveal: () => {
-        markProbe('finish-reveal', { objectId, sessionId })
         if (landingProxy) setProxyInteractive(landingProxy, false)
         // landing 完成后再保险清理一次 floatingProxy，防止 commit 时 element 已
         // 被 Vue 重渲染导致 WeakMap 查不到而漏掉。

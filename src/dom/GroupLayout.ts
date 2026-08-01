@@ -59,12 +59,6 @@ function splitLayoutFlipParticipants(
   return { groups, groupLeaves, flatCards }
 }
 
-/** 临时诊断专用：console 打点 + performance.mark，方便跟 Performance 面板的 trace 对上号。 */
-function markProbe(name: string, detail: Record<string, unknown>): void {
-  console.info(`[probe:${name}]`, JSON.stringify(detail))
-  performance.mark(`probe:${name}`, { detail })
-}
-
 /** 一份快照里按各自参与者的实际归属，分别捕获 Relative Group FLIP 和普通 FLIP。 */
 export function captureLayoutFlip(
   cards: readonly HTMLElement[],
@@ -83,12 +77,10 @@ export function captureLayoutFlip(
     flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards) } : undefined,
     surfaces,
   }
-  markProbe('flip-capture', { cards: cards.length, groups: groups.length, flatCards: flatCards.length, surfaces: surfaces.length })
   return mergePendingLayoutSnapshot(root, snapshot)
 }
 
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
-  markProbe('flip-play', { hasGroup: !!snapshot.group, hasFlat: !!snapshot.flat, surfaces: snapshot.surfaces.length })
   const profile = resolveProfile()
   if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing)
   if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing)
@@ -113,13 +105,9 @@ export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
  * 合并的效果不受影响。
  */
 export function scheduleLayoutFlip(snapshot: LayoutFlipSnapshot): void {
-  markProbe('flip-schedule', {})
   pendingLayoutFlips.set(snapshot.root, snapshot)
   queueMicrotask(() => {
-    if (pendingLayoutFlips.get(snapshot.root) !== snapshot) {
-      markProbe('flip-schedule-superseded', {})
-      return
-    }
+    if (pendingLayoutFlips.get(snapshot.root) !== snapshot) return
     pendingLayoutFlips.delete(snapshot.root)
     playLayoutFlip(snapshot)
   })
@@ -219,7 +207,6 @@ function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
 export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING): void {
-  markProbe('flip-play-group', { before: before.length })
   resetActiveFlip(before.map(item => item.element))
   const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
 
@@ -310,8 +297,6 @@ export function playSurfaceResize(
       }
     })
     .filter(({ item, next }) => Math.abs(item.rect.height - next.height) >= 0.5)
-
-  markProbe('surface-resize-play', { before: before.length, plans: plans.length })
 
   for (const { item, fromHeight } of plans) {
     const style = item.element.style
