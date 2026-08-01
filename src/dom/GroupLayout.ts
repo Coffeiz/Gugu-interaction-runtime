@@ -287,6 +287,33 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
   }, effectiveDuration + 40)
 }
 
+export interface GroupToggleOptions {
+  readonly root: ParentNode
+  readonly content: HTMLElement
+  readonly opening: boolean
+  readonly mutate: () => void
+  readonly waitForLayout: () => void | Promise<void>
+  readonly isCurrent?: () => boolean
+  readonly duration?: number
+  readonly easing?: string
+}
+
+/** 统一编排组展开/收起及其兄弟 FLIP。 */
+export async function runGroupToggle(options: GroupToggleOptions): Promise<void> {
+  const cards = Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item, [data-card]'))
+    .filter(element => {
+      const rect = element.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    })
+  const snapshot = captureLayoutFlip(cards, options.root)
+  const currentHeight = options.content.getBoundingClientRect().height
+  options.mutate()
+  await options.waitForLayout()
+  if (options.isCurrent && !options.isCurrent()) return
+  transitionGroupHeight(options.content, options.opening ? options.content.scrollHeight : 0, options.duration, options.easing, currentHeight)
+  playLayoutFlip(snapshot)
+}
+
 /** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
 export function captureSurfaceLayout(elements: readonly HTMLElement[]): SurfaceLayoutSnapshot[] {
   return elements.map(element => ({
