@@ -6,6 +6,10 @@ import type { Action } from '../action/Action'
 import type { MoveActionDestination } from '../behavior/MoveTransaction'
 import type { MoveContext } from '../behavior/MoveBehavior'
 
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value && typeof (value as { then?: unknown }).then === 'function')
+}
+
 /** 移动事务功能域入口；Runtime 只通过该入口转发移动阶段操作。 */
 export class RuntimeMoveCoordinator {
   constructor(
@@ -44,24 +48,39 @@ export class RuntimeMoveCoordinator {
     return this.landingCoordinator.run(session, behavior, destination)
   }
 
-  async release(sessionId: string, input: RuntimeInput, port: MoveReleasePort): Promise<void> {
+  release(sessionId: string, input: RuntimeInput, port: MoveReleasePort): Promise<void> {
     const candidate = port.getSession(sessionId)
     const preflight = this.prepareRelease(candidate, input)
-    if (preflight.kind === 'ignore') return
+    if (preflight.kind === 'ignore') return Promise.resolve()
     if (preflight.kind === 'cancel') {
       if (candidate) port.cancel(candidate.id, preflight.reason)
-      return
+      return Promise.resolve()
     }
     const session = preflight.session
     const behavior = port.getBehavior(session.type)
     if (behavior instanceof MoveBehavior) port.captureLayout(session.id)
     let result: unknown
     try {
-      result = await behavior?.release?.(port.createContext(session), input)
+      result = behavior?.release?.(port.createContext(session), input)
     } catch (error) {
       port.cancel(session.id, error instanceof Error ? error.message : 'release-failed')
-      return
+      return Promise.resolve()
     }
+    if (isPromiseLike(result)) {
+      return result
+        .then(releaseResult => this.finishRelease(session, behavior, releaseResult, port), error => {
+          port.cancel(session.id, error instanceof Error ? error.message : 'release-failed')
+        })
+    }
+    return this.finishRelease(session, behavior, result, port)
+  }
+
+  private async finishRelease(
+    session: Session,
+    behavior: Behavior | undefined,
+    result: unknown,
+    port: MoveReleasePort,
+  ): Promise<void> {
     if (port.getSession(session.id) !== session) return
     const releaseResult = result as { accepted?: boolean; destination?: unknown; emitAction?: boolean } | undefined
     if (releaseResult?.accepted === false) {

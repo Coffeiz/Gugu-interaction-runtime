@@ -3,6 +3,10 @@ import type { RuntimeInput, StartRequest } from '../core/Interaction'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { MoveTransaction } from './MoveTransaction'
 
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value && typeof (value as { then?: unknown }).then === 'function')
+}
+
 export interface MoveContext {
   transaction: MoveTransaction
   sourceElement: HTMLElement | null
@@ -208,23 +212,38 @@ export class MoveBehavior implements Behavior {
     const driver = this.driverFor(context.session.id)
     // 优先使用新 resolveDestination 流程
     if (driver.resolveDestination) {
-      return Promise.resolve(driver.resolveDestination(context, input)).then((result: MoveReleaseResult | void) => {
-        if (result && result.accepted && result.destination !== undefined) {
-          moveContext.destination = result.destination
-          moveContext.transaction.destination = result.destination
-        }
-        return result
-      })
+      const result = driver.resolveDestination(context, input)
+      if (isPromiseLike<MoveReleaseResult | void>(result)) {
+        return result.then((resolved: MoveReleaseResult | void) => {
+          if (resolved && resolved.accepted && resolved.destination !== undefined) {
+            moveContext.destination = resolved.destination
+            moveContext.transaction.destination = resolved.destination
+          }
+          return resolved
+        })
+      }
+      if (result && result.accepted && result.destination !== undefined) {
+        moveContext.destination = result.destination
+        moveContext.transaction.destination = result.destination
+      }
+      return result
     }
     // fallback: 旧 release
     const result = driver.release?.(context, input)
-    return Promise.resolve(result).then((releaseResult: MoveReleaseResult | void) => {
-      if (releaseResult && releaseResult.accepted && releaseResult.destination !== undefined) {
-        moveContext.destination = releaseResult.destination
-        moveContext.transaction.destination = releaseResult.destination
-      }
-      return releaseResult
-    })
+    if (isPromiseLike<MoveReleaseResult | void>(result)) {
+      return result.then((releaseResult: MoveReleaseResult | void) => {
+        if (releaseResult && releaseResult.accepted && releaseResult.destination !== undefined) {
+          moveContext.destination = releaseResult.destination
+          moveContext.transaction.destination = releaseResult.destination
+        }
+        return releaseResult
+      })
+    }
+    if (result && result.accepted && result.destination !== undefined) {
+      moveContext.destination = result.destination
+      moveContext.transaction.destination = result.destination
+    }
+    return result
   }
 
   commit(context: BehaviorContext, destination: unknown): void | Promise<void> {
