@@ -185,6 +185,42 @@ runtime.configureVisual({ layoutPresence: true })
 该选项不新增 enter/leave 参数，淡入淡出直接复用 `group` 的时长和缓动；
 兄弟卡片位移继续使用 `flip` 配置。默认关闭，不会改变未启用该选项的列表。
 
+### Collection Presence（卡片进入/离场）
+
+开启 `layoutPresence` 后，Runtime 会在布局 FLIP 快照中自动记录卡片所属的
+collection。卡片从一个 collection 移到另一个 collection 时按“新节点进入”处理；
+卡片从所有 collection 消失时按“旧节点离场”处理。该逻辑使用 Web Animations API，
+时长和缓动复用 `flip` 配置，不需要业务端手动调用 enter/leave。
+
+业务端需要为每个卡片列表提供 collection 标记，并为卡片提供稳定 key：
+
+```html
+<div data-layout-collection="recent">
+  <div data-layout-role="card" data-layout-key="project-224">
+    ...
+  </div>
+</div>
+```
+
+注意事项：
+
+- `data-layout-key` 必须在不同 collection 之间保持全局唯一；
+- 折叠的年月组不会被当作可见 collection 参与入场动画；
+- 正在被 Runtime 拖拽控制的卡片不会额外生成离场副本；
+- 组展开/收起使用组自身的 Presence，不会和 Collection Presence 叠加；
+- Runtime 会过滤脱离 collection 或尺寸异常的 Vue 过渡节点。
+
+Runtime 也导出了底层 API，只有需要自定义布局事务时才直接使用：
+
+```ts
+const snapshot = captureCollectionPresence(root, '[data-layout-role="card"]')
+// 业务完成数据更新和 DOM patch 后调用
+playCollectionPresence(snapshot, {
+  duration: 250,
+  easing: 'cubic-bezier(.22,1,.36,1)',
+})
+```
+
 **4. 给对象打上可识别的标记**（供 hit test 用，见“已知限制”）
 
 ```html
