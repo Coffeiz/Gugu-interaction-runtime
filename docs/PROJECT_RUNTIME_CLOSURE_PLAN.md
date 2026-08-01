@@ -31,7 +31,8 @@ ProjectCard / drawerDrag
 → legacy deps
 ```
 
-因此 Runtime 目前主要承担注册、配置和部分布局能力，项目卡的完整拖拽生命周期仍由业务侧旧编排控制。
+因此 Runtime 当前已承担项目卡的输入、Session、视觉代理和落点等待主链；业务侧仍保留
+detach driver 作为 adapter glue，尚未完成最终的接口收口。
 
 ## 收口后的目标结构
 
@@ -154,12 +155,17 @@ resolveDestination
 下一步进入 Phase 3：将 detach 的 source/proxy/landing/reveal 生命周期进一步收拢为
 Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果不变。
 
-### Phase 3：迁移 VisualAdapter
+### Phase 3：迁移 VisualAdapter（进行中）
 
-- 将 detach 的 source/proxy/landing/reveal 生命周期接入 Runtime。
-- 保持现有项目卡视觉结果不变。
-- 让 Runtime 负责 proxy 创建、姿态继承、样式快照和 dispose。
-- 验证抓取位置、毛玻璃开关、圆角、字体、hover 和落地交接。
+- detach 的 source/proxy/landing/reveal 主链路已接入 Runtime VisualAdapter。
+- 已修正代理销毁边界：adapter 提供 `dispose` 时由 adapter 完整接管，Runtime 不再重复调用
+  `proxy.dispose`。
+- 已增加 adapter dispose 幂等边界回归测试；代理替换也统一经过 Runtime 的销毁边界，
+  不再由 `VisualProxyCoordinator` 直接清理旧代理。
+- 已增加 `runtime.resolveLandingTarget()`，统一同步目标解析与跨 Surface DOM 等待，
+  detach adapter 不再自行组合两套解析路径。
+- 待完成：将 regrab 接管和 landing 前后的布局顺序继续收进 Runtime 公共协议，并补齐
+  项目页 adapter 接入验证。
 
 ### Phase 4：迁移目标、FLIP 和滚动
 

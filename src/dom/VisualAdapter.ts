@@ -54,6 +54,7 @@ export interface VisualAdapter {
   updateProxy?(proxy: VisualProxy, context: VisualLifecycleContext): void
   land?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<{ completed: boolean; reason?: string }>
   reveal?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<void>
+  /** 完整销毁代理；实现该回调后由 adapter 负责调用 proxy.dispose（如有）。 */
   dispose?(proxy: VisualProxy, context: VisualLifecycleContext): void
 }
 

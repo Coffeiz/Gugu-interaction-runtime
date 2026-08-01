@@ -130,7 +130,7 @@ describe('Runtime move orchestration', () => {
     source.remove()
   })
 
-  it('VisualProxy 随 Session 注册、替换并在取消时清理', () => {
+  it('VisualProxy 替换与取消都经过 Runtime 的统一清理边界', () => {
     const runtime = createRuntime()
     const handle = runtime.start(createRequest())
     const firstDispose = vi.fn()
@@ -228,7 +228,7 @@ describe('Runtime move orchestration', () => {
     runtime.cancel(handle.id)
   })
 
-  it('释放代理时调用适配器 dispose，并保持代理自身清理', () => {
+  it('释放代理时由适配器接管完整清理', () => {
     const runtime = new Runtime()
     const source = document.createElement('div')
     const proxyElement = document.createElement('div')
@@ -258,7 +258,40 @@ describe('Runtime move orchestration', () => {
 
     runtime.disposeVisualProxy(handle.id)
     expect(disposeAdapter).toHaveBeenCalledOnce()
-    expect(disposeProxy).toHaveBeenCalledOnce()
+    expect(disposeProxy).not.toHaveBeenCalled()
+  })
+
+  it('适配器接管 dispose 时 Runtime 不会重复调用 proxy.dispose', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('div')
+    const proxyElement = document.createElement('div')
+    const disposeAdapter = vi.fn()
+    const disposeProxy = vi.fn()
+    runtime.objects.register({
+      id: 'card-adapter-dispose',
+      type: 'adapter-dispose-card',
+      surfaceId: 'surface:adapter-dispose',
+      element: source,
+      abilities: ['move'],
+    })
+    runtime.registerObjectType('adapter-dispose-card', {
+      defaultVisualMode: 'detach',
+      visual: {
+        createProxy: () => ({ element: proxyElement, dispose: disposeProxy }),
+        dispose: disposeAdapter,
+      },
+    })
+    const handle = runtime.start({
+      type: 'move',
+      objectId: 'card-adapter-dispose',
+      input: { kind: 'programmatic' },
+    })
+    runtime.createVisualProxy(handle.id, runtime.createVisualLifecycleContext(handle.id))
+
+    runtime.disposeVisualProxy(handle.id)
+
+    expect(disposeAdapter).toHaveBeenCalledOnce()
+    expect(disposeProxy).not.toHaveBeenCalled()
   })
 
   it('每次 Runtime.start 只创建一个 Session', () => {
@@ -303,7 +336,7 @@ describe('Runtime move orchestration', () => {
     runtime.endSession(session)
 
     expect(disposeAdapter).toHaveBeenCalledOnce()
-    expect(disposeProxy).toHaveBeenCalledOnce()
+    expect(disposeProxy).not.toHaveBeenCalled()
     expect(runtime.getSession(handle.id)).toBeUndefined()
   })
 

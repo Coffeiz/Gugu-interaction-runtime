@@ -200,20 +200,7 @@ export function createDetachMoveFromAdapter(config: {
     }
     landingPlan = scheduleDetachLandingFrame(() => undefined, () => {
       const sid = sessionId!
-      // 0.9.6 是同步解析（resolveMoveTarget + 兜底 querySelector），拿到目标就在
-      // 同一个 rAF 回调里同步 applyState + conceal，跟 Vue 挂载目标节点在同一帧
-      // 完成，不会露出一帧未隐藏的本体。1.0.1 为了修跨 Surface 拿错/拿空目标的
-      // 问题，改成了 waitForMoveTarget 的多帧异步轮询——但轮询本身要等目标出现
-      // 在新 Surface 容器里才 resolve，而 Vue 的挂载/绘制发生在轮询检测到之前，
-      // 这段异步等待就是本体一闪的来源。这里先按 0.9.6 的方式同步尝试一次，
-      // 拿到就立刻走同帧流程；只有同步解析真的拿不到（需要等 Vue 异步挂载到新
-      // Surface）时才退回多帧轮询兜底，两边都要。
-      const syncTarget = runtime.resolveMoveTarget(sid, destination)
-      if (syncTarget) {
-        proceedWithTarget(sid, syncTarget)
-        return
-      }
-      void runtime.waitForMoveTarget(sid, destination).then(target => proceedWithTarget(sid, target))
+      void runtime.resolveLandingTarget(sid, destination).then(target => proceedWithTarget(sid, target))
     })
     return { accepted: true as const, destination: pendingDrop, ...(invalidReturn ? { emitAction: false } : {}) }
   }

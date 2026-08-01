@@ -30,7 +30,6 @@ export class VisualStateCoordinator {
 export class VisualProxyCoordinator {
   private readonly proxies = new Map<string, VisualProxy>()
   register(sessionId: string, proxy: VisualProxy): void {
-    this.proxies.get(sessionId)?.dispose?.()
     this.proxies.set(sessionId, proxy)
   }
   get(sessionId: string): VisualProxy | undefined { return this.proxies.get(sessionId) }

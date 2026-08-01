@@ -453,6 +453,9 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   registerVisualProxy(sessionId: string, proxy: VisualProxy): void {
+    // 代理替换必须经过 Runtime 的统一销毁边界，不能让协调器直接调用
+    // proxy.dispose() 绕过当前对象的 VisualAdapter。
+    if (this.visualProxyCoordinator.get(sessionId)) this.disposeVisualProxy(sessionId)
     this.visualProxyCoordinator.register(sessionId, proxy)
   }
 
@@ -464,11 +467,19 @@ setMotionProfiles(this.registry.motionProfile)
     const proxy = this.visualProxyCoordinator.get(sessionId)
     if (!proxy) return
     const session = this.sessionCoordinator.get(sessionId)
+    let adapterDisposed = false
     if (session) {
       const context = this.createVisualLifecycleContext(sessionId)
-      this.getObjectVisualAdapter(session.objectId).dispose?.(proxy, context)
+      const adapter = this.getObjectVisualAdapter(session.objectId)
+      if (adapter.dispose) {
+        adapter.dispose(proxy, context)
+        adapterDisposed = true
+      }
     }
-    proxy.dispose?.()
+    // dispose 若由 VisualAdapter 提供，则由 adapter 负责完整销毁代理。
+    // Runtime 只在没有 adapter 实现时调用 proxy 自身的兜底 dispose，避免
+    // DefaultVisualAdapter/custom adapter 与 Runtime 重复清理同一个节点。
+    if (!adapterDisposed) proxy.dispose?.()
     this.visualProxyCoordinator.remove(sessionId)
   }
 
@@ -608,6 +619,20 @@ setMotionProfiles(this.registry.motionProfile)
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
     return target
+  }
+
+  /**
+   * 统一取得 landing 交接目标：先尝试当前帧的同步目标，再等待业务 Action
+   * 触发的 DOM 重渲染。视觉 adapter 不需要再组合这两个阶段，也不会各自
+   * 实现一套跨 Surface 的等待规则。
+   */
+  async resolveLandingTarget(
+    sessionId: string,
+    destination: unknown,
+    maxFrames = 6,
+  ): Promise<HTMLElement | null> {
+    const immediate = this.resolveMoveTarget(sessionId, destination)
+    return immediate ?? this.waitForMoveTarget(sessionId, destination, maxFrames)
   }
 
   /**
