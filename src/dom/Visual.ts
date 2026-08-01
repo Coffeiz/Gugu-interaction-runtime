@@ -471,13 +471,12 @@ export function landDragProxyLegacy(
     const targetTransform =
       `translate3d(${(nextTarget.left - layoutLeft).toFixed(2)}px, ${(nextTarget.top - layoutTop).toFixed(2)}px, 0)`
 
-    proxy.style.transition = [
-      `transform ${animDuration}ms ${easing}`,
-      `width ${animDuration}ms ${easing}`,
-      `height ${animDuration}ms ${easing}`,
+    proxy.style.transition = `transform ${animDuration}ms ${easing}, width ${animDuration}ms ${easing}, height ${animDuration}ms ${easing}`
+    content.style.transition = [
       `box-shadow ${animDuration}ms ease`,
       `border-radius ${animDuration}ms ease`,
       `background-color ${animDuration}ms ease`,
+      `background-image ${animDuration}ms ease`,
       `opacity ${animDuration}ms ease`,
     ].join(', ')
     // box-shadow/border-radius/background/opacity 起点值（dragSnapshot）是调用方在这个
@@ -664,10 +663,12 @@ export function landDragProxyWithMotion(
   })
 
   // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
-  proxy.style.transition = [
+  proxy.style.transition = ''
+  content.style.transition = [
     `box-shadow ${duration}ms ${easing}`,
     `border-radius ${duration}ms ${easing}`,
     `background-color ${duration}ms ${easing}`,
+    `background-image ${duration}ms ${easing}`,
     `opacity ${duration}ms ${easing}`,
   ].join(', ')
   requestAnimationFrame(() => {
@@ -769,24 +770,20 @@ export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
-  const proxy = el.cloneNode(true) as HTMLElement
-  proxy.style.position = 'fixed'
-  proxy.style.left = `${rect.left}px`
-  proxy.style.top = `${rect.top}px`
-  proxy.style.width = `${rect.width}px`
-  proxy.style.height = `${rect.height}px`
-  proxy.style.margin = '0'
+  const proxy = createDragProxy(el, rect)
   proxy.style.zIndex = '1000'
-  proxy.style.boxSizing = 'border-box'
-  if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(proxy)
-  else proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-  proxy.style.transform = 'scale(1.03)'
-  proxy.style.transition = 'transform .15s ease, box-shadow .15s ease'
-  proxy.dataset.runtimeProxy = 'true'
+  // 首帧保留源卡片样式；下一帧才进入 grabbing 视觉，形成从原位被拎起的过渡。
+  proxy.style.transform = 'scale(1)'
+  proxy.style.transition = 'transform 150ms cubic-bezier(.22,1,.36,1), box-shadow 150ms ease, background 150ms ease, opacity 150ms ease'
   pickupHandoffPending.add(proxy)
-  document.documentElement.appendChild(proxy)
   floatingProxies.set(el, proxy)
   el.style.visibility = 'hidden'
+  requestAnimationFrame(() => {
+    if (!proxy.isConnected) return
+    if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(proxy)
+    else proxy.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+    proxy.style.transform = 'scale(1.03)'
+  })
 }
 
 export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
@@ -818,6 +815,7 @@ export function clearFloatingStyle(el: HTMLElement) {
   if (proxy) {
     pickupHandoffPending.delete(proxy)
     proxy.remove()
+    activeDragProxies.delete(proxy)
     floatingProxies.delete(el)
   }
   const snapshot = floatingSnapshots.get(el)
