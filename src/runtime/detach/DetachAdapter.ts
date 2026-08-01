@@ -1,4 +1,3 @@
-import { captureLayoutFlip, scheduleLayoutFlip } from '../../dom/GroupLayout'
 import { applyFloatingStyle, clearFloatingStyle, getFloatingProxy, setProxyInteractive } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
 import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
@@ -266,7 +265,7 @@ export function createDetachMoveFromAdapter(config: {
       // grabbing 期间 transform 由 MotionController 每帧写入，不能再让 CSS transition
       // 对每次物理更新做线性插值，否则角度回正会覆盖弹簧的非线性轨迹（0.9.6 原有的坑）。
       element.style.transition = 'none'
-      scheduleLayoutFlip(beforePickup)
+      runtime.scheduleLayout(beforePickup)
       element.dataset.runtimeActive = 'true'
       const floatingProxy = getFloatingProxy(element)!
       dragMotion = createCardMotionController({

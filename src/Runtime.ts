@@ -29,7 +29,14 @@ import { RuntimeInputCoordinator, RuntimeDispatcher } from './runtime/RuntimeInp
 import { RuntimeMoveCoordinator, type MoveReleasePort } from './runtime/RuntimeMove'
 import { setDefaultDraggingGlassEnabled } from './dom/Visual'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
-import { setLayoutPresenceEnabled, setMotionProfiles } from './dom/GroupLayout'
+import {
+  captureLayoutFlip,
+  scheduleLayoutFlip,
+  scheduleLayoutFlipOnRaf,
+  setLayoutPresenceEnabled,
+  setMotionProfiles,
+  type LayoutFlipSnapshot,
+} from './dom/GroupLayout'
 import { createAutoScroller, type AutoScrollController, type AutoScrollOptions } from './dom/AutoScroll'
 
 export type RuntimeEvent =
@@ -642,6 +649,22 @@ setMotionProfiles(this.registry.motionProfile)
     const behavior = session ? this.behaviors.get(session.type) : undefined
     if (!(behavior instanceof MoveBehavior) || !session) return
     behavior.playLayout(this.createBehaviorContext(session), useRaf)
+  }
+
+  /** 捕获 Runtime 管理的 Surface / group / collection 布局快照。 */
+  captureLayout(
+    elements: readonly HTMLElement[],
+    root: ParentNode = document,
+    includePresence = true,
+    ignore?: (element: HTMLElement) => boolean,
+  ): LayoutFlipSnapshot {
+    return captureLayoutFlip(elements, root, includePresence, ignore)
+  }
+
+  /** 按统一时序播放布局快照；列尾追加可选择等待 Vue patch 的下一帧。 */
+  scheduleLayout(snapshot: LayoutFlipSnapshot, useRaf = false): void {
+    if (useRaf) scheduleLayoutFlipOnRaf(snapshot)
+    else scheduleLayoutFlip(snapshot)
   }
 
   resolveMoveTarget(
