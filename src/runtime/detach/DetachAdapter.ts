@@ -132,6 +132,15 @@ export function createDetachMoveFromAdapter(config: {
     // 抓取阶段是源节点自己在飞（0.9.6 式单节点），这里松手交给 landing proxy 接管：
     // 恢复源节点的正常布局占位、保持隐藏，proxy 才是接下来唯一的可见视觉主体。
     const destination = pendingDrop
+    // 落点跟抓起时完全一样（同 Surface、同 index）：emit 对业务是纯 no-op，
+    // 不会有任何 DOM 重排，release 阶段（captureLayout，在 onUp 之前已经跑过）
+    // 量到的那份布局快照注定播不出任何位移。playLayout 内部本来就会在
+    // layoutSnapshot 为 undefined 时整体跳过 capture 结果对应的 FLIP/resize
+    // 计算——这里直接把它清掉，省一趟必然白做的 rect 读取和 diff。
+    if (sessionId && initialSurfaceId && pickupIndex !== null
+      && destination.columnId === initialSurfaceId && destination.index === pickupIndex) {
+      runtime.getMoveContext(sessionId).layoutSnapshot = undefined
+    }
     const beforeRect = landingProxy?.getBoundingClientRect() ?? element.getBoundingClientRect()
     sourceLease?.restoreLayoutHidden()
     delete element.dataset.runtimeActive
