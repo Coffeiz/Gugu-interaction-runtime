@@ -42,6 +42,7 @@ export { createRegisteredHitResolver } from './dom/RegisteredHit'
 export { acquireSourceVisualLease, type SourceVisualLease } from './dom/SourceVisualLease'
 export { trackLandingTarget } from './dom/LandingTargetTracker'
 export type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
+export { transitionGroupHeight } from './dom/GroupLayout'
 export { bindPointerSessionInput } from './input/PointerSessionInput'
 export type {
   PointerSessionInputOptions,

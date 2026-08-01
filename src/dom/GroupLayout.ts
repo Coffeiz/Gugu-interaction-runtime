@@ -253,13 +253,24 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
   }
 }
 
-export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING): void {
-  const currentHeight = element.getBoundingClientRect().height
+export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING, fromHeight?: number): void {
+  const currentHeight = fromHeight ?? element.getBoundingClientRect().height
+  element.dataset.runtimeGroupAnimating = 'true'
   element.style.overflow = 'hidden'
   element.style.height = `${currentHeight}px`
   element.style.transition = `height ${duration}ms ${easing}`
   requestAnimationFrame(() => { element.style.height = `${Math.max(0, targetHeight)}px` })
-  window.setTimeout(() => { element.style.height = ''; element.style.overflow = ''; element.style.transition = '' }, duration + 40)
+  window.setTimeout(() => {
+    if (targetHeight <= 0) {
+      element.style.height = '0px'
+      element.style.overflow = 'hidden'
+    } else {
+      element.style.height = ''
+      element.style.overflow = ''
+    }
+    element.style.transition = ''
+    delete element.dataset.runtimeGroupAnimating
+  }, duration + 40)
 }
 
 /** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
