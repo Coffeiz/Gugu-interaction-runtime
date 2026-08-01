@@ -59,7 +59,10 @@ function splitLayoutFlipParticipants(
     if (!scopeSurfaces || scopeSurfaces.length === 0) return true
     return scopeSurfaces.some(surface => surface === element || surface.contains(element))
   }
-  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group]')).filter(inScope)
+  // 内容 wrapper（年/月 folder）虽然通常是组标题的兄弟节点，但它同样
+  // 承担了这一组的流式位移和裁剪。若只捕获 data-layout-group，标题会做
+  // FLIP 而 folder 直接跳到新位置，表现为标题与底部内容错位/提前被裁切。
+  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group], [data-layout-content]')).filter(inScope)
   const groupLeaves: HTMLElement[] = []
   const flatCards: HTMLElement[] = []
   for (const card of cards) {
