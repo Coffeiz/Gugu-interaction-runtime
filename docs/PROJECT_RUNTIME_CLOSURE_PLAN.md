@@ -164,8 +164,10 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
   不再由 `VisualProxyCoordinator` 直接清理旧代理。
 - 已增加 `runtime.resolveLandingTarget()`，统一同步目标解析与跨 Surface DOM 等待，
   detach adapter 不再自行组合两套解析路径。
-- 待完成：将 regrab 接管和 landing 前后的布局顺序继续收进 Runtime 公共协议，并补齐
-  项目页 adapter 接入验证。
+- 已增加 `runtime.takeoverRegrab()`，统一 landing → regrab 的旧 Session 失效、
+  completion gate 清理和视觉代理失效；detach adapter 只保留 source 可见性与监听器处理。
+- 待完成：将 landing 前后的布局顺序继续收进 Runtime 公共协议，并补齐项目页 adapter
+  接入验证。
 
 ### Phase 4：迁移目标、FLIP 和滚动
 

@@ -51,6 +51,21 @@ describe('Runtime move orchestration', () => {
     expect(handler).toHaveBeenCalledWith(event)
   })
 
+  it('regrab 接管由 Runtime 统一中断旧 Session 并失效代理', () => {
+    const runtime = createRuntime()
+    const handle = runtime.start(createRequest())
+    const session = runtime.getSession(handle.id)
+    session?.transition('active')
+    session?.transition('landing')
+    const proxyDispose = vi.fn()
+    runtime.registerVisualProxy(handle.id, { element: document.createElement('div'), dispose: proxyDispose })
+
+    expect(runtime.takeoverRegrab(handle.id)).toBe(true)
+    expect(runtime.getSession(handle.id)).toBeUndefined()
+    expect(runtime.getVisualProxy(handle.id)).toBeUndefined()
+    expect(proxyDispose).toHaveBeenCalledOnce()
+  })
+
   it('Surface Lease 不允许后续 Session 覆盖当前控制权', () => {
     const runtime = createRuntime()
     const first = runtime.start(createRequest())

@@ -742,6 +742,19 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   /**
+   * 统一完成 landing → regrab 的旧 Session 接管。视觉 adapter 只处理
+   * source 可见性和监听器，旧 Session、completion gate 与 landing proxy
+   * 的失效由 Runtime 保证。
+   */
+  takeoverRegrab(sessionId: string): boolean {
+    const session = this.sessionCoordinator.get(sessionId)
+    if (!session || session.state !== 'landing') return false
+    this.interrupt(sessionId, 'regrab')
+    this.disposeVisualProxy(sessionId)
+    return true
+  }
+
+  /**
    * 绑定 active 阶段的全局 pointer 输入。pointerup 会先立即解绑监听器，再把
    * release 交回 Runtime；cancel/interrupt 时由 Session Cleanup 兜底。
    */

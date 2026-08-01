@@ -218,9 +218,8 @@ export function createDetachMoveFromAdapter(config: {
     if (!regrabContext) return
     interruptDetachRegrab({
       event: regrabContext.event, sessionId: sessionId!, proxy, source: liveEl,
-      interrupt: () => regrabContext.interrupt('regrab'),
+      interrupt: () => runtime.takeoverRegrab(sessionId!),
       clearRegrab: () => runtime.clearRegrab(objectId),
-      disposeProxy: () => runtime.disposeVisualProxy(sessionId!),
     })
     const targetRect = liveEl.getBoundingClientRect()
     // proxyRect 是带缩放/旋转的视觉外接框，不能作为新 session 的布局尺寸。
