@@ -9,19 +9,6 @@ import { captureDetachDraggingSnapshot, prepareDetachMotion, prepareDetachPickup
 import type { Runtime, RuntimeCompletionGate } from '../../Runtime'
 import type { LandingResult, MoveBehaviorDriver, MoveVisualLifecycle } from '../../behavior/MoveBehavior'
 
-/** 把 target 滚动进 column 的可视范围内（贴边对齐，不居中）。 */
-function keepElementWithinColumn(column: HTMLElement, target: HTMLElement): void {
-  const columnRect = column.getBoundingClientRect()
-  const elRect = target.getBoundingClientRect()
-  if (elRect.top < columnRect.top) {
-    const correction = -(columnRect.top - elRect.top)
-    column.scrollTo({ top: column.scrollTop + correction, behavior: 'smooth' })
-  } else if (elRect.bottom > columnRect.bottom) {
-    const correction = elRect.bottom - columnRect.bottom
-    column.scrollTo({ top: column.scrollTop + correction, behavior: 'smooth' })
-  }
-}
-
 export function createDetachMoveFromAdapter(config: {
   runtime: Runtime
   objectId: string
@@ -163,10 +150,7 @@ export function createDetachMoveFromAdapter(config: {
       if (!landedEl) {
         landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
       }
-      const scrollColumn = runtime.resolveMoveSurfaceViewport(destination.columnId)
-      if (scrollColumn) {
-        keepElementWithinColumn(scrollColumn, landedEl)
-      }
+      runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
       const targetSnapshot = captureDetachTargetSnapshot((el: HTMLElement) => runtime.captureVisualState(objectId, el), landedEl)
       const visualContext = createDetachVisualContext({
         createContext: () => runtime.createVisualLifecycleContext(sid, destination, landedEl, beforeContent!),

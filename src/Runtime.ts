@@ -548,6 +548,19 @@ setMotionProfiles(this.registry.motionProfile)
     return surface?.viewport?.() ?? surface?.element ?? null
   }
 
+  /** 将落地目标滚动到注册 Surface 的可视范围内。 */
+  keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void {
+    const viewport = this.resolveMoveSurfaceViewport(surfaceId)
+    if (!viewport || !target.isConnected) return
+    const viewportRect = viewport.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+    if (targetRect.top < viewportRect.top) {
+      viewport.scrollTo({ top: viewport.scrollTop - (viewportRect.top - targetRect.top), behavior: 'smooth' })
+    } else if (targetRect.bottom > viewportRect.bottom) {
+      viewport.scrollTo({ top: viewport.scrollTop + (targetRect.bottom - viewportRect.bottom), behavior: 'smooth' })
+    }
+  }
+
   /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */
   getObjectSurfaceIndex(objectId: string, surfaceId?: string): number {
     const object = this.objects.get(objectId)
