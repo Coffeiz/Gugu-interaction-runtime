@@ -48,6 +48,8 @@ export { setLayoutPresenceEnabled } from './dom/GroupLayout'
 export type { GroupToggleOptions } from './dom/GroupLayout'
 export { captureLayoutFlip, playLayoutFlip } from './dom/GroupLayout'
 export type { LayoutFlipSnapshot } from './dom/GroupLayout'
+export { captureCollectionPresence, playCollectionPresence } from './dom/CollectionPresence'
+export type { CollectionPresenceSnapshot, CollectionPresenceOptions } from './dom/CollectionPresence'
 export { bindPointerSessionInput } from './input/PointerSessionInput'
 export type {
   PointerSessionInputOptions,

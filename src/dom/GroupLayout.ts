@@ -1,6 +1,7 @@
 import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } from './Flip'
 import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { animateRafHeight, cancelRafHeight } from './RafLayoutAnimator'
+import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
 
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
@@ -40,6 +41,7 @@ export interface LayoutFlipSnapshot {
   /** 不属于任何分组的普通卡片（比如"进行中"列）的常规 FLIP 快照。 */
   readonly flat?: { readonly elements: HTMLElement[]; readonly before: Map<HTMLElement, DOMRect> }
   readonly surfaces: SurfaceLayoutSnapshot[]
+  readonly presence?: CollectionPresenceSnapshot
 }
 
 /**
@@ -66,6 +68,7 @@ function splitLayoutFlipParticipants(
 export function captureLayoutFlip(
   cards: readonly HTMLElement[],
   root: ParentNode = document,
+  includePresence = true,
 ): LayoutFlipSnapshot {
   // 新事务开始时先终止上一笔仍在运行的 Surface resize，避免旧 timeout
   // 在本事务中恢复过期高度。
@@ -79,6 +82,7 @@ export function captureLayoutFlip(
     group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves]) } : undefined,
     flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards) } : undefined,
     surfaces,
+    presence: includePresence ? captureCollectionPresence(root, '[data-layout-role="card"]') : undefined,
   }
   return mergePendingLayoutSnapshot(root, snapshot)
 }
@@ -88,6 +92,10 @@ export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
   if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing)
   if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing)
   playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing)
+  if (snapshot.presence) playCollectionPresence(snapshot.presence, {
+      duration: profile.flip.duration,
+      easing: profile.flip.easing,
+  })
 }
 
 /**
@@ -314,7 +322,7 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
       const rect = element.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0
     })
-  const snapshot = captureLayoutFlip(cards, options.root)
+  const snapshot = captureLayoutFlip(cards, options.root, false)
   const currentHeight = options.content.getBoundingClientRect().height
   const presenceState = layoutPresenceEnabled
     ? prepareGroupPresence(options.content, options.opening, options.duration, options.easing)
