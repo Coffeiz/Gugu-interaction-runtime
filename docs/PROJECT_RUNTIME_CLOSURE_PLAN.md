@@ -184,9 +184,12 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
   Surface/group/collection FLIP 快照入口，detach adapter 不再直接调度抓取后的初始 FLIP。
 - `runtime.runGroupToggle()` 已成为组展开/收起的统一门面，项目页不再直接调用底层
   `runGroupToggle` 函数。
-- 删除 `single.ts` 中项目页专用的 `.done-layout-root`、`animateOpen` 和目标等待分支。
+- collection presence 已作为布局快照的一部分由 Runtime FLIP 管线统一播放。
+- 已完成的部分已覆盖目标等待、同列/跨列落点、Surface viewport 滚动、列尾 rAF FLIP、
+  group resize、collection presence 和快速连续事务。
+- 待完成：删除项目页 `single.ts` 中残留的 `.done-layout-root`、`animateOpen` 和旧目标等待分支。
 
-### Phase 5：删除项目页旧编排
+### Phase 5：删除项目页旧编排（进行中）
 
 - 删除项目页直接传入的 legacy deps。
 - 删除项目页对 `flipCoordinator`、`clone`、`landing`、`morphLifecycle` 的直接调用。
