@@ -41,28 +41,29 @@ export function acquireSourceVisualLease(
   sourceLeases.set(element, record)
 
   const owns = (): boolean => sourceLeases.get(element) === record
-  const write = (callback: () => void): boolean => {
-    if (!owns()) return false
-    callback()
-    return true
-  }
 
   return {
     element,
     sessionId,
-    detachFromLayout: () => write(() => {
+    detachFromLayout: () => {
+      if (!owns()) return false
       element.style.display = 'none'
       element.style.pointerEvents = 'none'
-    }),
-    restoreLayoutHidden: () => write(() => {
+      return true
+    },
+    restoreLayoutHidden: () => {
+      if (!owns()) return false
       element.style.display = ''
       element.style.visibility = 'hidden'
       element.style.pointerEvents = 'none'
-    }),
-    restore: () => write(() => {
+      return true
+    },
+    restore: () => {
+      if (!owns()) return false
       element.style.cssText = record.cssText
       sourceLeases.delete(element)
-    }),
+      return true
+    },
     isOwner: owns,
   }
 }

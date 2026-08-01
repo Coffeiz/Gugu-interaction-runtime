@@ -225,8 +225,16 @@ export function createDetachMoveFromAdapter(config: {
       if (ctx.session.state !== 'prepare') return
       runtime.objects.setElement(objectId, element)
       // 取消回飞可能在下一次抓取前仍处于收尾阶段；新 session 接管时必须
-      // 先让 source 重新可见，避免新旧视觉对象同时隐藏或叠加。
+      // 先让 source 重新可见，避免新旧视觉对象同时隐藏或叠加。regrab 打断
+      // 的是"落地中"的旧 session：它的 commit() 已经跑过
+      // restoreLayoutHidden()，把 pointer-events 也设成了 none（配合
+      // visibility:hidden 让 landing proxy 接管交互）。旧 session 被中断时
+      // 来不及跑自己的 cancel()/restore() 清掉这份样式，这里如果只重置
+      // visibility、不重置 pointer-events，紧接着 acquireSourceVisualLease
+      // 会把这份带着 pointer-events:none 的脏样式当成"原始态"存下来，
+      // 事务结束后 restore() 精确恢复到这份脏基准，卡片从此再也点不到。
       element.style.visibility = ''
+      element.style.pointerEvents = ''
       objectLease = runtime.acquireObject(sessionId!, objectId)
       runtime.takeSurfaces(sessionId!, surfaceIds)
       const { beforePickup } = prepareDetachPickup(element, registeredElements)
