@@ -176,6 +176,15 @@ runtime.configureMotion({
 `group` 控制分组展开/收起。所有字段可选，未设置时回退到 Runtime 默认值。
 推荐在应用初始化时调用一次。
 
+如果分组展开/收起时还需要卡片淡入淡出，可开启布局 presence：
+
+```ts
+runtime.configureVisual({ layoutPresence: true })
+```
+
+该选项不新增 enter/leave 参数，淡入淡出直接复用 `group` 的时长和缓动；
+兄弟卡片位移继续使用 `flip` 配置。默认关闭，不会改变未启用该选项的列表。
+
 **4. 给对象打上可识别的标记**（供 hit test 用，见“已知限制”）
 
 ```html
@@ -467,7 +476,21 @@ Surface 的 resize 速度由 `MotionProfile.resize` 控制，组展开/收起速
 `MotionProfile.group` 控制。业务不要在同一 Surface 上自行写 `height`、
 `transform` 或 `transition`，以免和 Runtime 的布局事务竞争。
 
-在业务提交前捕获、提交后播放即可：
+如果业务只需要切换一个布局组，推荐直接使用 Runtime 的组切换编排：
+
+```ts
+await runGroupToggle({
+  root,
+  content: monthContent,
+  opening,
+  mutate: () => toggleGroup(monthKey),
+  waitForLayout: nextTick,
+  isCurrent: () => token === currentToken,
+})
+```
+
+Runtime 会统一完成捕获、等待布局、组高度动画、兄弟 FLIP 和可选的 presence。
+业务不需要重复实现以下低层调用。只有需要拆分事务时，才直接使用捕获/播放 API：
 
 ```ts
 import { captureLayoutFlip, playLayoutFlip } from '{path-to}/dom/GroupLayout'

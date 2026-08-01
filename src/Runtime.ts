@@ -29,7 +29,7 @@ import { RuntimeInputCoordinator, RuntimeDispatcher } from './runtime/RuntimeInp
 import { RuntimeMoveCoordinator, type MoveReleasePort } from './runtime/RuntimeMove'
 import { setDefaultDraggingGlassEnabled } from './dom/Visual'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
-import { setMotionProfiles } from './dom/GroupLayout'
+import { setLayoutPresenceEnabled, setMotionProfiles } from './dom/GroupLayout'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -245,8 +245,9 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   /** 配置 Runtime 默认代理视觉；业务也可以完全关闭并由 VisualAdapter 自行绘制。 */
-  configureVisual(config: { dragGlass?: boolean }): void {
+  configureVisual(config: { dragGlass?: boolean; layoutPresence?: boolean }): void {
     if (config.dragGlass !== undefined) setDefaultDraggingGlassEnabled(config.dragGlass)
+    if (config.layoutPresence !== undefined) setLayoutPresenceEnabled(config.layoutPresence)
   }
 
   getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null {

@@ -4,9 +4,11 @@ import { animateRafHeight, cancelRafHeight } from './RafLayoutAnimator'
 
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
+let layoutPresenceEnabled = false
 export function setMotionProfiles(profile: MotionProfile | null): void {
   currentProfile = profile
 }
+export function setLayoutPresenceEnabled(enabled: boolean): void { layoutPresenceEnabled = enabled }
 
 /** 读取全局 MotionProfile，不存在时返回默认值。 */
 function resolveProfile(): { flip: { duration: number; easing: string }; resize: { duration: number; easing: string } } {
@@ -300,18 +302,52 @@ export interface GroupToggleOptions {
 
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
 export async function runGroupToggle(options: GroupToggleOptions): Promise<void> {
-  const cards = Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item, [data-card]'))
+  const cardNodes = Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item'))
+  const cards = (cardNodes.length > 0 ? cardNodes : Array.from(options.root.querySelectorAll<HTMLElement>('[data-card]')))
     .filter(element => {
       const rect = element.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0
     })
   const snapshot = captureLayoutFlip(cards, options.root)
   const currentHeight = options.content.getBoundingClientRect().height
+  const presenceState = layoutPresenceEnabled
+    ? prepareGroupPresence(options.content, options.opening, options.duration, options.easing)
+    : null
   options.mutate()
   await options.waitForLayout()
   if (options.isCurrent && !options.isCurrent()) return
   transitionGroupHeight(options.content, options.opening ? options.content.scrollHeight : 0, options.duration, options.easing, currentHeight)
+  if (presenceState) playGroupPresence(presenceState, options.opening)
   playLayoutFlip(snapshot)
+}
+
+interface GroupPresenceState { content: HTMLElement; elements: HTMLElement[]; token: string; duration: number }
+
+function prepareGroupPresence(content: HTMLElement, opening: boolean, duration = FLIP_DURATION, easing = FLIP_EASING): GroupPresenceState {
+  const elements = Array.from(content.querySelectorAll<HTMLElement>('.done-card-item'))
+  const token = String(Number(content.dataset.runtimePresenceToken ?? '0') + 1)
+  content.dataset.runtimePresenceToken = token
+  elements.forEach(element => {
+    if (opening) element.style.opacity = '0'
+  })
+  return { content, elements, token, duration }
+}
+
+function playGroupPresence(state: GroupPresenceState, opening: boolean): void {
+  const { content, elements, token, duration } = state
+  requestAnimationFrame(() => {
+    if (content.dataset.runtimePresenceToken !== token) return
+    elements.forEach(element => {
+      element.animate(
+        [{ opacity: opening ? 0 : 1 }, { opacity: opening ? 1 : 0 }],
+        { duration, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' },
+      )
+    })
+  })
+  window.setTimeout(() => {
+    if (content.dataset.runtimePresenceToken !== token) return
+    elements.forEach(element => { element.style.opacity = '' })
+  }, duration + 40)
 }
 
 /** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
