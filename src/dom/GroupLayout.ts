@@ -123,6 +123,9 @@ export function captureLayoutFlip(
 
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
   const profile = resolveProfile()
+  const groupClip = snapshot.group
+    ? releaseGroupClip(snapshot.group.before)
+    : null
   if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing)
   if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing)
   playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing)
@@ -130,6 +133,44 @@ export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
       duration: profile.flip.duration,
       easing: profile.flip.easing,
   })
+  if (groupClip) restoreGroupClip(groupClip, profile.flip.duration + 50)
+}
+
+interface GroupClipState {
+  readonly token: string
+  readonly entries: ReadonlyArray<{ element: HTMLElement; overflow: string }>
+}
+
+const groupClipStates = new WeakMap<ParentNode, GroupClipState>()
+let groupClipSequence = 0
+
+function releaseGroupClip(before: readonly GroupLayoutSnapshot[]): GroupClipState | null {
+  const entries = before
+    .filter(item => item.rect.height > 0)
+    .map(item => ({ element: item.element, overflow: item.element.style.overflow }))
+    .filter(item => item.element.isConnected)
+    // 组展开/收起自身已经由 transitionGroupHeight 接管 overflow:hidden；
+    // 这里不能覆盖它，否则收起时内容会直接消失而不是从底部向上收缩。
+    .filter(item => item.element.dataset.runtimeGroupAnimating !== 'true')
+    .filter(item => getComputedStyle(item.element).overflow !== 'visible')
+  if (entries.length === 0) return null
+  const root = entries[0].element.getRootNode() as ParentNode
+  const previous = groupClipStates.get(root)
+  previous?.entries.forEach(({ element, overflow }) => { element.style.overflow = overflow })
+  entries.forEach(({ element }) => { element.style.overflow = 'visible' })
+  const state = { token: String(++groupClipSequence), entries }
+  groupClipStates.set(root, state)
+  return state
+}
+
+function restoreGroupClip(state: GroupClipState, delay: number): void {
+  const root = state.entries[0]?.element.getRootNode() as ParentNode | undefined
+  if (!root) return
+  window.setTimeout(() => {
+    if (groupClipStates.get(root)?.token !== state.token) return
+    state.entries.forEach(({ element, overflow }) => { element.style.overflow = overflow })
+    groupClipStates.delete(root)
+  }, delay)
 }
 
 /**
