@@ -69,6 +69,13 @@ export function captureLayoutFlip(
   cards: readonly HTMLElement[],
   root: ParentNode = document,
   includePresence = true,
+  /**
+   * 正在被 Runtime 接管（抓取中/落地中）的对象要从 collection 入场/离场
+   * 判断里排除——整段生命周期都要排除，不能靠 dataset.runtimeActive 这类
+   * 会在松手瞬间就被提前清掉的标记来判断（比落地动画结束早得多）。调用方
+   * 在抓取→落地全程都拿得到确定的源节点引用，直接传进来最可靠。
+   */
+  presenceIgnore?: (element: HTMLElement) => boolean,
 ): LayoutFlipSnapshot {
   // 新事务开始时先终止上一笔仍在运行的 Surface resize，避免旧 timeout
   // 在本事务中恢复过期高度。
@@ -82,7 +89,7 @@ export function captureLayoutFlip(
     group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves]) } : undefined,
     flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards) } : undefined,
     surfaces,
-    presence: includePresence ? captureCollectionPresence(root, '[data-layout-role="card"]') : undefined,
+    presence: includePresence ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore) : undefined,
   }
   return mergePendingLayoutSnapshot(root, snapshot)
 }

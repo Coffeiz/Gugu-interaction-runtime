@@ -9,6 +9,8 @@ export interface CollectionPresenceSnapshot {
     rect: { left: number; top: number; width: number; height: number }
     content: HTMLElement
   }>
+  /** capture 时登记的忽略判断，play 阶段必须用同一份，否则两边判断口径不一致。 */
+  readonly ignore?: (element: HTMLElement) => boolean
 }
 
 export interface CollectionPresenceOptions {
@@ -28,8 +30,7 @@ function defaultKey(element: HTMLElement): string {
  * 时，key 本身没变，但物理上是旧 collection 里的节点被销毁、新 collection
  * 里创建了一个全新节点，只是恰好同名。这种情况必须能识别出来，按"旧
  * collection 离场 + 新 collection 入场"处理，不能因为 key 还在就当无事发生。
- */
-/**
+ *
  * 卡片是不是挂在一个折叠着的年/月分组里（`.month-folder`/`.year-folder`
  * `[data-layout-open="false"]`）。折叠分组用 `height:0; overflow:hidden`
  * 裁切，但里面的卡片作为普通流内子元素，自己的 `getBoundingClientRect()`
@@ -59,10 +60,18 @@ export function captureCollectionPresence(
   root: ParentNode,
   selector: string,
   key: (element: HTMLElement) => string = defaultKey,
+  ignore?: (element: HTMLElement) => boolean,
 ): CollectionPresenceSnapshot {
   const collectionByKey = new Map<string, string>()
   const entries = Array.from(root.querySelectorAll<HTMLElement>(selector))
     .map(element => {
+      // 正在被 Runtime 接管的对象（抓取中/落地中）不参与 presence 判断——
+      // 它自己的呈现由拖拽/落地动画控制，不该被这套跟它无关的入场/离场
+      // 动画打断。dataset.runtimeActive 这类标记会在松手瞬间就被提前清掉
+      // （比落地动画结束早得多），不能拿来在 capture/play 时判断"是不是
+      // 还在交互中"；调用方（DetachMoveDriver）在整段抓取→落地生命周期内
+      // 都能拿到确定的源节点引用，直接把它传进来最可靠。
+      if (ignore?.(element)) return null
       const resolved = resolveCollectionCard(element)
       if (!resolved) return null
       const id = key(element)
@@ -77,7 +86,7 @@ export function captureCollectionPresence(
       }
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-  return { root, selector, collectionByKey, entries }
+  return { root, selector, collectionByKey, entries, ignore }
 }
 
 export function playCollectionPresence(
@@ -90,6 +99,7 @@ export function playCollectionPresence(
   const currentCollectionByKey = new Map<string, string>()
   const current = Array.from(snapshot.root.querySelectorAll<HTMLElement>(snapshot.selector))
     .filter(element => {
+      if (snapshot.ignore?.(element)) return false
       const resolved = resolveCollectionCard(element)
       if (!resolved) return false
       const id = key(element)
@@ -116,7 +126,6 @@ export function playCollectionPresence(
   // 通常很近——两个不同尺寸的动画紧挨着同时播放，视觉上会像"中间变形"，
   // 反而比不放幽灵更让人困惑。这种情况只留入场淡入，不放离场幽灵。
   snapshot.entries.forEach(entry => {
-    if (entry.element.dataset.runtimeActive === 'true') return
     // 只要卡片还能在任何 collection 里找到（不管有没有换），就不是"消失"，
     // 不需要离场幽灵。
     if (currentCollectionByKey.has(entry.key)) return

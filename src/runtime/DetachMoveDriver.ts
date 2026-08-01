@@ -64,6 +64,16 @@ export interface DetachPickupPreparation {
 
 
 
+/**
+ * 正被拖拽/落地的源节点整段生命周期都不该参与 collection 入场/离场判断，
+ * 这段判断跟"抓在手里"还是"正在落地"无关，只要还没交接完就一直排除；
+ * `.contains` 覆盖 presence 包裹层是源节点祖先的情况（比如 Teleport 传送
+ * 前后，包裹层和源节点还是同一棵子树）。
+ */
+function ignoreDetachSource(sourceElement: HTMLElement): (element: HTMLElement) => boolean {
+  return element => element === sourceElement || element.contains(sourceElement)
+}
+
 export function prepareDetachPickup(
   sourceElement: HTMLElement,
   registeredElements: () => HTMLElement[],
@@ -71,7 +81,7 @@ export function prepareDetachPickup(
   const beforeContent = sourceElement.cloneNode(true) as HTMLElement
   const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
-  return { beforeContent, beforePickup: captureLayoutFlip(cards) }
+  return { beforeContent, beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement)) }
 }
 
 
@@ -154,7 +164,7 @@ export function cancelDetachWithoutDrop(args: {
   document.body.classList.remove('kb-dragging')
   const returnCards = args.registeredElements()
     .filter(element => element !== args.source && element.dataset.runtimeProxy !== 'true')
-  const returnBefore = captureLayoutFlip(returnCards)
+  const returnBefore = captureLayoutFlip(returnCards, document, true, ignoreDetachSource(args.source))
   args.cancel()
   args.clearFloating(args.source)
   args.clearActive()
@@ -326,6 +336,9 @@ export function createDetachLayoutLifecycle(
       return captureLayoutFlip(
         registeredElements()
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
+        document,
+        true,
+        ignoreDetachSource(sourceEl),
       )
     },
     play: (_context: unknown, snapshot: unknown, useRaf = false) => {
