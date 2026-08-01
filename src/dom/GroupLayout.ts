@@ -5,6 +5,7 @@ import { animateRafHeight, cancelRafHeight } from './RafLayoutAnimator'
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
 let layoutPresenceEnabled = false
+const groupToggleTokens = new WeakMap<HTMLElement, number>()
 export function setMotionProfiles(profile: MotionProfile | null): void {
   currentProfile = profile
 }
@@ -263,6 +264,8 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
 
 export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING, fromHeight?: number): void {
   const currentHeight = fromHeight ?? element.getBoundingClientRect().height
+  const heightToken = String(Number(element.dataset.runtimeGroupToken ?? '0') + 1)
+  element.dataset.runtimeGroupToken = heightToken
   // 分组高度按位移决定时长：小月份保持轻快，大分组不会在缓出曲线前段
   // 一次性完成。duration 作为基准上限，保留最小值避免小组过快。
   const distance = Math.abs(Math.max(0, targetHeight) - currentHeight)
@@ -277,6 +280,7 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
   void element.offsetHeight
   requestAnimationFrame(() => { element.style.height = `${Math.max(0, targetHeight)}px` })
   window.setTimeout(() => {
+    if (element.dataset.runtimeGroupToken !== heightToken) return
     if (targetHeight <= 0) {
       element.style.height = '0px'
       element.style.overflow = 'hidden'
@@ -302,6 +306,8 @@ export interface GroupToggleOptions {
 
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
 export async function runGroupToggle(options: GroupToggleOptions): Promise<void> {
+  const token = (groupToggleTokens.get(options.content) ?? 0) + 1
+  groupToggleTokens.set(options.content, token)
   const cardNodes = Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item'))
   const cards = (cardNodes.length > 0 ? cardNodes : Array.from(options.root.querySelectorAll<HTMLElement>('[data-card]')))
     .filter(element => {
@@ -315,6 +321,7 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
     : null
   options.mutate()
   await options.waitForLayout()
+  if (groupToggleTokens.get(options.content) !== token) return
   if (options.isCurrent && !options.isCurrent()) return
   transitionGroupHeight(options.content, options.opening ? options.content.scrollHeight : 0, options.duration, options.easing, currentHeight)
   if (presenceState) playGroupPresence(presenceState, options.opening)
