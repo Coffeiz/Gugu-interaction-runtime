@@ -54,7 +54,7 @@ export class RuntimeMoveCoordinator {
     }
     const session = preflight.session
     const behavior = port.getBehavior(session.type)
-    if (behavior instanceof MoveBehavior) behavior.captureLayout(port.createContext(session))
+    if (behavior instanceof MoveBehavior) port.captureLayout(session.id)
     let result: unknown
     try {
       result = await behavior?.release?.(port.createContext(session), input)
@@ -129,6 +129,8 @@ export interface MoveReleasePort {
   getSession(sessionId: string): Session | undefined
   getBehavior(type: string): Behavior | undefined
   createContext(session: Session): BehaviorContext
+  captureLayout(sessionId: string): void
+  playLayout(sessionId: string, useRaf?: boolean): void
   cancel(sessionId: string, reason: string): void
   end(session: Session): void
 }
@@ -159,6 +161,7 @@ export class MoveReleaseCoordinator {
 export interface MoveCommitPort {
   createContext(session: Session): BehaviorContext
   getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined
+  playLayout(sessionId: string, useRaf?: boolean): void
   normalize(objectId: string, destination: unknown): MoveActionDestination | null
   /** 目标 Surface 当前的对象数（用于列尾判定兜底：toIndex >= count 即追加）。 */
   getSurfaceObjectCount?(surfaceId: string): number
@@ -200,9 +203,9 @@ export class MoveCommitCoordinator {
       // 不需要等 Vue patch，DOM 已经是回弹后的真实位置，可以直接量。
       const isAppend = this.resolveIsAppend(session.objectId, normalized)
       if (isAppend) {
-        behavior.playLayoutOnRaf(context)
+        this.port.playLayout(session.id, true)
       } else {
-        behavior.playLayout(context)
+        this.port.playLayout(session.id)
       }
       return
     }
@@ -236,9 +239,9 @@ export class MoveCommitCoordinator {
     //    也是最终布局，不顶动。
     const isAppend = this.resolveIsAppend(session.objectId, normalized)
     if (isAppend) {
-      behavior.playLayoutOnRaf(context)
+      this.port.playLayout(session.id, true)
     } else {
-      behavior.playLayout(context)
+      this.port.playLayout(session.id)
     }
   }
 }

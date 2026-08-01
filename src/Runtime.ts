@@ -186,6 +186,7 @@ export class Runtime {
     this.moveCommit = new MoveCommitCoordinator({
       createContext: session => this.createBehaviorContext(session),
       getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
+      playLayout: (sessionId, useRaf) => this.playMoveLayout(sessionId, useRaf),
       normalize: (objectId, destination) => this.moveActions.normalize(objectId, destination),
       getSurfaceObjectCount: surfaceId =>
         [...this.objects.values()].filter(item => item.surfaceId === surfaceId).length,
@@ -627,6 +628,22 @@ setMotionProfiles(this.registry.motionProfile)
     return this.moveBehavior.getContext(sessionId)
   }
 
+  /** 由 Runtime 统一捕获当前移动事务的布局快照。 */
+  captureMoveLayout(sessionId: string): void {
+    const session = this.sessionCoordinator.get(sessionId)
+    const behavior = session ? this.behaviors.get(session.type) : undefined
+    if (!(behavior instanceof MoveBehavior) || !session) return
+    behavior.captureLayout(this.createBehaviorContext(session))
+  }
+
+  /** 由 Runtime 统一播放移动事务的布局 FLIP。 */
+  playMoveLayout(sessionId: string, useRaf = false): void {
+    const session = this.sessionCoordinator.get(sessionId)
+    const behavior = session ? this.behaviors.get(session.type) : undefined
+    if (!(behavior instanceof MoveBehavior) || !session) return
+    behavior.playLayout(this.createBehaviorContext(session), useRaf)
+  }
+
   resolveMoveTarget(
     sessionId: string,
     destination: unknown,
@@ -895,6 +912,8 @@ setMotionProfiles(this.registry.motionProfile)
       getSession: id => this.sessionCoordinator.get(id),
       getBehavior: type => this.behaviors.get(type),
       createContext: session => this.createBehaviorContext(session),
+      captureLayout: id => this.captureMoveLayout(id),
+      playLayout: (id, useRaf) => this.playMoveLayout(id, useRaf),
       cancel: (id, reason) => this.cancel(id, reason),
       end: session => this.endSession(session),
     }

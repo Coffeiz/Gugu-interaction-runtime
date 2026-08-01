@@ -178,6 +178,8 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
 - 将 surface FLIP、group FLIP、collection presence 和 resize 排序统一编排。
 - keep-visible 已收进 `runtime.keepSurfaceTargetVisible()`，并增加 Surface viewport 回归测试；
   AutoScroll 已收进 `runtime.createAutoScroller()`，控制器生命周期绑定当前 Session。
+- `captureMoveLayout()` / `playMoveLayout()` 已作为 Runtime 门面，`RuntimeMoveCoordinator`
+  不再直接驱动 `MoveBehavior` 的布局播放。
 - 删除 `single.ts` 中项目页专用的 `.done-layout-root`、`animateOpen` 和目标等待分支。
 
 ### Phase 5：删除项目页旧编排
