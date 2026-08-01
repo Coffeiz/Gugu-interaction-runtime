@@ -120,6 +120,8 @@ export interface RegrabContext {
   readonly proxyElement: HTMLElement
   readonly sourceElement: HTMLElement
   readonly proxyRect: DOMRect
+  /** 代理当前屏幕位置配合真实节点的未变换布局尺寸，供新 session 接管。 */
+  readonly regrabRect: DOMRect
   interrupt(reason?: string): void
 }
 
@@ -672,13 +674,55 @@ setMotionProfiles(this.registry.motionProfile)
   ): RegrabContext | null {
     const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return null
+    const surface = sourceElement.closest<HTMLElement>('[data-layout-surface], .col-body')
+    const proxyRect = proxyElement.getBoundingClientRect()
+    const sourceRect = sourceElement.getBoundingClientRect()
+    const layoutWidth = sourceElement.offsetWidth || sourceRect.width
+    const layoutHeight = sourceElement.offsetHeight || sourceRect.height
+    const regrabRect = new DOMRect(proxyRect.left, proxyRect.top, layoutWidth, layoutHeight)
+    console.log('[runtime-regrab-probe]', JSON.stringify({
+      phase: 'context-created',
+      sessionId,
+      objectId: session.objectId,
+      state: session.state,
+      proxy: {
+        connected: proxyElement.isConnected,
+        rect: proxyRect.toJSON(),
+        inlineWidth: proxyElement.style.width,
+        inlineHeight: proxyElement.style.height,
+        transform: getComputedStyle(proxyElement).transform,
+      },
+      regrabRect: {
+        left: regrabRect.left,
+        top: regrabRect.top,
+        width: regrabRect.width,
+        height: regrabRect.height,
+      },
+      source: {
+        connected: sourceElement.isConnected,
+        rect: sourceElement.getBoundingClientRect().toJSON(),
+        inlineHeight: sourceElement.style.height,
+        inlineTransform: sourceElement.style.transform,
+        visibility: getComputedStyle(sourceElement).visibility,
+      },
+      surface: surface ? {
+        className: surface.className,
+        rect: surface.getBoundingClientRect().toJSON(),
+        scrollTop: 'scrollTop' in surface ? surface.scrollTop : null,
+        scrollHeight: 'scrollHeight' in surface ? surface.scrollHeight : null,
+        inlineHeight: surface.style.height,
+        inlineOverflow: surface.style.overflow,
+      } : null,
+      time: performance.now(),
+    }))
     return {
       sessionId,
       objectId: session.objectId,
       event,
       proxyElement,
       sourceElement,
-      proxyRect: proxyElement.getBoundingClientRect(),
+      proxyRect,
+      regrabRect,
       interrupt: reason => this.interrupt(sessionId, reason ?? 'regrab'),
     }
   }

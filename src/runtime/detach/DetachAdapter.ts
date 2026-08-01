@@ -236,7 +236,10 @@ export function createDetachMoveFromAdapter(config: {
       disposeProxy: () => runtime.disposeVisualProxy(sessionId!),
     })
     const targetRect = liveEl.getBoundingClientRect()
-    runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.proxyRect, targetRect)
+    // proxyRect 是带缩放/旋转的视觉外接框，不能作为新 session 的布局尺寸。
+    // Runtime 已将代理位置与真实节点的未变换尺寸合成为 regrabRect，避免
+    // regrab 时再次叠加 3D 姿态导致卡片变高、底部出现空白。
+    runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.regrabRect, targetRect)
   }
 
   const driver: MoveBehaviorDriver = {
