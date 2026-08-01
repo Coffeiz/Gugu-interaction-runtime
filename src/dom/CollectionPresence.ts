@@ -9,7 +9,8 @@ export interface CollectionPresenceSnapshot {
     key: string
     element: HTMLElement
     rect: { left: number; top: number; width: number; height: number }
-    content: HTMLElement
+    /** Serialized lazily materialized ghost content for true exits. */
+    contentHTML: string
   }>
   /** capture 时登记的忽略判断，play 阶段必须用同一份，否则两边判断口径不一致。 */
   readonly ignore?: (element: HTMLElement) => boolean
@@ -65,6 +66,26 @@ function isWithinScope(element: HTMLElement, surfaces?: readonly HTMLElement[]):
   return surfaces.some(surface => surface === element || surface.contains(element))
 }
 
+function queryScopedElements(root: ParentNode, selector: string, surfaces?: readonly HTMLElement[]): HTMLElement[] {
+  if (!surfaces || surfaces.length === 0) {
+    return Array.from(root.querySelectorAll<HTMLElement>(selector))
+  }
+  const result: HTMLElement[] = []
+  const seen = new Set<HTMLElement>()
+  for (const surface of surfaces) {
+    if (surface.matches(selector) && !seen.has(surface)) {
+      seen.add(surface)
+      result.push(surface)
+    }
+    surface.querySelectorAll<HTMLElement>(selector).forEach(element => {
+      if (seen.has(element)) return
+      seen.add(element)
+      result.push(element)
+    })
+  }
+  return result
+}
+
 export function captureCollectionPresence(
   root: ParentNode,
   selector: string,
@@ -74,7 +95,7 @@ export function captureCollectionPresence(
   measurement?: LayoutMeasurement,
 ): CollectionPresenceSnapshot {
   const collectionByKey = new Map<string, string>()
-  const entries = Array.from(root.querySelectorAll<HTMLElement>(selector))
+  const entries = queryScopedElements(root, selector, scopeSurfaces)
     .map(element => {
       // 正在被 Runtime 接管的对象（抓取中/落地中）不参与 presence 判断——
       // 它自己的呈现由拖拽/落地动画控制，不该被这套跟它无关的入场/离场
@@ -94,7 +115,7 @@ export function captureCollectionPresence(
         key: id,
         element,
         rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-        content: element.cloneNode(true) as HTMLElement,
+        contentHTML: element.outerHTML,
       }
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
@@ -110,7 +131,7 @@ export function playCollectionPresence(
   const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
   const key = options.key ?? defaultKey
   const currentCollectionByKey = new Map<string, string>()
-  const current = Array.from(snapshot.root.querySelectorAll<HTMLElement>(snapshot.selector))
+  const current = queryScopedElements(snapshot.root, snapshot.selector, snapshot.scopeSurfaces)
     .filter(element => {
       if (snapshot.ignore?.(element)) return false
       if (!isWithinScope(element, snapshot.scopeSurfaces)) return false
@@ -143,7 +164,10 @@ export function playCollectionPresence(
     // 只要卡片还能在任何 collection 里找到（不管有没有换），就不是"消失"，
     // 不需要离场幽灵。
     if (currentCollectionByKey.has(entry.key)) return
-    const ghost = entry.content
+    const template = document.createElement('template')
+    template.innerHTML = entry.contentHTML
+    const ghost = template.content.firstElementChild as HTMLElement | null
+    if (!ghost) return
     const rect = entry.rect
     ghost.style.position = 'fixed'
     ghost.style.left = `${rect.left}px`
