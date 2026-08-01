@@ -43,6 +43,8 @@ export { acquireSourceVisualLease, type SourceVisualLease } from './dom/SourceVi
 export { trackLandingTarget } from './dom/LandingTargetTracker'
 export type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
 export { transitionGroupHeight } from './dom/GroupLayout'
+export { captureLayoutFlip, playLayoutFlip } from './dom/GroupLayout'
+export type { LayoutFlipSnapshot } from './dom/GroupLayout'
 export { bindPointerSessionInput } from './input/PointerSessionInput'
 export type {
   PointerSessionInputOptions,

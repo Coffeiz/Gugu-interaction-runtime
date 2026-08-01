@@ -184,8 +184,14 @@ function readRect(element: HTMLElement): GroupRect {
 }
 
 export function captureGroupLayout(elements: readonly HTMLElement[]): GroupLayoutSnapshot[] {
-  const groupSet = new Set(elements)
-  return elements.map(element => ({
+  // display:none 的折叠子树没有有效的上一帧坐标；若把零矩形带进 FLIP，
+  // 打开时会被误算成从视口左上角飞入。
+  const visible = elements.filter(element => {
+    const rect = element.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0
+  })
+  const groupSet = new Set(visible)
+  return visible.map(element => ({
     element,
     parent: findGroupParent(element, groupSet),
     rect: readRect(element),
