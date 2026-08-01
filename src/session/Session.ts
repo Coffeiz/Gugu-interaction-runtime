@@ -86,9 +86,15 @@ export class Session {
   interrupt(reason: SessionEndReason = 'cancel') {
     this.endReason = reason
     if (reason === 'regrab') {
-      // regrab 时跳过视觉 cleanup：proxy/landing visual 由新 session 接管。
-      // 但仍必须经过 interrupt，不能把 release/landing 直接伪装成 done；
-      // 否则 release → done 不在合法转换表中，会让快速 regrab 抛异常。
+      // regrab 时落地代理（proxy DOM 节点）由新 session 接管——它从来不经过
+      // cleanup 追踪（销毁是 disposeVisualProxy() 单独处理的），所以调用
+      // cleanup.disposeAll() 不会影响代理交接。但 cleanup 里登记的其它资源
+      // （trackLandingTarget 的 rAF 轮询、regrab 的 pointerdown 监听、
+      // autoScroll）都是这个旧 session 独有的，新 session 会各自重新建一套，
+      // 不会复用旧的——如果不清理，这些 rAF 循环/监听器会永久残留，泄漏到
+      // 页面刷新为止。仍必须先经过 interrupt，不能把 release/landing 直接
+      // 伪装成 done；否则 release → done 不在合法转换表中，会让快速 regrab
+      // 抛异常。
       if (this.state === 'disposed') return
       if (this.state !== 'interrupt' && this.state !== 'cancelled' && this.state !== 'done') {
         this.transition('interrupt')
@@ -98,6 +104,7 @@ export class Session {
       }
       this.leases.forEach(lease => lease.release())
       this.leases = []
+      this.cleanup.disposeAll()
       return
     }
     if (

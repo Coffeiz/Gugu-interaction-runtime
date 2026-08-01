@@ -19,14 +19,23 @@ export interface LandingTargetTrackerOptions {
  * 2. rAF 轮询 — 检测 FLIP transform 导致的位移（ResizeObserver 感知不到
  *    transform 变化，兄弟卡 FLIP 位移时目标尺寸不变但屏幕位置变了）
  */
+let activeTrackerCount = 0
+let trackerSeq = 0
+
 export function trackLandingTarget(options: LandingTargetTrackerOptions): () => void {
   let observer: ResizeObserver | null = null
   let rafId: number | null = null
   let disposed = false
+  const id = ++trackerSeq
+  const startedAt = performance.now()
+  activeTrackerCount += 1
+  console.info('[probe:landing-tracker] start', JSON.stringify({ id, active: activeTrackerCount }))
 
   const stop = (): void => {
     if (disposed) return
     disposed = true
+    activeTrackerCount -= 1
+    console.info('[probe:landing-tracker] stop', JSON.stringify({ id, active: activeTrackerCount, lifetimeMs: Math.round(performance.now() - startedAt) }))
     if (rafId !== null) cancelAnimationFrame(rafId)
     rafId = null
     observer?.disconnect()

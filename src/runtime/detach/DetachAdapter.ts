@@ -9,6 +9,12 @@ import { captureDetachDraggingSnapshot, prepareDetachMotion, prepareDetachPickup
 import type { Runtime, RuntimeCompletionGate } from '../../Runtime'
 import type { LandingResult, MoveBehaviorDriver, MoveVisualLifecycle } from '../../behavior/MoveBehavior'
 
+/** 临时诊断专用：console 打点 + performance.mark，方便跟 Performance 面板的 trace 对上号。 */
+function markProbe(name: string, detail: Record<string, unknown>): void {
+  console.info(`[probe:${name}]`, JSON.stringify(detail))
+  performance.mark(`probe:${name}`, { detail })
+}
+
 /** 把 target 滚动进 column 的可视范围内（贴边对齐，不居中）。 */
 function keepElementWithinColumn(column: HTMLElement, target: HTMLElement): void {
   const columnRect = column.getBoundingClientRect()
@@ -195,6 +201,7 @@ export function createDetachMoveFromAdapter(config: {
   }
 
   function onRegrab(regrabEvent: PointerEvent) {
+    markProbe('regrab-fired', { objectId, interruptedSessionId: sessionId, sessionState: getSessionState() })
     if (getSessionState() !== 'landing') return
     const proxy = landingProxy
     if (!proxy || !sessionId) return
@@ -218,6 +225,7 @@ export function createDetachMoveFromAdapter(config: {
   const driver: MoveBehaviorDriver = {
     prepare(ctx) {
       sessionId = ctx.session.id
+      markProbe('prepare', { objectId, sessionId, sessionState: ctx.session.state })
       pointerMoved = false
       autoScroller = createAutoScroller(ctx.session.cleanup, {
         onScroll: point => updateDropFromPoint(point.x, point.y),
@@ -330,6 +338,7 @@ export function createDetachMoveFromAdapter(config: {
       scheduleLanding: () => { landingPlan?.(); landingPlan = null },
       clearRegrab: () => runtime.clearRegrab(objectId),
       finishReveal: () => {
+        markProbe('finish-reveal', { objectId, sessionId })
         if (landingProxy) setProxyInteractive(landingProxy, false)
         // landing 完成后再保险清理一次 floatingProxy，防止 commit 时 element 已
         // 被 Vue 重渲染导致 WeakMap 查不到而漏掉。

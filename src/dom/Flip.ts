@@ -44,6 +44,8 @@ export function playFlip(
   duration = FLIP_DURATION,
   easing = FLIP_EASING,
 ): void {
+  console.info('[probe:flip-play-flat]', JSON.stringify({ elements: elements.length }))
+  performance.mark('probe:flip-play-flat', { detail: { elements: elements.length } })
   // 新 FLIP 必须先作废同一批元素上的旧 rAF、timeout 和 transitionend，
   // 否则快速抓放会出现旧事务补写 transform，表现为二次让位或瞬间展开。
   resetActiveFlip(elements)
