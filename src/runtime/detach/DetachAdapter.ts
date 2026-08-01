@@ -37,9 +37,16 @@ export function createDetachMoveFromAdapter(config: {
   const surfaceIds = allSurfaces.map(s => s.id)
   const findColumnIdOf = (oid: string) => runtime.objects.get(oid)?.surfaceId
   const initialSurfaceId = objectItem?.surfaceId ?? allSurfaces[0]?.id
-  const registeredElements = (): HTMLElement[] => [...runtime.objects.values()]
-    .map(item => item.element)
-    .filter((candidate): candidate is HTMLElement => Boolean(candidate?.isConnected))
+  const registeredElements = (): HTMLElement[] => {
+    const objects = [...runtime.objects.values()]
+      .map(item => item.element)
+      .filter((candidate): candidate is HTMLElement => Boolean(candidate?.isConnected))
+    // 布局锚点（例如列表末尾的“新建项目”）不是可拖拽物，不会注册为
+    // Runtime object，但必须和兄弟卡片共享同一份 FLIP 快照，否则它仍由
+    // Vue TransitionGroup 单独移动，release 时会与卡片错拍。
+    const anchors = Array.from(document.querySelectorAll<HTMLElement>('[data-flip-target]'))
+    return Array.from(new Set([...objects, ...anchors]))
+  }
   let beforeContent: HTMLElement | undefined
   let draggingSnapshot: ReturnType<typeof captureDetachDraggingSnapshot> | undefined
   let dropState: ReturnType<typeof createDetachDropState<{ columnId: string; index: number }>> | undefined
@@ -125,16 +132,9 @@ export function createDetachMoveFromAdapter(config: {
     if (!pendingDrop) return { accepted: false as const }
     // 抓取阶段是源节点自己在飞（0.9.6 式单节点），这里松手交给 landing proxy 接管：
     // 恢复源节点的正常布局占位、保持隐藏，proxy 才是接下来唯一的可见视觉主体。
+    // 即使落点仍是同列同 index，也不能清除 release 阶段捕获的布局快照：
+    // 抓起时兄弟卡片已经收位，放回后它们需要用这份快照播放回位 FLIP。
     const destination = pendingDrop
-    // 落点跟抓起时完全一样（同 Surface、同 index）：emit 对业务是纯 no-op，
-    // 不会有任何 DOM 重排，release 阶段（captureLayout，在 onUp 之前已经跑过）
-    // 量到的那份布局快照注定播不出任何位移。playLayout 内部本来就会在
-    // layoutSnapshot 为 undefined 时整体跳过 capture 结果对应的 FLIP/resize
-    // 计算——这里直接把它清掉，省一趟必然白做的 rect 读取和 diff。
-    if (sessionId && initialSurfaceId && pickupIndex !== null
-      && destination.columnId === initialSurfaceId && destination.index === pickupIndex) {
-      runtime.getMoveContext(sessionId).layoutSnapshot = undefined
-    }
     const beforeRect = landingProxy?.getBoundingClientRect() ?? element.getBoundingClientRect()
     sourceLease?.restoreLayoutHidden()
     delete element.dataset.runtimeActive

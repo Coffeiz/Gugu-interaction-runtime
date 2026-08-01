@@ -198,7 +198,8 @@ export class MoveCommitCoordinator {
       // 本来就在列尾/底部，回弹后仍是列尾，无位移 FLIP），必须走同样的
       // isAppend 判定，否则永远走 microtask，复现顶动问题。此时没有 emit，
       // 不需要等 Vue patch，DOM 已经是回弹后的真实位置，可以直接量。
-      if (this.resolveIsAppend(session.objectId, normalized)) {
+      const isAppend = this.resolveIsAppend(session.objectId, normalized)
+      if (isAppend) {
         behavior.playLayoutOnRaf(context)
       } else {
         behavior.playLayout(context)
@@ -233,7 +234,8 @@ export class MoveCommitCoordinator {
     //  - 中间插入：有卡片位移 FLIP（有 Invert），必须 microtask 让 Invert
     //    在 paint 前写入，不闪现；此时 Vue patch 已完成，microtask 量到的
     //    也是最终布局，不顶动。
-    if (this.resolveIsAppend(session.objectId, normalized)) {
+    const isAppend = this.resolveIsAppend(session.objectId, normalized)
+    if (isAppend) {
       behavior.playLayoutOnRaf(context)
     } else {
       behavior.playLayout(context)

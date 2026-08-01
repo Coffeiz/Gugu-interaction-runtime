@@ -54,13 +54,31 @@ export function playFlip(
       el.dataset.runtimeProxy === 'true' ||
       el.dataset.runtimePlaceholder === 'true' ||
       el.dataset.runtimeActive === 'true'
-    ) continue
+    ) {
+      continue
+    }
     const from = before.get(el)
-    if (!from) continue
+    if (!from) {
+      continue
+    }
     const to = el.getBoundingClientRect()
     const dx = from.left - to.left
     const dy = from.top - to.top
+    const isFlipTarget = el.dataset.flipTarget !== undefined
     if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+      if (isFlipTarget) {
+        const logTarget = (phase: string) => console.log('[runtime-add-card-flip-probe]', JSON.stringify({
+          phase,
+          rect: el.getBoundingClientRect().toJSON(),
+          transition: getComputedStyle(el).transition,
+          transform: getComputedStyle(el).transform,
+          runtimeFlip: el.dataset.runtimeFlip === 'true',
+          time: performance.now(),
+        }))
+        logTarget('no-delta')
+        requestAnimationFrame(() => logTarget('no-delta-raf'))
+        window.setTimeout(() => logTarget('no-delta-100ms'), 100)
+      }
       // resetActiveFlip 可能给这个元素设置了 transition: none !important，
       // 如果跳过 FLIP，需要清除以免永久锁定 transition。
       el.style.transition = ''
@@ -68,6 +86,20 @@ export function playFlip(
     }
     el.style.setProperty('transition', 'none', 'important')
     el.style.transform = `translate(${dx}px, ${dy}px)`
+    if (isFlipTarget) {
+      const logTarget = (phase: string) => console.log('[runtime-add-card-flip-probe]', JSON.stringify({
+        phase,
+        rect: el.getBoundingClientRect().toJSON(),
+        transition: getComputedStyle(el).transition,
+        transform: getComputedStyle(el).transform,
+        runtimeFlip: el.dataset.runtimeFlip === 'true',
+        time: performance.now(),
+      }))
+      logTarget('invert')
+      requestAnimationFrame(() => logTarget('raf'))
+      window.setTimeout(() => logTarget('100ms'), 100)
+      window.setTimeout(() => logTarget('250ms'), 250)
+    }
     const token = String(Number(el.dataset.runtimeFlipToken ?? '0') + 1)
     el.dataset.runtimeFlip = 'true'
     el.dataset.runtimeFlipToken = token
