@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.1
+
+### 新增
+- 项目页 Runtime 稳定接入契约：业务端只需注册 Object、Surface、Motion 配置并订阅 Action。
+
+### 改进
+- Runtime 统一编排项目卡的输入、Session、目标解析、视觉代理、landing/reveal、regrab、滚动、FLIP、组动画和 collection presence。
+- Gugu-web 项目页移除旧拖拽与完成列布局编排，直接通过 Runtime 源码接入。
+
+### 修复
+- 清理项目页残留的旧目标等待、完成列特判和重复生命周期入口，避免与 Runtime 事务竞争。
+
 ## v0.9.6
 
 ### 新增

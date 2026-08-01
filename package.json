@@ -1,6 +1,6 @@
 {
   "name": "gugu-interaction-runtime",
-  "version": "0.9.6",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "license": "MIT",

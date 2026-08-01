@@ -1,6 +1,6 @@
 # Interaction Runtime · 设计目标
 
-> 当前实现版本：0.9.6。接入步骤和公开参数请先阅读
+> 当前实现版本：1.0.1。接入步骤和公开参数请先阅读
 > [INTEGRATION.md](./INTEGRATION.md)。
 
 ## 先看结论
