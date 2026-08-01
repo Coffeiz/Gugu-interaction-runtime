@@ -31,8 +31,8 @@ ProjectCard / drawerDrag
 → legacy deps
 ```
 
-因此 Runtime 当前已承担项目卡的输入、Session、视觉代理和落点等待主链；业务侧仍保留
-detach driver 作为 adapter glue，尚未完成最终的接口收口。
+因此 Runtime 当前已承担项目卡的输入、Session、视觉代理、落点等待和布局主链；业务侧
+只保留对象/Surface 注册、项目样式和 Action 提交。
 
 ## 收口后的目标结构
 
@@ -189,12 +189,15 @@ Runtime VisualAdapter 的单一入口，同时保持当前项目页视觉结果�
   group resize、collection presence 和快速连续事务。
 - 待完成：删除项目页 `single.ts` 中残留的 `.done-layout-root`、`animateOpen` 和旧目标等待分支。
 
-### Phase 5：删除项目页旧编排（进行中）
+### Phase 5：删除项目页旧编排（已完成）
 
-- 删除项目页直接传入的 legacy deps。
-- 删除项目页对 `flipCoordinator`、`clone`、`landing`、`morphLifecycle` 的直接调用。
-- 保留文件、画布和多选所需的 adapter，不影响其他页面。
-- 将项目页代码收敛为注册、目标解析、Action 和样式配置。
+- 项目看板卡片不再直接传入 legacy deps，也不再调用 `startPhysicsDrag`、
+  `startThresholdDrag`、`flipCoordinator`、拖拽视觉 `clone/landing` 或 `morphLifecycle`。
+- 项目页组展开/收起已通过 `runtime.runGroupToggle()` 接入。
+- 文件、画布、抽屉和多选仍保留各自 adapter 及共享 `single.ts`，没有误删跨页面能力。
+- 项目页业务代码已收敛为 Object/Surface 注册、卡片样式和 Action 提交。
+
+Phase5 验证完成：项目页旧拖拽入口无引用，Runtime 源码接入通过 68 项回归测试和类型检查。
 
 ## 验证清单
 
