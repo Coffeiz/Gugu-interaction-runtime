@@ -10,9 +10,14 @@ createApp(App).mount('#app')
 // "dispose 之后确实清空"就是靠这个数字，而不是肉眼确认。生产代码不会
 // 引入这类全局挂载。
 if (import.meta.env.DEV) {
+  let actionCount = 0
+  runtime.onAction(() => { actionCount++ })
   ;(window as unknown as { __runtimeDebug: unknown }).__runtimeDebug = {
     getActiveCleanupCount,
     getObject: (id: string) => runtime.objects.get(id),
     getSurface: (id: string) => runtime.surfaces.get(id),
+    getActionCount: () => actionCount,
+    resetActionCount: () => { actionCount = 0 },
+    getProxyCount: () => document.querySelectorAll('[data-runtime-proxy]').length,
   }
 }
