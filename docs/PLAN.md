@@ -1,6 +1,6 @@
 # Interaction Runtime · 分层结构与执行计划
 
-> 当前稳定版本：1.0.1。1.0.1 已以 Gugu-web 的真实看板作为回归场景，
+> 当前稳定版本：1.0.2。1.0.1 已以 Gugu-web 的真实看板作为回归场景，
 > 验证“只注册 Object、Surface 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
 > 直接编译本仓库 `src/`，不经 npm 包或构建产物。
 
@@ -510,9 +510,12 @@ grabbing
 - 任意 cancel/interrupt 后 RAF、监听器和 proxy 都能清理；
 - 现有 Runtime 测试和 detach 浏览器回归不改变行为。
 
-### 阶段 1.0.1：真实业务零编排接入回归（已完成）
+### 阶段 1：迁移 Gugu-web 看板项目卡（已完成，原 1.0.1）
 
-这是 1.0 的发布门槛，不再把 Demo 通过视为业务接入通过。目标调用方只有三类代码：
+首个真实接入目标是看板项目卡。看板已有 clone/detach 两种视觉策略和
+完整的跨列、同列、落地中断回归场景，适合先验证 Runtime 纯 API 是否能收回
+业务侧的事务编排。这也是 1.0 的发布门槛，不再把 Demo 通过视为业务接入通过。
+目标调用方只有三类代码：
 
 ```text
 对象组件：useObject({ id, type, surface, abilities })
@@ -524,7 +527,17 @@ grabbing
 命中、FLIP、landing/reveal、regrab 或清理逻辑；文件上传、卡片内按钮、年/月折叠等非移动
 交互不属于本阶段迁移范围。
 
-#### 1.0.1-1：源码直连与真实回归基线
+执行步骤：
+
+1. [x] 给看板相关 `Transition`/`TransitionGroup` 加 `controlled` 开关
+   （`:css="!controlled"`）。
+2. [x] 由 Runtime 的一个 MoveTransaction 统一接管 Surface 命中、Action 提交、
+   兄弟布局 FLIP 调度、落地和交接顺序。
+3. [x] 保留 clone/detach 的具体视觉实现，但业务入口只注册 API，不再直接编排
+   Session、target、landing/reveal 和 regrab。
+4. [x] 保留 Vue 作为 DOM 创建/销毁工具，但关闭它对这些节点的自动 move/leave 动画。
+
+#### 1-1：源码直连与真实回归基线
 
 - [x] Gugu-web 通过本地源码桥接直接编译 Runtime `src/`，移除 npm 依赖与裸包名解析；
       已在 2026-07-31 验证 `vue-tsc --noEmit`、`vite build` 与 devserver 模块解析均通过。
@@ -533,7 +546,7 @@ grabbing
 - [ ] 每个回归用例记录 Action、Session、proxy 数与最终 DOM，作为 Runtime 浏览器集成测试，
       不以 jsdom 单测替代。
 
-#### 1.0.1-2：默认 DOM 生命周期契约
+#### 1-2：默认 DOM 生命周期契约
 
 把 Demo 中隐含在 adapter/Teleport/CSS 里的条件迁入 Runtime 默认 detach 策略：
 
@@ -545,7 +558,7 @@ grabbing
 - [x] 无效落点、同列放回、跨列落地和 regrab 全部走同一 proxy 生命周期，不能分别实现回飞；
 - [x] 默认视觉快照复制可见内容及字体/伪类相关的关键计算样式，避免代理与本体样式漂移。
 
-#### 1.0.1-3：Surface、Hit 与布局事务
+#### 1-3：Surface、Hit 与布局事务
 
 - [x] 默认 Hit 基于 `SurfaceStore` 和 `ObjectStore` 的已注册元素，不依赖 `[data-column]`、
       `[data-card]` 等 Demo 专用选择器；数据属性仅作为可选调试标记；
@@ -555,8 +568,12 @@ grabbing
 - [x] Runtime 接管期间自动关闭对应 Surface 的 Vue transition，事务结束后同帧恢复；
 - [x] 组布局、滚动锚点和 resize 都纳入同一事务，快速抓放/interrupt 从当前帧状态续播。
 
-#### 1.0.1-4：回归与发布验收
+#### 1-4：回归与发布验收
 
+- [x] 看板同列、跨列和无效落点都只产生一次 Action；
+- [x] clone/detach 的 landing、reveal、regrab 行为保持不变；
+- [x] 连续拖拽、中途中断不残留 Vue transition class，也不出现旧事务清理新事务样式；
+- [x] 看板兄弟卡片和 Surface 布局由同一个事务调度，避免二次 FLIP 和空位；
 - [x] 回归：普通列同列、跨列、无效落点、静止抓放、landing regrab、连续两张卡、快速抓放；
 - [x] 回归：overflow/glass 裁切、滚动到不可见目标、完成列年/月嵌套、Surface resize 与 FLIP；
 - [x] 每个交互只输出一次 Action；任意时刻每张卡最多一个视觉 proxy；结束后无受控样式、
@@ -564,30 +581,9 @@ grabbing
 - [x] Gugu-web 项目页不再 import 旧项目拖拽/完成列 FLIP 编排模块；
 - [x] Runtime 单测、真实浏览器集成回归、Gugu-web typecheck/build 全部通过后发布 1.0.1。
 
-**完成定义（已满足）**：Gugu-web 只保留对象/Surface 注册、对象与容器样式、Action 到 Store/API 的映射。
-如果仍需为普通卡片移动写 adapter 或生命周期闭包，1.0.1 即未完成。
-
-### 阶段 1（已被 1.0.1 取代）：迁移 Gugu-web 看板项目卡
-
-首个真实接入目标改为看板项目卡。看板已有 clone/detach 两种视觉策略和
-完整的跨列、同列、落地中断回归场景，适合先验证 Runtime 纯 API 是否能收回
-业务侧的事务编排。
-
-1. 给看板相关 `Transition`/`TransitionGroup` 加 `controlled` 开关
-   （`:css="!controlled"`）。
-2. 由 Runtime 的一个 MoveTransaction 统一接管 Surface 命中、Action 提交、
-   兄弟布局 FLIP 调度、落地和交接顺序。
-3. 保留 clone/detach 的具体视觉实现，但业务入口只注册 API，不再直接编排
-   Session、target、landing/reveal 和 regrab。
-4. 保留 Vue 作为 DOM 创建/销毁工具，但关闭它对这些节点的自动 move/leave 动画。
-
-验收标准：
-
-- [ ] 看板同列、跨列和无效落点都只产生一次 Action
-- [ ] clone/detach 的 landing、reveal、regrab 行为保持不变
-- [ ] 连续拖拽、中途中断不残留 Vue transition class，也不出现旧事务清理
-      新事务样式
-- [ ] 看板兄弟卡片和 Surface 布局由同一个事务调度，避免二次 FLIP 和空位
+**完成定义（已满足）**：Gugu-web 只保留对象/Surface 注册、对象与容器样式、Action 到 Store/API 的映射，
+不再为普通卡片移动写 adapter 或生命周期闭包。回归记录用例细节（1-1 最后一项）留待后续按需补充，
+不阻塞阶段完成。
 
 ### 阶段 2：迁移 Gugu-web 文件卡
 
