@@ -30,7 +30,6 @@ export class VisualStateCoordinator {
 export class VisualProxyCoordinator {
   private readonly proxies = new Map<string, VisualProxy>()
   register(sessionId: string, proxy: VisualProxy): void {
-    this.proxies.get(sessionId)?.dispose?.()
     this.proxies.set(sessionId, proxy)
   }
   get(sessionId: string): VisualProxy | undefined { return this.proxies.get(sessionId) }
@@ -57,12 +56,18 @@ export class VisualMotionCoordinator {
     this.proxies.register(sessionId, proxy)
     return proxy
   }
-  async land(sessionId: string, target: HTMLElement, context?: VisualLifecycleContext) {
+  async land(
+    sessionId: string,
+    target: HTMLElement,
+    context?: VisualLifecycleContext,
+  ): Promise<{ completed: boolean; reason?: string }> {
     const session = this.port.getSession(sessionId)
     const proxy = this.proxies.get(sessionId)
     if (!session || !proxy) return { completed: false, reason: 'visual-proxy-missing' }
     const lifecycleContext = context ?? this.port.createContext(sessionId, undefined, target)
-    return await this.port.getAdapter(session.objectId).land?.(proxy, target, lifecycleContext) ?? { completed: true }
+    const result = await this.port.getAdapter(session.objectId).land?.(proxy, target, lifecycleContext)
+    if (!result) return { completed: true }
+    return result
   }
   update(sessionId: string, context?: VisualLifecycleContext): void {
     const session = this.port.getSession(sessionId)

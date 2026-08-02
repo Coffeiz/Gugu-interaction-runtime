@@ -1,12 +1,17 @@
 import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } from './Flip'
 import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
-import { animateRafHeight, cancelRafHeight } from './RafLayoutAnimator'
+import { animateRafHeight, cancelRafHeight, cancelRafTransform } from './RafLayoutAnimator'
+import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
+import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasurement'
 
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
+let layoutPresenceEnabled = false
+const groupToggleTokens = new WeakMap<HTMLElement, number>()
 export function setMotionProfiles(profile: MotionProfile | null): void {
   currentProfile = profile
 }
+export function setLayoutPresenceEnabled(enabled: boolean): void { layoutPresenceEnabled = enabled }
 
 /** 读取全局 MotionProfile，不存在时返回默认值。 */
 function resolveProfile(): { flip: { duration: number; easing: string }; resize: { duration: number; easing: string } } {
@@ -37,6 +42,7 @@ export interface LayoutFlipSnapshot {
   /** 不属于任何分组的普通卡片（比如"进行中"列）的常规 FLIP 快照。 */
   readonly flat?: { readonly elements: HTMLElement[]; readonly before: Map<HTMLElement, DOMRect> }
   readonly surfaces: SurfaceLayoutSnapshot[]
+  readonly presence?: CollectionPresenceSnapshot
 }
 
 /**
@@ -48,11 +54,20 @@ export interface LayoutFlipSnapshot {
 function splitLayoutFlipParticipants(
   cards: readonly HTMLElement[],
   root: ParentNode,
+  scopeSurfaces?: readonly HTMLElement[],
 ): { groups: HTMLElement[]; groupLeaves: HTMLElement[]; flatCards: HTMLElement[] } {
-  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group]'))
+  const inScope = (element: HTMLElement): boolean => {
+    if (!scopeSurfaces || scopeSurfaces.length === 0) return true
+    return scopeSurfaces.some(surface => surface === element || surface.contains(element))
+  }
+  // 内容 wrapper（年/月 folder）虽然通常是组标题的兄弟节点，但它同样
+  // 承担了这一组的流式位移和裁剪。若只捕获 data-layout-group，标题会做
+  // FLIP 而 folder 直接跳到新位置，表现为标题与底部内容错位/提前被裁切。
+  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group], [data-layout-content]')).filter(inScope)
   const groupLeaves: HTMLElement[] = []
   const flatCards: HTMLElement[] = []
   for (const card of cards) {
+    if (!inScope(card)) continue
     if (card.closest('[data-layout-group]') !== null) groupLeaves.push(card)
     else flatCards.push(card)
   }
@@ -63,28 +78,103 @@ function splitLayoutFlipParticipants(
 export function captureLayoutFlip(
   cards: readonly HTMLElement[],
   root: ParentNode = document,
+  includePresence = true,
+  /**
+   * 正在被 Runtime 接管（抓取中/落地中）的对象要从 collection 入场/离场
+   * 判断里排除——整段生命周期都要排除，不能靠 dataset.runtimeActive 这类
+   * 会在松手瞬间就被提前清掉的标记来判断（比落地动画结束早得多）。调用方
+   * 在抓取→落地全程都拿得到确定的源节点引用，直接传进来最可靠。
+   */
+  presenceIgnore?: (element: HTMLElement) => boolean,
+  options: { readonly scopeSurfaces?: readonly HTMLElement[] } = {},
 ): LayoutFlipSnapshot {
   // 新事务开始时先终止上一笔仍在运行的 Surface resize，避免旧 timeout
   // 在本事务中恢复过期高度。
+  const inScope = (element: HTMLElement): boolean => {
+    const surfaces = options.scopeSurfaces
+    if (!surfaces || surfaces.length === 0) return true
+    return surfaces.some(surface => surface === element || surface.contains(element))
+  }
   const activeSurfaces = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]'))
+    .filter(inScope)
     .map(element => ({ element, rect: readRect(element), inlineStyle: readSurfaceInlineStyle(element) }))
   resetActiveSurfaceResize(activeSurfaces)
-  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root)
-  const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')))
+  const measurement = createLayoutMeasurement()
+  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root, options.scopeSurfaces)
+  const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')).filter(inScope), measurement)
+  // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
+  // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
+  // 显式开启。collection 通常标在列表容器上，卡片节点只标
+  // data-layout-role="card"，不能要求两个属性出现在同一个节点上。
+  const hasPresenceCollection = (options.scopeSurfaces ?? [root]).some(scope =>
+    scope instanceof HTMLElement
+      ? scope.matches('[data-layout-collection]') || scope.querySelector('[data-layout-collection]') !== null
+      : root.querySelector('[data-layout-collection]') !== null,
+  )
   const snapshot: LayoutFlipSnapshot = {
     root,
-    group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves]) } : undefined,
-    flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards) } : undefined,
+    group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves], measurement) } : undefined,
+    flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards, measurement) } : undefined,
     surfaces,
+    presence: includePresence && hasPresenceCollection
+      ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore, options.scopeSurfaces, measurement)
+      : undefined,
   }
   return mergePendingLayoutSnapshot(root, snapshot)
 }
 
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
+  const measurement = createLayoutMeasurement()
   const profile = resolveProfile()
-  if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing)
-  if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing)
-  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing)
+  const groupClip = snapshot.group
+    ? releaseGroupClip(snapshot.group.before)
+    : null
+  if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing, measurement)
+  if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing, measurement)
+  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing, measurement)
+  if (snapshot.presence) playCollectionPresence(snapshot.presence, {
+      duration: profile.flip.duration,
+      easing: profile.flip.easing,
+  }, measurement)
+  if (groupClip) restoreGroupClip(groupClip, profile.flip.duration + 50)
+}
+
+interface GroupClipState {
+  readonly token: string
+  readonly entries: ReadonlyArray<{ element: HTMLElement; overflow: string }>
+  timeout?: number
+}
+
+const groupClipStates = new WeakMap<ParentNode, GroupClipState>()
+let groupClipSequence = 0
+
+function releaseGroupClip(before: readonly GroupLayoutSnapshot[]): GroupClipState | null {
+  const entries = before
+    .filter(item => item.rect.height > 0)
+    .map(item => ({ element: item.element, overflow: item.element.style.overflow }))
+    .filter(item => item.element.isConnected)
+    // 组展开/收起自身已经由 transitionGroupHeight 接管 overflow:hidden；
+    // 这里不能覆盖它，否则收起时内容会直接消失而不是从底部向上收缩。
+    .filter(item => item.element.dataset.runtimeGroupAnimating !== 'true')
+    .filter(item => getComputedStyle(item.element).overflow !== 'visible')
+  if (entries.length === 0) return null
+  const root = entries[0].element.getRootNode() as ParentNode
+  const previous = groupClipStates.get(root)
+  previous?.entries.forEach(({ element, overflow }) => { element.style.overflow = overflow })
+  entries.forEach(({ element }) => { element.style.overflow = 'visible' })
+  const state = { token: String(++groupClipSequence), entries }
+  groupClipStates.set(root, state)
+  return state
+}
+
+function restoreGroupClip(state: GroupClipState, delay: number): void {
+  const root = state.entries[0]?.element.getRootNode() as ParentNode | undefined
+  if (!root) return
+  state.timeout = window.setTimeout(() => {
+    if (groupClipStates.get(root)?.token !== state.token) return
+    state.entries.forEach(({ element, overflow }) => { element.style.overflow = overflow })
+    groupClipStates.delete(root)
+  }, delay)
 }
 
 /**
@@ -107,6 +197,23 @@ export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
 export function scheduleLayoutFlip(snapshot: LayoutFlipSnapshot): void {
   pendingLayoutFlips.set(snapshot.root, snapshot)
   queueMicrotask(() => {
+    if (pendingLayoutFlips.get(snapshot.root) !== snapshot) return
+    pendingLayoutFlips.delete(snapshot.root)
+    playLayoutFlip(snapshot)
+  })
+}
+
+/**
+ * rAF 版调度：等下一帧、Vue patch 全部落地后再量布局执行 Invert。
+ * 只用于"列尾追加"——此时目标列已有卡片无位移（没有 transform Invert），
+ * 只有容器 resize + 被拖卡片滑入，rAF 不会产生闪现；而 rAF 保证量到的是
+ * 最终布局（容器高度含新卡片），resize 冻结与播放同帧起步，不会顶动。
+ * 中间插入/重排有卡片位移 FLIP（有 Invert），必须走 microtask 版
+ * scheduleLayoutFlip，Invert 才能在 paint 前写入、不闪现。
+ */
+export function scheduleLayoutFlipOnRaf(snapshot: LayoutFlipSnapshot): void {
+  pendingLayoutFlips.set(snapshot.root, snapshot)
+  requestAnimationFrame(() => {
     if (pendingLayoutFlips.get(snapshot.root) !== snapshot) return
     pendingLayoutFlips.delete(snapshot.root)
     playLayoutFlip(snapshot)
@@ -160,18 +267,27 @@ function mergeSurfaceSnapshots(
 }
 
 const pendingLayoutFlips = new WeakMap<ParentNode, LayoutFlipSnapshot>()
+const groupAnimationStates = new WeakMap<HTMLElement, { frame: number | null; timeout: number | null }>()
+const flipCleanupTimers = new WeakMap<HTMLElement, number>()
+const flipStartFrames = new WeakMap<HTMLElement, number>()
 
-function readRect(element: HTMLElement): GroupRect {
-  const rect = element.getBoundingClientRect()
+function readRect(element: HTMLElement, measurement?: LayoutMeasurement): GroupRect {
+  const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
   return { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
 }
 
-export function captureGroupLayout(elements: readonly HTMLElement[]): GroupLayoutSnapshot[] {
-  const groupSet = new Set(elements)
-  return elements.map(element => ({
+export function captureGroupLayout(elements: readonly HTMLElement[], measurement?: LayoutMeasurement): GroupLayoutSnapshot[] {
+  // display:none 的折叠子树没有有效的上一帧坐标；若把零矩形带进 FLIP，
+  // 打开时会被误算成从视口左上角飞入。
+  const visible = elements.filter(element => {
+    const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0
+  })
+  const groupSet = new Set(visible)
+  return visible.map(element => ({
     element,
     parent: findGroupParent(element, groupSet),
-    rect: readRect(element),
+    rect: readRect(element, measurement),
   }))
 }
 
@@ -189,12 +305,12 @@ function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement
  * 只播放它在父布局内真正产生的局部位移。父组 transform 会自然带动局部
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
-export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING): void {
+export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING, measurement?: LayoutMeasurement): void {
   resetActiveFlip(before.map(item => item.element))
   const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
 
   for (const item of before) {
-    const next = readRect(item.element)
+    const next = readRect(item.element, measurement)
     viewportDeltas.set(item.element, {
       x: item.rect.left - next.left,
       y: item.rect.top - next.top,
@@ -214,7 +330,10 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
     ) {
       // resetActiveFlip 可能给这个元素设置了 transition: none，
       // 如果跳过 FLIP，需要清除以免永久锁定 transition。
-      item.element.style.transition = ''
+      // 但组高度动画由 transitionGroupHeight 独立持有，不能在这里清掉。
+      if (item.element.dataset.runtimeGroupAnimating !== 'true') {
+        item.element.style.transition = ''
+      }
       continue
     }
     item.element.style.transform = `translate(${dx}px, ${dy}px)`
@@ -222,34 +341,205 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
     const token = String(Number(item.element.dataset.runtimeFlipToken ?? '0') + 1)
     item.element.dataset.runtimeFlip = 'true'
     item.element.dataset.runtimeFlipToken = token
-    requestAnimationFrame(() => {
+    const previousStartFrame = flipStartFrames.get(item.element)
+    if (previousStartFrame !== undefined) {
+      cancelAnimationFrame(previousStartFrame)
+      flipStartFrames.delete(item.element)
+    }
+    const startFrame = requestAnimationFrame(() => {
+      flipStartFrames.delete(item.element)
       if (item.element.dataset.runtimeFlipToken !== token) return
       item.element.style.transition = `transform ${duration}ms ${easing}`
       item.element.style.transform = ''
     })
-    window.setTimeout(() => {
+    flipStartFrames.set(item.element, startFrame)
+    const cleanupTimer = window.setTimeout(() => {
       if (item.element.dataset.runtimeFlipToken !== token) return
       item.element.style.transition = ''
       item.element.style.transform = ''
       delete item.element.dataset.runtimeFlip
+      flipCleanupTimers.delete(item.element)
     }, duration + 40)
+    flipCleanupTimers.set(item.element, cleanupTimer)
   }
 }
 
-export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING): void {
-  const currentHeight = element.getBoundingClientRect().height
+export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING, fromHeight?: number): void {
+  cancelGroupAnimation(element)
+  const currentHeight = fromHeight ?? element.getBoundingClientRect().height
+  const heightToken = String(Number(element.dataset.runtimeGroupToken ?? '0') + 1)
+  element.dataset.runtimeGroupToken = heightToken
+  // 分组高度按位移决定时长：小月份保持轻快，大分组不会在缓出曲线前段
+  // 一次性完成。duration 作为基准上限，保留最小值避免小组过快。
+  const distance = Math.abs(Math.max(0, targetHeight) - currentHeight)
+  const speed = 8
+  const effectiveDuration = Math.min(Math.max(distance / speed, 200), 350)
+  element.dataset.runtimeGroupAnimating = 'true'
   element.style.overflow = 'hidden'
   element.style.height = `${currentHeight}px`
-  element.style.transition = `height ${duration}ms ${easing}`
-  requestAnimationFrame(() => { element.style.height = `${Math.max(0, targetHeight)}px` })
-  window.setTimeout(() => { element.style.height = ''; element.style.overflow = ''; element.style.transition = '' }, duration + 40)
+  element.style.transition = `height ${effectiveDuration}ms ${easing}`
+  // 与 Demo 的分组动画保持一致：先让起始高度提交到布局，再写目标高度，
+  // 避免大内容组在同一帧被浏览器合并成一次性展开。
+  void element.offsetHeight
+  const state = { frame: null as number | null, timeout: null as number | null }
+  groupAnimationStates.set(element, state)
+  state.frame = requestAnimationFrame(() => {
+    state.frame = null
+    element.style.height = `${Math.max(0, targetHeight)}px`
+  })
+  state.timeout = window.setTimeout(() => {
+    if (element.dataset.runtimeGroupToken !== heightToken) return
+    if (targetHeight <= 0) {
+      element.style.height = '0px'
+      element.style.overflow = 'hidden'
+    } else {
+      element.style.height = ''
+      element.style.overflow = ''
+    }
+    element.style.transition = ''
+    delete element.dataset.runtimeGroupAnimating
+    groupAnimationStates.delete(element)
+  }, effectiveDuration + 40)
+}
+
+function cancelGroupAnimation(element: HTMLElement): void {
+  const state = groupAnimationStates.get(element)
+  if (!state) return
+  if (state.frame !== null) cancelAnimationFrame(state.frame)
+  if (state.timeout !== null) window.clearTimeout(state.timeout)
+  groupAnimationStates.delete(element)
+}
+
+/**
+ * 组件卸载或弹窗关闭时调用，取消该根节点下尚未完成的布局动画，并恢复
+ * Runtime 临时写入的 transform/height/overflow，避免下一次交互继承旧状态。
+ */
+export function cancelLayoutAnimations(root: ParentNode): void {
+  pendingLayoutFlips.delete(root)
+  const isNode = typeof Node !== 'undefined' && root instanceof Node
+  const documentRoot = isNode ? root.getRootNode() as ParentNode : root
+  const clip = groupClipStates.get(documentRoot)
+  if (clip) {
+    if (clip.timeout !== undefined) window.clearTimeout(clip.timeout)
+    clip.entries.forEach(({ element, overflow }) => {
+      if (isNode && !root.contains(element)) return
+      element.style.overflow = overflow
+    })
+    groupClipStates.delete(documentRoot)
+  }
+
+  const elements: HTMLElement[] = []
+  if (root instanceof HTMLElement) elements.push(root)
+  if (typeof root.querySelectorAll === 'function') {
+    elements.push(...Array.from(root.querySelectorAll<HTMLElement>(
+      '[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-layout-content]',
+    )))
+  }
+  for (const element of elements) {
+    const flipTimer = flipCleanupTimers.get(element)
+    const startFrame = flipStartFrames.get(element)
+    const hadRuntimeStyle = flipTimer !== undefined
+      || element.dataset.runtimeFlip === 'true'
+      || element.dataset.runtimeGroupAnimating === 'true'
+      || element.dataset.runtimeSurfaceResize === 'true'
+    if (flipTimer !== undefined) {
+      window.clearTimeout(flipTimer)
+      flipCleanupTimers.delete(element)
+    }
+    if (startFrame !== undefined) {
+      cancelAnimationFrame(startFrame)
+      flipStartFrames.delete(element)
+    }
+    cancelRafTransform(element)
+    cancelRafHeight(element)
+    cancelGroupAnimation(element)
+    const surface = surfaceResizeStates.get(element)
+    if (surface) {
+      restoreSurfaceInlineStyle(element, surface.baseStyle)
+      surfaceResizeStates.delete(element)
+    }
+    if (element.dataset.runtimeGroupAnimating === 'true') {
+      element.style.height = element.dataset.layoutOpen === 'false' ? '0px' : ''
+      element.style.overflow = element.dataset.layoutOpen === 'false' ? 'hidden' : ''
+      element.style.transition = ''
+    }
+    if (hadRuntimeStyle) element.style.transform = ''
+    if (element.dataset.runtimeFlip === 'true') delete element.dataset.runtimeFlip
+    delete element.dataset.runtimeSurfaceResize
+    delete element.dataset.runtimeSurfaceResizeToken
+    delete element.dataset.runtimeGroupAnimating
+  }
+}
+
+export interface GroupToggleOptions {
+  readonly root: ParentNode
+  readonly content: HTMLElement
+  readonly opening: boolean
+  readonly mutate: () => void
+  readonly waitForLayout: () => void | Promise<void>
+  readonly isCurrent?: () => boolean
+  readonly duration?: number
+  readonly easing?: string
+}
+
+/** 统一编排组展开/收起及其兄弟 FLIP。 */
+export async function runGroupToggle(options: GroupToggleOptions): Promise<void> {
+  const token = (groupToggleTokens.get(options.content) ?? 0) + 1
+  groupToggleTokens.set(options.content, token)
+  const cardNodes = Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item'))
+  const cards = (cardNodes.length > 0 ? cardNodes : Array.from(options.root.querySelectorAll<HTMLElement>('[data-card]')))
+    .filter(element => {
+      const rect = element.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    })
+  const snapshot = captureLayoutFlip(cards, options.root, false)
+  const currentHeight = options.content.getBoundingClientRect().height
+  const presenceState = layoutPresenceEnabled
+    ? prepareGroupPresence(options.content, options.opening, options.duration, options.easing)
+    : null
+  options.mutate()
+  await options.waitForLayout()
+  if (groupToggleTokens.get(options.content) !== token) return
+  if (options.isCurrent && !options.isCurrent()) return
+  transitionGroupHeight(options.content, options.opening ? options.content.scrollHeight : 0, options.duration, options.easing, currentHeight)
+  if (presenceState) playGroupPresence(presenceState, options.opening)
+  playLayoutFlip(snapshot)
+}
+
+interface GroupPresenceState { content: HTMLElement; elements: HTMLElement[]; token: string; duration: number }
+
+function prepareGroupPresence(content: HTMLElement, opening: boolean, duration = FLIP_DURATION, easing = FLIP_EASING): GroupPresenceState {
+  const elements = Array.from(content.querySelectorAll<HTMLElement>('.done-card-item'))
+  const token = String(Number(content.dataset.runtimePresenceToken ?? '0') + 1)
+  content.dataset.runtimePresenceToken = token
+  elements.forEach(element => {
+    if (opening) element.style.opacity = '0'
+  })
+  return { content, elements, token, duration }
+}
+
+function playGroupPresence(state: GroupPresenceState, opening: boolean): void {
+  const { content, elements, token, duration } = state
+  requestAnimationFrame(() => {
+    if (content.dataset.runtimePresenceToken !== token) return
+    elements.forEach(element => {
+      element.animate(
+        [{ opacity: opening ? 0 : 1 }, { opacity: opening ? 1 : 0 }],
+        { duration, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' },
+      )
+    })
+  })
+  window.setTimeout(() => {
+    if (content.dataset.runtimePresenceToken !== token) return
+    elements.forEach(element => { element.style.opacity = '' })
+  }, duration + 40)
 }
 
 /** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
-export function captureSurfaceLayout(elements: readonly HTMLElement[]): SurfaceLayoutSnapshot[] {
+export function captureSurfaceLayout(elements: readonly HTMLElement[], measurement?: LayoutMeasurement): SurfaceLayoutSnapshot[] {
   return elements.map(element => ({
     element,
-    rect: readRect(element),
+    rect: readRect(element, measurement),
     // 事务被打断时，当前 inline height 是 Runtime 上一笔动画写入的临时值，
     // 不能把它错当成业务样式保存，否则取消落点后会永久留下旧高度。
     inlineStyle: surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element),
@@ -264,13 +554,13 @@ export function playSurfaceResize(
   before: readonly SurfaceLayoutSnapshot[],
   duration = FLIP_DURATION,
   easing = FLIP_EASING,
+  measurement?: LayoutMeasurement,
 ): void {
   resetActiveSurfaceResize(before)
   const plans = before
     .filter(item => item.element.isConnected)
     .map(item => {
-      const next = readRect(item.element)
-      const type = item.element.dataset.surfaceType
+      const next = readRect(item.element, measurement)
       const prof = resolveProfile()
       return {
         item, next,
@@ -330,7 +620,6 @@ function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): voi
     delete element.dataset.runtimeSurfaceResize
     delete element.dataset.runtimeSurfaceResizeToken
   }
-  void active[0].element.offsetHeight
 }
 
 type SurfaceInlineStyle = SurfaceLayoutSnapshot['inlineStyle']

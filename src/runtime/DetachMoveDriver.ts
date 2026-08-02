@@ -1,8 +1,9 @@
-import { captureLayoutFlip, scheduleLayoutFlip } from '../dom/GroupLayout'
+import { captureLayoutFlip, scheduleLayoutFlip, scheduleLayoutFlipOnRaf } from '../dom/GroupLayout'
 import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
 import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
 import { applyFloatingStyle } from '../dom/Visual'
 import { releaseVisibilityOwnership, setProxyInteractive } from '../dom/Visual'
+import type { GrabAlignConfig } from '../Runtime'
 
 
 
@@ -21,15 +22,32 @@ export function captureDetachDraggingSnapshot(
 
 
 
+/**
+ * 抓取点默认取卡片几何中心，不管实际点在卡片哪个位置——对应咕咕旧版
+ * （main 分支 usePhysicsDrag.ts）的 centerGrab:true：卡片水平/垂直中心
+ * 始终跟指针对齐，不是"点哪抓哪"。按 grabAlign.align 也可以切回
+ * 'pointer'（保留点击位置在卡片里的相对偏移），再叠加 offsetX/offsetY
+ * 做额外的固定偏移（比如往下偏几 px，做出"被拎着"的悬垂感）。
+ * regrab（fromRect 有值）时用当时飞行中代理的 rect 重新量一次，保持
+ * 抓取点在卡片里的相对位置不因为落地途中尺寸变化（缩放）而跑偏。
+ */
 export function prepareDetachMotion(
   context: MoveContext,
   element: HTMLElement,
   event: PointerEvent,
   fromRect?: DOMRect,
+  grabAlign?: GrabAlignConfig,
 ): { rect: DOMRect; offsetX: number; offsetY: number } {
   const rect = fromRect ?? element.getBoundingClientRect()
-  const offsetX = fromRect ? event.clientX - rect.left : context.dragOffset.x
-  const offsetY = fromRect ? event.clientY - rect.top : context.dragOffset.y
+  const align = grabAlign?.align ?? 'center'
+  const baseX = align === 'pointer' ? event.clientX - rect.left : rect.width / 2
+  const baseY = align === 'pointer' ? event.clientY - rect.top : rect.height / 2
+  // offsetX/offsetY 返回的是"指针到卡片左上角"的距离（target.x = pointerX -
+  // offsetX 就是左上角落点），这个距离跟卡片实际往哪边挪是反着的：距离变大，
+  // 左上角（连带整张卡片）反而往指针的反方向移。grabAlign.offsetY 想要的是
+  // "卡片往下挪"（正值往下），所以这里要用减法，不能直接加。
+  const offsetX = baseX - (grabAlign?.offsetX ?? 0)
+  const offsetY = baseY - (grabAlign?.offsetY ?? 0)
   if (fromRect) context.dragOffset = { x: offsetX, y: offsetY }
   return { rect, offsetX, offsetY }
 }
@@ -64,11 +82,30 @@ export interface DetachPickupPreparation {
 
 
 
-export function prepareDetachPickup(sourceElement: HTMLElement): DetachPickupPreparation {
+/**
+ * 正被拖拽/落地的源节点整段生命周期都不该参与 collection 入场/离场判断，
+ * 这段判断跟"抓在手里"还是"正在落地"无关，只要还没交接完就一直排除；
+ * `.contains` 覆盖 presence 包裹层是源节点祖先的情况（比如 Teleport 传送
+ * 前后，包裹层和源节点还是同一棵子树）。
+ */
+function ignoreDetachSource(sourceElement: HTMLElement): (element: HTMLElement) => boolean {
+  return element => element === sourceElement || element.contains(sourceElement)
+}
+
+export function prepareDetachPickup(
+  sourceElement: HTMLElement,
+  registeredElements: () => HTMLElement[],
+  scopeSurfaces?: () => readonly HTMLElement[],
+): DetachPickupPreparation {
   const beforeContent = sourceElement.cloneNode(true) as HTMLElement
-  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+  const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
-  return { beforeContent, beforePickup: captureLayoutFlip(cards) }
+  return {
+    beforeContent,
+    beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement), {
+      scopeSurfaces: scopeSurfaces?.(),
+    }),
+  }
 }
 
 
@@ -83,7 +120,11 @@ export function createDetachDropState<TDrop>(
   return {
     update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null {
       const drop = resolve(event)
-      if (!drop || same(drop, pending)) return pending
+      if (!drop) {
+        pending = null
+        return null
+      }
+      if (same(drop, pending)) return pending
       currentSurface = getSurface(drop)
       pending = drop
       return pending
@@ -119,7 +160,6 @@ export function interruptDetachRegrab(args: {
   sessionId: string
   interrupt: () => void
   clearRegrab: () => void
-  disposeProxy: () => void
 }): void {
   args.event.stopPropagation()
   setProxyInteractive(args.proxy, false)
@@ -129,7 +169,6 @@ export function interruptDetachRegrab(args: {
   // Runtime interrupt 的 cancel 清理会恢复 source 的原始 style；在新
   // session 接管前重新隐藏它，避免列表本体与新 grabbing 视觉短暂重叠。
   args.source.style.visibility = 'hidden'
-  args.disposeProxy()
   // source 的可见性由新 session 的 pickup 阶段恢复，避免旧 proxy 销毁
   // 与新 session 接管之间露出一帧列表态本体。
 }
@@ -138,15 +177,16 @@ export function interruptDetachRegrab(args: {
 
 export function cancelDetachWithoutDrop(args: {
   source: HTMLElement
+  registeredElements: () => HTMLElement[]
   cancel: () => void
   releaseObject: () => void
   clearFloating: (element: HTMLElement) => void
   clearActive: () => void
 }): void {
   document.body.classList.remove('kb-dragging')
-  const returnCards = Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+  const returnCards = args.registeredElements()
     .filter(element => element !== args.source && element.dataset.runtimeProxy !== 'true')
-  const returnBefore = captureLayoutFlip(returnCards)
+  const returnBefore = captureLayoutFlip(returnCards, document, true, ignoreDetachSource(args.source))
   args.cancel()
   args.clearFloating(args.source)
   args.clearActive()
@@ -217,7 +257,7 @@ export function createDetachVisualContext<TContext extends object>(args: {
   sourceRect: DOMRect
   visualSnapshot: VisualSnapshot
   targetSnapshot: VisualSnapshot
-  motionState?: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number; rotateVX: number; rotateVZ: number }
+  motionState?: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }
 }): TContext & {
   sourceElement: HTMLElement
   sourceRect: DOMRect
@@ -307,25 +347,41 @@ export function createDetachLandingLifecycle<TGate extends { promise: Promise<La
 
 
 
-export function createDetachLayoutLifecycle(sourceEl: HTMLElement) {
+export function createDetachLayoutLifecycle(
+  sourceEl: HTMLElement,
+  registeredElements: () => HTMLElement[],
+  scopeSurfaces?: () => readonly HTMLElement[],
+) {
   let layoutToken = 0
   return {
     capture: () => {
       layoutToken += 1
       return captureLayoutFlip(
-        Array.from(document.querySelectorAll<HTMLElement>('[data-card]'))
+        registeredElements()
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
+        document,
+        true,
+        ignoreDetachSource(sourceEl),
+        { scopeSurfaces: scopeSurfaces?.() },
       )
     },
-    play: (_context: unknown, snapshot: unknown) => {
-      // landing 生命周期也在当前提交后的下一帧创建代理并隐藏目标本体。
-      // 再多延后一帧启动布局 FLIP，确保目标先完成视觉接管，避免 Surface
-      // resize 先看到真实卡片、随后又被 landing proxy 替换。
+    play: (_context: unknown, snapshot: unknown, useRaf = false) => {
       const token = ++layoutToken
-      requestAnimationFrame(() => {
-        if (token !== layoutToken) return
-        scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
-      })
+      if (useRaf) {
+        // 列尾追加：等下一帧、Vue patch 落地后再量布局执行 Invert。
+        // 目标列已有卡片无位移（没有 transform Invert），rAF 不会闪现；
+        // 且 rAF 必然晚于 emit 的 Vue patch 微任务，resize 冻结与播放
+        // 同帧起步，不顶动。
+        requestAnimationFrame(() => {
+          if (token !== layoutToken) return
+          scheduleLayoutFlipOnRaf(snapshot as ReturnType<typeof captureLayoutFlip>)
+        })
+        return
+      }
+      // 中间插入/重排：有卡片位移 FLIP（有 Invert），必须 microtask 让
+      // Invert 在 paint 前写入，不闪现；playLayout 在 emit 后调用，此时
+      // Vue patch 已完成，microtask 量到的也是最终布局，不顶动。
+      scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
     },
   }
 }

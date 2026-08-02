@@ -1,10 +1,10 @@
-import { ref as i, onUnmounted as u, computed as s } from "vue";
-import { runtime as r } from "../index.js";
+import { ref as i, onUnmounted as s, computed as u } from "vue";
+import { s as r } from "../Runtime-BmuVRhii.js";
 function p(o) {
   const n = i(0), t = r.owner.subscribe((e) => {
     e === o && (n.value += 1);
   });
-  return u(t), { controlled: s(() => (n.value, r.owner.isControlled(o))) };
+  return s(t), { controlled: u(() => (n.value, r.owner.isControlled(o))) };
 }
 export {
   p as useRuntimeTransition

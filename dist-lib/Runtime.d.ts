@@ -10,11 +10,14 @@ import { VisualAdapter, VisualLifecycleContext, VisualProxy } from './dom/Visual
 import { VisualState } from './dom/VisualAdapterTypes';
 import { MotionProfile } from './dom/MotionProfile';
 import { MotionControllerConfig } from './motion/MotionProfile';
-import { HitResolver } from './dom/Hit';
+import { HitResolver, HitResult } from './dom/Hit';
+import { Surface } from './surface/Surface';
 import { LandingTargetTrackerOptions } from './dom/LandingTargetTracker';
 import { PointerSessionInputOptions } from './input/PointerSessionInput';
 import { Action } from './action/Action';
 import { RuntimeRegistry } from './runtime/RuntimeRegistry';
+import { LayoutFlipSnapshot } from './dom/GroupLayout';
+import { AutoScrollController, AutoScrollOptions } from './dom/AutoScroll';
 export type RuntimeEvent = {
     type: 'object-added' | 'object-removed' | 'object-changed';
     id: string;
@@ -52,6 +55,19 @@ export interface MoveSessionHandle extends SessionHandle {
     /** 解绑 pointer 输入并清理。 */
     dispose(): void;
 }
+/** 抓取时卡片跟指针的对齐方式，按对象类型注册（见 ObjectTypeRegistration.grabAlign）。 */
+export interface GrabAlignConfig {
+    /**
+     * 基准对齐方式：
+     * - 'center'（默认）：卡片几何中心对指针，不管实际点在卡片哪个位置。
+     * - 'pointer'：保留实际点击位置在卡片里的相对偏移，点哪抓哪。
+     */
+    align?: 'center' | 'pointer';
+    /** 在基准对齐结果上再叠加的水平偏移(px)，正值往右；默认 0。 */
+    offsetX?: number;
+    /** 在基准对齐结果上再叠加的垂直偏移(px)，正值往下；默认 0。 */
+    offsetY?: number;
+}
 export interface ObjectTypeRegistration {
     defaultVisualMode: string;
     /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
@@ -61,6 +77,10 @@ export interface ObjectTypeRegistration {
         enabled?: boolean;
         profile?: MotionProfile;
     };
+    /** 抓取对齐方式；不传就是纯几何中心对齐（等价于 { align: 'center' }）。 */
+    grabAlign?: GrabAlignConfig;
+    /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
+    pointerInput?: PointerSessionInputOptions;
     /** 兼容旧 demo 的手动启动入口。 */
     start?(context: {
         objectId: string;
@@ -108,6 +128,8 @@ export interface RegrabContext {
     readonly proxyElement: HTMLElement;
     readonly sourceElement: HTMLElement;
     readonly proxyRect: DOMRect;
+    /** 代理当前屏幕位置配合真实节点的未变换布局尺寸，供新 session 接管。 */
+    readonly regrabRect: DOMRect;
     interrupt(reason?: string): void;
 }
 export declare class Runtime {
@@ -133,6 +155,7 @@ export declare class Runtime {
     private readonly moveLanding;
     private readonly visualState;
     private readonly visualMotion;
+    private readonly surfaceScrollFrames;
     constructor();
     registerVisualAdapter(type: string, adapter: VisualAdapter): void;
     registerVisualStrategy(type: string, strategy: MoveVisualStrategy): void;
@@ -142,12 +165,19 @@ export declare class Runtime {
         profile?: import('./dom/MotionProfile').MotionProfile;
         controller?: MotionControllerConfig;
     } & import('./dom/MotionProfile').MotionProfile): void;
+    /** 配置 Runtime 默认代理视觉；业务也可以完全关闭并由 VisualAdapter 自行绘制。 */
+    configureVisual(config: {
+        dragGlass?: boolean;
+        layoutPresence?: boolean;
+    }): void;
     getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null;
     startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, returnRect?: DOMRect): boolean;
     bindObjectPointer(objectId: string, element: HTMLElement): () => void;
     private syncObjectPointerBinding;
     private defaultVisualAdapter;
     getVisualAdapter(type: string): VisualAdapter;
+    /** 按对象类型读取抓取对齐配置；未注册的类型返回 undefined，调用方按纯居中兜底。 */
+    getObjectGrabAlign(objectId: string): GrabAlignConfig | undefined;
     getObjectVisualAdapter(objectId: string): VisualAdapter;
     createVisualLifecycleContext(sessionId: string, destination?: unknown, targetElement?: HTMLElement, beforeContent?: HTMLElement): VisualLifecycleContext;
     /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
@@ -173,19 +203,66 @@ export declare class Runtime {
     createCompletionGate<T>(sessionId: string, failureValue: T): RuntimeCompletionGate<T>;
     setHitResolver(resolver: HitResolver | null): void;
     getHitResolver(): HitResolver | null;
+    /** 默认命中由已注册 Object/Surface 推导；特殊几何才需 setHitResolver()。 */
+    createRegisteredHitResolver(objectId: string): HitResolver<Surface, HTMLElement>;
+    /** 将自定义或注册表默认命中统一归一成业务无关的 Surface id 与插入索引。 */
+    resolveMoveHit(objectId: string, x: number, y: number): HitResult | null;
+    /** 自动滚动只需要当前命中 Surface 的真实滚动元素。 */
+    resolveMoveSurfaceElement(objectId: string, x: number, y: number): HTMLElement | null;
+    /** 取得指定 Surface 的滚动视口，不让视觉 driver 探查业务 DOM 结构。 */
+    resolveMoveSurfaceViewport(surfaceId: string): HTMLElement | null;
+    /** 创建绑定当前 Session 的自动滚动控制器；滚动资源随 Session 自动清理。 */
+    createAutoScroller(sessionId: string, options?: AutoScrollOptions): AutoScrollController | null;
+    /**
+     * 将落地目标滚动到注册 Surface 的可视范围内。
+     *
+     * 松手后的滚动由 Runtime 用 rAF 驱动，时长跟 landing 基准时长一致，
+     * 不再交给浏览器的原生 smooth scroll。这样代理从松手立即开始飞行时，
+     * 容器滚动不会比代理慢一大截，避免代理先完成并被销毁而容器仍在滚动。
+     */
+    keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void;
+    /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */
+    getObjectSurfaceIndex(objectId: string, surfaceId?: string): number;
     subscribe(listener: (event: RuntimeEvent) => void): () => void;
-    onAction(listener: (action: Action) => void): () => void;
+    onAction(listener: (action: Action) => void | Promise<void>): () => void;
     emitAction(action: Action): void;
     snapshot(): {
         objects: import('./object/ObjectItem').ObjectItem[];
-        surfaces: import('./surface/Surface').Surface[];
+        surfaces: Surface[];
     };
     registerBehavior(behavior: Behavior): void;
     setMoveDriver(driver: MoveBehaviorDriver): void;
     bindMoveSession(sessionId: string, driver: MoveBehaviorDriver): void;
     bindMoveLifecycle(sessionId: string, lifecycle: MoveVisualLifecycle): void;
     getMoveContext(sessionId: string): MoveContext;
+    /** 由 Runtime 统一捕获当前移动事务的布局快照。 */
+    captureMoveLayout(sessionId: string): void;
+    /** 由 Runtime 统一播放移动事务的布局 FLIP。 */
+    playMoveLayout(sessionId: string, useRaf?: boolean): void;
+    /** 捕获 Runtime 管理的 Surface / group / collection 布局快照。 */
+    captureLayout(elements: readonly HTMLElement[], root?: ParentNode, includePresence?: boolean, ignore?: (element: HTMLElement) => boolean): LayoutFlipSnapshot;
+    /** 按统一时序播放布局快照；列尾追加可选择等待 Vue patch 的下一帧。 */
+    scheduleLayout(snapshot: LayoutFlipSnapshot, useRaf?: boolean): void;
+    /** 统一编排组展开/收起、容器 resize、兄弟 FLIP 与可选 presence。 */
+    runGroupToggle(options: import('./dom/GroupLayout').GroupToggleOptions): Promise<void>;
+    /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */
+    cancelLayoutAnimations(root: ParentNode): void;
     resolveMoveTarget(sessionId: string, destination: unknown, fallback?: () => HTMLElement | null): HTMLElement | null;
+    /**
+     * 统一取得 landing 交接目标：先尝试当前帧的同步目标，再等待业务 Action
+     * 触发的 DOM 重渲染。视觉 adapter 不需要再组合这两个阶段，也不会各自
+     * 实现一套跨 Surface 的等待规则。
+     */
+    resolveLandingTarget(sessionId: string, destination: unknown, maxFrames?: number): Promise<HTMLElement | null>;
+    /**
+     * 等待 Action 引起的业务 DOM 重渲染并取得落地目标。
+     *
+     * 跨 Surface 时框架通常会先更新对象所属 Surface，再在随后一两帧销毁旧
+     * 组件、登记新组件。不能把仍是源节点的 hidden element 当成 target；同
+     * Surface 放回则允许复用原业务节点。业务 adapter 不需要自行轮询 DOM。
+     */
+    waitForMoveTarget(sessionId: string, destination: unknown, maxFrames?: number): Promise<HTMLElement | null>;
+    private getDestinationSurfaceId;
     registerRegrab(objectId: string, handler: (event: PointerEvent) => void): void;
     getRegrab(objectId: string): ((event: PointerEvent) => void) | undefined;
     regrab(objectId: string, event: PointerEvent): boolean;
@@ -193,6 +270,12 @@ export declare class Runtime {
     /** 将落地代理的 regrab 监听与当前 Session 清理绑定。 */
     bindRegrabTarget(sessionId: string, objectId: string, target: HTMLElement, handler: (event: PointerEvent) => void): void;
     createRegrabContext(sessionId: string, event: PointerEvent, proxyElement: HTMLElement, sourceElement: HTMLElement): RegrabContext | null;
+    /**
+     * 统一完成 landing → regrab 的旧 Session 接管。视觉 adapter 只处理
+     * source 可见性和监听器，旧 Session、completion gate 与 landing proxy
+     * 的失效由 Runtime 保证。
+     */
+    takeoverRegrab(sessionId: string): boolean;
     /**
      * 绑定 active 阶段的全局 pointer 输入。pointerup 会先立即解绑监听器，再把
      * release 交回 Runtime；cancel/interrupt 时由 Session Cleanup 兜底。

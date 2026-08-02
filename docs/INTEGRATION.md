@@ -1,6 +1,11 @@
 # Interaction Runtime · 接入指南
 
-## 五分钟接入
+## 接入状态
+
+本文描述的是 1.0.2 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
+使用 Runtime 源码而非 npm 包；文件、画布和抽屉仍按各自 adapter 接入，尚未承诺零配置。
+
+## 五分钟接入（1.0.2）
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
 默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器
@@ -108,15 +113,9 @@ Surface 的尺寸动画：
 .group-content.is-collapsing { overflow: hidden; }
 ```
 
-clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下的固定
-overlay，不受这些容器或应用壳裁剪。若需要提前挂载该层（通常不需要），可在
-浏览器入口调用：
-
-```ts
-import { mountVisualOverlay } from '{path-to}/index'
-
-mountVisualOverlay()
-```
+clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下，不受这些
+容器或应用壳裁剪——逃出裁切靠的是重新挂载到 `<html>` 这个动作本身，不需要额外的
+固定 overlay 容器；代理自己带 `z-index: 2147483647` 顶到最高层。
 
 ## 核心 API 参数
 
@@ -126,6 +125,8 @@ mountVisualOverlay()
 |  | `visual` | 可选的对象级 `VisualAdapter` |
 |  | `motion.enabled` | 是否使用内置 MotionController，默认 `true` |
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
+|  | `grabAlign.align` | 抓取基准对齐方式：`'center'`（默认，卡片中心对指针）或 `'pointer'`（点哪抓哪） |
+|  | `grabAlign.offsetX` / `offsetY` | 在基准对齐结果上叠加的固定像素偏移，正值往右/往下 |
 | `useObject(options)` | `id` | 对象唯一标识 |
 |  | `type` | 对象类型，必须匹配 Surface 的 `accepts` |
 |  | `surface` | 当前 Surface ID，可传 getter |
@@ -137,6 +138,22 @@ mountVisualOverlay()
 
 Action 的常用字段为 `type`、`objectId`、`fromSurfaceId`、`toSurfaceId`、`toIndex`
 和 `timestamp`。Runtime 不直接修改业务 Store。
+
+**抓取对齐（`grabAlign`）**
+
+默认 `align:'center'`：不管指针点在卡片哪个位置，抓起后卡片几何中心都会对齐
+指针。想要"点哪抓哪"（保留实际点击位置在卡片里的相对偏移）时传 `align:'pointer'`；
+`offsetX`/`offsetY` 是在基准对齐结果上再叠加的固定像素偏移，可以跟任意 `align`
+组合，比如居中之外再往下偏几 px，做出"被拎着"的悬垂感：
+
+```ts
+runtime.registerObjectType('project-card', {
+  defaultVisualMode: 'detach',
+  grabAlign: { offsetY: 8 },
+})
+```
+
+没有注册 `grabAlign` 的类型等价于 `{ align: 'center' }`（纯几何中心对齐）。
 
 **3. 配置运动参数**
 
@@ -173,6 +190,51 @@ runtime.configureMotion({
 `flip` 控制兄弟节点位移，`resize` 控制 Surface 高度，`landing` 控制落地，
 `group` 控制分组展开/收起。所有字段可选，未设置时回退到 Runtime 默认值。
 推荐在应用初始化时调用一次。
+
+如果分组展开/收起时还需要卡片淡入淡出，可开启布局 presence：
+
+```ts
+runtime.configureVisual({ layoutPresence: true })
+```
+
+该选项不新增 enter/leave 参数，淡入淡出直接复用 `group` 的时长和缓动；
+兄弟卡片位移继续使用 `flip` 配置。默认关闭，不会改变未启用该选项的列表。
+
+### Collection Presence（卡片进入/离场）
+
+开启 `layoutPresence` 后，Runtime 会在布局 FLIP 快照中自动记录卡片所属的
+collection。卡片从一个 collection 移到另一个 collection 时按“新节点进入”处理；
+卡片从所有 collection 消失时按“旧节点离场”处理。该逻辑使用 Web Animations API，
+时长和缓动复用 `flip` 配置，不需要业务端手动调用 enter/leave。
+
+业务端需要为每个卡片列表提供 collection 标记，并为卡片提供稳定 key：
+
+```html
+<div data-layout-collection="recent">
+  <div data-layout-role="card" data-layout-key="project-224">
+    ...
+  </div>
+</div>
+```
+
+注意事项：
+
+- `data-layout-key` 必须在不同 collection 之间保持全局唯一；
+- 折叠的年月组不会被当作可见 collection 参与入场动画；
+- 正在被 Runtime 拖拽控制的卡片不会额外生成离场副本；
+- 组展开/收起使用组自身的 Presence，不会和 Collection Presence 叠加；
+- Runtime 会过滤脱离 collection 或尺寸异常的 Vue 过渡节点。
+
+Runtime 也导出了底层 API，只有需要自定义布局事务时才直接使用：
+
+```ts
+const snapshot = captureCollectionPresence(root, '[data-layout-role="card"]')
+// 业务完成数据更新和 DOM patch 后调用
+playCollectionPresence(snapshot, {
+  duration: 250,
+  easing: 'cubic-bezier(.22,1,.36,1)',
+})
+```
 
 **4. 给对象打上可识别的标记**（供 hit test 用，见“已知限制”）
 
@@ -465,7 +527,21 @@ Surface 的 resize 速度由 `MotionProfile.resize` 控制，组展开/收起速
 `MotionProfile.group` 控制。业务不要在同一 Surface 上自行写 `height`、
 `transform` 或 `transition`，以免和 Runtime 的布局事务竞争。
 
-在业务提交前捕获、提交后播放即可：
+如果业务只需要切换一个布局组，推荐直接使用 Runtime 的组切换编排：
+
+```ts
+await runGroupToggle({
+  root,
+  content: monthContent,
+  opening,
+  mutate: () => toggleGroup(monthKey),
+  waitForLayout: nextTick,
+  isCurrent: () => token === currentToken,
+})
+```
+
+Runtime 会统一完成捕获、等待布局、组高度动画、兄弟 FLIP 和可选的 presence。
+业务不需要重复实现以下低层调用。只有需要拆分事务时，才直接使用捕获/播放 API：
 
 ```ts
 import { captureLayoutFlip, playLayoutFlip } from '{path-to}/dom/GroupLayout'

@@ -7,6 +7,8 @@ export interface PointerSessionInputRuntime {
 }
 
 export interface PointerSessionInputOptions {
+  /** 从 pointerdown 移动多少像素后才启动拖拽；默认 5px。 */
+  dragThreshold?: number
   /** 默认绑定到 window；测试或 iframe 场景可以注入其他 Window。 */
   target?: Window
   /** 使用 setPointerCapture 时，传入实际捕获元素以监听丢失捕获。 */
@@ -28,9 +30,21 @@ export function bindPointerSessionInput(
   const target = options.target ?? window
   const captureTarget = options.captureTarget
   let disposed = false
+  let pendingMove: PointerEvent | null = null
+  let moveFrame: number | null = null
 
   const onPointerMove = (event: PointerEvent): void => {
-    runtime.update(session.id, { kind: 'pointermove', event })
+    // pointermove 的频率通常高于屏幕刷新率。只保留最后一个事件，统一在
+    // 下一帧提交，避免每个输入事件都触发代理样式写入和命中解析。
+    pendingMove = event
+    if (moveFrame !== null) return
+    moveFrame = target.requestAnimationFrame(() => {
+      moveFrame = null
+      const latest = pendingMove
+      pendingMove = null
+      if (disposed || !latest) return
+      runtime.update(session.id, { kind: 'pointermove', event: latest })
+    })
   }
 
   const onPointerUp = (event: PointerEvent): void => {
@@ -56,6 +70,11 @@ export function bindPointerSessionInput(
   function stop(): void {
     if (disposed) return
     disposed = true
+    pendingMove = null
+    if (moveFrame !== null) {
+      target.cancelAnimationFrame(moveFrame)
+      moveFrame = null
+    }
     target.removeEventListener('pointermove', onPointerMove)
     target.removeEventListener('pointerup', onPointerUp)
     target.removeEventListener('pointercancel', onPointerCancel)

@@ -1,4 +1,4 @@
-import { f as a } from "../../DetachAdapter-xNINK5UP.js";
+import { h as a } from "../../DetachAdapter-D_Wg8Wh-.js";
 export {
   a as createDetachMoveFromAdapter
 };

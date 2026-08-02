@@ -143,6 +143,14 @@ Object.keys(cards).forEach(cardId => {
 })
 
 function bindCardPointer(cardId: string, element: HTMLElement | null): void {
+  // 卸载回调（element=null）可能在目标列新节点已挂载（element=新节点）
+  // 之后执行——跨列时 Vue 按模板顺序 patch，源列卸载晚于目标列挂载。
+  // 此时不能清空新注册的 element，否则 Runtime 的 landing 会以为
+  // 目标从未渲染（waitForMoveTarget 6 帧内 element=null → landing 失败）。
+  if (element === null) {
+    const current = runtime.objects.get(cardId)?.element ?? null
+    if (current && current.isConnected) return
+  }
   runtime.objects.setElement(cardId, element)
 }
 

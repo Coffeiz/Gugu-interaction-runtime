@@ -7,6 +7,10 @@ export interface LandingTargetTrackerOptions {
     observeAncestors?: boolean;
     /** 祖先观察在这个元素之前停止；默认是 document.body。 */
     stopAt?: HTMLElement | null;
+    /** 目标稳定后连续多少帧才降低轮询频率，默认 2。 */
+    stableFrameLimit?: number;
+    /** 目标稳定后的轮询间隔，按 rAF 帧数计，默认 4。 */
+    idlePollInterval?: number;
 }
 /**
  * landing 期间持续读取真实目标位置，并把布局变化转发给 motion retarget。

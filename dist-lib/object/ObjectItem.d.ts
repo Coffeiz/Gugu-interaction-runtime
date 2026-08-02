@@ -15,4 +15,10 @@ export interface ObjectItem {
     visual?: string;
     /** 未提供时默认使用 detach。 */
     visualMode?: string;
+    /**
+     * 注册代次（register 时自增）。同一 id 被新实例重新 register 后，
+     * 旧实例卸载时凭 generation 判断"当前 item 是否还是自己注册的"，
+     * 避免把新实例的注册误删（跨列挂载/卸载竞态）。
+     */
+    generation?: number;
 }

@@ -12,10 +12,10 @@ Vue 的响应式更新循环中分离出来，验证一套独立的 Runtime 是�
 - **视觉连续性设计**：proxy/source 切换、Visual State 和运动交接原则见
   [docs/DESIGN.md](docs/DESIGN.md)。
 
-当前阶段：阶段 0.5（Core 与 `MoveBehavior` 执行层已完成），尚未接入
-Gugu-web。Runtime 负责 Session、移动事务、landing/reveal 时机和清理；clone/
-detach 的 proxy/本体视觉实现通过 driver 注入。下一步先在 demo 页面
-顶部可以切换两种视觉策略实时对比。
+当前稳定版本：1.0.1。Runtime 已在 demo 和 Gugu-web 看板回归场景中接入 Session、移动事务、
+landing/reveal、MotionController、Surface FLIP，以及可选的 Collection Presence。
+业务端通过对象/Surface 注册和 `runtime.onAction()` 接入；默认视觉由 Runtime 处理，
+只有需要特殊视觉时才通过 adapter/driver 覆盖。
 
 ```
 npm install

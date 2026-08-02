@@ -8,6 +8,10 @@ export interface LandingTargetTrackerOptions {
   observeAncestors?: boolean
   /** 祖先观察在这个元素之前停止；默认是 document.body。 */
   stopAt?: HTMLElement | null
+  /** 目标稳定后连续多少帧才降低轮询频率，默认 2。 */
+  stableFrameLimit?: number
+  /** 目标稳定后的轮询间隔，按 rAF 帧数计，默认 4。 */
+  idlePollInterval?: number
 }
 
 /**
@@ -23,6 +27,11 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
   let observer: ResizeObserver | null = null
   let rafId: number | null = null
   let disposed = false
+  const stableFrameLimit = Math.max(0, options.stableFrameLimit ?? 2)
+  const idlePollInterval = Math.max(1, options.idlePollInterval ?? 4)
+  let stableFrames = 0
+  let frameCount = 0
+  let lastRect: DOMRect | null = null
 
   const stop = (): void => {
     if (disposed) return
@@ -37,7 +46,11 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
 
   const updateTarget = (): void => {
     if (disposed || !options.target.isConnected) return
-    options.retarget(options.target.getBoundingClientRect())
+    const rect = options.target.getBoundingClientRect()
+    lastRect = rect
+    stableFrames = 0
+    frameCount = 0
+    options.retarget(rect)
   }
 
   observer = new ResizeObserver(updateTarget)
@@ -55,11 +68,12 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
 
   // rAF 轮询：感知 FLIP transform 导致的位移。每帧检查目标位置，
   // 与缓存值对比，有变化才 retarget。避免每帧都调用 retarget。
-  let lastRect: DOMRect | null = null
   const poll = (): void => {
     if (disposed) return
     rafId = requestAnimationFrame(poll)
     if (!options.target.isConnected) return
+    frameCount += 1
+    if (stableFrames >= stableFrameLimit && frameCount % idlePollInterval !== 0) return
     const rect = options.target.getBoundingClientRect()
     if (
       lastRect &&
@@ -67,7 +81,11 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
       Math.abs(rect.top - lastRect.top) < 0.5 &&
       Math.abs(rect.width - lastRect.width) < 0.5 &&
       Math.abs(rect.height - lastRect.height) < 0.5
-    ) return
+    ) {
+      stableFrames += 1
+      return
+    }
+    stableFrames = 0
     lastRect = rect
     options.retarget(rect)
   }

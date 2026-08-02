@@ -18,8 +18,10 @@ export interface VisualLifecycleContext {
     readonly motion?: MotionProfile;
     /** 是否由 Runtime 内置 MotionController 驱动 landing；默认开启。 */
     readonly motionEnabled?: boolean;
+    /** landing 视觉目标所在 Surface 的 viewport 边界。 */
+    readonly landingBounds?: () => DOMRect | null;
     /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
-    readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ' | 'rotateVX' | 'rotateVZ'>;
+    readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
 }
 export interface VisualProxy {
     readonly element: HTMLElement;
@@ -38,6 +40,7 @@ export interface VisualAdapter {
         reason?: string;
     }>;
     reveal?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<void>;
+    /** 完整销毁代理；实现该回调后由 adapter 负责调用 proxy.dispose（如有）。 */
     dispose?(proxy: VisualProxy, context: VisualLifecycleContext): void;
 }
 export interface VisualAdapterRegistry {

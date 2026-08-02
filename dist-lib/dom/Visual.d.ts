@@ -15,11 +15,6 @@ export declare function applyInheritedStyleContext(target: HTMLElement, context:
  * 返回不一致的属性列表，空数组表示全部一致。
  */
 export declare function verifyVisualContextConsistency(source: HTMLElement, proxy: HTMLElement): string[];
-/**
- * Runtime 的临时视觉层。proxy/landing visual 必须脱离 Surface、应用壳和
- * body 的裁剪树，否则卡片越过列边界或飞往目标时会被中途截断。
- */
-export declare function mountVisualOverlay(): HTMLElement;
 export declare function setProxyInteractive(proxy: HTMLElement, enabled: boolean): void;
 export interface ProxyVisualState {
     transform: string;
@@ -32,7 +27,11 @@ export declare function restoreProxyVisualState(proxy: HTMLElement, state: Proxy
  * proxy：跟随指针的临时视觉对象，随 Session 创建/销毁，不属于 Vue 管理
  * 的真实 DOM——见 docs/DESIGN.md "Vue 创建真实 DOM，Runtime 创建临时 DOM"。
  */
-export declare function createDragProxy(source: HTMLElement, rect?: DOMRect): HTMLElement;
+export declare function createDragProxy(source: HTMLElement, rect?: DOMRect, options?: {
+    glass?: boolean;
+}): HTMLElement;
+export declare function getProxyAttitude(proxy: HTMLElement): HTMLElement;
+export declare function getProxyContent(proxy: HTMLElement): HTMLElement;
 export declare function moveDragProxy(proxy: HTMLElement, x: number, y: number, offsetX: number, offsetY: number): void;
 export interface LandingVisualOptions {
     duration?: number;
@@ -40,6 +39,9 @@ export interface LandingVisualOptions {
     targetShadow?: string;
     targetRadius?: string;
     targetBackground?: string;
+    /** 目标背景图（渐变等）。backgroundColor 与 backgroundImage 分设，避免
+     *  background 简写把渐变覆盖成透明。 */
+    targetBackgroundImage?: string;
     targetOpacity?: string;
     /**
      * 落点内容本身会变化时用（比如落点比源多/少某个子元素——徽章、按钮这类
@@ -53,7 +55,7 @@ export interface LandingVisualOptions {
     targetContent?: HTMLElement;
     /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
     readTarget?: () => LandingRect;
-    motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ' | 'rotateVX' | 'rotateVZ'>;
+    motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
     coast?: {
         duration: number;
         friction: number;
@@ -63,7 +65,9 @@ export interface LandingVisualOptions {
     /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
     releaseDamping?: number;
 }
-type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>;
+export type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>;
+/** 将 landing 目标限制在 Surface viewport 内，不等待滚动动画结束。 */
+export declare function clampLandingRectToBounds(rect: LandingRect, bounds: DOMRect): LandingRect;
 /**
  * 把代理从当前帧交接到最终目标。目标默认只提供一次几何快照——但调用方
  * 可以用返回值里的 retarget() 持续纠正：如果落地途中又有一次不相关的
@@ -97,6 +101,7 @@ export declare function destroyDragProxy(proxy: HTMLElement): void;
 export declare function destroyAllDragProxies(): void;
 export declare function destroyDragProxiesByCardId(cardId: string): void;
 export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect): void;
+export declare function getFloatingProxy(el: HTMLElement): HTMLElement | undefined;
 export declare function moveFloating(el: HTMLElement, x: number, y: number, offsetX: number, offsetY: number): void;
 export declare function clearFloatingStyle(el: HTMLElement): void;
 /**
@@ -111,6 +116,9 @@ export declare function clearFloatingStyle(el: HTMLElement): void;
  * 再由 clearFloatingStyle 整体恢复。
  */
 export declare function settleFloatingLayout(el: HTMLElement): void;
+export declare function setDefaultDraggingGlassEnabled(enabled: boolean): void;
+export declare function isDefaultDraggingGlassEnabled(): boolean;
+export declare function applyDraggingGlassStyle(element: HTMLElement): void;
 /**
  * 隐藏目标元素并登记 visibility ownership。
  * 只有登记的 owner 才能通过 revealElement() 恢复可见性。
@@ -129,4 +137,3 @@ export declare function revealElement(el: HTMLElement, ownerId: string): boolean
 export declare function releaseVisibilityOwnership(el: HTMLElement, ownerId: string): void;
 export declare function createDragPlaceholder(source: HTMLElement, rect: DOMRect): HTMLElement;
 export declare function destroyDragPlaceholder(placeholder: HTMLElement): void;
-export {};

@@ -48,7 +48,7 @@ describe('LandingTargetTracker retarget', () => {
     rafQueue[0]()
     expect(spy).toHaveBeenCalledTimes(1)
 
-    // 模拟过了 80ms 冷却
+    // 稳定几帧后轮询会降频；下一次有效采样仍会发现位移。
     await new Promise(r => setTimeout(r, 100))
     target.getBoundingClientRect = () => new DOMRect(50, 0, 100, 50)
     rafQueue[1]()
@@ -66,6 +66,8 @@ describe('LandingTargetTracker retarget', () => {
     expect(spy).toHaveBeenCalledTimes(1)
 
     rafQueue[1]()
+    rafQueue[2]()
+    rafQueue[3]()
     expect(spy).toHaveBeenCalledTimes(1)
   })
 

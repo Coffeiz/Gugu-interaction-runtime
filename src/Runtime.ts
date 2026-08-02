@@ -14,7 +14,9 @@ import type { MotionProfile } from './dom/MotionProfile'
 import type { MotionControllerConfig } from './motion/MotionProfile'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
-import type { HitResolver } from './dom/Hit'
+import type { HitResolver, HitResult } from './dom/Hit'
+import { createRegisteredHitResolver } from './dom/RegisteredHit'
+import type { Surface } from './surface/Surface'
 import type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
 import type { PointerSessionInputOptions } from './input/PointerSessionInput'
 import type { Action } from './action/Action'
@@ -25,8 +27,19 @@ import { VisualProxyCoordinator, VisualStateCoordinator, VisualMotionCoordinator
 import { MoveCommitCoordinator, MoveLandingCoordinator } from './runtime/RuntimeMove'
 import { RuntimeInputCoordinator, RuntimeDispatcher } from './runtime/RuntimeInput'
 import { RuntimeMoveCoordinator, type MoveReleasePort } from './runtime/RuntimeMove'
+import { setDefaultDraggingGlassEnabled } from './dom/Visual'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
-import { setMotionProfiles } from './dom/GroupLayout'
+import {
+  captureLayoutFlip,
+  cancelLayoutAnimations,
+  runGroupToggle,
+  scheduleLayoutFlip,
+  scheduleLayoutFlipOnRaf,
+  setLayoutPresenceEnabled,
+  setMotionProfiles,
+  type LayoutFlipSnapshot,
+} from './dom/GroupLayout'
+import { createAutoScroller, type AutoScrollController, type AutoScrollOptions } from './dom/AutoScroll'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -66,12 +79,30 @@ export interface MoveSessionHandle extends SessionHandle {
   dispose(): void
 }
 
+/** 抓取时卡片跟指针的对齐方式，按对象类型注册（见 ObjectTypeRegistration.grabAlign）。 */
+export interface GrabAlignConfig {
+  /**
+   * 基准对齐方式：
+   * - 'center'（默认）：卡片几何中心对指针，不管实际点在卡片哪个位置。
+   * - 'pointer'：保留实际点击位置在卡片里的相对偏移，点哪抓哪。
+   */
+  align?: 'center' | 'pointer'
+  /** 在基准对齐结果上再叠加的水平偏移(px)，正值往右；默认 0。 */
+  offsetX?: number
+  /** 在基准对齐结果上再叠加的垂直偏移(px)，正值往下；默认 0。 */
+  offsetY?: number
+}
+
 export interface ObjectTypeRegistration {
   defaultVisualMode: string
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
   visual?: ObjectVisualAdapter
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
   motion?: { enabled?: boolean; profile?: MotionProfile }
+  /** 抓取对齐方式；不传就是纯几何中心对齐（等价于 { align: 'center' }）。 */
+  grabAlign?: GrabAlignConfig
+  /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
+  pointerInput?: PointerSessionInputOptions
   /** 兼容旧 demo 的手动启动入口。 */
   start?(context: { objectId: string; element: HTMLElement; event: PointerEvent; mode: string }): void
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
@@ -117,6 +148,8 @@ export interface RegrabContext {
   readonly proxyElement: HTMLElement
   readonly sourceElement: HTMLElement
   readonly proxyRect: DOMRect
+  /** 代理当前屏幕位置配合真实节点的未变换布局尺寸，供新 session 接管。 */
+  readonly regrabRect: DOMRect
   interrupt(reason?: string): void
 }
 
@@ -143,6 +176,7 @@ export class Runtime {
   private readonly moveLanding: MoveLandingCoordinator
   private readonly visualState: VisualStateCoordinator
   private readonly visualMotion: VisualMotionCoordinator
+  private readonly surfaceScrollFrames = new WeakMap<HTMLElement, number>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
@@ -157,12 +191,16 @@ export class Runtime {
     })
     this.moveActions = new MoveActionCoordinator({
       getObjectSurface: objectId => this.objects.get(objectId)?.surfaceId,
-      emit: action => this.actions.emit(action),
+      emit: action => this.actions.emitAsync(action),
     })
     this.moveCommit = new MoveCommitCoordinator({
       createContext: session => this.createBehaviorContext(session),
       getLifecycle: sessionId => this.moveBehavior.getLifecycle(sessionId),
+      playLayout: (sessionId, useRaf) => this.playMoveLayout(sessionId, useRaf),
       normalize: (objectId, destination) => this.moveActions.normalize(objectId, destination),
+      getSurfaceObjectCount: surfaceId =>
+        [...this.objects.values()].filter(item => item.surfaceId === surfaceId).length,
+      getObjectIndex: (objectId, surfaceId) => this.getObjectSurfaceIndex(objectId, surfaceId),
     }, this.moveActions)
     this.moveLanding = new MoveLandingCoordinator({
       createContext: session => this.createBehaviorContext(session),
@@ -238,6 +276,12 @@ setMotionProfiles(this.registry.motionProfile)
     setMotionProfiles(this.registry.motionProfile)
   }
 
+  /** 配置 Runtime 默认代理视觉；业务也可以完全关闭并由 VisualAdapter 自行绘制。 */
+  configureVisual(config: { dragGlass?: boolean; layoutPresence?: boolean }): void {
+    if (config.dragGlass !== undefined) setDefaultDraggingGlassEnabled(config.dragGlass)
+    if (config.layoutPresence !== undefined) setLayoutPresenceEnabled(config.layoutPresence)
+  }
+
   getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null {
     return this.registry.motionProfile
   }
@@ -289,7 +333,10 @@ setMotionProfiles(this.registry.motionProfile)
           driver: move.driver,
           lifecycle: move.lifecycle,
           pointerInput: move.pointerInput,
-          followElement: element,
+          // 默认 detach driver 已由 MotionController 接管跟手；这里再把业务
+          // 本体设为 followElement 会在同一 pointermove 写两次 left/top。
+          // 跟手节点应由 Runtime visual driver 自行指定，业务 DOM 不参与。
+          followElement: null,
         },
       )
       return true
@@ -309,6 +356,13 @@ setMotionProfiles(this.registry.motionProfile)
 
   getVisualAdapter(type: string): VisualAdapter {
     return this.registry.visuals.get(type) ?? this.defaultVisualAdapter
+  }
+
+  /** 按对象类型读取抓取对齐配置；未注册的类型返回 undefined，调用方按纯居中兜底。 */
+  getObjectGrabAlign(objectId: string): GrabAlignConfig | undefined {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    return registration?.grabAlign
   }
 
   getObjectVisualAdapter(objectId: string): VisualAdapter {
@@ -357,6 +411,11 @@ setMotionProfiles(this.registry.motionProfile)
       targetSnapshot: targetElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
+      landingBounds: () => {
+        const surfaceId = this.getDestinationSurfaceId(destination)
+        const viewport = surfaceId ? this.resolveMoveSurfaceViewport(surfaceId) : null
+        return viewport?.getBoundingClientRect() ?? null
+      },
       motion: motionProfile,
       motionEnabled: registration?.motion?.enabled,
     }
@@ -411,6 +470,9 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   registerVisualProxy(sessionId: string, proxy: VisualProxy): void {
+    // 代理替换必须经过 Runtime 的统一销毁边界，不能让协调器直接调用
+    // proxy.dispose() 绕过当前对象的 VisualAdapter。
+    if (this.visualProxyCoordinator.get(sessionId)) this.disposeVisualProxy(sessionId)
     this.visualProxyCoordinator.register(sessionId, proxy)
   }
 
@@ -422,11 +484,19 @@ setMotionProfiles(this.registry.motionProfile)
     const proxy = this.visualProxyCoordinator.get(sessionId)
     if (!proxy) return
     const session = this.sessionCoordinator.get(sessionId)
+    let adapterDisposed = false
     if (session) {
       const context = this.createVisualLifecycleContext(sessionId)
-      this.getObjectVisualAdapter(session.objectId).dispose?.(proxy, context)
+      const adapter = this.getObjectVisualAdapter(session.objectId)
+      if (adapter.dispose) {
+        adapter.dispose(proxy, context)
+        adapterDisposed = true
+      }
     }
-    proxy.dispose?.()
+    // dispose 若由 VisualAdapter 提供，则由 adapter 负责完整销毁代理。
+    // Runtime 只在没有 adapter 实现时调用 proxy 自身的兜底 dispose，避免
+    // DefaultVisualAdapter/custom adapter 与 Runtime 重复清理同一个节点。
+    if (!adapterDisposed) proxy.dispose?.()
     this.visualProxyCoordinator.remove(sessionId)
   }
 
@@ -461,11 +531,124 @@ setMotionProfiles(this.registry.motionProfile)
     return this.hitResolver
   }
 
+  /** 默认命中由已注册 Object/Surface 推导；特殊几何才需 setHitResolver()。 */
+  createRegisteredHitResolver(objectId: string): HitResolver<Surface, HTMLElement> {
+    return createRegisteredHitResolver(this.objects, this.surfaces, objectId)
+  }
+
+  /** 将自定义或注册表默认命中统一归一成业务无关的 Surface id 与插入索引。 */
+  resolveMoveHit(objectId: string, x: number, y: number): HitResult | null {
+    if (this.hitResolver) {
+      const surface = this.hitResolver.findSurface({ x, y })
+      if (!surface?.dataset.column) return null
+      return {
+        columnId: surface.dataset.column,
+        index: this.hitResolver.findIndex(surface, { x, y }, objectId),
+      }
+    }
+    const resolver = this.createRegisteredHitResolver(objectId)
+    const surface = resolver.findSurface({ x, y })
+    if (!surface) return null
+    return { columnId: surface.id, index: resolver.findIndex(surface, { x, y }, objectId) }
+  }
+
+  /** 自动滚动只需要当前命中 Surface 的真实滚动元素。 */
+  resolveMoveSurfaceElement(objectId: string, x: number, y: number): HTMLElement | null {
+    if (this.hitResolver) return this.hitResolver.findSurface({ x, y })
+    const surface = this.createRegisteredHitResolver(objectId).findSurface({ x, y })
+    return surface?.viewport?.() ?? surface?.element ?? null
+  }
+
+  /** 取得指定 Surface 的滚动视口，不让视觉 driver 探查业务 DOM 结构。 */
+  resolveMoveSurfaceViewport(surfaceId: string): HTMLElement | null {
+    const surface = this.surfaces.get(surfaceId)
+    return surface?.viewport?.() ?? surface?.element ?? null
+  }
+
+  /** 创建绑定当前 Session 的自动滚动控制器；滚动资源随 Session 自动清理。 */
+  createAutoScroller(
+    sessionId: string,
+    options: AutoScrollOptions = {},
+  ): AutoScrollController | null {
+    const session = this.sessionCoordinator.get(sessionId)
+    return session ? createAutoScroller(session.cleanup, options) : null
+  }
+
+  /**
+   * 将落地目标滚动到注册 Surface 的可视范围内。
+   *
+   * 松手后的滚动由 Runtime 用 rAF 驱动，时长跟 landing 基准时长一致，
+   * 不再交给浏览器的原生 smooth scroll。这样代理从松手立即开始飞行时，
+   * 容器滚动不会比代理慢一大截，避免代理先完成并被销毁而容器仍在滚动。
+   */
+  keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void {
+    const viewport = this.resolveMoveSurfaceViewport(surfaceId)
+    if (!viewport || !target.isConnected) return
+    const previousFrame = this.surfaceScrollFrames.get(viewport)
+    if (previousFrame !== undefined) {
+      cancelAnimationFrame(previousFrame)
+      this.surfaceScrollFrames.delete(viewport)
+    }
+    const resolveTargetScrollTop = (): number => {
+      const currentViewportRect = viewport.getBoundingClientRect()
+      const currentTargetRect = target.getBoundingClientRect()
+      const desired = currentTargetRect.top < currentViewportRect.top
+        ? viewport.scrollTop - (currentViewportRect.top - currentTargetRect.top)
+        : currentTargetRect.bottom > currentViewportRect.bottom
+          ? viewport.scrollTop + (currentTargetRect.bottom - currentViewportRect.bottom)
+          : viewport.scrollTop
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+      return Math.max(0, Math.min(desired, maxScrollTop))
+    }
+    let targetScrollTop = resolveTargetScrollTop()
+    if (Math.abs(targetScrollTop - viewport.scrollTop) < 0.5) return
+
+    const startScrollTop = viewport.scrollTop
+    const duration = Math.max(200, this.registry.motionProfile?.landing?.duration ?? 250)
+    if (typeof requestAnimationFrame === 'undefined') {
+      viewport.scrollTop = targetScrollTop
+      return
+    }
+    const startedAt = performance.now()
+    const tick = (time: number): void => {
+      const progress = Math.min(1, (time - startedAt) / duration)
+      const eased = 1 - (1 - progress) ** 3
+      targetScrollTop = resolveTargetScrollTop()
+      viewport.scrollTop = startScrollTop + (targetScrollTop - startScrollTop) * eased
+      if (progress >= 1) viewport.scrollTop = targetScrollTop
+      if (progress >= 1) {
+        this.surfaceScrollFrames.delete(viewport)
+        return
+      }
+      const frame = requestAnimationFrame(tick)
+      this.surfaceScrollFrames.set(viewport, frame)
+    }
+    const frame = requestAnimationFrame(tick)
+    this.surfaceScrollFrames.set(viewport, frame)
+  }
+
+  /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */
+  getObjectSurfaceIndex(objectId: string, surfaceId?: string): number {
+    const object = this.objects.get(objectId)
+    const ownerSurface = surfaceId ?? object?.surfaceId
+    if (!object || !ownerSurface) return -1
+    return [...this.objects.values()]
+      .filter(item => item.surfaceId === ownerSurface)
+      .map(item => item.id)
+      .sort((leftId, rightId) => {
+        const left = this.objects.get(leftId)?.element?.getBoundingClientRect()
+        const right = this.objects.get(rightId)?.element?.getBoundingClientRect()
+        if (!left || !right) return 0
+        return left.top - right.top || left.left - right.left
+      })
+      .indexOf(objectId)
+  }
+
   subscribe(listener: (event: RuntimeEvent) => void): () => void {
     return this.events.subscribe(listener)
   }
 
-  onAction(listener: (action: Action) => void): () => void {
+  onAction(listener: (action: Action) => void | Promise<void>): () => void {
     return this.actions.subscribe(listener)
   }
 
@@ -500,6 +683,48 @@ setMotionProfiles(this.registry.motionProfile)
     return this.moveBehavior.getContext(sessionId)
   }
 
+  /** 由 Runtime 统一捕获当前移动事务的布局快照。 */
+  captureMoveLayout(sessionId: string): void {
+    const session = this.sessionCoordinator.get(sessionId)
+    const behavior = session ? this.behaviors.get(session.type) : undefined
+    if (!(behavior instanceof MoveBehavior) || !session) return
+    behavior.captureLayout(this.createBehaviorContext(session))
+  }
+
+  /** 由 Runtime 统一播放移动事务的布局 FLIP。 */
+  playMoveLayout(sessionId: string, useRaf = false): void {
+    const session = this.sessionCoordinator.get(sessionId)
+    const behavior = session ? this.behaviors.get(session.type) : undefined
+    if (!(behavior instanceof MoveBehavior) || !session) return
+    behavior.playLayout(this.createBehaviorContext(session), useRaf)
+  }
+
+  /** 捕获 Runtime 管理的 Surface / group / collection 布局快照。 */
+  captureLayout(
+    elements: readonly HTMLElement[],
+    root: ParentNode = document,
+    includePresence = true,
+    ignore?: (element: HTMLElement) => boolean,
+  ): LayoutFlipSnapshot {
+    return captureLayoutFlip(elements, root, includePresence, ignore)
+  }
+
+  /** 按统一时序播放布局快照；列尾追加可选择等待 Vue patch 的下一帧。 */
+  scheduleLayout(snapshot: LayoutFlipSnapshot, useRaf = false): void {
+    if (useRaf) scheduleLayoutFlipOnRaf(snapshot)
+    else scheduleLayoutFlip(snapshot)
+  }
+
+  /** 统一编排组展开/收起、容器 resize、兄弟 FLIP 与可选 presence。 */
+  runGroupToggle(options: import('./dom/GroupLayout').GroupToggleOptions): Promise<void> {
+    return runGroupToggle(options)
+  }
+
+  /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */
+  cancelLayoutAnimations(root: ParentNode): void {
+    cancelLayoutAnimations(root)
+  }
+
   resolveMoveTarget(
     sessionId: string,
     destination: unknown,
@@ -510,10 +735,75 @@ setMotionProfiles(this.registry.motionProfile)
     const context = this.createBehaviorContext(session)
     const resolveResult = context.visual?.resolveTarget?.(session.objectId, destination)
     const fallbackResult = fallback?.()
-    const target = resolveResult ?? fallbackResult ?? null
+    const registeredElement = this.objects.get(session.objectId)?.element
+    const target = resolveResult ?? fallbackResult ?? registeredElement ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
     return target
+  }
+
+  /**
+   * 统一取得 landing 交接目标：先尝试当前帧的同步目标，再等待业务 Action
+   * 触发的 DOM 重渲染。视觉 adapter 不需要再组合这两个阶段，也不会各自
+   * 实现一套跨 Surface 的等待规则。
+   */
+  async resolveLandingTarget(
+    sessionId: string,
+    destination: unknown,
+    maxFrames = 6,
+  ): Promise<HTMLElement | null> {
+    const immediate = this.resolveMoveTarget(sessionId, destination)
+    return immediate ?? this.waitForMoveTarget(sessionId, destination, maxFrames)
+  }
+
+  /**
+   * 等待 Action 引起的业务 DOM 重渲染并取得落地目标。
+   *
+   * 跨 Surface 时框架通常会先更新对象所属 Surface，再在随后一两帧销毁旧
+   * 组件、登记新组件。不能把仍是源节点的 hidden element 当成 target；同
+   * Surface 放回则允许复用原业务节点。业务 adapter 不需要自行轮询 DOM。
+   */
+  async waitForMoveTarget(sessionId: string, destination: unknown, maxFrames = 6): Promise<HTMLElement | null> {
+    const session = this.sessionCoordinator.get(sessionId)
+    if (!session) return null
+    const moveContext = this.moveBehavior.getContext(sessionId)
+    const source = moveContext.sourceElement
+    const expectedSurface = this.getDestinationSurfaceId(destination)
+    const transactionDestination = moveContext.transaction.destination as Partial<import('./behavior/MoveTransaction').MoveActionDestination> | null
+    const sourceSurface = typeof transactionDestination?.fromSurfaceId === 'string'
+      ? transactionDestination.fromSurfaceId
+      : null
+    const crossSurface = !!expectedSurface && expectedSurface !== sourceSurface
+    for (let frame = 0; frame < maxFrames; frame += 1) {
+      const current = this.sessionCoordinator.get(sessionId)
+      if (current !== session || current.state === 'disposed' || current.state === 'interrupt') return null
+      const object = this.objects.get(session.objectId)
+      const target = this.resolveMoveTarget(sessionId, destination)
+      const surfaceReady = !expectedSurface || object?.surfaceId === expectedSurface
+      // 同列放回：target 就是业务节点的最终落点（原地放回时 DOM 不动、
+      // target === source；换位时 Vue 复用实例则 target 仍是同一节点但
+      // rect 已随业务 patch 更新到新位置）——只要节点有效即可放行，
+      // 不能要求 target !== source（复用实例时永远相等）。
+      // 跨列：Vue 用 :key 复用时组件实例不会重挂载，source 节点会被直接
+      // 复用为 target（仍是同一个节点），此时不能以 surfaceId 判完成——
+      // watchEffect(flush:'pre') 在 Vue DOM patch 前就更新 surfaceId，
+      // rect 还是旧列位置。要用 DOM 级信号：目标 Surface 容器已包含
+      // target，说明 Vue 已把节点 patch 到新列文档流。
+      const movedToSurface = !!expectedSurface && !!target
+        ? (this.surfaces.get(expectedSurface)?.element?.contains(target) ?? false)
+        : false
+      const moved = crossSurface ? movedToSurface : true
+      if (target && surfaceReady && moved) return target
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    }
+    return null
+  }
+
+  private getDestinationSurfaceId(destination: unknown): string | null {
+    if (!destination || typeof destination !== 'object') return null
+    const candidate = destination as { toSurfaceId?: unknown; columnId?: unknown }
+    if (typeof candidate.toSurfaceId === 'string') return candidate.toSurfaceId
+    return typeof candidate.columnId === 'string' ? candidate.columnId : null
   }
 
   registerRegrab(objectId: string, handler: (event: PointerEvent) => void): void {
@@ -555,15 +845,34 @@ setMotionProfiles(this.registry.motionProfile)
   ): RegrabContext | null {
     const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return null
+    const proxyRect = proxyElement.getBoundingClientRect()
+    const sourceRect = sourceElement.getBoundingClientRect()
+    const layoutWidth = sourceElement.offsetWidth || sourceRect.width
+    const layoutHeight = sourceElement.offsetHeight || sourceRect.height
+    const regrabRect = new DOMRect(proxyRect.left, proxyRect.top, layoutWidth, layoutHeight)
     return {
       sessionId,
       objectId: session.objectId,
       event,
       proxyElement,
       sourceElement,
-      proxyRect: proxyElement.getBoundingClientRect(),
+      proxyRect,
+      regrabRect,
       interrupt: reason => this.interrupt(sessionId, reason ?? 'regrab'),
     }
+  }
+
+  /**
+   * 统一完成 landing → regrab 的旧 Session 接管。视觉 adapter 只处理
+   * source 可见性和监听器，旧 Session、completion gate 与 landing proxy
+   * 的失效由 Runtime 保证。
+   */
+  takeoverRegrab(sessionId: string): boolean {
+    const session = this.sessionCoordinator.get(sessionId)
+    if (!session || session.state !== 'landing') return false
+    this.interrupt(sessionId, 'regrab')
+    this.disposeVisualProxy(sessionId)
+    return true
   }
 
   /**
@@ -684,6 +993,8 @@ setMotionProfiles(this.registry.motionProfile)
       getSession: id => this.sessionCoordinator.get(id),
       getBehavior: type => this.behaviors.get(type),
       createContext: session => this.createBehaviorContext(session),
+      captureLayout: id => this.captureMoveLayout(id),
+      playLayout: (id, useRaf) => this.playMoveLayout(id, useRaf),
       cancel: (id, reason) => this.cancel(id, reason),
       end: session => this.endSession(session),
     }

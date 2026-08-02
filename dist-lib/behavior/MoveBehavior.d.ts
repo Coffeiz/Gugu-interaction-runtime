@@ -23,7 +23,7 @@ export interface MoveLayoutLifecycle {
     /** 在业务 commit 前捕获兄弟节点/Surface 的布局。 */
     capture?(context: BehaviorContext): unknown;
     /** 在 commit 后播放或调度布局过渡。 */
-    play?(context: BehaviorContext, snapshot: unknown): void;
+    play?(context: BehaviorContext, snapshot: unknown, useRaf?: boolean): void;
     /** 事务取消时清理尚未播放的布局事务。 */
     cancel?(context: BehaviorContext, snapshot: unknown, reason: string): void;
 }
@@ -65,11 +65,13 @@ export type MoveVisualStrategy = MoveVisualLifecycle;
 export interface MoveReleaseResult {
     readonly accepted: boolean;
     readonly destination?: unknown;
+    /** 无效落点的视觉回归仍走 landing，但不应提交业务 Action。 */
+    readonly emitAction?: boolean;
 }
 export interface LandingResult {
     readonly completed: boolean;
     readonly reason?: string;
-    readonly reveal?: () => void;
+    readonly reveal?: () => void | Promise<void>;
 }
 export declare class MoveBehavior implements Behavior {
     private driver;
@@ -88,7 +90,9 @@ export declare class MoveBehavior implements Behavior {
     bindLifecycle(sessionId: string, lifecycle: MoveVisualLifecycle): void;
     getLifecycle(sessionId: string): MoveVisualLifecycle | undefined;
     captureLayout(context: BehaviorContext): void;
-    playLayout(context: BehaviorContext): void;
+    playLayout(context: BehaviorContext, useRaf?: boolean): void;
+    /** 列尾追加专用：等下一帧（Vue patch 落地）再量布局执行 Invert。 */
+    playLayoutOnRaf(context: BehaviorContext): void;
     cancelLayout(context: BehaviorContext, reason: string): void;
     getContext(sessionId: string): MoveContext;
     private driverFor;

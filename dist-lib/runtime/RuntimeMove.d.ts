@@ -14,9 +14,10 @@ export declare class RuntimeMoveCoordinator {
     static fromPorts(updatePort: MoveUpdatePort, commitCoordinator: MoveCommitCoordinator, landingCoordinator: MoveLandingCoordinator): RuntimeMoveCoordinator;
     update(sessionId: string, input: RuntimeInput): void;
     prepareRelease(session: Session | undefined, input: RuntimeInput): ReleasePreflight;
-    commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
+    commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction?: boolean): Promise<void>;
     land(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
     release(sessionId: string, input: RuntimeInput, port: MoveReleasePort): Promise<void>;
+    private finishRelease;
     start(request: StartRequest, port: MoveStartPort): SessionHandle;
 }
 export interface MoveStartPort {
@@ -33,12 +34,14 @@ export interface MoveReleasePort {
     getSession(sessionId: string): Session | undefined;
     getBehavior(type: string): Behavior | undefined;
     createContext(session: Session): BehaviorContext;
+    captureLayout(sessionId: string): void;
+    playLayout(sessionId: string, useRaf?: boolean): void;
     cancel(sessionId: string, reason: string): void;
     end(session: Session): void;
 }
 export interface MoveActionPort {
     getObjectSurface(objectId: string): string | undefined;
-    emit(action: Action): void;
+    emit(action: Action): void | Promise<void>;
 }
 export interface MoveUpdatePort {
     getSession(id: string): {
@@ -68,13 +71,24 @@ export declare class MoveReleaseCoordinator {
 export interface MoveCommitPort {
     createContext(session: Session): BehaviorContext;
     getLifecycle(id: string): import('../behavior/MoveBehavior').MoveVisualLifecycle | undefined;
+    playLayout(sessionId: string, useRaf?: boolean): void;
     normalize(objectId: string, destination: unknown): MoveActionDestination | null;
+    /** 目标 Surface 当前的对象数（用于列尾判定兜底：toIndex >= count 即追加）。 */
+    getSurfaceObjectCount?(surfaceId: string): number;
+    /**
+     * 对象在目标 Surface 里真实的、按屏幕布局排序算出的索引（不依赖拖拽落点
+     * 算出的 toIndex）。业务可能对目标列有自己的排序/分组规则（比如已完成列
+     * 按日期分年月分组），拖拽落点算出的 toIndex 未必是卡片最终真实停留的
+     * 位置——用这个量到的才是"卡片实际会不会在最后一个位置"的真相。
+     */
+    getObjectIndex?(objectId: string, surfaceId: string): number | undefined;
 }
 export declare class MoveCommitCoordinator {
     private readonly port;
     private readonly actions;
     constructor(port: MoveCommitPort, actions: MoveActionCoordinator);
-    commit(session: Session, behavior: MoveBehavior, destination: unknown): Promise<void>;
+    private resolveIsAppend;
+    commit(session: Session, behavior: MoveBehavior, destination: unknown, emitAction?: boolean): Promise<void>;
 }
 export interface MoveLandingPort {
     createContext(session: Session): BehaviorContext;
@@ -91,6 +105,6 @@ export declare class MoveActionCoordinator {
     private readonly port;
     constructor(port: MoveActionPort);
     normalize(objectId: string, value: unknown): MoveActionDestination | null;
-    emit(objectId: string, destination: unknown, transaction: MoveContext['transaction']): boolean;
+    emit(objectId: string, destination: unknown, transaction: MoveContext['transaction']): Promise<boolean>;
     private isDestination;
 }

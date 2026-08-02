@@ -51,6 +51,63 @@ describe('Runtime move orchestration', () => {
     expect(handler).toHaveBeenCalledWith(event)
   })
 
+  it('regrab 接管由 Runtime 统一中断旧 Session 并失效代理', () => {
+    const runtime = createRuntime()
+    const handle = runtime.start(createRequest())
+    const session = runtime.getSession(handle.id)
+    session?.transition('active')
+    session?.transition('landing')
+    const proxyDispose = vi.fn()
+    runtime.registerVisualProxy(handle.id, { element: document.createElement('div'), dispose: proxyDispose })
+
+    expect(runtime.takeoverRegrab(handle.id)).toBe(true)
+    expect(runtime.getSession(handle.id)).toBeUndefined()
+    expect(runtime.getVisualProxy(handle.id)).toBeUndefined()
+    expect(proxyDispose).toHaveBeenCalledOnce()
+  })
+
+  it('Surface 目标滚动由 Runtime 统一保持在视口内', () => {
+    const runtime = createRuntime()
+    const viewport = document.createElement('div')
+    const target = document.createElement('div')
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback)
+      return rafCallbacks.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+    let targetTop = 40
+    let scrollTop = 100
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value },
+    })
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 1000 })
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 300 })
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 200, 300))
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, targetTop, 100, 40))
+    Object.defineProperty(viewport, 'scrollTo', {
+      value: ({ top }: ScrollToOptions) => { viewport.scrollTop = top ?? viewport.scrollTop },
+    })
+    viewport.append(target)
+    document.body.append(viewport)
+    runtime.registerSurface({ id: 'surface:scroll', type: 'list', element: viewport, viewport: () => viewport, accepts: ['project-card'] })
+
+    runtime.keepSurfaceTargetVisible('surface:scroll', target)
+    expect(viewport.scrollTop).toBe(100)
+    const firstFrame = rafCallbacks.shift()
+    firstFrame?.(performance.now() + 250)
+    expect(viewport.scrollTop).toBe(40)
+
+    targetTop = 380
+    runtime.keepSurfaceTargetVisible('surface:scroll', target)
+    expect(viewport.scrollTop).toBe(40)
+    const secondFrame = rafCallbacks.shift()
+    secondFrame?.(performance.now() + 250)
+    expect(viewport.scrollTop).toBe(60)
+  })
+
   it('Surface Lease 不允许后续 Session 覆盖当前控制权', () => {
     const runtime = createRuntime()
     const first = runtime.start(createRequest())
@@ -130,7 +187,7 @@ describe('Runtime move orchestration', () => {
     source.remove()
   })
 
-  it('VisualProxy 随 Session 注册、替换并在取消时清理', () => {
+  it('VisualProxy 替换与取消都经过 Runtime 的统一清理边界', () => {
     const runtime = createRuntime()
     const handle = runtime.start(createRequest())
     const firstDispose = vi.fn()
@@ -228,7 +285,7 @@ describe('Runtime move orchestration', () => {
     runtime.cancel(handle.id)
   })
 
-  it('释放代理时调用适配器 dispose，并保持代理自身清理', () => {
+  it('释放代理时由适配器接管完整清理', () => {
     const runtime = new Runtime()
     const source = document.createElement('div')
     const proxyElement = document.createElement('div')
@@ -258,7 +315,40 @@ describe('Runtime move orchestration', () => {
 
     runtime.disposeVisualProxy(handle.id)
     expect(disposeAdapter).toHaveBeenCalledOnce()
-    expect(disposeProxy).toHaveBeenCalledOnce()
+    expect(disposeProxy).not.toHaveBeenCalled()
+  })
+
+  it('适配器接管 dispose 时 Runtime 不会重复调用 proxy.dispose', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('div')
+    const proxyElement = document.createElement('div')
+    const disposeAdapter = vi.fn()
+    const disposeProxy = vi.fn()
+    runtime.objects.register({
+      id: 'card-adapter-dispose',
+      type: 'adapter-dispose-card',
+      surfaceId: 'surface:adapter-dispose',
+      element: source,
+      abilities: ['move'],
+    })
+    runtime.registerObjectType('adapter-dispose-card', {
+      defaultVisualMode: 'detach',
+      visual: {
+        createProxy: () => ({ element: proxyElement, dispose: disposeProxy }),
+        dispose: disposeAdapter,
+      },
+    })
+    const handle = runtime.start({
+      type: 'move',
+      objectId: 'card-adapter-dispose',
+      input: { kind: 'programmatic' },
+    })
+    runtime.createVisualProxy(handle.id, runtime.createVisualLifecycleContext(handle.id))
+
+    runtime.disposeVisualProxy(handle.id)
+
+    expect(disposeAdapter).toHaveBeenCalledOnce()
+    expect(disposeProxy).not.toHaveBeenCalled()
   })
 
   it('每次 Runtime.start 只创建一个 Session', () => {
@@ -303,7 +393,7 @@ describe('Runtime move orchestration', () => {
     runtime.endSession(session)
 
     expect(disposeAdapter).toHaveBeenCalledOnce()
-    expect(disposeProxy).toHaveBeenCalledOnce()
+    expect(disposeProxy).not.toHaveBeenCalled()
     expect(runtime.getSession(handle.id)).toBeUndefined()
   })
 
@@ -442,6 +532,31 @@ describe('Runtime move orchestration', () => {
     expect(start).toHaveBeenCalledTimes(1)
   })
 
+  it('对象级 pointerInput 由 Runtime 统一执行拖拽阈值，未越过阈值保留 click', () => {
+    const runtime = createRuntime()
+    const start = vi.fn()
+    runtime.registerObjectType('project-card', {
+      defaultVisualMode: 'detach',
+      pointerInput: { dragThreshold: 10 },
+      createMove: () => ({}),
+      start,
+    })
+    const element = document.createElement('div')
+    runtime.objects.setElement('card-1', element)
+
+    element.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      pointerType: 'mouse',
+      clientX: 10,
+      clientY: 10,
+    }))
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 15, clientY: 10 }))
+    expect(start).not.toHaveBeenCalled()
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 21, clientY: 10 }))
+    expect(start).toHaveBeenCalledOnce()
+    window.dispatchEvent(new PointerEvent('pointerup'))
+  })
+
   it('统一输入入口会把 pointercancel 转为一次性 cancel', async () => {
     const runtime = createRuntime()
     const handle = runtime.orchestrateMoveSession(createRequest(), {
@@ -490,7 +605,7 @@ describe('Runtime move orchestration', () => {
   it('由 Runtime 为移动目标生成一次 MoveAction', async () => {
     const runtime = createRuntime()
     const actions: unknown[] = []
-    runtime.onAction(action => actions.push(action))
+    runtime.onAction(action => { actions.push(action) })
     const handle = runtime.start(createRequest())
     runtime.bindMoveSession(handle.id, createDriver(() => undefined))
 
@@ -503,6 +618,28 @@ describe('Runtime move orchestration', () => {
       toSurfaceId: 'column:done',
       toIndex: 0,
     })])
+  })
+
+  it('无效落点的视觉回归不输出业务 Action，仍进入一次 landing', async () => {
+    const runtime = createRuntime()
+    const actions: unknown[] = []
+    const landing = vi.fn(() => ({ completed: true }))
+    runtime.onAction(action => { actions.push(action) })
+    const handle = runtime.start(createRequest())
+    runtime.bindMoveSession(handle.id, {
+      resolveDestination: () => ({
+        accepted: true,
+        emitAction: false,
+        destination: { columnId: 'column:todo', index: 0 },
+      }),
+      commit: () => undefined,
+    })
+    runtime.bindMoveLifecycle(handle.id, { landing })
+
+    await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
+
+    expect(actions).toEqual([])
+    expect(landing).toHaveBeenCalledOnce()
   })
 
   it('由 Runtime 编排 Surface leave → Action → enter → dispose', async () => {
@@ -532,7 +669,7 @@ describe('Runtime move orchestration', () => {
   it('将业务侧 columnId/index 落点归一为 MoveAction', async () => {
     const runtime = createRuntime()
     const actions: unknown[] = []
-    runtime.onAction(action => actions.push(action))
+    runtime.onAction(action => { actions.push(action) })
     const handle = runtime.start(createRequest())
     runtime.bindMoveSession(handle.id, {
       resolveDestination: () => ({ accepted: true, destination: { columnId: 'done', index: 0 } }),
@@ -543,7 +680,8 @@ describe('Runtime move orchestration', () => {
 
     expect(actions).toEqual([expect.objectContaining({
       fromSurfaceId: 'column:todo',
-      toSurfaceId: 'column:done',
+      // Surface ID 是业务注册的 opaque ID；Runtime 不追加 demo 的 column: 前缀。
+      toSurfaceId: 'done',
       toIndex: 0,
     })])
   })
@@ -565,9 +703,14 @@ describe('Runtime move orchestration', () => {
     expect(runtime.getSession(handle.id)).toBeUndefined()
   })
 
-  it('由 Runtime 在 commit 前后编排布局 capture/play', async () => {
+  it('由 Runtime 在 Action 与渲染门后编排布局 capture/play', async () => {
     const runtime = createRuntime()
     const events: string[] = []
+    runtime.onAction(async () => {
+      events.push('action')
+      await Promise.resolve()
+      events.push('rendered')
+    })
     const handle = runtime.start(createRequest())
     runtime.bindMoveSession(handle.id, createDriver(() => { events.push('commit') }))
     runtime.bindMoveLifecycle(handle.id, {
@@ -580,7 +723,7 @@ describe('Runtime move orchestration', () => {
 
     await runtime.release(handle.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
 
-    expect(events).toEqual(['capture', 'commit', 'play:layout-1'])
+    expect(events).toEqual(['capture', 'commit', 'action', 'rendered', 'play:layout-1'])
   })
 
   it('commit 失败时不进入 landing/reveal 且清理 session', async () => {

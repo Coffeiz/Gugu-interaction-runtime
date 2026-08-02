@@ -3,6 +3,10 @@ import type { RuntimeInput, StartRequest } from '../core/Interaction'
 import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { MoveTransaction } from './MoveTransaction'
 
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value && typeof (value as { then?: unknown }).then === 'function')
+}
+
 export interface MoveContext {
   transaction: MoveTransaction
   sourceElement: HTMLElement | null
@@ -22,7 +26,7 @@ export interface MoveLayoutLifecycle {
   /** 在业务 commit 前捕获兄弟节点/Surface 的布局。 */
   capture?(context: BehaviorContext): unknown
   /** 在 commit 后播放或调度布局过渡。 */
-  play?(context: BehaviorContext, snapshot: unknown): void
+  play?(context: BehaviorContext, snapshot: unknown, useRaf?: boolean): void
   /** 事务取消时清理尚未播放的布局事务。 */
   cancel?(context: BehaviorContext, snapshot: unknown, reason: string): void
 }
@@ -69,12 +73,14 @@ export type MoveVisualStrategy = MoveVisualLifecycle
 export interface MoveReleaseResult {
   readonly accepted: boolean
   readonly destination?: unknown
+  /** 无效落点的视觉回归仍走 landing，但不应提交业务 Action。 */
+  readonly emitAction?: boolean
 }
 
 export interface LandingResult {
   readonly completed: boolean
   readonly reason?: string
-  readonly reveal?: () => void
+  readonly reveal?: () => void | Promise<void>
 }
 
 export class MoveBehavior implements Behavior {
@@ -127,12 +133,17 @@ export class MoveBehavior implements Behavior {
     moveContext.layoutSnapshot = snapshot
   }
 
-  playLayout(context: BehaviorContext): void {
+  playLayout(context: BehaviorContext, useRaf = false): void {
     const moveContext = this.getContext(context.session.id)
     const lifecycle = this.sessionLifecycles.get(context.session.id)
     if (moveContext.layoutSnapshot !== undefined) {
-      lifecycle?.layout?.play?.(context, moveContext.layoutSnapshot)
+      lifecycle?.layout?.play?.(context, moveContext.layoutSnapshot, useRaf)
     }
+  }
+
+  /** 列尾追加专用：等下一帧（Vue patch 落地）再量布局执行 Invert。 */
+  playLayoutOnRaf(context: BehaviorContext): void {
+    this.playLayout(context, true)
   }
 
   cancelLayout(context: BehaviorContext, reason: string): void {
@@ -188,11 +199,14 @@ export class MoveBehavior implements Behavior {
     const moveContext = this.getContext(context.session.id)
     moveContext.transaction.setPhase('active')
     const pointerEvent = input.event instanceof PointerEvent ? input.event : null
+    // 先让行为读取命中结果，再写入跟手节点的 left/top。命中解析可能读取
+    // Surface/Card 的几何；把 DOM 写入放在前面会在同一 pointer frame 内强制
+    // 浏览器同步布局，拖动越快越容易放大成整列重排。
+    this.driverFor(context.session.id).update?.(context, input)
     if (pointerEvent && moveContext.followElement) {
       moveContext.followElement.style.left = `${pointerEvent.clientX - moveContext.dragOffset.x}px`
       moveContext.followElement.style.top = `${pointerEvent.clientY - moveContext.dragOffset.y}px`
     }
-    this.driverFor(context.session.id).update?.(context, input)
   }
 
   release(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void> {
@@ -201,23 +215,38 @@ export class MoveBehavior implements Behavior {
     const driver = this.driverFor(context.session.id)
     // 优先使用新 resolveDestination 流程
     if (driver.resolveDestination) {
-      return Promise.resolve(driver.resolveDestination(context, input)).then(result => {
-        if (result?.accepted && result.destination !== undefined) {
-          moveContext.destination = result.destination
-          moveContext.transaction.destination = result.destination
-        }
-        return result
-      })
+      const result = driver.resolveDestination(context, input)
+      if (isPromiseLike<MoveReleaseResult | void>(result)) {
+        return result.then((resolved: MoveReleaseResult | void) => {
+          if (resolved && resolved.accepted && resolved.destination !== undefined) {
+            moveContext.destination = resolved.destination
+            moveContext.transaction.destination = resolved.destination
+          }
+          return resolved
+        })
+      }
+      if (result && result.accepted && result.destination !== undefined) {
+        moveContext.destination = result.destination
+        moveContext.transaction.destination = result.destination
+      }
+      return result
     }
     // fallback: 旧 release
     const result = driver.release?.(context, input)
-    return Promise.resolve(result).then(releaseResult => {
-      if (releaseResult?.accepted && releaseResult.destination !== undefined) {
-        moveContext.destination = releaseResult.destination
-        moveContext.transaction.destination = releaseResult.destination
-      }
-      return releaseResult
-    })
+    if (isPromiseLike<MoveReleaseResult | void>(result)) {
+      return result.then((releaseResult: MoveReleaseResult | void) => {
+        if (releaseResult && releaseResult.accepted && releaseResult.destination !== undefined) {
+          moveContext.destination = releaseResult.destination
+          moveContext.transaction.destination = releaseResult.destination
+        }
+        return releaseResult
+      })
+    }
+    if (result && result.accepted && result.destination !== undefined) {
+      moveContext.destination = result.destination
+      moveContext.transaction.destination = result.destination
+    }
+    return result
   }
 
   commit(context: BehaviorContext, destination: unknown): void | Promise<void> {

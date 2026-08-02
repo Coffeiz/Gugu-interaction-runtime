@@ -18,7 +18,7 @@ export declare class RuntimeInputCoordinator {
     private readonly bindings;
     private readonly disposers;
     constructor(port: RuntimeInputPort);
-    bind(objectId: string, element: HTMLElement): () => void;
+    bind(objectId: string, element: HTMLElement, options?: PointerSessionInputOptions): () => void;
     sync(objectId: string): void;
     remove(objectId: string): void;
     bindRegrabTarget(session: Session, objectId: string, target: HTMLElement, handler: (event: PointerEvent) => void): void;

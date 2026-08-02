@@ -1,8 +1,18 @@
 import { captureLayoutFlip } from '../dom/GroupLayout';
 import { LandingResult, MoveContext } from '../behavior/MoveBehavior';
 import { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes';
+import { GrabAlignConfig } from '../Runtime';
 export declare function captureDetachDraggingSnapshot(capture: (objectId: string, element: HTMLElement) => VisualSnapshot, objectId: string, element: HTMLElement): VisualSnapshot;
-export declare function prepareDetachMotion(context: MoveContext, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect): {
+/**
+ * 抓取点默认取卡片几何中心，不管实际点在卡片哪个位置——对应咕咕旧版
+ * （main 分支 usePhysicsDrag.ts）的 centerGrab:true：卡片水平/垂直中心
+ * 始终跟指针对齐，不是"点哪抓哪"。按 grabAlign.align 也可以切回
+ * 'pointer'（保留点击位置在卡片里的相对偏移），再叠加 offsetX/offsetY
+ * 做额外的固定偏移（比如往下偏几 px，做出"被拎着"的悬垂感）。
+ * regrab（fromRect 有值）时用当时飞行中代理的 rect 重新量一次，保持
+ * 抓取点在卡片里的相对位置不因为落地途中尺寸变化（缩放）而跑偏。
+ */
+export declare function prepareDetachMotion(context: MoveContext, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, grabAlign?: GrabAlignConfig): {
     rect: DOMRect;
     offsetX: number;
     offsetY: number;
@@ -12,7 +22,7 @@ export interface DetachPickupPreparation {
     readonly beforeContent: HTMLElement;
     readonly beforePickup: ReturnType<typeof captureLayoutFlip>;
 }
-export declare function prepareDetachPickup(sourceElement: HTMLElement): DetachPickupPreparation;
+export declare function prepareDetachPickup(sourceElement: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[]): DetachPickupPreparation;
 export declare function createDetachDropState<TDrop>(initialSurface: string | undefined, resolve: (event: PointerEvent) => TDrop | null, same: (drop: TDrop, previous: TDrop | null) => boolean): {
     update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null;
     release(): TDrop | null;
@@ -32,10 +42,10 @@ export declare function interruptDetachRegrab(args: {
     sessionId: string;
     interrupt: () => void;
     clearRegrab: () => void;
-    disposeProxy: () => void;
 }): void;
 export declare function cancelDetachWithoutDrop(args: {
     source: HTMLElement;
+    registeredElements: () => HTMLElement[];
     cancel: () => void;
     releaseObject: () => void;
     clearFloating: (element: HTMLElement) => void;
@@ -68,8 +78,6 @@ export declare function createDetachVisualContext<TContext extends object>(args:
         scaleY: number;
         rotateX: number;
         rotateZ: number;
-        rotateVX: number;
-        rotateVZ: number;
     };
 }): TContext & {
     sourceElement: HTMLElement;
@@ -107,7 +115,7 @@ export declare function createDetachLandingLifecycle<TGate extends {
     landing: () => Promise<LandingResult>;
     reveal: () => void;
 };
-export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement): {
-    capture: () => import('../dom').LayoutFlipSnapshot;
-    play: (_context: unknown, snapshot: unknown) => void;
+export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[]): {
+    capture: () => import('..').LayoutFlipSnapshot;
+    play: (_context: unknown, snapshot: unknown, useRaf?: boolean) => void;
 };

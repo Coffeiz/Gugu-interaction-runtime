@@ -10,8 +10,6 @@ export interface MotionState {
     scaleVY: number;
     rotateX: number;
     rotateZ: number;
-    rotateVX: number;
-    rotateVZ: number;
 }
 export interface MotionTarget {
     x: number;

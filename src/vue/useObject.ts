@@ -27,7 +27,7 @@ export interface UseObjectResult {
 export function useObject(options: UseObjectOptions): UseObjectResult {
   const elementRef = ref<HTMLElement | null>(null)
 
-  runtime.objects.register({
+  const generation = runtime.objects.register({
     id: options.id,
     type: options.type,
     surfaceId: options.surface(),
@@ -41,11 +41,26 @@ export function useObject(options: UseObjectOptions): UseObjectResult {
     runtime.objects.setSurface(options.id, options.surface())
   })
 
-  watch(elementRef, element => {
+  watch(elementRef, (element, prev) => {
+    // 卸载时 elementRef 变 null。跨列场景下新实例可能已 setElement(id,
+    // 新节点)——若当前注册的 element 不是本实例的 prev 节点，说明已被
+    // 新实例接管，不能清空（否则 waitForMoveTarget 拿不到目标元素 →
+    // landing 失败瞬移）。
+    if (element === null) {
+      const current = runtime.objects.get(options.id)
+      if (current?.element && current.element !== prev) return
+    }
     runtime.objects.setElement(options.id, element)
   })
 
   onUnmounted(() => {
+    // 跨列时 Vue 可能先创建新实例（register 同 id）再销毁旧实例。
+    // 新实例 register 后 generation 已递增，若当前 item 的 generation
+    // 不是本实例注册的，说明注册已被新实例接管——保留（unregister
+    // 会删掉新实例的登记，导致 waitForMoveTarget 拿不到目标元素 →
+    // landing 失败瞬移）。
+    const current = runtime.objects.get(options.id)
+    if (current?.generation !== generation) return
     runtime.objects.unregister(options.id)
   })
 

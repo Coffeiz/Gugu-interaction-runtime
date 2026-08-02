@@ -3,7 +3,7 @@
  * 接入方不需要了解 src 下的目录结构，也不应直接依赖 demo 实现。
  */
 export { Runtime, runtime } from './Runtime';
-export type { RuntimeEvent, RuntimeLandingTargetOptions } from './Runtime';
+export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, GrabAlignConfig } from './Runtime';
 export { RuntimeRegistry } from './runtime/RuntimeRegistry';
 export { RuntimeDispatcher } from './runtime/RuntimeInput';
 export { SessionCoordinator, RuntimeSessionCoordinator } from './runtime/RuntimeSession';
@@ -27,12 +27,22 @@ export { SurfaceStore } from './surface/SurfaceStore';
 export type { VisualAdapter, VisualAdapterRegistry } from './dom/VisualAdapter';
 export { DefaultVisualAdapter, VisualAdapters } from './dom/VisualAdapter';
 export type { VisualPhase, VisualState, VisualSnapshot } from './dom/VisualAdapterTypes';
-export { mountVisualOverlay } from './dom/Visual';
 export { createDetachMoveFromAdapter } from './runtime/detach/DetachAdapter';
 export type { HitResolver, HitResult } from './dom/Hit';
 export { createDomHitResolver, hitWithResolver } from './dom/Hit';
+export { createRegisteredHitResolver } from './dom/RegisteredHit';
+export { acquireSourceVisualLease, type SourceVisualLease } from './dom/SourceVisualLease';
 export { trackLandingTarget } from './dom/LandingTargetTracker';
 export type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker';
+export { transitionGroupHeight } from './dom/GroupLayout';
+export { runGroupToggle } from './dom/GroupLayout';
+export { setLayoutPresenceEnabled } from './dom/GroupLayout';
+export type { GroupToggleOptions } from './dom/GroupLayout';
+export { captureLayoutFlip, playLayoutFlip } from './dom/GroupLayout';
+export { cancelLayoutAnimations } from './dom/GroupLayout';
+export type { LayoutFlipSnapshot } from './dom/GroupLayout';
+export { captureCollectionPresence, playCollectionPresence } from './dom/CollectionPresence';
+export type { CollectionPresenceSnapshot, CollectionPresenceOptions } from './dom/CollectionPresence';
 export { bindPointerSessionInput } from './input/PointerSessionInput';
 export type { PointerSessionInputOptions, PointerSessionInputRuntime, } from './input/PointerSessionInput';
 export type { Action, MoveAction, TransferAction, SortAction, ResizeAction, LinkAction } from './action/Action';

@@ -9,7 +9,13 @@ import {
   destroyDragProxy,
   landDragProxyLegacy,
   landDragProxyWithMotion,
+  getProxyAttitude,
+  getProxyContent,
+  applyDraggingGlassStyle,
+  isDefaultDraggingGlassEnabled,
   revealElement,
+  clampLandingRectToBounds,
+  type LandingRect,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
 import { createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
@@ -31,8 +37,10 @@ export interface VisualLifecycleContext {
   readonly motion?: MotionProfile
   /** 是否由 Runtime 内置 MotionController 驱动 landing；默认开启。 */
   readonly motionEnabled?: boolean
+  /** landing 视觉目标所在 Surface 的 viewport 边界。 */
+  readonly landingBounds?: () => DOMRect | null
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
-  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ' | 'rotateVX' | 'rotateVZ'>
+  readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
 }
 
 export interface VisualProxy {
@@ -50,6 +58,7 @@ export interface VisualAdapter {
   updateProxy?(proxy: VisualProxy, context: VisualLifecycleContext): void
   land?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<{ completed: boolean; reason?: string }>
   reveal?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<void>
+  /** 完整销毁代理；实现该回调后由 adapter 负责调用 proxy.dispose（如有）。 */
   dispose?(proxy: VisualProxy, context: VisualLifecycleContext): void
 }
 
@@ -72,16 +81,16 @@ export class DefaultVisualAdapter implements VisualAdapter {
   }
 
   resolveSource(objectId: string): HTMLElement | null {
-    return document.querySelector<HTMLElement>(`[data-card="${CSS.escape(objectId)}"]`)
+    // 默认策略只认 ObjectStore 中由 useObject()/objects.setElement() 注册的真实节点。
+    // data-card 是早期看板 demo 的调试标记，不能成为业务接入的生命周期依赖。
+    return this.runtime?.objects.get(objectId)?.element ?? null
   }
 
   resolveTarget(objectId: string): HTMLElement | null {
-    return Array.from(document.querySelectorAll<HTMLElement>(`[data-card="${CSS.escape(objectId)}"]`))
-      .filter(element => element.dataset.runtimeProxy !== 'true' && element.isConnected && element.closest('[data-layout-surface]') !== null)
-      .find(element => {
-        const rect = element.getBoundingClientRect()
-        return rect.width > 0 && rect.height > 0
-      }) ?? null
+    const element = this.runtime?.objects.get(objectId)?.element ?? null
+    if (!element?.isConnected || element.dataset.runtimeProxy === 'true') return null
+    const rect = element.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0 ? element : null
   }
 
   captureVisualState(element: HTMLElement): VisualSnapshot {
@@ -91,6 +100,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       borderRadius: style.borderRadius,
       boxShadow: style.boxShadow,
       background: style.backgroundColor,
+      backgroundImage: style.backgroundImage,
       opacity: style.opacity,
       transform: style.transform,
     }
@@ -108,15 +118,30 @@ export class DefaultVisualAdapter implements VisualAdapter {
       throw new Error('visual proxy requires source snapshot')
     }
     const proxy = createDragProxy(context.beforeContent, context.sourceRect)
-    preserveProxyVisualContext(context.sourceElement, proxy)
+    const content = getProxyContent(proxy)
+    preserveProxyVisualContext(context.sourceElement, content)
     const snapshot = context.visualSnapshot
     if (snapshot) {
-      proxy.style.boxShadow = snapshot.boxShadow
-      proxy.style.borderRadius = snapshot.borderRadius
-      proxy.style.backgroundColor = snapshot.background
-      proxy.style.opacity = snapshot.opacity
-      proxy.style.transform = snapshot.transform || 'scale(1.03)'
+      content.style.boxShadow = snapshot.boxShadow
+      content.style.borderRadius = snapshot.borderRadius
+      content.style.backgroundColor = snapshot.background
+      if (snapshot.backgroundImage && snapshot.backgroundImage !== 'none') {
+        content.style.backgroundImage = snapshot.backgroundImage
+      }
+      content.style.opacity = snapshot.opacity
+      getProxyAttitude(proxy).style.transform = 'scale(1.03)'
     }
+    if (isDefaultDraggingGlassEnabled()) applyDraggingGlassStyle(content)
+    // 业务卡片常把操作按钮做成默认 opacity:0、hover 时显示；proxy 是
+    // pointer-events:none 的克隆，永远没有 hover 态，按钮会保持透明。
+    // 抓取时应保留原卡片的完整样式（按钮可见），这里把 hover 才显示
+    // 的子元素强制置为可见。
+    content.querySelectorAll<HTMLElement>('[class]').forEach(el => {
+      const computed = getComputedStyle(el)
+      if (computed.opacity === '0' && computed.pointerEvents === 'none') {
+        el.style.opacity = '1'
+      }
+    })
     return { element: proxy }
   }
 
@@ -126,14 +151,21 @@ export class DefaultVisualAdapter implements VisualAdapter {
       return Promise.resolve({ completed: false, reason: 'target-disconnected' })
     }
     const rawTargetRect = context.targetSnapshot?.rect ?? target.getBoundingClientRect()
-    const targetRect = {
+    const rawLandingRect = {
       left: rawTargetRect.left ?? rawTargetRect.x,
       top: rawTargetRect.top ?? rawTargetRect.y,
       width: rawTargetRect.width,
       height: rawTargetRect.height,
     }
+    const clampTarget = (rect: LandingRect): LandingRect => {
+      const bounds = context.landingBounds?.()
+      return bounds ? clampLandingRectToBounds(rect, bounds) : rect
+    }
+    const targetRect = clampTarget(rawLandingRect)
     concealElement(target, context.sessionId)
     el.style.transition = 'none'
+    // 先把代理的布局尺寸切到目标 border box；landing 的内容层和目标卡片
+    // 以这个尺寸进行布局，运动控制器只负责连续地过渡到该尺寸。
     el.style.width = `${targetRect.width}px`
     el.style.height = `${targetRect.height}px`
     const land = context.motionEnabled === false ? landDragProxyLegacy : landDragProxyWithMotion
@@ -142,9 +174,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetShadow: context.targetSnapshot?.boxShadow,
       targetRadius: context.targetSnapshot?.borderRadius,
       targetBackground: context.targetSnapshot?.background,
+      targetBackgroundImage: context.targetSnapshot?.backgroundImage,
       targetOpacity: context.targetSnapshot?.opacity,
       targetContent: target,
-      readTarget: () => target.getBoundingClientRect(),
+      readTarget: () => clampTarget(target.getBoundingClientRect()),
       motionState: context.motionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
@@ -157,14 +190,14 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (this.runtime) {
       this.runtime.trackLandingTarget(context.sessionId, target, () => {
         if (context.targetSnapshot?.rect && !target.closest('[data-layout-surface]')) {
-          retarget({
+          retarget(clampTarget({
             left: context.targetSnapshot.rect.x,
             top: context.targetSnapshot.rect.y,
             width: context.targetSnapshot.rect.width,
             height: context.targetSnapshot.rect.height,
-          })
+          }))
         } else {
-          retarget(target.getBoundingClientRect())
+          retarget(clampTarget(target.getBoundingClientRect()))
         }
       })
     }
