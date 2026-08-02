@@ -1,6 +1,6 @@
 import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } from './Flip'
 import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
-import { animateRafHeight, cancelRafHeight } from './RafLayoutAnimator'
+import { animateRafHeight, cancelRafHeight, cancelRafTransform } from './RafLayoutAnimator'
 import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
 import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasurement'
 
@@ -142,6 +142,7 @@ export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
 interface GroupClipState {
   readonly token: string
   readonly entries: ReadonlyArray<{ element: HTMLElement; overflow: string }>
+  timeout?: number
 }
 
 const groupClipStates = new WeakMap<ParentNode, GroupClipState>()
@@ -169,7 +170,7 @@ function releaseGroupClip(before: readonly GroupLayoutSnapshot[]): GroupClipStat
 function restoreGroupClip(state: GroupClipState, delay: number): void {
   const root = state.entries[0]?.element.getRootNode() as ParentNode | undefined
   if (!root) return
-  window.setTimeout(() => {
+  state.timeout = window.setTimeout(() => {
     if (groupClipStates.get(root)?.token !== state.token) return
     state.entries.forEach(({ element, overflow }) => { element.style.overflow = overflow })
     groupClipStates.delete(root)
@@ -266,6 +267,9 @@ function mergeSurfaceSnapshots(
 }
 
 const pendingLayoutFlips = new WeakMap<ParentNode, LayoutFlipSnapshot>()
+const groupAnimationStates = new WeakMap<HTMLElement, { frame: number | null; timeout: number | null }>()
+const flipCleanupTimers = new WeakMap<HTMLElement, number>()
+const flipStartFrames = new WeakMap<HTMLElement, number>()
 
 function readRect(element: HTMLElement, measurement?: LayoutMeasurement): GroupRect {
   const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
@@ -337,21 +341,31 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
     const token = String(Number(item.element.dataset.runtimeFlipToken ?? '0') + 1)
     item.element.dataset.runtimeFlip = 'true'
     item.element.dataset.runtimeFlipToken = token
-    requestAnimationFrame(() => {
+    const previousStartFrame = flipStartFrames.get(item.element)
+    if (previousStartFrame !== undefined) {
+      cancelAnimationFrame(previousStartFrame)
+      flipStartFrames.delete(item.element)
+    }
+    const startFrame = requestAnimationFrame(() => {
+      flipStartFrames.delete(item.element)
       if (item.element.dataset.runtimeFlipToken !== token) return
       item.element.style.transition = `transform ${duration}ms ${easing}`
       item.element.style.transform = ''
     })
-    window.setTimeout(() => {
+    flipStartFrames.set(item.element, startFrame)
+    const cleanupTimer = window.setTimeout(() => {
       if (item.element.dataset.runtimeFlipToken !== token) return
       item.element.style.transition = ''
       item.element.style.transform = ''
       delete item.element.dataset.runtimeFlip
+      flipCleanupTimers.delete(item.element)
     }, duration + 40)
+    flipCleanupTimers.set(item.element, cleanupTimer)
   }
 }
 
 export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING, fromHeight?: number): void {
+  cancelGroupAnimation(element)
   const currentHeight = fromHeight ?? element.getBoundingClientRect().height
   const heightToken = String(Number(element.dataset.runtimeGroupToken ?? '0') + 1)
   element.dataset.runtimeGroupToken = heightToken
@@ -367,10 +381,13 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
   // 与 Demo 的分组动画保持一致：先让起始高度提交到布局，再写目标高度，
   // 避免大内容组在同一帧被浏览器合并成一次性展开。
   void element.offsetHeight
-  requestAnimationFrame(() => {
+  const state = { frame: null as number | null, timeout: null as number | null }
+  groupAnimationStates.set(element, state)
+  state.frame = requestAnimationFrame(() => {
+    state.frame = null
     element.style.height = `${Math.max(0, targetHeight)}px`
   })
-  window.setTimeout(() => {
+  state.timeout = window.setTimeout(() => {
     if (element.dataset.runtimeGroupToken !== heightToken) return
     if (targetHeight <= 0) {
       element.style.height = '0px'
@@ -381,7 +398,77 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
     }
     element.style.transition = ''
     delete element.dataset.runtimeGroupAnimating
+    groupAnimationStates.delete(element)
   }, effectiveDuration + 40)
+}
+
+function cancelGroupAnimation(element: HTMLElement): void {
+  const state = groupAnimationStates.get(element)
+  if (!state) return
+  if (state.frame !== null) cancelAnimationFrame(state.frame)
+  if (state.timeout !== null) window.clearTimeout(state.timeout)
+  groupAnimationStates.delete(element)
+}
+
+/**
+ * 组件卸载或弹窗关闭时调用，取消该根节点下尚未完成的布局动画，并恢复
+ * Runtime 临时写入的 transform/height/overflow，避免下一次交互继承旧状态。
+ */
+export function cancelLayoutAnimations(root: ParentNode): void {
+  pendingLayoutFlips.delete(root)
+  const isNode = typeof Node !== 'undefined' && root instanceof Node
+  const documentRoot = isNode ? root.getRootNode() as ParentNode : root
+  const clip = groupClipStates.get(documentRoot)
+  if (clip) {
+    if (clip.timeout !== undefined) window.clearTimeout(clip.timeout)
+    clip.entries.forEach(({ element, overflow }) => {
+      if (isNode && !root.contains(element)) return
+      element.style.overflow = overflow
+    })
+    groupClipStates.delete(documentRoot)
+  }
+
+  const elements: HTMLElement[] = []
+  if (root instanceof HTMLElement) elements.push(root)
+  if (typeof root.querySelectorAll === 'function') {
+    elements.push(...Array.from(root.querySelectorAll<HTMLElement>(
+      '[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-layout-content]',
+    )))
+  }
+  for (const element of elements) {
+    const flipTimer = flipCleanupTimers.get(element)
+    const startFrame = flipStartFrames.get(element)
+    const hadRuntimeStyle = flipTimer !== undefined
+      || element.dataset.runtimeFlip === 'true'
+      || element.dataset.runtimeGroupAnimating === 'true'
+      || element.dataset.runtimeSurfaceResize === 'true'
+    if (flipTimer !== undefined) {
+      window.clearTimeout(flipTimer)
+      flipCleanupTimers.delete(element)
+    }
+    if (startFrame !== undefined) {
+      cancelAnimationFrame(startFrame)
+      flipStartFrames.delete(element)
+    }
+    cancelRafTransform(element)
+    cancelRafHeight(element)
+    cancelGroupAnimation(element)
+    const surface = surfaceResizeStates.get(element)
+    if (surface) {
+      restoreSurfaceInlineStyle(element, surface.baseStyle)
+      surfaceResizeStates.delete(element)
+    }
+    if (element.dataset.runtimeGroupAnimating === 'true') {
+      element.style.height = element.dataset.layoutOpen === 'false' ? '0px' : ''
+      element.style.overflow = element.dataset.layoutOpen === 'false' ? 'hidden' : ''
+      element.style.transition = ''
+    }
+    if (hadRuntimeStyle) element.style.transform = ''
+    if (element.dataset.runtimeFlip === 'true') delete element.dataset.runtimeFlip
+    delete element.dataset.runtimeSurfaceResize
+    delete element.dataset.runtimeSurfaceResizeToken
+    delete element.dataset.runtimeGroupAnimating
+  }
 }
 
 export interface GroupToggleOptions {

@@ -31,6 +31,7 @@ import { setDefaultDraggingGlassEnabled } from './dom/Visual'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
 import {
   captureLayoutFlip,
+  cancelLayoutAnimations,
   runGroupToggle,
   scheduleLayoutFlip,
   scheduleLayoutFlipOnRaf,
@@ -717,6 +718,11 @@ setMotionProfiles(this.registry.motionProfile)
   /** 统一编排组展开/收起、容器 resize、兄弟 FLIP 与可选 presence。 */
   runGroupToggle(options: import('./dom/GroupLayout').GroupToggleOptions): Promise<void> {
     return runGroupToggle(options)
+  }
+
+  /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */
+  cancelLayoutAnimations(root: ParentNode): void {
+    cancelLayoutAnimations(root)
   }
 
   resolveMoveTarget(

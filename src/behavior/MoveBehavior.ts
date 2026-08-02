@@ -199,11 +199,14 @@ export class MoveBehavior implements Behavior {
     const moveContext = this.getContext(context.session.id)
     moveContext.transaction.setPhase('active')
     const pointerEvent = input.event instanceof PointerEvent ? input.event : null
+    // 先让行为读取命中结果，再写入跟手节点的 left/top。命中解析可能读取
+    // Surface/Card 的几何；把 DOM 写入放在前面会在同一 pointer frame 内强制
+    // 浏览器同步布局，拖动越快越容易放大成整列重排。
+    this.driverFor(context.session.id).update?.(context, input)
     if (pointerEvent && moveContext.followElement) {
       moveContext.followElement.style.left = `${pointerEvent.clientX - moveContext.dragOffset.x}px`
       moveContext.followElement.style.top = `${pointerEvent.clientY - moveContext.dragOffset.y}px`
     }
-    this.driverFor(context.session.id).update?.(context, input)
   }
 
   release(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void> {
