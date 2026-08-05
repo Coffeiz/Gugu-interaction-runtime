@@ -22,6 +22,14 @@ export function createDetachMoveFromAdapter(config: {
   const surfaceIds = allSurfaces.map(s => s.id)
   const findColumnIdOf = (oid: string) => runtime.objects.get(oid)?.surfaceId
   const initialSurfaceId = objectItem?.surfaceId ?? allSurfaces[0]?.id
+  // 折叠的年/月分组（data-layout-content 容器 data-layout-open="false"）里的
+  // 卡片本来就不可见，节点却仍然挂在 DOM 里（折叠只是收起高度，不卸载）。
+  // 让它们继续参与 FLIP 快照会白白测量、处理一整个折叠分组的卡片——已完成列
+  // 分组多、卡片多时，这部分完全无意义的开销能占到单次落地 captureLayoutFlip
+  // 总耗时的大头（见 landing 卡顿排查，trace 里单次 118ms）。用 closest 检查
+  // 有没有被某一层折叠祖先包住，包住了就不参与这次 FLIP。
+  const isInsideCollapsedGroup = (element: HTMLElement): boolean =>
+    element.closest('[data-layout-content][data-layout-open="false"]') !== null
   const registeredElements = (): HTMLElement[] => {
     const objects = [...runtime.objects.values()]
       .map(item => item.element)
@@ -31,6 +39,7 @@ export function createDetachMoveFromAdapter(config: {
     // Vue TransitionGroup 单独移动，release 时会与卡片错拍。
     const anchors = Array.from(document.querySelectorAll<HTMLElement>('[data-flip-target]'))
     return Array.from(new Set([...objects, ...anchors]))
+      .filter(candidate => !isInsideCollapsedGroup(candidate))
   }
   let beforeContent: HTMLElement | undefined
   let draggingSnapshot: ReturnType<typeof captureDetachDraggingSnapshot> | undefined
