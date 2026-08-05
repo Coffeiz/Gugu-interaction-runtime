@@ -155,6 +155,12 @@ export function createDragProxy(
   proxy.style.zIndex = '2147483647'
   proxy.style.pointerEvents = 'none'
   proxy.style.visibility = 'visible'
+  // 提示浏览器把代理单独提到自己的合成层：这个函数同时是 grabbing 浮动本体
+  // 和 landing 落地代理的唯一创建入口，每帧只写 transform（见跟手动画/落地
+  // 飞行），但如果代理没有独立图层，浏览器仍可能把它当成默认根图层的一部分，
+  // 每次 transform 变化连带整个视口一起重新栅格化——20 倍降速拖拽测试录到的
+  // Paint 事件 clip 全是整个视口大小，不是代理这一小块（见跨列掉帧排查）。
+  proxy.style.willChange = 'transform'
   // 不强制 display——源节点若是 flex/grid，克隆会保留其布局；强制
   // block 会破坏 flex 子项（如右侧推进按钮 align-self:stretch）的布局。
   proxy.style.display = ''
