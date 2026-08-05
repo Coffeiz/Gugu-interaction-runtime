@@ -252,6 +252,12 @@ export function createDetachMoveFromAdapter(config: {
       const motion = prepareDetachMotion(moveContext, element, event, fromRect, runtime.getObjectGrabAlign(objectId))
       const rect = motion.rect
       dragOffset = { x: motion.offsetX, y: motion.offsetY }
+      // 拖拽期间浮动本体 pointer-events:none，指针事件穿透到下方真实卡片——
+      // 划过路径上的兄弟卡片会触发它们各自的原生 :hover 过渡（如 box-shadow，
+      // 强制重绘、不走合成层），密集触发会掉帧。这个全局类给业务方一个统一
+      // 信号，在 CSS 里关掉拖拽期间的 hover 过渡；commit()/cancel() 已经在移除
+      // 它，这里补上添加，把信号接回来。
+      document.body.classList.add('kb-dragging')
       runtime.applyVisualState(objectId, element, {
         phase: 'dragging',
         hovered: element.matches(':hover'),
@@ -281,14 +287,23 @@ export function createDetachMoveFromAdapter(config: {
       runtime.scheduleLayout(beforePickup)
       element.dataset.runtimeActive = 'true'
       const floatingProxy = getFloatingProxy(element)!
+      // floatingProxy 的 left/top 由 createDragProxy 一次性定死在 rect.left/rect.top
+      // （position:fixed），此后每帧只用 transform 的 translate3d 叠加位移量——
+      // left/top 是会触发布局的属性，每帧写会弄脏布局；紧跟着的命中判定
+      // （RegisteredHit.ts）要读 getBoundingClientRect，逼着浏览器把脏布局同步
+      // 刷新掉才能给出准确值，也就是强制重排。改成只写 transform（纯合成层，
+      // 不碰布局）后，跟手动画和命中判定互不打扰（见跨列卡顿排查：DevTools 的
+      // “强制自动重排”警告点名过 CardMotionController 这里的 onFrame）。
+      const anchorLeft = rect.left
+      const anchorTop = rect.top
       dragMotion = createCardMotionController({
         mode: 'follow',
         followRotation: FOLLOW_ROTATION,
         onFrame: frame => {
           if (!floatingProxy.isConnected) return
-          floatingProxy.style.left = `${frame.x}px`
-          floatingProxy.style.top = `${frame.y}px`
-          floatingProxy.style.transform = `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
+          const dx = frame.x - anchorLeft
+          const dy = frame.y - anchorTop
+          floatingProxy.style.transform = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
         },
       })
       dragMotion.setProfile(FOLLOW_PROFILE)
