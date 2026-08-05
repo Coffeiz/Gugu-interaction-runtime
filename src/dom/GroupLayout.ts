@@ -95,13 +95,18 @@ export function captureLayoutFlip(
     if (!surfaces || surfaces.length === 0) return true
     return surfaces.some(surface => surface === element || surface.contains(element))
   }
-  const activeSurfaces = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]'))
+  // [data-layout-surface] 只查一次：这个选择器要扫全文档，之前 activeSurfaces
+  // 和 surfaces 各自现查一遍，同一批节点在一次 captureLayoutFlip 里被
+  // querySelectorAll 两次——见 landing 卡顿排查，trace 里这个查询单次能到
+  // 9ms 自身耗时。
+  const inScopeSurfaceElements = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]'))
     .filter(inScope)
+  const activeSurfaces = inScopeSurfaceElements
     .map(element => ({ element, rect: readRect(element), inlineStyle: readSurfaceInlineStyle(element) }))
   resetActiveSurfaceResize(activeSurfaces)
   const measurement = createLayoutMeasurement()
   const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root, options.scopeSurfaces)
-  const surfaces = captureSurfaceLayout(Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')).filter(inScope), measurement)
+  const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement)
   // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
   // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
   // 显式开启。collection 通常标在列表容器上，卡片节点只标
