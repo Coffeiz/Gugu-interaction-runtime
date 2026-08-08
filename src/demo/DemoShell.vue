@@ -11,7 +11,7 @@
       </nav>
     </header>
 
-    <section v-if="page === 'kanban'" class="demo-page">
+    <section v-if="page === 'kanban'" class="demo-page kanban-page">
       <div class="page-toolbar">
         <div>
           <h2>看板拖拽</h2>
@@ -42,15 +42,16 @@ const strategy = ref<'detach' | 'clone'>('detach')
 </script>
 
 <style scoped>
-.demo-shell { min-height: 100%; background: #f6f7fb; color: #202533; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-.demo-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 28px 32px 18px; border-bottom: 1px solid #e3e6ef; background: rgba(255,255,255,.84); }
+.demo-shell { display: flex; height: 100%; min-height: 0; flex-direction: column; overflow: hidden; background: #f6f7fb; color: #202533; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.demo-header { display: flex; flex: 0 0 auto; align-items: end; justify-content: space-between; gap: 24px; padding: 28px 32px 18px; border-bottom: 1px solid #e3e6ef; background: rgba(255,255,255,.84); }
 .demo-eyebrow { margin: 0 0 5px; color: #7d86a0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 h1, h2, p { margin: 0; }
 h1 { font-size: 22px; letter-spacing: 0; }
 .demo-tabs, .mode-switch { display: flex; align-items: center; gap: 6px; }
 .demo-tabs button, .mode-switch button { border: 1px solid #dce1ec; border-radius: 8px; background: #fff; color: #65708a; padding: 8px 13px; cursor: pointer; }
 .demo-tabs button.active, .mode-switch button.active { border-color: #7781d6; background: #707aca; color: #fff; }
-.demo-page { padding: 0 28px 28px; }
+.demo-page { min-height: 0; padding: 0 28px 28px; }
+.kanban-page { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .page-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 0 4px; }
 .page-toolbar h2 { font-size: 18px; }
 .page-toolbar p { margin-top: 5px; color: #7c8497; font-size: 13px; }
