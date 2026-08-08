@@ -5,9 +5,16 @@
         <h2>文件系统交互</h2>
         <p>文件、文件夹和面包屑都作为 Runtime 的对象与 Surface 参与演示。</p>
       </div>
-      <div class="view-switch">
-        <button :class="{ active: view === 'grid' }" @click="view = 'grid'">网格</button>
-        <button :class="{ active: view === 'list' }" @click="view = 'list'">列表</button>
+      <div class="toolbar-controls">
+        <div class="mode-switch" aria-label="文件视觉策略">
+          <span>视觉策略</span>
+          <button :class="{ active: strategy === 'detach' }" @click="setStrategy('detach')">detach</button>
+          <button :class="{ active: strategy === 'clone' }" @click="setStrategy('clone')">clone</button>
+        </div>
+        <div class="view-switch">
+          <button :class="{ active: view === 'grid' }" @click="view = 'grid'">网格</button>
+          <button :class="{ active: view === 'list' }" @click="view = 'list'">列表</button>
+        </div>
       </div>
     </div>
 
@@ -36,16 +43,19 @@
       </section>
     </div>
 
-    <p class="file-hint">拖动文件到左侧文件夹，或拖动文件夹调整目标位置。当前示例使用 Runtime 的 detach 视觉策略。</p>
+    <p class="file-hint">拖动文件到左侧文件夹，或拖动文件夹调整目标位置。当前策略：{{ strategy }}。</p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, reactive, ref, watchEffect } from 'vue'
+import { computed, onUnmounted, reactive, ref, watch, watchEffect } from 'vue'
 import { runtime } from '../Runtime'
 import { useSurface } from '../vue/useSurface'
 
 type FileItem = { id: string; name: string; kind: 'file' | 'folder'; parentId: string; size: string; children: FileItem[] }
+
+const props = defineProps<{ strategy: 'detach' | 'clone' }>()
+const strategy = ref(props.strategy)
 
 const rootId = 'root'
 const view = ref<'grid' | 'list'>('grid')
@@ -96,15 +106,25 @@ const breadcrumbs = computed(() => {
   return result.concat(chain.map(folder => ({ id: folder.id, label: folder.name })))
 })
 
-const browserSurface = useSurface({ id: 'file:surface:browser', type: 'file-browser', accepts: ['file-item', 'folder-item'] })
+const browserSurface = useSurface({ id: 'file:surface:browser', type: 'file-browser', accepts: ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone'] })
 const folderSurfaces = files.filter(item => item.kind === 'folder').map(folder => ({
   id: folder.id,
-  surface: useSurface({ id: `file:surface:${folder.id}`, type: 'file-folder', accepts: ['file-item', 'folder-item'] }),
+  surface: useSurface({ id: `file:surface:${folder.id}`, type: 'file-folder', accepts: ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone'] }),
 }))
 const registeredIds: string[] = []
 
 runtime.registerObjectType('file-item', { defaultVisualMode: 'detach', motion: { enabled: true } })
+runtime.registerObjectType('file-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
 runtime.registerObjectType('folder-item', { defaultVisualMode: 'detach', motion: { enabled: true } })
+runtime.registerObjectType('folder-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
+
+function setStrategy(next: 'detach' | 'clone'): void {
+  strategy.value = next
+}
+
+watch(() => props.strategy, next => {
+  strategy.value = next
+})
 
 function bindItem(id: string, element: HTMLElement | null): void {
   runtime.objects.setElement(id, element)
@@ -153,19 +173,27 @@ const stopAction = runtime.onAction(action => {
 
 watchEffect(() => {
   for (const item of files) {
-    const type = item.kind === 'folder' ? 'folder-item' : 'file-item'
+    const type = item.kind === 'folder'
+      ? (strategy.value === 'clone' ? 'folder-item-clone' : 'folder-item')
+      : (strategy.value === 'clone' ? 'file-item-clone' : 'file-item')
     if (!runtime.objects.has(item.id)) {
       runtime.objects.register({
         id: item.id,
         type,
         visual: type,
-        visualMode: 'detach',
+        visualMode: strategy.value,
         surfaceId: item.parentId === rootId ? 'file:surface:browser' : `file:surface:${item.parentId}`,
         element: null,
         abilities: ['move', 'sort'],
       })
       registeredIds.push(item.id)
     } else {
+      runtime.objects.register({
+        ...runtime.objects.get(item.id)!,
+        type,
+        visual: type,
+        visualMode: strategy.value,
+      })
       runtime.objects.setSurface(item.id, item.parentId === rootId ? 'file:surface:browser' : `file:surface:${item.parentId}`)
     }
   }
@@ -184,6 +212,11 @@ onUnmounted(() => {
 .file-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .file-toolbar h2 { margin: 0; font-size: 18px; }
 .file-toolbar p { margin: 5px 0 0; color: #7c8497; font-size: 13px; }
+.toolbar-controls { display: flex; align-items: center; gap: 10px; }
+.mode-switch { display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #e0e4ee; border-radius: 9px; background: #fff; font-size: 12px; }
+.mode-switch span { padding: 0 5px; color: #838ba0; }
+.mode-switch button { border: 0; border-radius: 6px; padding: 7px 9px; color: #7b849b; background: transparent; cursor: pointer; }
+.mode-switch button.active { color: #fff; background: #707aca; }
 .view-switch { display: flex; gap: 4px; padding: 4px; border: 1px solid #e0e4ee; border-radius: 9px; background: #fff; }
 .view-switch button { border: 0; border-radius: 6px; padding: 7px 12px; color: #7b849b; background: transparent; cursor: pointer; }
 .view-switch button.active { color: #fff; background: #707aca; }

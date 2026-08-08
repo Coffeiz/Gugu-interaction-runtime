@@ -27,7 +27,7 @@
     </section>
 
     <section v-else class="demo-page">
-      <FileSystemDemo />
+      <FileSystemDemo :strategy="strategy" />
     </section>
   </main>
 </template>

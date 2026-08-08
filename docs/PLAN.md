@@ -585,9 +585,58 @@ grabbing
 不再为普通卡片移动写 adapter 或生命周期闭包。回归记录用例细节（1-1 最后一项）留待后续按需补充，
 不阻塞阶段完成。
 
+### 文件系统开发路线（Demo → Gugu-web）
+
+文件系统采用“先冻结 Demo 契约，再做一条真实业务链路，并将通用问题回补 Runtime”的
+垂直迁移方式。Demo 不是完整文件库，而是验证 Object、Surface、Action、视觉策略和
+布局协调边界的实验场。
+
+当前 Demo 已完成：
+
+- [x] 根目录、一级/多级文件夹和文件 mock 数据。
+- [x] 文件夹卡片可进入，面包屑按真实父级链导航。
+- [x] 网格/列表视图切换，根目录和文件夹内数据足够触发换行。
+- [x] 文件和文件夹注册为 Object，文件夹/浏览区域注册为 Surface。
+- [x] 页面层提供 `detach / clone` 策略切换，并保持目录状态不重置。
+- [ ] 文件列表兄弟节点 FLIP。
+- [ ] 文件系统专用 clone 视觉 adapter。
+
+迁移首条链路固定为：
+
+```text
+文件卡片 → 拖入普通文件夹 → 更新 parentId/排序 → 同级文件 FLIP
+         → landing/handoff → API/Store 持久化
+```
+
+`detach` 和 `clone` 只替换视觉策略，不改变目录导航、面包屑、业务 Action 或数据模型；
+列表让位属于 Layout/FLIP 接入，不属于视觉 adapter 的隐含行为。真实迁移发现的对象
+身份、Surface 命中、FLIP 所有权和清理时序等通用问题回补 Runtime，权限、回收站和 API
+回滚等业务问题留在 Gugu-web adapter。
+
+每个文件系统能力都按以下循环推进：
+
+```text
+Runtime Demo 冻结契约 → Gugu-web 迁移一条链路 → 对照现有行为
+→ 回补通用问题 → Demo + Gugu-web 双侧验收 → 进入下一条链路
+```
+
 ### 阶段 2：迁移 Gugu-web 文件卡
 
 阶段 1 验收通过并稳定运行后，复用同一套 Runtime API 接入文件卡视觉策略。
+执行节奏采用“Demo 契约 → Gugu-web 一条真实链路 → 双侧回补”的垂直迁移，
+不等所有文件能力在 Demo 中完成后才开始真实接入，也不在 Gugu-web 中直接发明
+Runtime 私有接口。当前 Demo 已具备多级目录、面包屑、网格/列表和策略切换页面层；
+文件列表兄弟 FLIP 与文件系统专用 clone adapter 仍是本阶段的 Runtime 配合项。
+
+首条真实链路固定为：
+
+```text
+文件卡片 → 拖入普通文件夹 → 更新 parentId/排序 → 同级文件 FLIP
+         → landing/handoff → API/Store 持久化
+```
+
+真实迁移中发现的对象身份、Surface 命中、FLIP 所有权和清理时序等通用问题，
+回补 Runtime demo；回收站语义、权限和 API 失败回滚等业务问题留在 Gugu-web adapter。
 
 #### 2-1：Gugu-web 侧过渡 adapter
 
@@ -652,6 +701,18 @@ project-files:19:file:123
 #### 2-5：收敛规则
 
 单对象接入和项目文件面板复用验收通过后，Gugu-web 再把稳定 adapter 从 `views/Files/runtime/` 移到 `interaction/runtime/adapters/file/`。Runtime 仓库只有在通用性得到验证后才新增 `src/file/`；多对象基础能力则单独进入 `src/group/` 评审。
+
+#### 2-6：阶段验收与扩展顺序
+
+- [ ] detach 拖入普通文件夹时，原目录剩余文件有一次且仅一次 FLIP。
+- [ ] clone 拖入普通文件夹时，代理、本体和兄弟节点不重复控制 `transform`。
+- [ ] 取消、二次抓取、快速连续拖拽不会留下幽灵文件或旧动画。
+- [ ] 每次移动只产生一次 `MoveAction`，Store/API 与页面目录一致。
+- [ ] 面包屑、网格/列表和多级目录不因 Runtime 接管而重置。
+
+普通文件夹单链路稳定后，再按风险扩展：文件夹拖入文件夹及循环拦截、两种布局的
+兄弟 FLIP、批量选择/多对象 Session、面包屑目标、回收站和跨空间移动。每一项都先
+在 Demo 冻结协议，再迁移一条 Gugu-web 真实链路并回补通用能力。
 
 ### 阶段 3：迁移 Gugu-web 画布对象
 
