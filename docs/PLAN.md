@@ -589,6 +589,70 @@ grabbing
 
 阶段 1 验收通过并稳定运行后，复用同一套 Runtime API 接入文件卡视觉策略。
 
+#### 2-1：Gugu-web 侧过渡 adapter
+
+文件系统第一版由 Gugu-web 暂存业务 adapter，Runtime 仓库不增加文件专属模块：
+
+```text
+Gugu-web/frontend/src/views/Files/runtime/
+├── fileRuntimeAdapter.ts
+├── fileTargetResolver.ts
+├── fileRuntimeTypes.ts
+└── README.md
+```
+
+过渡 adapter 只能使用以下公共能力：
+
+- `registerObjectType()`。
+- `useObject()`。
+- `useSurface()`。
+- `runtime.onAction()`。
+- 现有默认 HitResolver、detach、landing、FLIP 和清理生命周期。
+
+Runtime 不感知文件、文件夹、项目或目录 API。文件 adapter 将通用 Action 翻译为文件业务操作，继续调用 Gugu-web 现有的 `moveFiles()`、`moveFolders()`、optimistic update 和 rollback。
+
+#### 2-2：对象和 Surface 协议
+
+文件系统使用两个对象类型：
+
+```text
+file-item
+folder-item
+```
+
+对象 ID 必须携带宿主 scope，例如：
+
+```text
+files:file:123
+project-files:19:file:123
+```
+
+文件夹卡片和可放入的面包屑作为目标 Surface，由 Surface ID 携带目标目录信息。Runtime 只把它们当作普通可接受对象的 Surface，不新增 `folderId` 或 `fileId` 业务字段。
+
+#### 2-3：Runtime 侧配合清单
+
+- [ ] 确认 `useObject()` 可以稳定绑定网格卡片、列表行和项目文件面板对象。
+- [ ] 确认嵌套文件夹 Surface 与面包屑 Surface 的命中优先级。
+- [ ] 确认同一对象在不同 scope 下可以并存，不发生 ObjectStore 冲突。
+- [ ] 确认单对象移动只产生一次 `MoveAction`、一次 landing 和一次 dispose。
+- [ ] 补充 Runtime 集成测试：文件对象、文件夹目标、面包屑目标和非法落点。
+- [ ] 不为多选拖拽提前修改 Runtime 核心；多选继续由 Gugu-web 旧 adapter 暂存。
+
+#### 2-4：API 复评门槛
+
+第一阶段禁止为了文件系统增加专属 API。只有出现以下事实之一，才重新评估 Runtime 公共接口：
+
+1. 仅靠 `Surface ID` 无法稳定表达目标信息。
+2. 文件目标元数据需要被多个业务应用复用。
+3. 多选拖拽需要通用的 Group Session。
+4. 文件视觉策略在 Runtime 之外无法保持一致的生命周期。
+
+候选扩展只能是通用能力，例如 Surface `metadata`、通用目标快照或 `GroupDragSession`；不得加入文件专属字段。
+
+#### 2-5：收敛规则
+
+单对象接入和项目文件面板复用验收通过后，Gugu-web 再把稳定 adapter 从 `views/Files/runtime/` 移到 `interaction/runtime/adapters/file/`。Runtime 仓库只有在通用性得到验证后才新增 `src/file/`；多对象基础能力则单独进入 `src/group/` 评审。
+
 ### 阶段 3：迁移 Gugu-web 画布对象
 
 最后接入画布对象，保留 camera、连接点和吸入动效等业务专属行为，Runtime

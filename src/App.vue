@@ -1,9 +1,9 @@
 <template>
   <MotionDebugPanel />
-  <KanbanBoard />
+  <DemoShell />
 </template>
 
 <script setup lang="ts">
-import KanbanBoard from './demo/KanbanBoard.vue'
+import DemoShell from './demo/DemoShell.vue'
 import MotionDebugPanel from './demo/MotionDebugPanel.vue'
 </script>

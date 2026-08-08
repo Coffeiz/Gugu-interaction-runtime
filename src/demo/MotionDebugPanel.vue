@@ -1,6 +1,6 @@
 <template>
-  <aside class="motion-debug-panel">
-    <button class="motion-debug-toggle" @click="open = !open">
+  <aside ref="panelRef" class="motion-debug-panel" :class="{ dragging }" :style="panelStyle">
+    <button class="motion-debug-toggle" title="拖动标题栏移动调参窗" @pointerdown="startDrag" @click="togglePanel">
       Motion 调参 <span>{{ open ? '收起' : '展开' }}</span>
     </button>
     <div v-if="open" class="motion-debug-body">
@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION, LANDING_PROFILE } from '../motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from '../motion/ReleaseMotion'
 import { runtime } from '../Runtime'
@@ -119,8 +119,59 @@ interface SavedMotionConfig {
 }
 
 const STORAGE_KEY = 'gugu-runtime-motion-profile'
+const POSITION_KEY = 'gugu-runtime-motion-panel-position'
 const open = ref(false)
 const editing = ref<string | null>(null)
+const dragging = ref(false)
+const suppressToggle = ref(false)
+const panelRef = ref<HTMLElement | null>(null)
+const position = reactive({ x: 18, y: 18 })
+let stopDragging: (() => void) | null = null
+
+const panelStyle = computed(() => ({ left: `${position.x}px`, top: `${position.y}px` }))
+
+function clampPosition(): void {
+  const panel = panelRef.value
+  const width = panel?.offsetWidth ?? 220
+  const height = panel?.offsetHeight ?? 42
+  position.x = Math.max(8, Math.min(position.x, window.innerWidth - width - 8))
+  position.y = Math.max(8, Math.min(position.y, window.innerHeight - height - 8))
+}
+
+function startDrag(event: PointerEvent): void {
+  if (event.button !== 0) return
+  const startX = event.clientX
+  const startY = event.clientY
+  const originX = position.x
+  const originY = position.y
+  let moved = false
+  dragging.value = true
+  const move = (moveEvent: PointerEvent) => {
+    position.x = originX + moveEvent.clientX - startX
+    position.y = originY + moveEvent.clientY - startY
+    moved = moved || Math.abs(moveEvent.clientX - startX) > 3 || Math.abs(moveEvent.clientY - startY) > 3
+    clampPosition()
+  }
+  const stop = () => {
+    dragging.value = false
+    suppressToggle.value = moved
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+    localStorage.setItem(POSITION_KEY, JSON.stringify({ x: position.x, y: position.y }))
+    stopDragging = null
+  }
+  stopDragging = stop
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop, { once: true })
+}
+
+function togglePanel(): void {
+  if (suppressToggle.value) {
+    suppressToggle.value = false
+    return
+  }
+  open.value = !open.value
+}
 const saved = reactive<SavedMotionConfig>({
   stiffness: LANDING_PROFILE.position.stiffness,
   damping: LANDING_PROFILE.position.damping,
@@ -197,6 +248,14 @@ function resetToSaved(): void {
 
 onMounted(() => {
   try {
+    const savedPosition = JSON.parse(localStorage.getItem(POSITION_KEY) ?? 'null') as { x?: number; y?: number } | null
+    if (typeof savedPosition?.x === 'number') position.x = savedPosition.x
+    if (typeof savedPosition?.y === 'number') position.y = savedPosition.y
+    clampPosition()
+  } catch {
+    // 浮窗位置损坏时回到视口左上角，不影响调参功能。
+  }
+  try {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<SavedMotionConfig> | null
     if (!value) return
     if (typeof value.stiffness === 'number') saved.stiffness = value.stiffness
@@ -217,12 +276,20 @@ onMounted(() => {
     // 调试面板的本地配置损坏时回退代码默认值，不影响 Runtime 主流程。
   }
 })
+
+watch(open, () => { void nextTick(clampPosition) })
+onBeforeUnmount(() => {
+  stopDragging?.()
+  dragging.value = false
+})
 </script>
 
 <style scoped>
-.motion-debug-panel { position: fixed; right: 16px; top: 16px; z-index: 20; width: 220px; font: 12px system-ui, sans-serif; color: #333; }
+.motion-debug-panel { position: fixed; z-index: 20; width: 220px; font: 12px system-ui, sans-serif; color: #333; user-select: none; }
+.motion-debug-panel.dragging { cursor: grabbing; }
 .motion-debug-toggle, .motion-debug-body { box-sizing: border-box; width: 100%; border: 1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.94); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
-.motion-debug-toggle { padding: 8px 10px; border-radius: 8px; cursor: pointer; text-align: left; }
+.motion-debug-toggle { padding: 8px 10px; border-radius: 8px; cursor: grab; text-align: left; touch-action: none; }
+.motion-debug-panel.dragging .motion-debug-toggle { cursor: grabbing; }
 .motion-debug-toggle span { float: right; color: #888; }
 .motion-debug-body { margin-top: 6px; padding: 10px; border-radius: 8px; }
 label { display: block; margin-bottom: 9px; }

@@ -67,17 +67,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watchEffect, onUnmounted } from 'vue'
+import { computed, reactive, ref, watch, watchEffect, onUnmounted } from 'vue'
 import { columns, cards, moveCard } from './store'
 import { buildDoneGroups } from './doneGrouping'
+import { startCardDragClone } from './kanbanClone'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
 import { DEFAULT_MOTION_PROFILE } from '../dom/MotionProfile'
 import { useSurface } from '../vue/useSurface'
 import { runtime } from '../Runtime'
 import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 
-// Runtime 默认使用 DefaultVisualAdapter 内置的 detach 策略，
-// registerObjectType 不需要传 visual adapter
+const props = defineProps<{ strategy: 'detach' | 'clone' }>()
+
+// 看板默认使用 Runtime 内置的 detach 策略；clone 只注册为 demo 专用 start
+// 入口，方便对比历史策略，不改变 Runtime 的默认视觉适配器。
 runtime.registerObjectType('kanban', {
   defaultVisualMode: 'detach',
   motion: {
@@ -86,6 +89,10 @@ runtime.registerObjectType('kanban', {
       landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
     },
   },
+})
+runtime.registerObjectType('kanban-clone', {
+  defaultVisualMode: 'clone',
+  start: context => startCardDragClone(context.event, context.objectId, context.element),
 })
 
 runtime.configureMotion({
@@ -114,7 +121,7 @@ const columnSurfaces = Object.fromEntries(
     useSurface({
       id: `column:${col.id}`,
       type: 'kanban-column',
-      accepts: ['kanban-card'],
+      accepts: ['kanban-card', 'kanban-card-clone'],
 
     }),
   ]),
@@ -130,17 +137,24 @@ function setColumnRef(colId: string, el: HTMLElement | null) {
 // 的组件，应该改成在那个组件里调用 useObject，而不是照抄这段。
 // c3（"补充测试用例"）故意不给 'move' 能力，用来验证这条门禁是真的在
 // 生效，不是摆设——demo 里它应该完全拖不动，pointerdown 直接被拒绝。
-Object.keys(cards).forEach(cardId => {
-  runtime.objects.register({
-    id: cardId,
-    type: 'kanban-card',
-    visual: 'kanban',
-    visualMode: 'detach',
-    surfaceId: '',
-    element: null,
-    abilities: cardId === 'c3' ? [] : ['move', 'sort'],
+function registerKanbanObjects(strategy: 'detach' | 'clone'): void {
+  Object.keys(cards).forEach(cardId => {
+    const current = runtime.objects.get(cardId)
+    const surfaceId = current?.surfaceId ?? ''
+    runtime.objects.register({
+      id: cardId,
+      type: strategy === 'clone' ? 'kanban-card-clone' : 'kanban-card',
+      visual: strategy === 'clone' ? 'kanban-clone' : 'kanban',
+      visualMode: strategy,
+      surfaceId,
+      element: current?.element ?? null,
+      abilities: cardId === 'c3' ? [] : ['move', 'sort'],
+    })
   })
-})
+}
+
+registerKanbanObjects(props.strategy)
+watch(() => props.strategy, registerKanbanObjects)
 
 function bindCardPointer(cardId: string, element: HTMLElement | null): void {
   // 卸载回调（element=null）可能在目标列新节点已挂载（element=新节点）
@@ -179,12 +193,16 @@ const stopOwnershipSubscription = runtime.owner.subscribe(() => {
 })
 onUnmounted(stopOwnershipSubscription)
 
+onUnmounted(() => {
+  for (const cardId of Object.keys(cards)) runtime.objects.unregister(cardId)
+})
+
 // detach 策略专用：这个对象当前是不是被 Runtime 接管了，接管了就要被
 // <Teleport> 搬去 body。直接读 Owner 而不额外包一层 computed——Owner 内部
 // 是 reactive(Map)，模板渲染时读取会被 Vue 的响应式系统正常追踪到。
 function isDetached(cardId: string): boolean {
   ownershipVersion.value
-  return runtime.owner.isControlled(cardId)
+  return props.strategy === 'detach' && runtime.owner.isControlled(cardId)
 }
 
 const doneColumn = computed(() => columns.find(col => col.id === 'done')!)

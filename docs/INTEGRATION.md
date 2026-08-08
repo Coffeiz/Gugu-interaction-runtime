@@ -5,6 +5,23 @@
 本文描述的是 1.0.2 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
 使用 Runtime 源码而非 npm 包；文件、画布和抽屉仍按各自 adapter 接入，尚未承诺零配置。
 
+### 文件系统接入约束
+
+文件系统第一版不要求 Runtime 提供文件专属 API。Gugu-web 可以在迁移期间暂存文件 adapter，
+但 adapter 只能使用本文公开的 `useObject`、`useSurface` 和 `runtime.onAction()`，不能自行
+编排 Session、proxy、landing、FLIP 或清理。
+
+文件对象类型可以注册为 `file-item`、`folder-item`，对象 ID 必须包含业务 scope，例如：
+
+```text
+files:file:123
+project-files:19:file:123
+```
+
+文件夹和面包屑可以注册为普通目标 Surface；目标目录信息由业务侧通过 Surface ID 或业务侧
+目标映射解析，Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽不属于单对象接入
+契约，在通用 Group Session 设计完成前由业务 adapter 保留。
+
 ## 五分钟接入（1.0.2）
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
