@@ -367,7 +367,7 @@ VisualState/VisualMotion/VisualProxy 归入 `RuntimeVisual`，
 `SessionCoordinator` 整理为 `RuntimeSession`，Dispatcher 根据最终入口归入
 `RuntimeInput` 或 `RuntimeMove`。这一步只做文件和职责合并，不改变行为。
 
-#### 0.9.1 Runtime 接入基础收口
+#### 0.9.2 Runtime 接入基础收口
 
 - [x] 看板业务的 pointerdown 不再直接调用 `startCardDragDetach` 或其他 legacy 启动函数；
 - [x] Runtime 输入层根据 ObjectStore 的元素绑定自动启动默认 detach driver；
@@ -385,7 +385,7 @@ VisualState/VisualMotion/VisualProxy 归入 `RuntimeVisual`，
 和取消清理已经由 `DetachAdapter`/`DetachMoveDriver` 在 Runtime 内部统一编排，业务侧
 只保留 Object/Surface 注册、元素绑定和 Action 订阅。
 
-#### 0.9.2 迁移 DetachMoveDriver
+#### 0.9.3 迁移 DetachMoveDriver
 
 - [x] `Visual.ts` 作为 Runtime 内部的运动原语；
 - [x] `GroupLayout.ts` 作为 Runtime 内部的 Group/Surface FLIP 实现；
@@ -393,10 +393,10 @@ VisualState/VisualMotion/VisualProxy 归入 `RuntimeVisual`，
 - [x] detach 视觉策略已迁入 Runtime 内部策略目录（`DetachAdapter`）；
 - [x] 已删除 `kanbanDragDetach.ts` 和 `DetachReleaseCoordinator.ts`，编排全量迁入 `DetachAdapter`/`DetachMoveDriver`；
 
-当前迁移进度：0.9.2 已完成。Runtime 侧统一提供 Session/Lease、pickup、dragging/update、
+当前迁移进度：0.9.3 已完成。Runtime 侧统一提供 Session/Lease、pickup、dragging/update、
 release、landing/reveal、regrab 和 dispose，业务入口不再保留 detach 事务闭包。
 
-#### 0.9.2 业务编排收口顺序
+#### 0.9.4 业务编排收口顺序
 
 下一步按以下顺序执行，不改变现有动画实现：
 
@@ -418,7 +418,7 @@ pointerdown → Runtime.start → DetachMoveDriver.prepare
 `DetachMoveDriver` 只组合现有 Runtime 能力，不重新实现 `Visual`、`Hit`、
 `GroupLayout` 或运动参数。
 
-#### 0.9.3 单一生命周期所有者
+#### 0.9.5 单一生命周期所有者
 
 - [x] `DetachAdapter.createDetachMoveFromAdapter` 是唯一生命周期所有者，内部调用 Runtime 协调器；
 - [x] cancel/interrupt/regrab/dispose 均由 detach adapter 内部闭包统一触发；
@@ -460,7 +460,7 @@ Runtime 内部只有一套生命周期编排”为准。
 - [x] 删除迁移期 clone 编排和重复 detach 编排
 - [x] 进入阶段 1：接 Gugu-web 看板项目卡
 
-### 阶段 0.9.5：接入 MotionController，统一 grabbing → landing 的 JS 运动链路
+### 阶段 0.9.6：接入 MotionController，统一 grabbing → landing 的 JS 运动链路
 
 本阶段在接入 Gugu-web 之前完成。目标不是重写业务拖拽，而是把当前由 CSS
 transition/`landDragProxy` 分散驱动的代理运动，收口为 Runtime 可控制的 JS
@@ -586,13 +586,13 @@ grabbing
 不再为普通卡片移动写 adapter 或生命周期闭包。回归记录用例细节（1-1 最后一项）留待后续按需补充，
 不阻塞阶段完成。
 
-### 文件系统开发路线（Demo → Gugu-web）
+### 阶段 2：文件系统 Runtime 接入（Demo → Gugu-web）
 
 文件系统采用“先冻结 Demo 契约，再做一条真实业务链路，并将通用问题回补 Runtime”的
 垂直迁移方式。Demo 不是完整文件库，而是验证 Object、Surface、Action、视觉策略和
 布局协调边界的实验场。
 
-当前 Demo 已完成：
+#### 2-1：Demo 契约与回归基线（已完成）
 
 - [x] 根目录、一级/多级文件夹和文件 mock 数据。
 - [x] 文件夹卡片可进入，面包屑按真实父级链导航。
@@ -600,10 +600,10 @@ grabbing
 - [x] 文件和文件夹注册为 Object，文件夹/浏览区域注册为 Surface。
 - [x] 页面层提供 `detach / clone` 策略切换，并保持目录状态不重置。
 - [x] detach 优先接入文件夹卡和面包屑目录目标；文件夹 Action 使用与文件相同的业务更新通道。
-- [ ] 文件列表兄弟节点 FLIP。
+- [x] 文件列表兄弟节点 FLIP 与 landing target 实时跟随。
 - [x] 文件与文件夹复用 Runtime 内建 clone 视觉策略，不再新增文件系统专用 adapter。
 
-#### 当前工作顺序：detach 优先
+##### 2-1.1：detach 主路径验收（已完成）
 
 文件系统后续先只优化和验收 `detach` 主路径。第一阶段固定覆盖：文件/文件夹命中、
 拖入文件夹、拖到面包屑、非法目标回弹、landing/handoff、源节点清理和同级列表让位。
@@ -614,9 +614,9 @@ detach 阶段的验收门槛：
 
 - [x] 文件夹拖入文件夹后，目标目录可以进入并看到被移动文件夹。
 - [x] 文件或文件夹拖到根目录面包屑后，目录归属正确更新。
-- [ ] 文件/文件夹拖入普通文件夹时，同级兄弟节点由统一 FLIP 让位。
-- [ ] 非法目标、拖回原位和中途重新抓取不残留本体、代理或 pointer 状态。
-- [ ] 网格/列表、嵌套目录和连续快速拖拽通过浏览器回归。
+- [x] 文件/文件夹拖入普通文件夹时，同级兄弟节点由统一 FLIP 让位。
+- [x] 非法目标、拖回原位和中途重新抓取不残留本体、代理或 pointer 状态。
+- [x] 网格/列表、嵌套目录和连续快速拖拽通过浏览器回归。
 
 迁移首条链路固定为：
 
@@ -637,13 +637,59 @@ Runtime Demo 冻结契约 → Gugu-web 迁移一条链路 → 对照现有行为
 → 回补通用问题 → Demo + Gugu-web 双侧验收 → 进入下一条链路
 ```
 
-### 阶段 2：迁移 Gugu-web 文件卡
+#### 2-2：Gugu-web 文件卡迁移（待实施）
 
-阶段 1 验收通过并稳定运行后，复用同一套 Runtime API 接入文件卡视觉策略。
+2-1 Demo 契约验收通过并稳定运行后，复用同一套 Runtime API 接入文件卡视觉策略。
 执行节奏采用“Demo 契约 → Gugu-web 一条真实链路 → 双侧回补”的垂直迁移，
 不等所有文件能力在 Demo 中完成后才开始真实接入，也不在 Gugu-web 中直接发明
 Runtime 私有接口。当前 Demo 已具备多级目录、面包屑、网格/列表和策略切换页面层；
-文件列表兄弟 FLIP 与文件系统专用 clone adapter 仍是本阶段的 Runtime 配合项。
+文件列表兄弟 FLIP、语义 target landing 与 clone/detach 共用的 Runtime 生命周期
+已经完成，本阶段的重点转为业务侧接入收敛。
+
+##### 2-2.1：文件业务侧收敛目标
+
+文件系统的最终接入不是让 Runtime 持有文件树、权限或 API，而是把重复的交互编排
+收进一个通用的“层级集合”绑定层。Gugu-web 只保留数据查询、目录导航、权限判断和
+Action 到 Store/API 的提交；Runtime 负责对象/Surface 注册、目标命中、landing、
+兄弟 FLIP、detach/clone 生命周期和 DOM ref 的清理。
+
+目标业务侧形态：
+
+```ts
+const fileInteraction = useHierarchicalCollectionRuntime({
+  items,
+  currentContainerId,
+  getParentId: item => item.parentId,
+  isContainer: item => item.kind === 'folder',
+  onMove: ({ objectId, containerId, index }) => fileStore.move(objectId, containerId, index),
+})
+```
+
+模板只绑定 Runtime 已归一化的 ref：
+
+```vue
+<FileCard :ref="el => fileInteraction.bindObject(item.id, el)" />
+<FolderTarget :ref="el => fileInteraction.bindContainer(folder.id, el)" />
+<Breadcrumb :ref="el => fileInteraction.bindBreadcrumb(folder.id, el)" />
+```
+
+这里的 `useHierarchicalCollectionRuntime()` 是阶段 2 的目标 API，名称和参数在实现时
+可按现有 Runtime 命名收敛；其边界固定如下：
+
+- Runtime 不读取或修改文件业务数据，不调用文件 API，也不处理权限、回收站或 rollback。
+- Runtime 可接受任意层级对象/容器，文件、项目文件和未来素材库共用同一套绑定。
+- 业务侧只通过 `onMove` 接收标准 MoveAction，并自行决定 optimistic update、持久化和失败恢复。
+- DOM 目标注册及语义 landing 的定位属于 Runtime，不继续散落在页面的 resolver 中。
+
+收敛按四步推进：
+
+1. 提炼通用层级容器目标注册，收走文件页的命中与 landing target resolver。
+2. 提炼 Vue 绑定层，收走 `watchEffect` 中的 Object/Surface 同步和 DOM ref 卸载保护。
+3. 用标准 `onMove` 回调替换 Demo 的直接订阅；Demo 仍用内存 Store，Gugu-web 接真实 Store/API。
+4. 先迁移“文件卡 → 普通文件夹”一条真实链路，双侧验证后再迁移文件夹、面包屑、多选和回收站。
+
+在 1、2 步没有验证出可复用边界之前，Gugu-web 继续把临时代码放在
+`frontend/src/views/Files/runtime/`，不将任何文件专属逻辑硬塞进 Runtime Core。
 
 首条真实链路固定为：
 
@@ -655,7 +701,7 @@ Runtime 私有接口。当前 Demo 已具备多级目录、面包屑、网格/�
 真实迁移中发现的对象身份、Surface 命中、FLIP 所有权和清理时序等通用问题，
 回补 Runtime demo；回收站语义、权限和 API 失败回滚等业务问题留在 Gugu-web adapter。
 
-#### 2-1：Gugu-web 侧过渡 adapter
+##### 2-2.2：Gugu-web 侧过渡 adapter
 
 文件系统第一版由 Gugu-web 暂存业务 adapter，Runtime 仓库不增加文件专属模块：
 
@@ -677,7 +723,7 @@ Gugu-web/frontend/src/views/Files/runtime/
 
 Runtime 不感知文件、文件夹、项目或目录 API。文件 adapter 将通用 Action 翻译为文件业务操作，继续调用 Gugu-web 现有的 `moveFiles()`、`moveFolders()`、optimistic update 和 rollback。
 
-#### 2-2：对象和 Surface 协议
+##### 2-2.3：对象和 Surface 协议
 
 文件系统使用两个对象类型：
 
@@ -695,7 +741,7 @@ project-files:19:file:123
 
 文件夹卡片和可放入的面包屑作为目标 Surface，由 Surface ID 携带目标目录信息。Runtime 只把它们当作普通可接受对象的 Surface，不新增 `folderId` 或 `fileId` 业务字段。
 
-#### 2-3：Runtime 侧配合清单
+##### 2-2.4：Runtime 侧配合清单
 
 - [ ] 确认 `useObject()` 可以稳定绑定网格卡片、列表行和项目文件面板对象。
 - [ ] 确认嵌套文件夹 Surface 与面包屑 Surface 的命中优先级。
@@ -704,7 +750,7 @@ project-files:19:file:123
 - [ ] 补充 Runtime 集成测试：文件对象、文件夹目标、面包屑目标和非法落点。
 - [ ] 不为多选拖拽提前修改 Runtime 核心；多选继续由 Gugu-web 旧 adapter 暂存。
 
-#### 2-4：API 复评门槛
+##### 2-2.5：API 复评门槛
 
 第一阶段禁止为了文件系统增加专属 API。只有出现以下事实之一，才重新评估 Runtime 公共接口：
 
@@ -715,11 +761,11 @@ project-files:19:file:123
 
 候选扩展只能是通用能力，例如 Surface `metadata`、通用目标快照或 `GroupDragSession`；不得加入文件专属字段。
 
-#### 2-5：收敛规则
+##### 2-2.6：收敛规则
 
 单对象接入和项目文件面板复用验收通过后，Gugu-web 再把稳定 adapter 从 `views/Files/runtime/` 移到 `interaction/runtime/adapters/file/`。Runtime 仓库只有在通用性得到验证后才新增 `src/file/`；多对象基础能力则单独进入 `src/group/` 评审。
 
-#### 2-6：阶段验收与扩展顺序
+##### 2-2.7：阶段验收与扩展顺序
 
 - [ ] detach 拖入普通文件夹时，原目录剩余文件有一次且仅一次 FLIP。
 - [ ] clone 拖入普通文件夹时，代理、本体和兄弟节点不重复控制 `transform`。
@@ -731,12 +777,7 @@ project-files:19:file:123
 兄弟 FLIP、批量选择/多对象 Session、面包屑目标、回收站和跨空间移动。每一项都先
 在 Demo 冻结协议，再迁移一条 Gugu-web 真实链路并回补通用能力。
 
-### 阶段 3：迁移 Gugu-web 画布对象
-
-最后接入画布对象，保留 camera、连接点和吸入动效等业务专属行为，Runtime
-只负责事务和 Surface 边界。
-
-### 阶段 2.5：多组布局与折叠
+#### 2-3：多组布局与折叠
 
 多组折叠不放入 `MoveBehavior`，单独作为布局行为建设：
 
@@ -751,7 +792,7 @@ project-files:19:file:123
 - Vue 组件只保存展开状态、渲染组标题和触发请求，不直接编排 FLIP。
 - 如果未来只剩组间位移动画，再从 `GroupLayout.ts` 中抽出内部 `GroupFlip`。
 
-### 阶段 2.6：公共 Hit 模块
+#### 2-4：公共 Hit 模块
 
 - [x] 将不同拖拽策略中的命中逻辑统一到 `Hit` 公共模块；
 - [x] 提供 `findSurface(point)`、`findTarget(point)`、`findIndex(surface, point)`；
@@ -791,6 +832,11 @@ type Action =
 Action 的基础联合类型已落在 `src/action/Action.ts`，Runtime 已提供
 `runtime.onAction()`/`runtime.emitAction()` 通道；当前 demo 仍直接提交业务
 Store，后续迁移 Behavior 时再切换为 Action 输出。
+
+### 阶段 3：迁移 Gugu-web 画布对象
+
+最后接入画布对象，保留 camera、连接点和吸入动效等业务专属行为，Runtime
+只负责事务和 Surface 边界。
 
 ## 六、现有 Gugu-web 代码到新分层的映射（迁移时的对照表）
 
