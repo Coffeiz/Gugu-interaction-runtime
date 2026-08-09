@@ -1,4 +1,4 @@
-import { applyFloatingStyle, clearFloatingStyle, getFloatingProxy, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
+import { applyFloatingStyle, claimVisibilityOwnership, clearFloatingStyle, getFloatingProxy, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
 import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
@@ -244,6 +244,8 @@ export function createDetachMoveFromAdapter(config: {
     prepare(ctx) {
       sessionId = ctx.session.id
       pointerMoved = false
+      const wasHiddenBeforePickup = element.style.visibility === 'hidden'
+        || getComputedStyle(element).visibility === 'hidden'
       autoScroller = runtime.createAutoScroller(sessionId!, {
         onScroll: point => updateDropFromPoint(point.x, point.y),
       })
@@ -260,6 +262,10 @@ export function createDetachMoveFromAdapter(config: {
       // 事务结束后 restore() 精确恢复到这份脏基准，卡片从此再也点不到。
       element.style.visibility = ''
       element.style.pointerEvents = ''
+      // regrab 的旧 Session 可能在悬浮阶段把 transition 固定为 none；如果
+      // 直接创建新 lease，finishReveal 会把这个脏值当成原始样式再次恢复。
+      // 仅对进入时已隐藏的本体清理，避免覆盖业务原本的 inline transition。
+      if (wasHiddenBeforePickup) element.style.transition = ''
       objectLease = runtime.acquireObject(sessionId!, objectId)
       runtime.takeSurfaces(sessionId!, surfaceIds)
       const { beforePickup } = prepareDetachPickup(element, registeredElements, layoutScopeSurfaces)
@@ -300,6 +306,10 @@ export function createDetachMoveFromAdapter(config: {
       // clone 和 detach 共用同一个抓取 proxy 工厂与 handoff 形式，保证 grabbing
       // 的姿态、过渡和 release 动量一致；唯一差别是 detach 立即移除源占位。
       applyFloatingStyle(element, rect)
+      // regrab 的 source 会在 applyFloatingStyle() 中再次隐藏；如果旧 Session
+      // 的 ownership 已被释放，preserveTarget 的 reveal 将无法恢复它。此时在
+      // 新 Session 上登记 ownership，保持隐藏状态不变，等 reveal 统一交接。
+      claimVisibilityOwnership(element, sessionId!)
       const adoptedProxy = takeFloatingProxy(element)
       if (adoptedProxy) runtime.registerVisualProxy(sessionId!, { element: adoptedProxy })
       element.style.pointerEvents = 'none'

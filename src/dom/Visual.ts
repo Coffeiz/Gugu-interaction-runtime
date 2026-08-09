@@ -972,6 +972,17 @@ export function concealElement(el: HTMLElement, ownerId: string): void {
 }
 
 /**
+ * 接管一个已经被旧拖拽 Session 隐藏的本体。
+ * regrab 会先打断旧 Session，再由新 Session 重新创建浮动代理；此时本体
+ * 仍需保持隐藏，但后续 preserveTarget 的 reveal 必须能由新 owner 执行。
+ */
+export function claimVisibilityOwnership(el: HTMLElement, ownerId: string): void {
+  if (el.style.visibility === 'hidden' || getComputedStyle(el).visibility === 'hidden') {
+    visibilityOwner.set(el, ownerId)
+  }
+}
+
+/**
  * 恢复元素的可见性。只有当前 owner 才能恢复，非 owner 调用无效果。
  * 返回是否实际执行了恢复操作。
  */

@@ -242,6 +242,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
   }
 
   reveal(_proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void {
+    // grabbing 阶段为 MotionController 关闭了本体的 inline transition。先清掉
+    // 这份临时值，再解除 visibility，鼠标已在卡片上时才能让 CSS hover 正常过渡。
+    target.style.transition = ''
     revealElement(target, context.sessionId)
   }
 
