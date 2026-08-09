@@ -456,7 +456,6 @@ setMotionProfiles(this.registry.motionProfile)
     sessionId: string,
     context: VisualLifecycleContext,
   ): VisualProxy | undefined {
-    console.log('[file-dismiss-probe]', JSON.stringify({ event: 'proxy-create', objectId: context.objectId, sessionId }))
     return this.visualMotion.create(sessionId, context)
   }
 
@@ -515,7 +514,6 @@ setMotionProfiles(this.registry.motionProfile)
     const proxy = this.visualProxyCoordinator.get(sessionId)
     if (!proxy) return
     const session = this.sessionCoordinator.get(sessionId)
-    console.log('[file-dismiss-probe]', JSON.stringify({ event: 'proxy-dispose', objectId: session?.objectId ?? null, sessionId }))
     let adapterDisposed = false
     if (session) {
       const context = this.createVisualLifecycleContext(sessionId)
@@ -796,18 +794,6 @@ setMotionProfiles(this.registry.motionProfile)
     const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
     const fallbackTarget = fallback?.() ?? null
     const target = customTarget ?? fallbackTarget ?? this.resolveMoveTarget(sessionId, destination)
-    console.info('[file-target-probe]', JSON.stringify({
-      event: 'runtime-resolve',
-      sessionId,
-      objectId: session.objectId,
-      objectType: object?.type ?? null,
-      objectVisual: object?.visual ?? null,
-      hasRegistration: Boolean(registration),
-      hasCustomResolver: Boolean(registration?.resolveMoveLandingTarget),
-      customConnected: Boolean(customTarget?.isConnected),
-      fallbackConnected: Boolean(fallbackTarget?.isConnected),
-      targetConnected: Boolean(target?.isConnected),
-    }))
     if (!target || !target.isConnected) return null
     return target
   }
@@ -823,7 +809,11 @@ setMotionProfiles(this.registry.motionProfile)
     maxFrames = 6,
   ): Promise<HTMLElement | null> {
     const immediate = this.resolveMoveLandingTarget(sessionId, destination)
-    return immediate ?? this.waitForMoveTarget(sessionId, destination, maxFrames)
+    if (immediate) {
+      const rect = immediate.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) return immediate
+    }
+    return this.waitForMoveTarget(sessionId, destination, maxFrames)
   }
 
   /**
@@ -851,6 +841,8 @@ setMotionProfiles(this.registry.motionProfile)
       const current = this.sessionCoordinator.get(sessionId)
       if (current !== session || current.state === 'disposed' || current.state === 'interrupt') return null
       const target = this.resolveMoveLandingTarget(sessionId, destination)
+      const targetRect = target?.getBoundingClientRect()
+      const targetHasRect = Boolean(targetRect && targetRect.width > 0 && targetRect.height > 0)
       const surfaceReady = hasSemanticTarget || !expectedSurface || object?.surfaceId === expectedSurface
       // 同列放回：target 就是业务节点的最终落点（原地放回时 DOM 不动、
       // target === source；换位时 Vue 复用实例则 target 仍是同一节点但
@@ -865,7 +857,7 @@ setMotionProfiles(this.registry.motionProfile)
         ? (this.surfaces.get(expectedSurface)?.element?.contains(target) ?? false)
         : false)
       const moved = hasSemanticTarget || (crossSurface ? movedToSurface : true)
-      if (target && surfaceReady && moved) return target
+      if (target && targetHasRect && surfaceReady && moved) return target
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     }
     return null

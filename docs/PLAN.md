@@ -433,7 +433,8 @@ Runtime 内部只有一套生命周期编排”为准。
 - `kanbanDragDetach.ts` → 已删除，编排迁入 `src/runtime/detach/DetachAdapter.ts`
 - `DetachReleaseCoordinator.ts` → 已删除，幂等保护内联为 `released` 布尔
 - `legacyStart` 已删除，默认视觉模式通过 `DefaultVisualAdapter.createMove()` 启动 detach driver
-- demo 不再保留 clone 编排；clone 代码已删除，detach 是当前唯一内置策略
+- clone 编排已从 demo 收敛到 Runtime；detach 与 clone 均由 `DefaultVisualAdapter.createMove()`
+  按 `visualMode` 选择，demo 只注册对象类型和策略开关
 
 **接下来（阶段 1 前置工作）**：
 - [x] detach 策略迁移完成（`createMove` + `DetachAdapter` + `DefaultVisualAdapter` 内置）
@@ -534,7 +535,7 @@ grabbing
 2. [x] 由 Runtime 的一个 MoveTransaction 统一接管 Surface 命中、Action 提交、
    兄弟布局 FLIP 调度、落地和交接顺序。
 3. [x] 保留 clone/detach 的具体视觉实现，但业务入口只注册 API，不再直接编排
-   Session、target、landing/reveal 和 regrab。
+   Session、target、landing/reveal 和 regrab；clone 使用 Runtime 内建的独立代理与源节点占位。
 4. [x] 保留 Vue 作为 DOM 创建/销毁工具，但关闭它对这些节点的自动 move/leave 动画。
 
 #### 1-1：源码直连与真实回归基线
@@ -600,15 +601,14 @@ grabbing
 - [x] 页面层提供 `detach / clone` 策略切换，并保持目录状态不重置。
 - [x] detach 优先接入文件夹卡和面包屑目录目标；文件夹 Action 使用与文件相同的业务更新通道。
 - [ ] 文件列表兄弟节点 FLIP。
-- [ ] 文件系统专用 clone 视觉 adapter。
+- [x] 文件与文件夹复用 Runtime 内建 clone 视觉策略，不再新增文件系统专用 adapter。
 
 #### 当前工作顺序：detach 优先
 
 文件系统后续先只优化和验收 `detach` 主路径。第一阶段固定覆盖：文件/文件夹命中、
 拖入文件夹、拖到面包屑、非法目标回弹、landing/handoff、源节点清理和同级列表让位。
-`clone` 暂时保留页面开关和现有回归基线，不在 detach 尚未稳定前继续扩展文件专用
-clone 逻辑；待 detach 主路径通过验收后，再把已验证的对象目标协议和业务 Action
-回补到 clone adapter。
+`clone` 暂时保留页面开关和现有回归基线；clone/detach 均通过 Runtime 默认视觉
+适配器按 `visualMode` 选择，文件业务侧不再维护独立 clone 生命周期。
 
 detach 阶段的验收门槛：
 
@@ -774,7 +774,8 @@ Runtime 统一转为 cancel。
 `MoveBehavior` 已提供可替换 driver；业务编排可以挂到
 `runtime.setMoveDriver()`。需要同时支持多个视觉策略时，使用
 `runtime.bindMoveSession(sessionId, driver)` 按 Session 绑定，避免 clone/detach
-之间共享可变状态。proxy、landing 和具体 tween 仍属于 driver，不在本轮收进 Runtime。
+之间共享可变状态。默认 clone/detach driver、proxy、landing 和具体 tween 现在均由
+Runtime 内部提供；业务只通过 `visualMode: 'clone' | 'detach'` 选择策略。
 
 Action 使用明确的行为联合类型，不使用与业务数据库字段耦合的通用 patch：
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Runtime } from '../Runtime'
+import { Runtime, type ObjectVisualAdapter } from '../Runtime'
 
 function setRect(element: HTMLElement, width = 100, height = 40): void {
   element.getBoundingClientRect = () => ({
@@ -16,6 +16,34 @@ function setRect(element: HTMLElement, width = 100, height = 40): void {
 }
 
 describe('默认视觉适配器', () => {
+  it('根据 visual mode 在 Runtime 内选择 clone move，而不是调用业务侧 start', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('article')
+    document.body.append(source)
+    setRect(source)
+    runtime.objects.register({
+      id: 'clone-card',
+      type: 'kanban-card',
+      visual: 'kanban-clone',
+      visualMode: 'clone',
+      surfaceId: 'column:todo',
+      element: source,
+      abilities: ['move'],
+    })
+
+    const adapter = runtime.getVisualAdapter('kanban-clone')
+    const move = (adapter as ObjectVisualAdapter).createMove?.({
+      objectId: 'clone-card',
+      element: source,
+      event: new PointerEvent('pointerdown'),
+      mode: 'clone',
+    })
+
+    expect(move?.driver).toBeDefined()
+    expect(move?.lifecycle).toBeDefined()
+    source.remove()
+  })
+
   it('从 ObjectStore 解析重挂载后的 source/target，不依赖 data-card', () => {
     const runtime = new Runtime()
     const original = document.createElement('article')

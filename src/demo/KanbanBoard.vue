@@ -69,10 +69,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch, watchEffect, onUnmounted } from 'vue'
+import { computed, nextTick, reactive, ref, watch, watchEffect, onUnmounted } from 'vue'
 import { columns, cards, moveCard } from './store'
 import { buildDoneGroups } from './doneGrouping'
-import { startCardDragClone } from './kanbanClone'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
 import { DEFAULT_MOTION_PROFILE } from '../dom/MotionProfile'
 import { useSurface } from '../vue/useSurface'
@@ -81,8 +80,8 @@ import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 
 const props = defineProps<{ strategy: 'detach' | 'clone' }>()
 
-// 看板默认使用 Runtime 内置的 detach 策略；clone 只注册为 demo 专用 start
-// 入口，方便对比历史策略，不改变 Runtime 的默认视觉适配器。
+// 看板默认使用 Runtime 内置的 detach 策略；clone 也通过同一默认视觉适配器接入，
+// 方便对比两种策略，不在 Demo 侧编排 Session 或视觉生命周期。
 runtime.registerObjectType('kanban', {
   defaultVisualMode: 'detach',
   motion: {
@@ -94,7 +93,6 @@ runtime.registerObjectType('kanban', {
 })
 runtime.registerObjectType('kanban-clone', {
   defaultVisualMode: 'clone',
-  start: context => startCardDragClone(context.event, context.objectId, context.element),
 })
 
 runtime.configureMotion({
@@ -128,8 +126,10 @@ const columnSurfaces = Object.fromEntries(
     }),
   ]),
 )
+const doneLayoutRoot = ref<HTMLElement | null>(null)
 function setColumnRef(colId: string, el: HTMLElement | null) {
   columnSurfaces[colId].elementRef.value = el
+  if (colId === 'done') doneLayoutRoot.value = el
 }
 
 // 卡片没有各自独立的组件（demo 里所有卡片共用这一个模板渲染），没法像
@@ -224,46 +224,34 @@ function setGroupContentRef(refs: Record<string, HTMLElement | null>, key: strin
   refs[key] = el
 }
 
-let groupToggleSeq = 0
-
-function toggleGroup(level: 'year' | 'month', key: string) {
+async function toggleGroup(level: 'year' | 'month', key: string): Promise<void> {
   const refs = level === 'year' ? yearContentRefs : monthContentRefs
   const openSet = level === 'year' ? openYears : openMonths
   const el = refs[key]
+  const root = doneLayoutRoot.value
   const opening = !openSet.value.has(key)
-  const next = new Set(openSet.value)
-  if (opening) next.add(key)
-  else next.delete(key)
-  openSet.value = next
-  if (!el) return
-  const token = String(++groupToggleSeq)
-  el.dataset.runtimeToggleToken = token
-  const profile = runtime.getMotionProfile()?.group ?? DEFAULT_MOTION_PROFILE.group
-  const duration = profile.duration
-  const easing = profile.easing
-  const current = el.getBoundingClientRect().height
-  el.style.transition = ''
-  el.style.height = `${current}px`
-  el.style.overflow = 'hidden'
-  void el.offsetHeight
-  if (opening) {
-    const target = el.scrollHeight
-    el.style.transition = `height ${duration}ms ${easing}`
-    el.style.height = `${target}px`
-    window.setTimeout(() => {
-      if (el.dataset.runtimeToggleToken !== token) return
-      el.style.height = ''
-      el.style.overflow = ''
-      el.style.transition = ''
-    }, duration + 40)
-  } else {
-    el.style.transition = `height ${duration}ms ${easing}`
-    el.style.height = '0px'
-    window.setTimeout(() => {
-      if (el.dataset.runtimeToggleToken !== token) return
-      el.style.transition = ''
-    }, duration + 40)
+  if (!el || !root) {
+    toggleGroupState(level, key)
+    return
   }
+  const profile = runtime.getMotionProfile()?.group ?? DEFAULT_MOTION_PROFILE.group
+  await runtime.runGroupToggle({
+    root,
+    content: el,
+    opening,
+    mutate: () => toggleGroupState(level, key),
+    waitForLayout: nextTick,
+    duration: profile.duration,
+    easing: profile.easing,
+  })
+}
+
+function toggleGroupState(level: 'year' | 'month', key: string): void {
+  const openSet = level === 'year' ? openYears : openMonths
+  const next = new Set(openSet.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  openSet.value = next
 }
 
 </script>

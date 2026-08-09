@@ -30,7 +30,7 @@
         </button>
       </aside>
 
-      <section class="file-surface" data-file-surface="browser" :ref="el => browserSurface.elementRef.value = el as HTMLElement | null">
+      <section class="file-surface" data-file-surface="browser" data-layout-surface :ref="el => browserSurface.elementRef.value = el as HTMLElement | null">
         <div class="surface-heading"><span>{{ currentFolderName }}</span><span>{{ visibleItems.length }} 个项目</span></div>
         <div class="file-items" :class="`is-${view}`">
           <article v-for="item in visibleItems" :key="item.id" class="file-item" :class="{ folder: item.kind === 'folder' }" :data-file-id="item.id" :ref="el => bindItem(item.id, el as HTMLElement | null)" @click="item.kind === 'folder' && openFolder(item.id)">
@@ -209,9 +209,6 @@ function resolveFileLandingTarget(context: { objectId: string; destination: unkn
   const invalidReturn = typeof context.destination === 'object' && context.destination !== null
     && (context.destination as { invalidReturn?: unknown }).invalidReturn === true
   if (typeof destination !== 'string') return null
-  const probe = (event: string, details: Record<string, unknown>) => {
-    console.info('[file-target-probe]', JSON.stringify({ event, ...details }))
-  }
   // 空白区域没有业务命中时，detach 会把源 Surface 作为回位目标。
   // 这里必须回到原文件节点，不能把整个文件面板当成一张“目标卡片”，
   // 否则 landing 代理会沿着面板矩形飞回，产生整块面板移动的错觉。
@@ -219,14 +216,6 @@ function resolveFileLandingTarget(context: { objectId: string; destination: unkn
   const sameSurface = runtime.objects.get(context.objectId)?.surfaceId === destination
     && Boolean(source?.isConnected)
   if (invalidReturn || sameSurface) {
-    probe('source-target', {
-      objectId: context.objectId,
-      destination,
-      invalidReturn,
-      sameSurface,
-      sourceConnected: Boolean(source?.isConnected),
-      sourceFileId: source?.dataset.fileId ?? null,
-    })
     return source
   }
   // 跨目录时直接返回文件夹卡或面包屑作为视觉落点。Runtime 会把它视为
@@ -242,14 +231,6 @@ function resolveFileLandingTarget(context: { objectId: string; destination: unkn
       : runtime.objects.get(id)?.element ?? null
     const surfaceTarget = runtime.surfaces.get(destination)?.element ?? null
     if (registeredTarget?.isConnected) {
-      probe('registered-target', {
-        objectId: context.objectId,
-        destination,
-        targetId: id,
-        targetFileId: registeredTarget.dataset.fileId ?? null,
-        targetConnected: true,
-        surfaceConnected: Boolean(surfaceTarget?.isConnected),
-      })
       return registeredTarget
     }
 
@@ -261,29 +242,8 @@ function resolveFileLandingTarget(context: { objectId: string; destination: unkn
       : Array.from(document.querySelectorAll<HTMLElement>('[data-file-id]'))
         .find(element => element.dataset.fileId === id && element.dataset.runtimeProxy !== 'true') ?? null
     if (target?.isConnected) {
-      probe('dom-target', {
-        objectId: context.objectId,
-        destination,
-        targetId: id,
-        targetFileId: target.dataset.fileId ?? null,
-        targetBreadcrumbId: target.dataset.fileBreadcrumbId ?? null,
-        targetConnected: true,
-        surfaceConnected: Boolean(surfaceTarget?.isConnected),
-      })
       return target
     }
-
-    probe('target-missing', {
-      objectId: context.objectId,
-      destination,
-      targetId: id,
-      registeredConnected: Boolean(registeredTarget?.isConnected),
-      domCount: destination.startsWith('file:breadcrumb:')
-        ? document.querySelectorAll('[data-file-breadcrumb-id]').length
-        : document.querySelectorAll('[data-file-id]').length,
-      surfaceConnected: Boolean(surfaceTarget?.isConnected),
-      surfaceTag: surfaceTarget?.tagName ?? null,
-    })
     return surfaceTarget
   }
   return runtime.surfaces.get(destination)?.element ?? null

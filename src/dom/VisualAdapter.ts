@@ -18,7 +18,7 @@ import {
   type LandingRect,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
-import { createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
+import { createCloneMoveFromAdapter, createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
 import type { Runtime } from '../Runtime'
 
 export interface VisualLifecycleContext {
@@ -245,13 +245,17 @@ export class DefaultVisualAdapter implements VisualAdapter {
     objectId: string
     element: HTMLElement
     event: PointerEvent
+    mode?: string
     fromRect?: DOMRect
     returnRect?: DOMRect
   }): any {
     const r = this.runtime
     if (!r || !r.objects.hasAbility(context.objectId, 'move')) return {}
     context.event.preventDefault()
-    return createDetachMoveFromAdapter({
+    const createMove = context.mode === 'clone'
+      ? createCloneMoveFromAdapter
+      : createDetachMoveFromAdapter
+    return createMove({
       runtime: r,
       objectId: context.objectId,
       element: context.element,

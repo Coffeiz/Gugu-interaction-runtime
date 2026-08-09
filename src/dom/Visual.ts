@@ -868,6 +868,17 @@ export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
   return floatingProxies.get(el)
 }
 
+/** 将抓取阶段的 proxy 转交给 Runtime 的统一 landing 生命周期，不移除节点。 */
+export function takeFloatingProxy(el: HTMLElement): HTMLElement | undefined {
+  const proxy = floatingProxies.get(el)
+  if (!proxy) return undefined
+  pickupHandoffPending.delete(proxy)
+  floatingProxies.delete(el)
+  floatingSnapshots.delete(el)
+  proxy.style.zIndex = '2147483647'
+  return proxy
+}
+
 export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: number, offsetY: number) {
   const target = floatingProxies.get(el) ?? el
   const left = `${x - offsetX}px`

@@ -1,4 +1,4 @@
-import { applyFloatingStyle, clearFloatingStyle, getFloatingProxy, setProxyInteractive } from '../../dom/Visual'
+import { applyFloatingStyle, clearFloatingStyle, getFloatingProxy, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
 import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
@@ -14,8 +14,10 @@ export function createDetachMoveFromAdapter(config: {
   event: PointerEvent
   fromRect?: DOMRect
   returnRect?: DOMRect
+  /** clone 保留源节点的布局占位，并用独立代理跟手。 */
+  clone?: boolean
 }): { driver: MoveBehaviorDriver; lifecycle: MoveVisualLifecycle } {
-  const { runtime, objectId, element, event, fromRect } = config
+  const { runtime, objectId, element, event, fromRect, clone = false } = config
   // surfaceIds 和 findColumnIdOf 从 Runtime 注册表获取，不需要用户传
   const objectItem = runtime.objects.get(objectId)
   const allSurfaces = runtime.surfaces.snapshot()
@@ -58,10 +60,6 @@ export function createDetachMoveFromAdapter(config: {
   let dragOffset = { x: 0, y: 0 }
   let pickupIndex: number | null = null
   let pointerMoved = false
-  let lastProbeDrop = ''
-  const probe = (event: string, data: Record<string, unknown> = {}) => {
-    console.log('[file-dismiss-probe]', JSON.stringify({ event, objectId, sessionId, ...data }))
-  }
 
   // 布局 FLIP 只需要比较当前源 Surface 与最后命中的目标 Surface。
   // 这样已完成列之外的大量项目不会参与每次拖拽的分组、Surface 和
@@ -90,11 +88,6 @@ export function createDetachMoveFromAdapter(config: {
     })
     if (!hit) return
     pendingDrop = hit
-    const dropKey = `${hit.columnId}:${hit.index}`
-    if (dropKey !== lastProbeDrop) {
-      lastProbeDrop = dropKey
-      probe('drop-target-change', { columnId: hit.columnId, index: hit.index })
-    }
   }
 
   function onMove(moveEvent: PointerEvent) {
@@ -113,12 +106,6 @@ export function createDetachMoveFromAdapter(config: {
   function onUp(releaseEvent?: PointerEvent) {
     if (released) return { accepted: false as const }
     released = true
-    probe('release-before-resolve', {
-      x: releaseEvent?.clientX ?? null,
-      y: releaseEvent?.clientY ?? null,
-      pendingDrop,
-      pointerMoved,
-    })
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
     if (releaseMotionState) {
       const releaseVelocity = shapeReleaseVelocity({ x: releaseMotionState.vx, y: releaseMotionState.vy })
@@ -153,13 +140,15 @@ export function createDetachMoveFromAdapter(config: {
       }
     }
     if (!pendingDrop) return { accepted: false as const }
-    // 抓取阶段是源节点自己在飞（0.9.6 式单节点），这里松手交给 landing proxy 接管：
-    // 恢复源节点的正常布局占位、保持隐藏，proxy 才是接下来唯一的可见视觉主体。
+    // 抓取阶段的浮动 proxy 在这里交给 landing proxy 接管；有效落点继续让源节点
+    // 脱离布局，避免业务节点先恢复占位把兄弟卡片顶回去。
     // 即使落点仍是同列同 index，也不能清除 release 阶段捕获的布局快照：
     // 抓起时兄弟卡片已经收位，放回后它们需要用这份快照播放回位 FLIP。
     const destination = pendingDrop
-    const beforeRect = landingProxy?.getBoundingClientRect() ?? element.getBoundingClientRect()
-    sourceLease?.restoreLayoutHidden()
+    const beforeRect = landingProxy?.getBoundingClientRect()
+      ?? runtime.getVisualProxy(sessionId!)?.element.getBoundingClientRect()
+      ?? getFloatingProxy(element)?.getBoundingClientRect()
+      ?? element.getBoundingClientRect()
     delete element.dataset.runtimeActive
     // objectLease 释放时机分两种情况：
     // - 无效落点（invalidReturn）：destination 就是原位置，没有 emit，业务
@@ -176,25 +165,11 @@ export function createDetachMoveFromAdapter(config: {
     //   landing 阶段解析真实落点目标的 resolveMoveTarget/waitForMoveTarget
     //   本身就要等卡片被 Teleport 传送回真实 DOM 才能找到它，一直不释放会
     //   直接找不到目标，表现为飞向页面默认兜底位置。）
-    if (invalidReturn) objectLease?.release()
-    probe(invalidReturn ? 'invalid-return' : 'release-accepted', {
-      destination,
-      releaseMotion: releaseMotionState,
-    })
+    if (invalidReturn) {
+      sourceLease?.restoreLayoutHidden()
+      objectLease?.release()
+    }
     const proceedWithTarget = (sid: string, target: HTMLElement | null) => {
-      probe('landing-target-resolved', {
-        destination,
-        found: Boolean(target),
-        targetFileId: target?.dataset.fileId ?? null,
-        targetBreadcrumbId: target?.dataset.fileBreadcrumbId ?? null,
-        targetTag: target?.tagName ?? null,
-        targetClass: target?.className ?? null,
-        targetParent: target?.parentElement?.className ?? null,
-        targetRect: target ? (() => {
-          const rect = target.getBoundingClientRect()
-          return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
-        })() : null,
-      })
       if (getSessionState() !== 'landing') return
       const landedEl = resolveDetachLandingTarget({
         resolve: () => target,
@@ -211,21 +186,12 @@ export function createDetachMoveFromAdapter(config: {
         motionState: releaseMotionState,
       })
       landingProxy = startDetachLandingVisual({
-        // 抓取阶段没有 proxy（源节点自己飞），这里现建；getVisualProxy 兜底只是防御
-        // regrab 等场景下 proxy 已经存在的情况，不是复用 prepare 阶段建的实例。
+        // 抓取阶段已登记统一 proxy，landing 直接接管它；getVisualProxy 缺失时
+        // 才在这里补建，覆盖异常中断或 regrab 后代理已被清理的情况。
         createProxy: () => runtime.getVisualProxy(sid) ?? runtime.createVisualProxy(sid, visualContext) ?? null,
         enableProxy: (proxy: HTMLElement) => setProxyInteractive(proxy, true),
         bindRegrab: (proxy: HTMLElement) => runtime.bindRegrabTarget(sid, objectId, proxy, onRegrab),
-        land: () => {
-          probe('land-start', {
-            destination,
-            proxy: Boolean(landingProxy),
-          })
-          return runtime.landVisualProxy(sid, landedEl, visualContext).then(result => {
-            probe('land-result', { result })
-            return result
-          })
-        },
+        land: () => runtime.landVisualProxy(sid, landedEl, visualContext),
         onMissing: () => { landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' }); landingGate = null },
         onComplete: (landingResult: LandingResult) => {
           completeDetachLanding({
@@ -331,13 +297,25 @@ export function createDetachMoveFromAdapter(config: {
       // 必须先拿 lease（快照抓取前的原始 inline style）再让元素浮动，否则
       // restore() 会把"悬浮中"的样式当成原始态存下来。
       sourceLease = acquireSourceVisualLease(element, sessionId!)
+      // clone 和 detach 共用同一个抓取 proxy 工厂与 handoff 形式，保证 grabbing
+      // 的姿态、过渡和 release 动量一致；唯一差别是 detach 立即移除源占位。
       applyFloatingStyle(element, rect)
+      const adoptedProxy = takeFloatingProxy(element)
+      if (adoptedProxy) runtime.registerVisualProxy(sessionId!, { element: adoptedProxy })
+      element.style.pointerEvents = 'none'
+      if (!clone) {
+        // 让兄弟卡片立即看到源节点已离开布局流，随后复用同一份 beforePickup
+        // 快照播放收位 FLIP；可见主体仍由 floating proxy 承担。
+        sourceLease.detachFromLayout()
+      }
       // grabbing 期间 transform 由 MotionController 每帧写入，不能再让 CSS transition
       // 对每次物理更新做线性插值，否则角度回正会覆盖弹簧的非线性轨迹（0.9.6 原有的坑）。
       element.style.transition = 'none'
       runtime.scheduleLayout(beforePickup)
       element.dataset.runtimeActive = 'true'
-      const floatingProxy = getFloatingProxy(element)!
+      const floatingProxy = runtime.getVisualProxy(sessionId!)?.element
+        ?? getFloatingProxy(element)
+      if (!floatingProxy) return
       // floatingProxy 的 left/top 由 createDragProxy 一次性定死在 rect.left/rect.top
       // （position:fixed），此后每帧只用 transform 的 translate3d 叠加位移量——
       // left/top 是会触发布局的属性，每帧写会弄脏布局；紧跟着的命中判定
@@ -374,18 +352,38 @@ export function createDetachMoveFromAdapter(config: {
     resolveDestination(_ctx: unknown, input) {
       return onUp(input.event instanceof PointerEvent ? input.event : undefined)
     },
-    commit: () => {
-      // floatingProxy 是 grab 阶段的独立视觉节点；commit 后 landing 会接管视觉，
-      // 必须先销毁，否则会和 landing proxy 一起留在屏幕上。
-      clearFloatingStyle(element)
-      sourceLease?.restoreLayoutHidden()
+    commit: (_ctx, destination) => {
+      // grab 阶段的 proxy 已经登记到 Runtime，commit 只让源节点继续保持隐藏，
+      // 由同一个 proxy 直接进入 landing，不创建第二个视觉对象。
+      if (!runtime.getVisualProxy(sessionId!)) clearFloatingStyle(element)
+      // 有效落点保持 display:none，直到 surface.enter 让业务节点进入最终
+      // Surface；无效回位已在 onUp() 恢复布局隐藏状态。
+      const invalidReturn = typeof destination === 'object'
+        && destination !== null
+        && (destination as { invalidReturn?: unknown }).invalidReturn === true
+      const destinationSurface = typeof destination === 'object'
+        && destination !== null
+        ? ((destination as { columnId?: unknown; toSurfaceId?: unknown }).toSurfaceId
+          ?? (destination as { columnId?: unknown }).columnId)
+        : undefined
+      const sameSurfaceLanding = !invalidReturn
+        && typeof destinationSurface === 'string'
+        && destinationSurface === initialSurfaceId
+      // 同 Surface 重排时，源节点必须恢复为“隐藏但占位”。Vue 更新索引后，
+      // landing 才能从同一个业务节点读到最终布局矩形；display:none 会让它
+      // 变成 0x0，代理随后被错误收缩成细条。跨 Surface 仍保持脱离布局，
+      // 等目标 Surface 完成渲染后再交接。
+      if (invalidReturn || sameSurfaceLanding) sourceLease?.restoreLayoutHidden()
+      else sourceLease?.detachFromLayout()
       document.body.classList.remove('kb-dragging')
     },
     cancel(_ctx: any, _reason: string) {
       released = true
       dragMotion?.stop()
       dragMotion = null
-      if (landingProxy) { runtime.disposeVisualProxy(sessionId!); landingProxy = null }
+      if (runtime.getVisualProxy(sessionId!)) runtime.disposeVisualProxy(sessionId!)
+      else if (landingProxy) { runtime.disposeVisualProxy(sessionId!); landingProxy = null }
+      else clearFloatingStyle(element)
       runtime.clearRegrab(objectId)
       document.body.classList.remove('kb-dragging')
       delete element.dataset.runtimeActive
@@ -413,8 +411,8 @@ export function createDetachMoveFromAdapter(config: {
       clearRegrab: () => runtime.clearRegrab(objectId),
       finishReveal: () => {
         if (landingProxy) setProxyInteractive(landingProxy, false)
-        // landing 完成后再保险清理一次 floatingProxy，防止 commit 时 element 已
-        // 被 Vue 重渲染导致 WeakMap 查不到而漏掉。
+        // landing 完成后再保险清理旧 floating registry；正常 handoff 后这里是
+        // 空操作，真正的 proxy 由 Runtime 的统一 dispose 边界销毁。
         clearFloatingStyle(element)
         sourceLease?.restore()
         sourceLease = null
@@ -423,4 +421,16 @@ export function createDetachMoveFromAdapter(config: {
   }
 
   return { driver, lifecycle }
+}
+
+/** Runtime 内建 clone 策略；生命周期与 detach 共用，差异只在抓取阶段的占位语义。 */
+export function createCloneMoveFromAdapter(config: {
+  runtime: Runtime
+  objectId: string
+  element: HTMLElement
+  event: PointerEvent
+  fromRect?: DOMRect
+  returnRect?: DOMRect
+}): { driver: MoveBehaviorDriver; lifecycle: MoveVisualLifecycle } {
+  return createDetachMoveFromAdapter({ ...config, clone: true })
 }
