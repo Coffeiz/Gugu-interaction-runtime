@@ -114,8 +114,8 @@ export interface ObjectTypeRegistration {
   resolveMoveTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
   /** 可选视觉落点解析；目标可以是文件夹卡、面包屑等语义接收节点。 */
   resolveMoveLandingTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
-  /** 落地代理飞向业务目标时是否保留目标节点可见。 */
-  preserveMoveTarget?: boolean
+  /** 落地代理飞向业务目标时是否保留目标节点可见；可按目标类型决定。 */
+  preserveMoveTarget?: boolean | ((destination: unknown) => boolean)
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
   createMove?(context: {
     objectId: string
@@ -458,7 +458,9 @@ setMotionProfiles(this.registry.motionProfile)
       targetSnapshot: targetElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
-      preserveTarget: registration?.preserveMoveTarget ?? false,
+      preserveTarget: typeof registration?.preserveMoveTarget === 'function'
+        ? registration.preserveMoveTarget(destination)
+        : registration?.preserveMoveTarget ?? false,
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。
       landingMode: !invalidReturn && !targetIsSource && registration?.landingMode === 'target' ? 'target' : 'default',

@@ -221,6 +221,31 @@ describe('Runtime move orchestration', () => {
     expect(returnContext.landingMode).toBe('default')
   })
 
+  it('target 保留策略可以按落点类型决定', () => {
+    const runtime = createRuntime()
+    const preserveTarget = vi.fn((destination: unknown) => {
+      return (destination as { toSurfaceId?: string }).toSurfaceId?.startsWith('breadcrumb:') ?? false
+    })
+    runtime.registerObjectType('project-card', {
+      defaultVisualMode: 'detach',
+      landingMode: 'target',
+      preserveMoveTarget: preserveTarget,
+    })
+    const session = runtime.start(createRequest())
+    const target = document.createElement('div')
+
+    const folderContext = runtime.createVisualLifecycleContext(session.id, {
+      toSurfaceId: 'file:surface:folder:references',
+    }, target)
+    const breadcrumbContext = runtime.createVisualLifecycleContext(session.id, {
+      toSurfaceId: 'breadcrumb:root',
+    }, target)
+
+    expect(folderContext.preserveTarget).toBe(false)
+    expect(breadcrumbContext.preserveTarget).toBe(true)
+    expect(preserveTarget).toHaveBeenCalledTimes(2)
+  })
+
   it('VisualProxy 替换与取消都经过 Runtime 的统一清理边界', () => {
     const runtime = createRuntime()
     const handle = runtime.start(createRequest())
