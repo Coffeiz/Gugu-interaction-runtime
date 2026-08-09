@@ -53,3 +53,25 @@ test('文件页 detach 支持文件夹卡和面包屑目录目标', async ({ pag
   await page.mouse.up()
   await expect(page.locator('[data-runtime-proxy="true"]')).toHaveCount(0)
 })
+
+test('切换到子目录后，空白落点仍回到当前浏览器中的原卡片', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文件系统' }).click()
+  await page.getByRole('button', { name: 'detach' }).last().click()
+
+  await page.locator('.folder-sidebar button[data-file-id="folder:plans:research"]').click()
+  const file = page.locator('.file-item[data-file-id="file:competitor"]')
+  const browser = page.locator('.file-surface')
+  const fileBox = await file.boundingBox()
+  const browserBox = await browser.boundingBox()
+  if (!fileBox || !browserBox) throw new Error('子目录卡片或浏览 surface 未渲染')
+
+  await page.mouse.move(fileBox.x + fileBox.width / 2, fileBox.y + fileBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(browserBox.x + browserBox.width - 40, browserBox.y + browserBox.height - 40, { steps: 12 })
+  await page.mouse.up()
+
+  await expect(page.locator('[data-runtime-proxy="true"]')).toHaveCount(0)
+  await expect(file).toHaveCount(1)
+  await expect(file).toContainText('竞品截图.zip')
+})

@@ -182,6 +182,13 @@ export function playCollectionPresence(
     template.innerHTML = entry.contentHTML
     const ghost = template.content.firstElementChild as HTMLElement | null
     if (!ghost) return
+    // 离场幽灵只承担视觉淡出，不能继续带着业务对象/布局身份参与查询；
+    // 否则动画期间页面会出现两个相同 data-file-id/data-layout-key 的节点，
+    // 命中、DOM ref 和自动化定位都会把幽灵误当成真实对象。
+    ghost.removeAttribute('data-file-id')
+    ghost.removeAttribute('data-layout-key')
+    ghost.removeAttribute('data-layout-role')
+    ghost.dataset.runtimePresenceGhost = 'true'
     const rect = entry.rect
     ghost.style.position = 'fixed'
     ghost.style.left = `${rect.left}px`

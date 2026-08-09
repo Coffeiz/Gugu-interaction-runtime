@@ -2,16 +2,18 @@
 
 ## 接入状态
 
-本文描述的是 1.0.2 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
+本文描述的是 1.0.3 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
 使用 Runtime 源码而非 npm 包；文件、画布和抽屉仍按各自 adapter 接入，尚未承诺零配置。
 
-本文的唯一核心契约是 Runtime Core API。Vue、React 或其他框架都可以直接调用同一套
+本文的唯一业务语义契约是 Runtime Core API。Vue、React 或其他框架都可以直接调用同一套
 `runtime.objects`、`runtime.surfaces`、`runtime.targets` 和 `runtime.onAction()`；框架
-只负责把自己的 DOM ref 和组件生命周期接到这些 API 上，不产生另一套拖拽语义。
+只负责把自己的 DOM ref 和组件生命周期接到这些 API 上，不产生另一套拖拽语义。Runtime
+同时提供可选的 Vue/React DOM 适配器，用来收敛这部分重复的 ref、卸载和布局提交代码。
 
 看板和文件 Demo 也直接使用这些注册表 API。`runtime.registerSurface()`、
-`runtime.registerTarget()` 等旧的 Runtime 便捷包装已移除，不再作为接入入口；Vue
-适配器内部同样只转发到 `runtime.surfaces` 和 `runtime.targets`。
+`runtime.registerTarget()` 等旧的 Runtime 便捷包装已移除，不再作为接入入口。框架适配器
+只同步已注册对象/Surface 的 DOM 元素、维护 Target 的 DOM 生命周期，以及在框架更新后
+调用 Core 的布局事务；它不会注册对象类型、对象或 Surface，也不会替业务提交 Action。
 
 ### 文件系统接入约束
 
@@ -31,7 +33,7 @@ project-files:19:file:123
 Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽不属于单对象接入契约，
 在通用 Group Session 设计完成前由业务 adapter 保留。
 
-## 五分钟接入（1.0.2）
+## 五分钟接入（1.0.3）
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
 默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器
@@ -66,10 +68,37 @@ const stop = runtime.onAction(action => {
 })
 ```
 
-Vue、React 和其他框架都直接调用同一组 Runtime Core API。框架层只负责在自己的挂载、更新
-和卸载生命周期中调用 `runtime.objects`、`runtime.surfaces`、`runtime.targets` 的注册表方法；
-Runtime 不再提供 `useObject`、`useSurface` 或 `useRuntimeTransition` 这类框架适配层，也不形成
-第二套业务接入语义。Demo 专用的 `useCollectionRuntime` 已删除。
+Vue、React 和其他框架都使用同一组 Runtime Core API。需要减少 ref/卸载样板时，可以选择
+对应框架的 DOM 适配器；适配器不替代 Core 注册，也不形成第二套业务接入语义。Runtime
+不再提供 `useObject`、`useSurface` 或 `useRuntimeTransition` 这类旧的框架注册入口，Demo
+专用的 `useCollectionRuntime` 已删除。
+
+```ts
+import { runtime } from 'gugu-interaction-runtime'
+import { createVueRuntimeAdapter } from 'gugu-interaction-runtime'
+
+const dom = createVueRuntimeAdapter(runtime)
+
+// 业务仍直接注册语义对象、Surface 和 Target。
+const generation = runtime.objects.register({
+  id: `project:${project.id}`,
+  type: 'project-card',
+  surfaceId: `column:${project.status}`,
+  element: null,
+  abilities: ['move', 'sort'],
+})
+runtime.surfaces.register({ id: `column:${project.status}`, type: 'project-column', element: null, accepts: ['project-card'] })
+
+// Vue ref 只负责同步 DOM；null 回调会被适配器安全处理。
+const bindCard = (element: HTMLElement | null) => dom.bindObject(`project:${project.id}`, element)
+const bindColumn = (element: HTMLElement | null) => dom.bindSurface(`column:${project.status}`, element)
+// 组件卸载时：业务按 generation 注销自己的 Object/Surface，适配器清理 Target DOM 绑定。
+dom.dispose()
+```
+
+React 接入使用同一套 Core 注册和 `createReactRuntimeAdapter(runtime)`，把返回的
+`bindObject`/`bindSurface`/`bindTarget` 接到 callback ref。适配器不依赖 Vue 或 React
+运行时，因此不会把框架类型带入 Core 包。
 
 对象节点和容器节点只需提供真实 DOM 元素。Runtime 自动处理
 抓取、跟手、落点、落地、揭示、取消、中断和资源清理。

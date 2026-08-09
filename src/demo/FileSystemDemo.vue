@@ -30,10 +30,10 @@
         </button>
       </aside>
 
-      <section class="file-surface" data-file-surface="browser" data-layout-surface :ref="el => bindSurface(browserSurfaceId, el as HTMLElement | null)">
+      <section class="file-surface" data-file-surface="browser" data-layout-surface :ref="el => domAdapter.bindSurface(browserSurfaceId, el as HTMLElement | null)">
         <div class="surface-heading"><span>{{ currentFolderName }}</span><span>{{ visibleItems.length }} 个项目</span></div>
-        <div class="file-items" :class="`is-${view}`">
-          <article v-for="item in visibleItems" :key="item.id" class="file-item" :class="{ folder: item.kind === 'folder' }" :data-file-id="item.id" :ref="el => bindItem(item, el as HTMLElement | null)" @click="item.kind === 'folder' && openFolder(item.id)">
+        <div class="file-items" data-layout-collection="file-browser" :class="`is-${view}`">
+          <article v-for="item in visibleItems" :key="item.id" class="file-item" :class="{ folder: item.kind === 'folder' }" :data-file-id="item.id" data-layout-role="card" :data-layout-key="item.id" :ref="el => bindItem(item, el as HTMLElement | null)" @click="handleItemClick(item)">
             <div class="file-icon">{{ item.kind === 'folder' ? '▰' : fileIcon(item.name) }}</div>
             <div class="file-name">{{ item.name }}</div>
             <small>{{ item.kind === 'folder' ? `${folderItemCount(item.id)} 个项目` : item.size }}</small>
@@ -48,8 +48,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, reactive, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, ref, watch, watchEffect } from 'vue'
 import { runtime } from '../Runtime'
+import { createVueRuntimeAdapter } from '../adapters/vue'
 
 type FileItem = { id: string; name: string; kind: 'file' | 'folder'; parentId: string; size: string; children: FileItem[] }
 
@@ -129,8 +130,31 @@ function folderItemCount(id: string): number {
   return files.filter(item => item.parentId === id).length
 }
 
+function hasActiveMove(): boolean {
+  return files.some(item => runtime.isControlled(item.id))
+}
+
+function handleItemClick(item: FileItem): void {
+  if (item.kind !== 'folder' || runtime.isControlled(item.id)) return
+  openFolder(item.id)
+}
+
 function openFolder(id: string): void {
-  currentFolder.value = id
+  if (id === currentFolder.value || hasActiveMove()) return
+  const browser = domAdapter.getSurfaceElement(browserSurfaceId)
+  const beforeCards = visibleItems.value
+    .map(item => runtime.objects.get(item.id)?.element)
+    .filter((element): element is HTMLElement => Boolean(element?.isConnected))
+  if (!browser) {
+    currentFolder.value = id
+    return
+  }
+  void domAdapter.runLayoutMutation({
+    elements: beforeCards,
+    root: browser,
+    mutate: () => { currentFolder.value = id },
+    waitForPatch: () => nextTick(),
+  })
 }
 
 function fileIcon(name: string): string {
@@ -177,42 +201,13 @@ runtime.registerObjectType('folder-item', {
 runtime.registerObjectType('folder-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
 
 const objectGenerations = new Map<string, number>()
-const objectElements = new Map<string, HTMLElement>()
-const surfaceElements = new Map<string, HTMLElement>()
 const surfaceIds = new Set<string>()
-const targetIds = new Map<string, string>()
-
-function bindObject(id: string, element: HTMLElement | null): void {
-  const current = runtime.objects.get(id)
-  if (!current) return
-  if (element === null) {
-    const previous = objectElements.get(id)
-    if (previous && current.element !== previous) return
-    objectElements.delete(id)
-  } else {
-    objectElements.set(id, element)
-  }
-  runtime.objects.setElement(id, element)
-}
-
-function bindSurface(id: string, element: HTMLElement | null): void {
-  if (element) surfaceElements.set(id, element)
-  else surfaceElements.delete(id)
-  if (runtime.surfaces.has(id)) runtime.surfaces.setElement(id, element)
-}
-
-function bindTarget(id: string, surfaceId: string, element: HTMLElement | null, priority: number): void {
-  const targetId = targetIds.get(id) ?? `file-target:${id}`
-  targetIds.set(id, targetId)
-  if (!element) {
-    runtime.targets.unregister(targetId)
-    targetIds.delete(id)
-    return
-  }
-  runtime.targets.register({ id: targetId, surfaceId, element, accepts: fileObjectTypes, priority })
-}
+const domAdapter = createVueRuntimeAdapter(runtime)
 
 watchEffect(() => {
+  // 文件页始终把当前目录内容渲染到同一个 browser surface。
+  // 文件夹自己的 surface 只代表语义目标，不代表卡片当前所在的 DOM 容器。
+  const renderedFolderId = currentFolder.value
   const nextObjectIds = new Set<string>()
   for (const item of files) {
     const type = item.kind === 'folder'
@@ -223,8 +218,8 @@ watchEffect(() => {
       type,
       visual: type,
       visualMode: strategy.value,
-      surfaceId: item.parentId === rootId ? browserSurfaceId : `file:surface:${item.parentId}`,
-      element: objectElements.get(item.id) ?? null,
+      surfaceId: item.parentId === renderedFolderId ? browserSurfaceId : `file:surface:${item.parentId}`,
+      element: runtime.objects.get(item.id)?.element ?? null,
       abilities: ['move', 'sort'],
       target: item.kind === 'folder'
         ? { surfaceId: `file:surface:${item.id}`, accepts: fileObjectTypes, priority: 2 }
@@ -242,7 +237,6 @@ watchEffect(() => {
     if (nextObjectIds.has(id)) continue
     if (runtime.objects.get(id)?.generation === generation) runtime.objects.unregister(id)
     objectGenerations.delete(id)
-    objectElements.delete(id)
   }
 
   const nextSurfaceIds = new Set<string>([browserSurfaceId])
@@ -252,7 +246,7 @@ watchEffect(() => {
     if (!runtime.surfaces.has(id)) runtime.surfaces.register({
       id,
       type: id === browserSurfaceId ? 'file-browser' : id.startsWith('file:breadcrumb:') ? 'file-breadcrumb' : 'file-folder',
-      element: surfaceElements.get(id) ?? null,
+      element: null,
       accepts: fileObjectTypes,
     })
     surfaceIds.add(id)
@@ -269,19 +263,19 @@ const stopAction = runtime.onAction(action => {
 })
 
 function bindItem(item: FileItem, element: HTMLElement | null): void {
-  bindObject(item.id, element)
+  domAdapter.bindObject(item.id, element)
 }
 
 function bindFolder(id: string, element: HTMLElement | null): void {
   const surfaceId = `file:surface:${id}`
-  bindSurface(surfaceId, element)
-  bindTarget(`sidebar:${id}`, surfaceId, element, 1)
+  domAdapter.bindSurface(surfaceId, element)
+  domAdapter.bindTarget(`sidebar:${id}`, { surfaceId, accepts: fileObjectTypes, priority: 1 }, element)
 }
 
 function bindBreadcrumb(id: string, element: HTMLElement | null): void {
   const surfaceId = `file:breadcrumb:${id}`
-  bindSurface(surfaceId, element)
-  bindTarget(`breadcrumb:${id}`, surfaceId, element, 1)
+  domAdapter.bindSurface(surfaceId, element)
+  domAdapter.bindTarget(`breadcrumb:${id}`, { surfaceId, accepts: fileObjectTypes, priority: 1 }, element)
 }
 
 onUnmounted(() => {
@@ -290,7 +284,7 @@ onUnmounted(() => {
     if (runtime.objects.get(id)?.generation === generation) runtime.objects.unregister(id)
   }
   for (const id of surfaceIds) runtime.surfaces.unregister(id)
-  for (const targetId of targetIds.values()) runtime.targets.unregister(targetId)
+  domAdapter.dispose()
 })
 </script>
 

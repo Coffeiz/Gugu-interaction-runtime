@@ -85,7 +85,8 @@ Hit 通过 `runtime.setHitResolver()` 注入。Runtime/Behavior 只消费统一�
 
 多组展开/收起属于独立的 `GroupLayout` 能力，不并入 `MoveBehavior`：它负责组
 高度测量、组级 FLIP、Surface resize 和滚动锚点；框架适配层只保存展开状态并
-触发事务请求。
+触发事务请求。DOM 生命周期适配器只负责把框架节点和 Core 注册表对齐，不拥有
+组状态，也不直接实现组级动画。
 
 组级 FLIP 使用 Relative FLIP：Runtime 捕获所有 `data-layout-group` 节点的
 前后屏幕位移，并从每个节点（组或卡片叶）的位移中减去直接父组位移。只有
@@ -371,10 +372,13 @@ interface BehaviorContext {
 interaction/
 ├── core/   # 框架无关：Runtime、Session、Store、Owner、Behavior、Action
 ├── dom/    # 浏览器相关：Input、Measure、Hit、Visual、Motion、Layout
-└── react/  # 未来的 React adapter
+└── adapters/ # Vue/React DOM 生命周期适配器，不承载业务语义
 ```
 
-当前不提供 Vue 专用注册适配器；Vue、React 或其他框架都直接调用 Runtime Core API。
+Runtime Core API 仍是唯一的业务语义入口：对象、Surface、Target 和 Action 都由业务直接
+注册或订阅。`adapters/vue.ts` 与 `adapters/react.ts` 只把框架的 callback ref、卸载和
+布局 patch 时机接到 Core；它们不注册对象类型、不创建业务对象、不修改 Store，也不实现
+拖拽、命中或动画算法。没有框架适配需求时，可以直接调用 Core API。
 
 Core 可以依赖 TypeScript、Map/Set 和 AbortController；DOM 层可以依赖
 `HTMLElement`、`requestAnimationFrame` 和浏览器事件，但 Core/DOM 不应反向依赖 Vue。

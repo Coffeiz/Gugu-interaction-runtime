@@ -1,6 +1,6 @@
 # Interaction Runtime · 分层结构与执行计划
 
-> 当前稳定版本：1.0.2。1.0.1 已以 Gugu-web 的真实看板作为回归场景，
+> 当前稳定版本：1.0.3。1.0.1 已以 Gugu-web 的真实看板作为回归场景，
 > 验证“只注册 Object、Surface、Target 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
 > 直接编译本仓库 `src/`，不经 npm 包或构建产物。
 
@@ -238,10 +238,10 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 
 这几项做完，[INTEGRATION.md](./INTEGRATION.md) 里的 Core API 契约已经成立，
 不再保留 `useObject`/`useSurface` 作为接入入口。`Motion`（速度延续、物理运动、飞行中重新瞄准目标）暂不在这批里，
-单独排期——现在的落地动画是借用 `Layout` 的 `playFlip` 顶替的，见
-[VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
+后续已在阶段 0.9.6 由 MotionController 和 Runtime 内置视觉策略完成，当前不再由
+业务 Demo 维护独立的落地动画入口。
 
-### 阶段 0.7：Runtime 纯 API 接入收口（当前优先）
+### 阶段 0.7：Runtime 纯 API 接入收口（已完成）
 
 目标是让业务端只注册 Object、Surface、HitResolver、Action 订阅和视觉策略，
 不再手动编排 Session、FLIP、target、landing、reveal 或 regrab。运动数学仍由
@@ -687,7 +687,8 @@ Core API 直接覆盖 Vue、React 和其他框架；其边界固定如下：
 
 当前进度：看板和文件 Demo 都直接使用 Core API 注册 Object/Surface/Target，并通过 `runtime.onAction()`
 提交移动；Demo 仅保留 mock 文件树、目录导航、循环拦截与内存 `moveFile()`。集合专用
-绑定层已删除，下一步是用同一契约验证 Gugu-web 文件页。
+绑定层已删除，Vue/React DOM 适配器已补齐，用于同步 DOM ref、清理 Target 和等待框架 patch；
+下一步是用同一契约验证 Gugu-web 文件页。
 
 正式接入契约是 `runtime.objects.register()`、`runtime.surfaces.register()`、
 `runtime.targets.register()` 和 `runtime.onAction()`；Vue、React 共享这套 Core API。
@@ -698,15 +699,23 @@ Core API 直接覆盖 Vue、React 和其他框架；其边界固定如下：
 看板和文件 Demo 均直接使用上述 Core API，不再依赖 Surface/Target 的 Runtime 便捷包装；
 Runtime 包不再发布 `useObject.ts`、`useSurface.ts` 和 `useRuntimeTransition.ts`。
 
-收敛按四步推进：
+框架适配边界已经固定：`createVueRuntimeAdapter()` 与 `createReactRuntimeAdapter()` 只提供
+`bindObject()`、`bindSurface()`、`bindTarget()`、`getSurfaceElement()`、布局 mutation
+和 `dispose()`。它们不替代 `runtime.objects.register()`、`runtime.surfaces.register()`、
+`runtime.targets.register()`，也不隐藏 `runtime.onAction()`。因此业务侧最终仍是“直接注册
+Object/Surface/Target，按框架选择一个 DOM 适配器同步元素”。
+
+收敛按六步推进：
 
 1. 提炼通用层级容器目标注册，收走文件页的命中与 landing target resolver。
 2. [x] 增加 `TargetStore`；Object 可通过嵌套 `target` 自动登记语义落点，独立
    面包屑继续使用 `runtime.targets.register()`。
 3. [x] 将 Core API 作为 Vue/React 共用唯一契约；删除 `useObject`、`useSurface` 和
    `useRuntimeTransition`，不新增框架专用注册语义。
-4. 用标准 `onMove` 回调替换 Demo 的直接订阅；Demo 仍用内存 Store，Gugu-web 接真实 Store/API。
-5. 先迁移“文件卡 → 普通文件夹”一条真实链路，双侧验证后再迁移文件夹、面包屑、多选和回收站。
+4. [x] 增加 Vue/React DOM 生命周期适配器；适配器只负责 DOM 绑定、Target 清理和布局
+   patch 时机，不承载注册语义或业务状态。
+5. 用标准 `onMove` 回调替换 Demo 的直接订阅；Demo 仍用内存 Store，Gugu-web 接真实 Store/API。
+6. 先迁移“文件卡 → 普通文件夹”一条真实链路，双侧验证后再迁移文件夹、面包屑、多选和回收站。
 
 在 1、2 步没有验证出可复用边界之前，Gugu-web 继续把临时代码放在
 `frontend/src/views/Files/runtime/`，不将任何文件专属逻辑硬塞进 Runtime Core。
@@ -721,9 +730,12 @@ Runtime 包不再发布 `useObject.ts`、`useSurface.ts` 和 `useRuntimeTransiti
 真实迁移中发现的对象身份、Surface 命中、FLIP 所有权和清理时序等通用问题，
 回补 Runtime demo；回收站语义、权限和 API 失败回滚等业务问题留在 Gugu-web adapter。
 
-##### 2-2.2：Gugu-web 侧过渡 adapter
+##### 2-2.2：Gugu-web 侧业务接入层
 
-文件系统第一版由 Gugu-web 暂存业务 adapter，Runtime 仓库不增加文件专属模块：
+文件系统第一版由 Gugu-web 保留业务接入层，Runtime 仓库不增加文件专属模块。Runtime
+已经提供可选的 Vue/React DOM 生命周期适配器，但它只负责把业务已经注册的
+Object/Surface/Target 与 DOM 对齐；文件树、目录导航、权限、optimistic update 和
+rollback 仍由 Gugu-web 负责：
 
 ```text
 Gugu-web/frontend/src/views/Files/runtime/
@@ -733,15 +745,18 @@ Gugu-web/frontend/src/views/Files/runtime/
 └── README.md
 ```
 
-过渡 adapter 只能使用以下公共能力：
+业务接入层只能使用以下公共能力：
 
 - `registerObjectType()`。
 - `runtime.objects.register()` / `setElement()` / `setSurface()`。
 - `runtime.surfaces.register()` / `setElement()`。
+- `createVueRuntimeAdapter()` 或 `createReactRuntimeAdapter()`（仅用于 DOM ref、Target
+  生命周期和框架 patch 后的布局事务）。
 - `runtime.onAction()`。
 - 现有默认 HitResolver、detach、landing、FLIP 和清理生命周期。
 
-Runtime 不感知文件、文件夹、项目或目录 API。文件 adapter 将通用 Action 翻译为文件业务操作，继续调用 Gugu-web 现有的 `moveFiles()`、`moveFolders()`、optimistic update 和 rollback。
+Runtime 不感知文件、文件夹、项目或目录 API。文件业务层将通用 Action 翻译为文件业务操作，
+继续调用 Gugu-web 现有的 `moveFiles()`、`moveFolders()`、optimistic update 和 rollback。
 
 ##### 2-2.3：对象和 Surface 协议
 
@@ -764,10 +779,11 @@ project-files:19:file:123
 ##### 2-2.4：Runtime 侧配合清单
 
 - [x] 确认 Core Object API 可以稳定绑定网格卡片、列表行和项目文件面板对象。
-- [ ] 确认嵌套文件夹 Surface 与面包屑 Surface 的命中优先级。
-- [ ] 确认同一对象在不同 scope 下可以并存，不发生 ObjectStore 冲突。
-- [ ] 确认单对象移动只产生一次 `MoveAction`、一次 landing 和一次 dispose。
-- [ ] 补充 Runtime 集成测试：文件对象、文件夹目标、面包屑目标和非法落点。
+- [x] 确认嵌套文件夹 Surface 与面包屑 Surface 的目标注册和命中路径。
+- [x] 确认同一对象在当前 Demo scope 下可以切换目录，不因浏览器 Surface 复用而产生
+      旧对象注册。
+- [x] 确认单对象移动只产生一次 `MoveAction`、一次 landing 和一次 dispose。
+- [x] 补充 Runtime 集成测试：文件对象、文件夹目标、面包屑目标和非法落点。
 - [ ] 不为多选拖拽提前修改 Runtime 核心；多选继续由 Gugu-web 旧 adapter 暂存。
 
 ##### 2-2.5：API 复评门槛
@@ -783,7 +799,10 @@ project-files:19:file:123
 
 ##### 2-2.6：收敛规则
 
-单对象接入和项目文件面板复用验收通过后，Gugu-web 再把稳定 adapter 从 `views/Files/runtime/` 移到 `interaction/runtime/adapters/file/`。Runtime 仓库只有在通用性得到验证后才新增 `src/file/`；多对象基础能力则单独进入 `src/group/` 评审。
+单对象接入和项目文件面板复用验收通过后，Gugu-web 再把稳定的业务接入层从
+`views/Files/runtime/` 收敛到文件页自己的交互模块。Runtime 仓库只有在通用性得到验证
+后才新增 `src/file/`；多对象基础能力则单独进入 `src/group/` 评审。Vue/React DOM
+适配器留在 Runtime 公共层，不复制到文件业务目录。
 
 ##### 2-2.7：阶段验收与扩展顺序
 
