@@ -43,8 +43,8 @@
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
+    "test:e2e": "env -u NO_COLOR playwright test",
+    "test:e2e:ui": "env -u NO_COLOR playwright test --ui",
     "prepare": "npm run build:lib"
   },
   "peerDependencies": {

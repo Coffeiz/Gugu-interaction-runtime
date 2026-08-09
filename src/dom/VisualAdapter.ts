@@ -30,6 +30,10 @@ export interface VisualLifecycleContext {
   /** 抓取开始时冻结的内容快照；仅供视觉代理使用，不承载业务状态。 */
   readonly beforeContent?: HTMLElement
   readonly targetElement?: HTMLElement
+  /** 目标节点作为语义落点时保留其可见性，避免与源代理发生双重交接。 */
+  readonly preserveTarget?: boolean
+  /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
+  readonly landingMode?: 'default' | 'target'
   readonly sourceRect?: DOMRect
   readonly visualSnapshot?: VisualSnapshot
   readonly targetSnapshot?: VisualSnapshot
@@ -162,21 +166,37 @@ export class DefaultVisualAdapter implements VisualAdapter {
       return bounds ? clampLandingRectToBounds(rect, bounds) : rect
     }
     const targetRect = clampTarget(rawLandingRect)
-    concealElement(target, context.sessionId)
+    if (!context.preserveTarget) concealElement(target, context.sessionId)
     el.style.transition = 'none'
+    const isTargetLanding = context.landingMode === 'target'
+    const targetSnapshot = context.targetSnapshot
+    const targetHasSurfaceStyle = Boolean(targetSnapshot && (
+      (targetSnapshot.background && targetSnapshot.background !== 'transparent' && targetSnapshot.background !== 'rgba(0, 0, 0, 0)')
+      || (targetSnapshot.backgroundImage && targetSnapshot.backgroundImage !== 'none')
+      || (targetSnapshot.boxShadow && targetSnapshot.boxShadow !== 'none')
+    ))
     // 先把代理的布局尺寸切到目标 border box；landing 的内容层和目标卡片
     // 以这个尺寸进行布局，运动控制器只负责连续地过渡到该尺寸。
     el.style.width = `${targetRect.width}px`
     el.style.height = `${targetRect.height}px`
+    const landingProfile = context.landingMode === 'target'
+      ? context.motion?.target?.landing ?? context.motion?.landing
+      : context.motion?.landing
     const land = context.motionEnabled === false ? landDragProxyLegacy : landDragProxyWithMotion
     const { finished, retarget } = land(el, targetRect, {
-      duration: context.motion?.landing?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
-      targetShadow: context.targetSnapshot?.boxShadow,
-      targetRadius: context.targetSnapshot?.borderRadius,
-      targetBackground: context.targetSnapshot?.background,
-      targetBackgroundImage: context.targetSnapshot?.backgroundImage,
-      targetOpacity: context.targetSnapshot?.opacity,
+      duration: landingProfile?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
+      easing: landingProfile?.easing ?? DEFAULT_MOTION_PROFILE.landing.easing,
+      // 面包屑是透明文本节点，只提供位置和消失时机，不能把它的透明表面
+      // 样式覆盖到代理卡片；有可见表面的文件夹卡仍完整执行视觉 morph。
+      targetShadow: targetHasSurfaceStyle ? targetSnapshot?.boxShadow : undefined,
+      targetRadius: targetHasSurfaceStyle ? targetSnapshot?.borderRadius : undefined,
+      targetBackground: targetHasSurfaceStyle ? targetSnapshot?.background : undefined,
+      targetBackgroundImage: targetHasSurfaceStyle ? targetSnapshot?.backgroundImage : undefined,
+      targetOpacity: targetHasSurfaceStyle ? targetSnapshot?.opacity : undefined,
       targetContent: target,
+      landingMode: context.landingMode,
+      targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
+      dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,
       readTarget: () => clampTarget(target.getBoundingClientRect()),
       motionState: context.motionState,
       coast: {

@@ -2,7 +2,7 @@ import type { VisualContext } from './VisualAdapterTypes'
 import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { createCardMotionController } from '../motion/CardMotionController'
 import type { MotionState } from '../motion/CardMotionController'
-import { LANDING_PROFILE } from '../motion/MotionProfile'
+import { LANDING_PROFILE, type MotionProfile } from '../motion/MotionProfile'
 
 
 /**
@@ -221,6 +221,15 @@ export interface LandingVisualOptions {
    * 内容不变的场景维持原来更轻量的路径。
    */
   targetContent?: HTMLElement
+  /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
+  landingMode?: 'default' | 'target'
+  /** target 模式的末段缩小淡出参数；默认沿用 landing 时长与缓动。 */
+  dismiss?: { duration: number; easing: string; scale: number }
+  /** target 模式独立的物理速度；不读取全局 landing 的弹簧。 */
+  targetMotion?: {
+    position: { stiffness: number; damping: number }
+    scale: { stiffness: number; damping: number }
+  }
   /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
   readTarget?: () => LandingRect
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
@@ -589,6 +598,7 @@ export function landDragProxyWithMotion(
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
   const content = getProxyContent(proxy)
+  const scaleShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
   const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
   if (contentLayers) {
     for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
@@ -621,18 +631,37 @@ export function landDragProxyWithMotion(
   })
   let currentTarget = target
   let settled = false
+  const hasTargetDismiss = options.landingMode === 'target' && Boolean(scaleShell)
+  const dismissDuration = hasTargetDismiss
+    ? options.dismiss?.duration ?? duration
+    : 0
+  let motionArrived = false
+  let dismissFinished = !hasTargetDismiss
   let timeoutId: number | null = null
+  let dismissTimeoutId: number | null = null
   let timeoutDeadline = 0
   let resolveFinished: () => void = () => undefined
   const finished = new Promise<void>(resolve => { resolveFinished = resolve })
 
-  const settle = () => {
+  const finish = () => {
     if (settled) return
     settled = true
     motion.stop()
     if (timeoutId !== null) window.clearTimeout(timeoutId)
+    if (dismissTimeoutId !== null) window.clearTimeout(dismissTimeoutId)
     timeoutId = null
+    dismissTimeoutId = null
     resolveFinished()
+  }
+
+  const finishWhenVisualsSettled = () => {
+    if (motionArrived && dismissFinished) finish()
+  }
+
+  const settle = () => {
+    if (settled) return
+    motionArrived = true
+    finishWhenVisualsSettled()
   }
 
   const motion = createCardMotionController({
@@ -650,15 +679,21 @@ export function landDragProxyWithMotion(
   })
   const releaseSpeed = Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0)
   const releaseDamping = options.releaseDamping ?? 0.78
+  const baseProfile = options.targetMotion
+    ? {
+        position: { ...LANDING_PROFILE.position, ...options.targetMotion.position },
+        scale: { ...LANDING_PROFILE.scale, ...options.targetMotion.scale },
+      }
+    : LANDING_PROFILE
   motion.setProfile(releaseSpeed > 30
     ? {
-        ...LANDING_PROFILE,
+        ...baseProfile,
         position: {
-          ...LANDING_PROFILE.position,
-          damping: LANDING_PROFILE.position.damping * releaseDamping,
+          ...baseProfile.position,
+          damping: baseProfile.position.damping * releaseDamping,
         },
       }
-    : LANDING_PROFILE)
+    : baseProfile)
   motion.seed({
     // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
     // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
@@ -675,11 +710,17 @@ export function landDragProxyWithMotion(
     rotateZ: options.motionState?.rotateZ ?? 0,
   })
   const initialTarget = centeredTarget(target)
+  // 语义目标（文件夹卡、面包屑）统一以目标中心作为落点，尺寸收缩交给
+  // target dismiss 负责。若再把代理缩到面包屑文字按钮的尺寸，会先发生一
+  // 次目标尺寸缩放、再发生一次 dismiss 缩放，导致面包屑动画明显快于文件夹卡。
+  const targetScale = options.landingMode === 'target'
+    ? { scaleX: 1, scaleY: 1 }
+    : { scaleX: initialTarget.width / startWidth, scaleY: initialTarget.height / startHeight }
   motion.setTarget({
     x: initialTarget.left,
     y: initialTarget.top,
-    scaleX: initialTarget.width / startWidth,
-    scaleY: initialTarget.height / startHeight,
+    scaleX: targetScale.scaleX,
+    scaleY: targetScale.scaleY,
   })
 
   // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
@@ -705,6 +746,22 @@ export function landDragProxyWithMotion(
       }
     }
     if (targetOpacity != null) content.style.opacity = targetOpacity
+    if (hasTargetDismiss && scaleShell) {
+      // 语义目标的缩小淡出从 landing 第一帧开始，与位置/旋转运动同步；
+      // 不能等 onArrived，否则会变成飞完后突然缩小。
+      const dismissEasing = options.dismiss?.easing ?? easing
+      const dismissScale = options.dismiss?.scale ?? 0.72
+      scaleShell.style.transformOrigin = '50% 50%'
+      scaleShell.style.transition = `transform ${dismissDuration}ms ${dismissEasing}`
+      content.style.transition = `opacity ${dismissDuration}ms ${dismissEasing}`
+      scaleShell.style.transform = `scale(${dismissScale})`
+      content.style.opacity = '0'
+      dismissTimeoutId = window.setTimeout(() => {
+        dismissTimeoutId = null
+        dismissFinished = true
+        finishWhenVisualsSettled()
+      }, dismissDuration + 40)
+    }
     if (contentLayers) {
       for (const el of contentLayers.enteringEls) el.style.opacity = '1'
       for (const el of contentLayers.leavingEls) el.style.opacity = '0'
@@ -739,8 +796,8 @@ export function landDragProxyWithMotion(
       motion.setTarget({
         x: next.left,
         y: next.top,
-        scaleX: next.width / startWidth,
-        scaleY: next.height / startHeight,
+        scaleX: options.landingMode === 'target' ? 1 : next.width / startWidth,
+        scaleY: options.landingMode === 'target' ? 1 : next.height / startHeight,
       })
     },
   }

@@ -44,7 +44,7 @@ export function createDetachMoveFromAdapter(config: {
   let beforeContent: HTMLElement | undefined
   let draggingSnapshot: ReturnType<typeof captureDetachDraggingSnapshot> | undefined
   let dropState: ReturnType<typeof createDetachDropState<{ columnId: string; index: number }>> | undefined
-  let pendingDrop: { columnId: string; index: number } | null = null
+  let pendingDrop: { columnId: string; index: number; invalidReturn?: boolean } | null = null
   let landingPlan: (() => void) | null = null
   let landingGate: RuntimeCompletionGate<LandingResult> | null = null
   let landingProxy: HTMLElement | null = null
@@ -58,6 +58,10 @@ export function createDetachMoveFromAdapter(config: {
   let dragOffset = { x: 0, y: 0 }
   let pickupIndex: number | null = null
   let pointerMoved = false
+  let lastProbeDrop = ''
+  const probe = (event: string, data: Record<string, unknown> = {}) => {
+    console.log('[file-dismiss-probe]', JSON.stringify({ event, objectId, sessionId, ...data }))
+  }
 
   // 布局 FLIP 只需要比较当前源 Surface 与最后命中的目标 Surface。
   // 这样已完成列之外的大量项目不会参与每次拖拽的分组、Surface 和
@@ -86,6 +90,11 @@ export function createDetachMoveFromAdapter(config: {
     })
     if (!hit) return
     pendingDrop = hit
+    const dropKey = `${hit.columnId}:${hit.index}`
+    if (dropKey !== lastProbeDrop) {
+      lastProbeDrop = dropKey
+      probe('drop-target-change', { columnId: hit.columnId, index: hit.index })
+    }
   }
 
   function onMove(moveEvent: PointerEvent) {
@@ -104,6 +113,12 @@ export function createDetachMoveFromAdapter(config: {
   function onUp(releaseEvent?: PointerEvent) {
     if (released) return { accepted: false as const }
     released = true
+    probe('release-before-resolve', {
+      x: releaseEvent?.clientX ?? null,
+      y: releaseEvent?.clientY ?? null,
+      pendingDrop,
+      pointerMoved,
+    })
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
     if (releaseMotionState) {
       const releaseVelocity = shapeReleaseVelocity({ x: releaseMotionState.vx, y: releaseMotionState.vy })
@@ -134,6 +149,7 @@ export function createDetachMoveFromAdapter(config: {
       pendingDrop = {
         columnId: initialSurfaceId,
         index: pickupIndex ?? Math.max(0, runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)),
+        invalidReturn: true,
       }
     }
     if (!pendingDrop) return { accepted: false as const }
@@ -161,7 +177,24 @@ export function createDetachMoveFromAdapter(config: {
     //   本身就要等卡片被 Teleport 传送回真实 DOM 才能找到它，一直不释放会
     //   直接找不到目标，表现为飞向页面默认兜底位置。）
     if (invalidReturn) objectLease?.release()
+    probe(invalidReturn ? 'invalid-return' : 'release-accepted', {
+      destination,
+      releaseMotion: releaseMotionState,
+    })
     const proceedWithTarget = (sid: string, target: HTMLElement | null) => {
+      probe('landing-target-resolved', {
+        destination,
+        found: Boolean(target),
+        targetFileId: target?.dataset.fileId ?? null,
+        targetBreadcrumbId: target?.dataset.fileBreadcrumbId ?? null,
+        targetTag: target?.tagName ?? null,
+        targetClass: target?.className ?? null,
+        targetParent: target?.parentElement?.className ?? null,
+        targetRect: target ? (() => {
+          const rect = target.getBoundingClientRect()
+          return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+        })() : null,
+      })
       if (getSessionState() !== 'landing') return
       const landedEl = resolveDetachLandingTarget({
         resolve: () => target,
@@ -183,7 +216,16 @@ export function createDetachMoveFromAdapter(config: {
         createProxy: () => runtime.getVisualProxy(sid) ?? runtime.createVisualProxy(sid, visualContext) ?? null,
         enableProxy: (proxy: HTMLElement) => setProxyInteractive(proxy, true),
         bindRegrab: (proxy: HTMLElement) => runtime.bindRegrabTarget(sid, objectId, proxy, onRegrab),
-        land: () => runtime.landVisualProxy(sid, landedEl, visualContext),
+        land: () => {
+          probe('land-start', {
+            destination,
+            proxy: Boolean(landingProxy),
+          })
+          return runtime.landVisualProxy(sid, landedEl, visualContext).then(result => {
+            probe('land-result', { result })
+            return result
+          })
+        },
         onMissing: () => { landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' }); landingGate = null },
         onComplete: (landingResult: LandingResult) => {
           completeDetachLanding({

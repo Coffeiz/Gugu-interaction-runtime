@@ -25,6 +25,63 @@
         </span>
         <input v-model.number="draft.duration" type="range" min="100" max="1200" step="10" @input="changeDuration" />
       </label>
+      <div class="motion-debug-section">目标飞入</div>
+      <label>
+        <span>目标速度（刚度）
+          <output v-if="editing !== 'targetStiffness'" class="editable-value" @click="editing = 'targetStiffness'">{{ draft.targetStiffness }}</output>
+          <input v-else v-model.number="draft.targetStiffness" class="inline-number" type="number" min="1" step="1" autofocus @blur="editing = null" @input="applyPreview" />
+        </span>
+        <input v-model.number="draft.targetStiffness" type="range" min="20" max="1200" step="1" @input="applyPreview" />
+      </label>
+      <label>
+        <span>目标阻尼
+          <output v-if="editing !== 'targetDamping'" class="editable-value" @click="editing = 'targetDamping'">{{ draft.targetDamping }}</output>
+          <input v-else v-model.number="draft.targetDamping" class="inline-number" type="number" min="0" step="0.1" autofocus @blur="editing = null" @input="applyPreview" />
+        </span>
+        <input v-model.number="draft.targetDamping" type="range" min="1" max="120" step="0.1" @input="applyPreview" />
+      </label>
+      <label>
+        <span>目标飞入时长
+          <output v-if="editing !== 'targetLandingDuration'" class="editable-value" @click="editing = 'targetLandingDuration'">{{ draft.targetLandingDuration }}ms</output>
+          <input v-else v-model.number="draft.targetLandingDuration" class="inline-number" type="number" min="100" step="10" autofocus @blur="editing = null" @input="applyPreview" />
+        </span>
+        <input v-model.number="draft.targetLandingDuration" type="range" min="100" max="1600" step="10" @input="applyPreview" />
+      </label>
+      <label>
+        <span>目标飞入缓动</span>
+        <select v-model="draft.targetLandingEasing" @change="applyPreview">
+          <option value="linear">匀速</option>
+          <option value="ease-in">缓入</option>
+          <option value="ease-out">缓出</option>
+          <option value="ease-in-out">缓入缓出</option>
+          <option value="cubic-bezier(.22,1,.36,1)">快速缓出</option>
+        </select>
+      </label>
+      <div class="motion-debug-section">目标消失</div>
+      <label>
+        <span>消失时长
+          <output v-if="editing !== 'targetDismissDuration'" class="editable-value" @click="editing = 'targetDismissDuration'">{{ draft.targetDismissDuration }}ms</output>
+          <input v-else v-model.number="draft.targetDismissDuration" class="inline-number" type="number" min="100" step="10" autofocus @blur="editing = null" @input="applyPreview" />
+        </span>
+        <input v-model.number="draft.targetDismissDuration" type="range" min="100" max="1600" step="10" @input="applyPreview" />
+      </label>
+      <label>
+        <span>消失缓动</span>
+        <select v-model="draft.targetDismissEasing" @change="applyPreview">
+          <option value="linear">匀速</option>
+          <option value="ease-in">缓入</option>
+          <option value="ease-out">缓出</option>
+          <option value="ease-in-out">缓入缓出</option>
+          <option value="cubic-bezier(.22,1,.36,1)">快速缓出</option>
+        </select>
+      </label>
+      <label>
+        <span>消失缩放
+          <output v-if="editing !== 'targetDismissScale'" class="editable-value" @click="editing = 'targetDismissScale'">{{ draft.targetDismissScale.toFixed(2) }}</output>
+          <input v-else v-model.number="draft.targetDismissScale" class="inline-number" type="number" min="0.1" max="1" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
+        </span>
+        <input v-model.number="draft.targetDismissScale" type="range" min="0.1" max="1" step="0.01" @input="applyPreview" />
+      </label>
       <label>
         <span>跟手刚度
           <output v-if="editing !== 'followStiffness'" class="editable-value" @click="editing = 'followStiffness'">{{ draft.followStiffness }}</output>
@@ -116,6 +173,13 @@ interface SavedMotionConfig {
   minVelocity: number
   maxVelocity: number
   dampingRatio: number
+  targetStiffness: number
+  targetDamping: number
+  targetLandingDuration: number
+  targetLandingEasing: string
+  targetDismissDuration: number
+  targetDismissEasing: string
+  targetDismissScale: number
 }
 
 const STORAGE_KEY = 'gugu-runtime-motion-profile'
@@ -175,7 +239,7 @@ function togglePanel(): void {
 const saved = reactive<SavedMotionConfig>({
   stiffness: LANDING_PROFILE.position.stiffness,
   damping: LANDING_PROFILE.position.damping,
-  duration: runtime.getMotionProfile()?.landing?.duration ?? 250,
+  duration: runtime.getMotionProfile()?.landing?.duration ?? 300,
   followStiffness: FOLLOW_PROFILE.position.stiffness,
   followDamping: FOLLOW_PROFILE.position.damping,
   tilt: FOLLOW_ROTATION.tilt,
@@ -185,6 +249,13 @@ const saved = reactive<SavedMotionConfig>({
   minVelocity: DEFAULT_RELEASE_PROFILE.minVelocity,
   maxVelocity: DEFAULT_RELEASE_PROFILE.maxVelocity,
   dampingRatio: DEFAULT_RELEASE_PROFILE.dampingRatio,
+  targetStiffness: 90,
+  targetDamping: 19,
+  targetLandingDuration: 300,
+  targetLandingEasing: 'ease-out',
+  targetDismissDuration: 300,
+  targetDismissEasing: 'ease-in-out',
+  targetDismissScale: 0.72,
 })
 const draft = reactive<SavedMotionConfig>({ ...saved })
 
@@ -206,6 +277,19 @@ function applyPreview(): void {
     profile: {
       ...(runtime.getMotionProfile() ?? {}),
       landing: { duration: draft.duration, easing: 'cubic-bezier(.22,1,.36,1)' },
+      target: {
+        ...(runtime.getMotionProfile()?.target ?? {}),
+        motion: {
+          position: { stiffness: draft.targetStiffness, damping: draft.targetDamping },
+          scale: { stiffness: draft.targetStiffness, damping: draft.targetDamping },
+        },
+        landing: { duration: draft.targetLandingDuration, easing: draft.targetLandingEasing },
+        dismiss: {
+          duration: draft.targetDismissDuration,
+          easing: draft.targetDismissEasing,
+          scale: draft.targetDismissScale,
+        },
+      },
     },
     controller: {
       follow: { stiffness: draft.followStiffness, damping: draft.followDamping },
@@ -270,6 +354,13 @@ onMounted(() => {
     if (typeof value.minVelocity === 'number') saved.minVelocity = value.minVelocity
     if (typeof value.maxVelocity === 'number') saved.maxVelocity = value.maxVelocity
     if (typeof value.dampingRatio === 'number') saved.dampingRatio = value.dampingRatio
+    if (typeof value.targetStiffness === 'number') saved.targetStiffness = value.targetStiffness
+    if (typeof value.targetDamping === 'number') saved.targetDamping = value.targetDamping
+    if (typeof value.targetLandingDuration === 'number') saved.targetLandingDuration = value.targetLandingDuration
+    if (typeof value.targetLandingEasing === 'string') saved.targetLandingEasing = value.targetLandingEasing
+    if (typeof value.targetDismissDuration === 'number') saved.targetDismissDuration = value.targetDismissDuration
+    if (typeof value.targetDismissEasing === 'string') saved.targetDismissEasing = value.targetDismissEasing
+    if (typeof value.targetDismissScale === 'number') saved.targetDismissScale = value.targetDismissScale
     Object.assign(draft, saved)
     applyPreview()
   } catch {
@@ -292,10 +383,12 @@ onBeforeUnmount(() => {
 .motion-debug-panel.dragging .motion-debug-toggle { cursor: grabbing; }
 .motion-debug-toggle span { float: right; color: #888; }
 .motion-debug-body { margin-top: 6px; padding: 10px; border-radius: 8px; }
+.motion-debug-section { margin: 12px 0 7px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,.1); color: #6670b8; font-weight: 600; }
 label { display: block; margin-bottom: 9px; }
 label span { display: flex; justify-content: space-between; margin-bottom: 3px; }
 output { color: #6670b8; font-variant-numeric: tabular-nums; }
 input { width: 100%; accent-color: #6670b8; }
+select { box-sizing: border-box; width: 100%; padding: 4px 6px; border: 1px solid rgba(0,0,0,.14); border-radius: 4px; background: #fff; color: #333; font: inherit; }
 .editable-value { cursor: text; border-bottom: 1px dashed #6670b8; }
 .inline-number { width: 68px; padding: 1px 3px; border: 1px solid #6670b8; border-radius: 3px; font: inherit; }
 .motion-debug-actions { display: flex; gap: 6px; margin-top: 8px; }

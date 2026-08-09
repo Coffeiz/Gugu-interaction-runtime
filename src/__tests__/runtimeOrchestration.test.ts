@@ -187,6 +187,33 @@ describe('Runtime move orchestration', () => {
     source.remove()
   })
 
+  it('target landing 对无效回位降级为普通 landing', () => {
+    const runtime = createRuntime()
+    runtime.registerObjectType('project-card', {
+      defaultVisualMode: 'detach',
+      landingMode: 'target',
+    })
+    const source = document.createElement('div')
+    const semanticTarget = document.createElement('div')
+    runtime.objects.setElement('card-1', source)
+    const session = runtime.start(createRequest())
+
+    const targetContext = runtime.createVisualLifecycleContext(session.id, {
+      columnId: 'column:done',
+    }, semanticTarget, undefined)
+    const sameNodeContext = runtime.createVisualLifecycleContext(session.id, {
+      columnId: 'column:todo',
+    }, source, undefined)
+    const returnContext = runtime.createVisualLifecycleContext(session.id, {
+      columnId: 'column:todo',
+      invalidReturn: true,
+    }, undefined, undefined)
+
+    expect(targetContext.landingMode).toBe('target')
+    expect(sameNodeContext.landingMode).toBe('default')
+    expect(returnContext.landingMode).toBe('default')
+  })
+
   it('VisualProxy 替换与取消都经过 Runtime 的统一清理边界', () => {
     const runtime = createRuntime()
     const handle = runtime.start(createRequest())

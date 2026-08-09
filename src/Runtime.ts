@@ -99,10 +99,20 @@ export interface ObjectTypeRegistration {
   visual?: ObjectVisualAdapter
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
   motion?: { enabled?: boolean; profile?: MotionProfile }
+  /** landing 的终态表现；default 保持看板行为，target 到达语义目标后缩小淡出。 */
+  landingMode?: 'default' | 'target'
   /** 抓取对齐方式；不传就是纯几何中心对齐（等价于 { align: 'center' }）。 */
   grabAlign?: GrabAlignConfig
   /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
   pointerInput?: PointerSessionInputOptions
+  /** 可选业务目标解析；返回空时继续使用 Runtime 的注册 Surface 命中。 */
+  resolveMoveHit?(context: { objectId: string; x: number; y: number }): HitResult | null
+  /** 可选落地目标解析，用于目标不是被移动对象自身的场景。 */
+  resolveMoveTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
+  /** 可选视觉落点解析；目标可以是文件夹卡、面包屑等语义接收节点。 */
+  resolveMoveLandingTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
+  /** 落地代理飞向业务目标时是否保留目标节点可见。 */
+  preserveMoveTarget?: boolean
   /** 兼容旧 demo 的手动启动入口。 */
   start?(context: { objectId: string; element: HTMLElement; event: PointerEvent; mode: string }): void
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
@@ -393,9 +403,21 @@ setMotionProfiles(this.registry.motionProfile)
           flip: { ...globalProfile?.flip, ...registeredProfile?.flip },
           resize: { ...globalProfile?.resize, ...registeredProfile?.resize },
           landing: { ...globalProfile?.landing, ...registeredProfile?.landing },
+          target: {
+            ...globalProfile?.target,
+            ...registeredProfile?.target,
+            motion: { ...globalProfile?.target?.motion, ...registeredProfile?.target?.motion },
+            landing: { ...globalProfile?.target?.landing, ...registeredProfile?.target?.landing },
+            dismiss: { ...globalProfile?.target?.dismiss, ...registeredProfile?.target?.dismiss },
+          },
           group: { ...globalProfile?.group, ...registeredProfile?.group },
         } as MotionProfile
       : undefined
+    const invalidReturn = typeof destination === 'object'
+      && destination !== null
+      && (destination as { invalidReturn?: unknown }).invalidReturn === true
+    const targetIsSource = Boolean(targetElement && sourceElement && targetElement === sourceElement)
+
     return {
       objectId: session?.objectId ?? '',
       sessionId,
@@ -411,9 +433,17 @@ setMotionProfiles(this.registry.motionProfile)
       targetSnapshot: targetElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
+      preserveTarget: registration?.preserveMoveTarget ?? false,
+      // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
+      // target landing，也必须保留普通 landing 的完整回位表现。
+      landingMode: !invalidReturn && !targetIsSource && registration?.landingMode === 'target' ? 'target' : 'default',
       landingBounds: () => {
         const surfaceId = this.getDestinationSurfaceId(destination)
         const viewport = surfaceId ? this.resolveMoveSurfaceViewport(surfaceId) : null
+        // 语义目标可以属于另一个 Surface：例如文件夹卡在浏览器内容区，
+        // 但它的 drop Surface 是侧栏文件夹按钮。此时不能用侧栏矩形限制
+        // landing，否则代理会被 clamp 到错误的视觉区域。
+        if (viewport && targetElement && !viewport.contains(targetElement)) return null
         return viewport?.getBoundingClientRect() ?? null
       },
       motion: motionProfile,
@@ -426,6 +456,7 @@ setMotionProfiles(this.registry.motionProfile)
     sessionId: string,
     context: VisualLifecycleContext,
   ): VisualProxy | undefined {
+    console.log('[file-dismiss-probe]', JSON.stringify({ event: 'proxy-create', objectId: context.objectId, sessionId }))
     return this.visualMotion.create(sessionId, context)
   }
 
@@ -484,6 +515,7 @@ setMotionProfiles(this.registry.motionProfile)
     const proxy = this.visualProxyCoordinator.get(sessionId)
     if (!proxy) return
     const session = this.sessionCoordinator.get(sessionId)
+    console.log('[file-dismiss-probe]', JSON.stringify({ event: 'proxy-dispose', objectId: session?.objectId ?? null, sessionId }))
     let adapterDisposed = false
     if (session) {
       const context = this.createVisualLifecycleContext(sessionId)
@@ -538,6 +570,10 @@ setMotionProfiles(this.registry.motionProfile)
 
   /** 将自定义或注册表默认命中统一归一成业务无关的 Surface id 与插入索引。 */
   resolveMoveHit(objectId: string, x: number, y: number): HitResult | null {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const customHit = registration?.resolveMoveHit?.({ objectId, x, y })
+    if (customHit) return customHit
     if (this.hitResolver) {
       const surface = this.hitResolver.findSurface({ x, y })
       if (!surface?.dataset.column) return null
@@ -584,6 +620,9 @@ setMotionProfiles(this.registry.motionProfile)
   keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void {
     const viewport = this.resolveMoveSurfaceViewport(surfaceId)
     if (!viewport || !target.isConnected) return
+    // drop Surface 可能只是语义注册点，真实 landing 目标位于另一个
+    // 内容 Surface。不能为了让目标“可见”去滚动不包含它的注册按钮。
+    if (!viewport.contains(target)) return
     const previousFrame = this.surfaceScrollFrames.get(viewport)
     if (previousFrame !== undefined) {
       cancelAnimationFrame(previousFrame)
@@ -733,12 +772,43 @@ setMotionProfiles(this.registry.motionProfile)
     const session = this.sessionCoordinator.get(sessionId)
     if (!session) return null
     const context = this.createBehaviorContext(session)
+    const object = this.objects.get(session.objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const customTarget = registration?.resolveMoveTarget?.({ objectId: session.objectId, destination })
     const resolveResult = context.visual?.resolveTarget?.(session.objectId, destination)
     const fallbackResult = fallback?.()
     const registeredElement = this.objects.get(session.objectId)?.element
-    const target = resolveResult ?? fallbackResult ?? registeredElement ?? null
+    const target = customTarget ?? resolveResult ?? fallbackResult ?? registeredElement ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
+    return target
+  }
+
+  resolveMoveLandingTarget(
+    sessionId: string,
+    destination: unknown,
+    fallback?: () => HTMLElement | null,
+  ): HTMLElement | null {
+    const session = this.sessionCoordinator.get(sessionId)
+    if (!session) return null
+    const object = this.objects.get(session.objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
+    const fallbackTarget = fallback?.() ?? null
+    const target = customTarget ?? fallbackTarget ?? this.resolveMoveTarget(sessionId, destination)
+    console.info('[file-target-probe]', JSON.stringify({
+      event: 'runtime-resolve',
+      sessionId,
+      objectId: session.objectId,
+      objectType: object?.type ?? null,
+      objectVisual: object?.visual ?? null,
+      hasRegistration: Boolean(registration),
+      hasCustomResolver: Boolean(registration?.resolveMoveLandingTarget),
+      customConnected: Boolean(customTarget?.isConnected),
+      fallbackConnected: Boolean(fallbackTarget?.isConnected),
+      targetConnected: Boolean(target?.isConnected),
+    }))
+    if (!target || !target.isConnected) return null
     return target
   }
 
@@ -752,7 +822,7 @@ setMotionProfiles(this.registry.motionProfile)
     destination: unknown,
     maxFrames = 6,
   ): Promise<HTMLElement | null> {
-    const immediate = this.resolveMoveTarget(sessionId, destination)
+    const immediate = this.resolveMoveLandingTarget(sessionId, destination)
     return immediate ?? this.waitForMoveTarget(sessionId, destination, maxFrames)
   }
 
@@ -769,6 +839,9 @@ setMotionProfiles(this.registry.motionProfile)
     const moveContext = this.moveBehavior.getContext(sessionId)
     const source = moveContext.sourceElement
     const expectedSurface = this.getDestinationSurfaceId(destination)
+    const object = this.objects.get(session.objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const hasSemanticTarget = Boolean(registration?.resolveMoveLandingTarget)
     const transactionDestination = moveContext.transaction.destination as Partial<import('./behavior/MoveTransaction').MoveActionDestination> | null
     const sourceSurface = typeof transactionDestination?.fromSurfaceId === 'string'
       ? transactionDestination.fromSurfaceId
@@ -777,9 +850,8 @@ setMotionProfiles(this.registry.motionProfile)
     for (let frame = 0; frame < maxFrames; frame += 1) {
       const current = this.sessionCoordinator.get(sessionId)
       if (current !== session || current.state === 'disposed' || current.state === 'interrupt') return null
-      const object = this.objects.get(session.objectId)
-      const target = this.resolveMoveTarget(sessionId, destination)
-      const surfaceReady = !expectedSurface || object?.surfaceId === expectedSurface
+      const target = this.resolveMoveLandingTarget(sessionId, destination)
+      const surfaceReady = hasSemanticTarget || !expectedSurface || object?.surfaceId === expectedSurface
       // 同列放回：target 就是业务节点的最终落点（原地放回时 DOM 不动、
       // target === source；换位时 Vue 复用实例则 target 仍是同一节点但
       // rect 已随业务 patch 更新到新位置）——只要节点有效即可放行，
@@ -789,10 +861,10 @@ setMotionProfiles(this.registry.motionProfile)
       // watchEffect(flush:'pre') 在 Vue DOM patch 前就更新 surfaceId，
       // rect 还是旧列位置。要用 DOM 级信号：目标 Surface 容器已包含
       // target，说明 Vue 已把节点 patch 到新列文档流。
-      const movedToSurface = !!expectedSurface && !!target
+      const movedToSurface = hasSemanticTarget || (!!expectedSurface && !!target
         ? (this.surfaces.get(expectedSurface)?.element?.contains(target) ?? false)
-        : false
-      const moved = crossSurface ? movedToSurface : true
+        : false)
+      const moved = hasSemanticTarget || (crossSurface ? movedToSurface : true)
       if (target && surfaceReady && moved) return target
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     }

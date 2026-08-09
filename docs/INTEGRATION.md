@@ -354,6 +354,35 @@ runtime.registerObjectType('kanban', {
 })
 ```
 
+landing 的终态表现通过 `landingMode` 区分，默认值为 `default`。看板和普通卡片
+继续使用 `default`；文件夹卡、面包屑这类语义目标可以使用 `target`：代理从松手
+后的第一帧就开始缩小淡出，同时继承原有 landing 的释放速度、旋转和位置运动。
+`target` 不改变位置运动，也不会影响看板的 landing。
+
+`target` 的飞入和缩小淡出可以分别调参。`target.motion` 控制飞入弹簧速度，
+`target.landing` 控制飞入段的时长与视觉缓动，`target.dismiss` 控制同步开始的缩小淡出；
+`easing` 接受 CSS easing 字符串，例如
+`ease-in`、`ease-out`、`ease-in-out` 或自定义 `cubic-bezier(...)`。
+
+```ts
+runtime.registerObjectType('file-item', {
+  defaultVisualMode: 'detach',
+  landingMode: 'target',
+  motion: {
+    profile: {
+      target: {
+        motion: {
+          position: { stiffness: 90, damping: 19 },
+          scale: { stiffness: 90, damping: 19 },
+        },
+        landing: { duration: 300, easing: 'ease-out' },
+        dismiss: { duration: 300, easing: 'ease-in', scale: 0.72 },
+      },
+    },
+  },
+})
+```
+
 如果业务需要自行提供落地运动实现，可将 `enabled` 设为 `false`；Runtime 仍负责
 Session、目标解析、landing/reveal 顺序和清理，只把落地运动交给适配器的 `land()`。
 这不会关闭跟手阶段的输入或生命周期编排。

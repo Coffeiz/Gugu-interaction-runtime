@@ -88,7 +88,7 @@ runtime.registerObjectType('kanban', {
   motion: {
     enabled: true,
     profile: {
-      landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+      landing: { duration: 1000, easing: 'cubic-bezier(.22,1,.36,1)' },
     },
   },
 })
@@ -100,7 +100,7 @@ runtime.registerObjectType('kanban-clone', {
 runtime.configureMotion({
   flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
   resize: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
-  landing: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
+  landing: { duration: 1000, easing: 'cubic-bezier(.22,1,.36,1)' },
   group: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
 })
 
