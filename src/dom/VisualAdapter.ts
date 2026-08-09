@@ -193,7 +193,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetBackground: targetHasSurfaceStyle ? targetSnapshot?.background : undefined,
       targetBackgroundImage: targetHasSurfaceStyle ? targetSnapshot?.backgroundImage : undefined,
       targetOpacity: targetHasSurfaceStyle ? targetSnapshot?.opacity : undefined,
-      targetContent: target,
+      // 透明面包屑没有卡片内容结构，不能参与 content morph；否则代理会把
+      // 卡片内部布局替换成面包屑文字。可见的文件夹卡仍复用同一套内容 morph。
+      targetContent: targetHasSurfaceStyle ? target : undefined,
       landingMode: context.landingMode,
       targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
       dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,
