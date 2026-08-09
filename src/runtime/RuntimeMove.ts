@@ -184,6 +184,8 @@ export interface MoveCommitPort {
   normalize(objectId: string, destination: unknown): MoveActionDestination | null
   /** 目标 Surface 当前的对象数（用于列尾判定兜底：toIndex >= count 即追加）。 */
   getSurfaceObjectCount?(surfaceId: string): number
+  /** Surface 内存在非对象的布局锚点时，列尾也可能发生位移，必须即时写入 Invert。 */
+  hasLayoutAnchor?(surfaceId: string): boolean
   /**
    * 对象在目标 Surface 里真实的、按屏幕布局排序算出的索引（不依赖拖拽落点
    * 算出的 toIndex）。业务可能对目标列有自己的排序/分组规则（比如已完成列
@@ -198,6 +200,7 @@ export class MoveCommitCoordinator {
     if (!normalized) return false
     const finalIndex = this.port.getObjectIndex?.(objectId, normalized.toSurfaceId)
     const surfaceObjectCount = this.port.getSurfaceObjectCount?.(normalized.toSurfaceId)
+    if (this.port.hasLayoutAnchor?.(normalized.toSurfaceId)) return false
     // 优先用真实 DOM 排序算出的最终索引：拖拽落点算出的 toIndex 只是"打算
     // 插到哪"，如果目标列自己还会按业务规则重新排（比如已完成列按日期分
     // 组），真正停在哪由渲染结果说了算，只有量 DOM 才不会被业务排序骗。

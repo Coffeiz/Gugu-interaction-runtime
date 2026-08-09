@@ -212,6 +212,8 @@ export class Runtime {
       normalize: (objectId, destination) => this.moveActions.normalize(objectId, destination),
       getSurfaceObjectCount: surfaceId =>
         [...this.objects.values()].filter(item => item.surfaceId === surfaceId).length,
+      hasLayoutAnchor: surfaceId =>
+        this.surfaces.get(surfaceId)?.element?.querySelector('[data-flip-target]') !== null,
       getObjectIndex: (objectId, surfaceId) => this.getObjectSurfaceIndex(objectId, surfaceId),
     }, this.moveActions)
     this.moveLanding = new MoveLandingCoordinator({
