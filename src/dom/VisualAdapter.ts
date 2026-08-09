@@ -214,17 +214,28 @@ export class DefaultVisualAdapter implements VisualAdapter {
       releaseDamping: DEFAULT_RELEASE_PROFILE.dampingRatio,
     })
     if (this.runtime) {
-      this.runtime.trackLandingTarget(context.sessionId, target, () => {
-        if (context.targetSnapshot?.rect && !target.closest('[data-layout-surface]')) {
-          retarget(clampTarget({
-            left: context.targetSnapshot.rect.x,
-            top: context.targetSnapshot.rect.y,
-            width: context.targetSnapshot.rect.width,
-            height: context.targetSnapshot.rect.height,
-          }))
-        } else {
-          retarget(clampTarget(target.getBoundingClientRect()))
+      // targetSnapshot 只用于代理的首帧样式和初始几何，不能作为后续
+      // retarget 的位置来源。目标卡可能在另一个 landing 期间被兄弟
+      // FLIP 移动，即使它不在 data-layout-surface 下，也必须跟随当前
+      // 视觉 rect；否则代理会回到落地开始时的旧位置。
+      const snapshotRect = context.targetSnapshot?.rect
+      const readRetargetRect = (): LandingRect => {
+        const liveRect = target.getBoundingClientRect()
+        if (liveRect.width > 0 && liveRect.height > 0) return clampTarget(liveRect)
+        // 目标节点短暂被框架隐藏或重挂载时，不要把代理 retarget 到
+        // [0, 0, 0, 0]；沿用最后一个有效快照，等待下一帧恢复实时位置。
+        if (snapshotRect && snapshotRect.width > 0 && snapshotRect.height > 0) {
+          return clampTarget({
+            left: snapshotRect.x,
+            top: snapshotRect.y,
+            width: snapshotRect.width,
+            height: snapshotRect.height,
+          })
         }
+        return clampTarget(liveRect)
+      }
+      this.runtime.trackLandingTarget(context.sessionId, target, () => {
+        retarget(readRetargetRect())
       })
     }
     return finished.then(() => ({ completed: true }))
