@@ -175,13 +175,17 @@ export class DefaultVisualAdapter implements VisualAdapter {
       || (targetSnapshot.backgroundImage && targetSnapshot.backgroundImage !== 'none')
       || (targetSnapshot.boxShadow && targetSnapshot.boxShadow !== 'none')
     ))
-    // 先把代理的布局尺寸切到目标 border box；landing 的内容层和目标卡片
-    // 以这个尺寸进行布局，运动控制器只负责连续地过渡到该尺寸。
-    el.style.width = `${targetRect.width}px`
-    el.style.height = `${targetRect.height}px`
     const landingProfile = context.landingMode === 'target'
       ? context.motion?.target?.landing ?? context.motion?.landing
       : context.motion?.landing
+    // 普通 landing 需要沿用目标 border box 的布局尺寸；语义目标不能在
+    // 松手瞬间切成面包屑/侧栏按钮的窄高度，否则源卡片会先被裁掉，视觉上
+    // 像是向目标下方跳了一段。语义目标的缩小由 target dismiss 的 scale
+    // 动画统一接管，代理在运动期间保留源卡片尺寸。
+    if (!isTargetLanding) {
+      el.style.width = `${targetRect.width}px`
+      el.style.height = `${targetRect.height}px`
+    }
     const land = context.motionEnabled === false ? landDragProxyLegacy : landDragProxyWithMotion
     const { finished, retarget } = land(el, targetRect, {
       duration: landingProfile?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
