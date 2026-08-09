@@ -371,9 +371,10 @@ interface BehaviorContext {
 interaction/
 ├── core/   # 框架无关：Runtime、Session、Store、Owner、Behavior、Action
 ├── dom/    # 浏览器相关：Input、Measure、Hit、Visual、Motion、Layout
-├── vue/    # Vue 响应式与 Transition 接入
 └── react/  # 未来的 React adapter
 ```
+
+当前不提供 Vue 专用注册适配器；Vue、React 或其他框架都直接调用 Runtime Core API。
 
 Core 可以依赖 TypeScript、Map/Set 和 AbortController；DOM 层可以依赖
 `HTMLElement`、`requestAnimationFrame` 和浏览器事件，但 Core/DOM 不应反向依赖 Vue。

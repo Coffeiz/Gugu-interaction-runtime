@@ -5,10 +5,18 @@
 本文描述的是 1.0.2 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
 使用 Runtime 源码而非 npm 包；文件、画布和抽屉仍按各自 adapter 接入，尚未承诺零配置。
 
+本文的唯一核心契约是 Runtime Core API。Vue、React 或其他框架都可以直接调用同一套
+`runtime.objects`、`runtime.surfaces`、`runtime.targets` 和 `runtime.onAction()`；框架
+只负责把自己的 DOM ref 和组件生命周期接到这些 API 上，不产生另一套拖拽语义。
+
+看板和文件 Demo 也直接使用这些注册表 API。`runtime.registerSurface()`、
+`runtime.registerTarget()` 等旧的 Runtime 便捷包装已移除，不再作为接入入口；Vue
+适配器内部同样只转发到 `runtime.surfaces` 和 `runtime.targets`。
+
 ### 文件系统接入约束
 
 文件系统第一版不要求 Runtime 提供文件专属 API。Gugu-web 可以在迁移期间暂存文件 adapter，
-但 adapter 只能使用本文公开的 `useObject`、`useSurface` 和 `runtime.onAction()`，不能自行
+但 adapter 只能使用本文公开的 Core API，不能自行
 编排 Session、proxy、landing、FLIP 或清理。
 
 文件对象类型可以注册为 `file-item`、`folder-item`，对象 ID 必须包含业务 scope，例如：
@@ -18,9 +26,10 @@ files:file:123
 project-files:19:file:123
 ```
 
-文件夹和面包屑可以注册为普通目标 Surface；目标目录信息由业务侧通过 Surface ID 或业务侧
-目标映射解析，Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽不属于单对象接入
-契约，在通用 Group Session 设计完成前由业务 adapter 保留。
+文件夹卡既是 Object 又是 Target：通过 `runtime.objects.register({ target })` 一次注册，Runtime
+自动同步两个注册表。面包屑没有可拖动身份，使用 `runtime.targets.register()` 单独注册。
+Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽不属于单对象接入契约，
+在通用 Group Session 设计完成前由业务 adapter 保留。
 
 ## 五分钟接入（1.0.2）
 
@@ -30,23 +39,23 @@ Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订�
 
 ```ts
 import { runtime } from 'gugu-interaction-runtime'
-import { useObject } from 'gugu-interaction-runtime/vue/useObject'
-import { useSurface } from 'gugu-interaction-runtime/vue/useSurface'
-
+// 只注册一次对象类型的视觉/行为策略，不注册某一张具体卡片。
 runtime.registerObjectType('project-card', {
   defaultVisualMode: 'detach',
 })
 
-const { elementRef } = useObject({
+runtime.objects.register({
   id: `project:${project.id}`,
   type: 'project-card',
-  surface: () => `column:${project.status}`,
+  surfaceId: `column:${project.status}`,
+  element: cardElement,
   abilities: ['move', 'sort'],
 })
 
-const { elementRef: columnRef } = useSurface({
+runtime.surfaces.register({
   id: `column:${status}`,
   type: 'project-column',
+  element: columnElement,
   accepts: ['project-card'],
 })
 
@@ -57,7 +66,12 @@ const stop = runtime.onAction(action => {
 })
 ```
 
-对象节点只需绑定 `elementRef`，容器节点只需绑定 `columnRef`。Runtime 自动处理
+Vue、React 和其他框架都直接调用同一组 Runtime Core API。框架层只负责在自己的挂载、更新
+和卸载生命周期中调用 `runtime.objects`、`runtime.surfaces`、`runtime.targets` 的注册表方法；
+Runtime 不再提供 `useObject`、`useSurface` 或 `useRuntimeTransition` 这类框架适配层，也不形成
+第二套业务接入语义。Demo 专用的 `useCollectionRuntime` 已删除。
+
+对象节点和容器节点只需提供真实 DOM 元素。Runtime 自动处理
 抓取、跟手、落点、落地、揭示、取消、中断和资源清理。
 
 这份文档是写给**使用**这套 Runtime 的人看的：接入一个新的可拖拽对象类型
@@ -78,47 +92,46 @@ const stop = runtime.onAction(action => {
 
 **1. 注册这个对象**
 
-如果这个对象有自己独立的 Vue 组件（每个对象一个组件实例），在该组件的
-`setup` 里调用 `useObject`：
+在组件挂载时注册对象，在 DOM ref 或数据变化时同步 element/surface，在组件卸载时按 generation
+注销对象：
 
 ```ts
-import { useObject } from '{path-to}/vue/useObject'
-
-const { elementRef } = useObject({
+const generation = runtime.objects.register({
   id: `project:${project.id}`,
   type: 'project-card',
-  surface: () => `column:${project.status}`,  // getter，随业务数据变化
+  surfaceId: `column:${project.status}`,
+  element: null,
   abilities: ['move', 'sort'],
   visual: 'kanban',
   visualMode: 'detach',
 })
+
+runtime.objects.setElement(`project:${project.id}`, element)
+runtime.objects.setSurface(`project:${project.id}`, `column:${project.status}`)
+// 卸载时仅注销仍属于本次组件实例的注册，避免旧实例清理新实例。
+if (runtime.objects.get(`project:${project.id}`)?.generation === generation) {
+  runtime.objects.unregister(`project:${project.id}`)
+}
 ```
 
 ```html
-<div ref="elementRef" class="my-card" :data-card="cardId" @pointerdown="...">
+<div ref="cardElement" class="my-card" :data-card="cardId" @pointerdown="...">
 ```
-
-如果像 demo 里那样，所有同类对象共用一份模板渲染（没有各自独立的组件
-实例），`useObject` 不适用（它假定"一个组件实例对应一个对象"）——退而
-求其次，直接用 `runtime.objects` 的原始 API 做一次性注册 + 一个
-`watchEffect` 同步 `surfaceId`（见 `KanbanBoard.vue` 里的写法）。这是
-目前 demo 采用的方式，不是推荐的最终形态；真正接入业务时，如果对象有
-自己的组件，应该用 `useObject`。
 
 **2. 注册它所在的容器（Surface）**
 
 ```ts
-import { useSurface } from '{path-to}/vue/useSurface'
-
-const { elementRef } = useSurface({
+runtime.surfaces.register({
   id: `column:${status}`,
   type: 'list',
+  element: null,
   accepts: ['project-card'],  // 空数组表示不限制类型
 })
+runtime.surfaces.setElement(`column:${status}`, columnElement)
 ```
 
 ```html
-<div :ref="el => elementRef = el" class="my-column">
+<div ref="columnElement" class="my-column">
 ```
 
 Surface 的裁剪由业务样式声明；布局组根不能作为裁剪容器。Runtime 只会临时接管
@@ -144,14 +157,17 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
 |  | `grabAlign.align` | 抓取基准对齐方式：`'center'`（默认，卡片中心对指针）或 `'pointer'`（点哪抓哪） |
 |  | `grabAlign.offsetX` / `offsetY` | 在基准对齐结果上叠加的固定像素偏移，正值往右/往下 |
-| `useObject(options)` | `id` | 对象唯一标识 |
+| `runtime.objects.register(options)` | `id` | 对象唯一标识 |
 |  | `type` | 对象类型，必须匹配 Surface 的 `accepts` |
-|  | `surface` | 当前 Surface ID，可传 getter |
+|  | `surfaceId` | 当前 Surface ID |
+|  | `element` | 对象真实 DOM 元素 |
 |  | `abilities` | 能力列表，包含 `move` 才允许拖动 |
-| `useSurface(options)` | `id` | Surface 唯一标识 |
+| `runtime.surfaces.register(options)` | `id` | Surface 唯一标识 |
 |  | `type` | Surface 类型 |
+|  | `element` | Surface 真实 DOM 元素 |
 |  | `accepts` | 接受的对象类型，空数组表示不限 |
 | `runtime.onAction(handler)` | `action` | 业务保存移动结果的语义化事件 |
+| `runtime.targets.register(target)` | `id` / `surfaceId` / `element` | 注册没有 Object 身份的面包屑等语义落点 |
 
 Action 的常用字段为 `type`、`objectId`、`fromSurfaceId`、`toSurfaceId`、`toIndex`
 和 `timestamp`。Runtime 不直接修改业务 Store。
@@ -525,10 +541,13 @@ destroyDragProxy(proxyEl)
 ```
 
 ```ts
-import { runtime } from '{path-to}/Runtime'
 function isDetached(cardId: string) {
-  return runtime.owner.isControlled(cardId)
+  return runtime.isControlled(cardId)
 }
+
+const stopOwnership = runtime.onOwnershipChange(cardId => {
+  // 触发框架层刷新 isDetached(cardId) 对应的渲染状态。
+})
 ```
 
 **7. 让容器的 `TransitionGroup` 在被接管期间关闭**
@@ -538,8 +557,10 @@ function isDetached(cardId: string) {
 ```
 
 ```ts
-import { useRuntimeTransition } from '{path-to}/vue/useRuntimeTransition'
-const { controlled } = useRuntimeTransition(`column:${columnId}`)
+const controlled = runtime.isControlled(`column:${columnId}`)
+const stopOwnership = runtime.onOwnershipChange(() => {
+  // 更新 controlled 计算值。
+})
 ```
 
 ## 组布局的 Relative FLIP
@@ -627,9 +648,8 @@ Surface 的 `height` 或 `transition`。
   事务，不会擅自回写业务数据。
 - **Hit** 已有公共接口；业务通过 `runtime.setHitResolver()` 注入自己的
   Surface/目标/索引命中规则。
-- **`useObject` 假定"一个组件实例对应一个对象"**，如果你的场景跟 demo
-  一样是"一份模板渲染一整个列表"，需要照 demo 里的方式退化成
-  `runtime.objects` 原始 API + `watchEffect`。
+- **对象注册必须绑定稳定 ID 和 generation**：跨列表重渲染时按对象 ID 更新 element，
+  卸载时校验 generation 后再注销，避免旧 DOM 清理新对象注册。
 
 ## Runtime 入口
 

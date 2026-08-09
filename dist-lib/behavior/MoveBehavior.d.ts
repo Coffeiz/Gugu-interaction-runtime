@@ -35,19 +35,12 @@ export interface MoveSurfaceLifecycle {
 export interface MoveBehaviorDriver {
     prepare?(context: BehaviorContext, request: StartRequest): void | Promise<void>;
     update?(context: BehaviorContext, input: RuntimeInput): void;
-    /** @deprecated 使用 resolveDestination + commit 替代。 */
-    release?(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void>;
     /**
      * 判定落点是否有效。纯函数，不修改 DOM/业务状态。
      * 返回 accepted=false 时 session 被 cancel。
-     * 未实现时 fallback 到旧 release()。
      */
     resolveDestination?(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void>;
-    /**
-     * 提交业务变更（emitAction + FLIP + 清理跟手样式）。
-     * 在 resolveDestination 返回 accepted=true 后调用。
-     * 未实现时 fallback 到旧 release()。
-     */
+    /** 提交业务变更（emitAction + FLIP + 清理跟手样式）。 */
     commit?(context: BehaviorContext, destination: unknown): void | Promise<void>;
     cancel?(context: BehaviorContext, reason: string): void;
     interrupt?(context: BehaviorContext, reason: string): void;

@@ -53,6 +53,25 @@ export interface LandingVisualOptions {
      * 内容不变的场景维持原来更轻量的路径。
      */
     targetContent?: HTMLElement;
+    /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
+    landingMode?: 'default' | 'target';
+    /** target 模式的末段缩小淡出参数；默认沿用 landing 时长与缓动。 */
+    dismiss?: {
+        duration: number;
+        easing: string;
+        scale: number;
+    };
+    /** target 模式独立的物理速度；不读取全局 landing 的弹簧。 */
+    targetMotion?: {
+        position: {
+            stiffness: number;
+            damping: number;
+        };
+        scale: {
+            stiffness: number;
+            damping: number;
+        };
+    };
     /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
     readTarget?: () => LandingRect;
     motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
@@ -102,6 +121,8 @@ export declare function destroyAllDragProxies(): void;
 export declare function destroyDragProxiesByCardId(cardId: string): void;
 export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect): void;
 export declare function getFloatingProxy(el: HTMLElement): HTMLElement | undefined;
+/** 将抓取阶段的 proxy 转交给 Runtime 的统一 landing 生命周期，不移除节点。 */
+export declare function takeFloatingProxy(el: HTMLElement): HTMLElement | undefined;
 export declare function moveFloating(el: HTMLElement, x: number, y: number, offsetX: number, offsetY: number): void;
 export declare function clearFloatingStyle(el: HTMLElement): void;
 /**

@@ -19,21 +19,21 @@
     </div>
 
     <div class="breadcrumbs" data-file-surface="breadcrumbs">
-      <button v-for="crumb in breadcrumbs" :key="crumb.id" :data-file-breadcrumb-id="crumb.id" @click="openFolder(crumb.id)" :ref="el => bindBreadcrumbSurface(crumb.id, el as HTMLElement | null)">{{ crumb.label }}</button>
+      <button v-for="crumb in breadcrumbs" :key="crumb.id" :data-file-breadcrumb-id="crumb.id" @click="openFolder(crumb.id)" :ref="el => bindBreadcrumb(crumb.id, el as HTMLElement | null)">{{ crumb.label }}</button>
     </div>
 
     <div class="file-layout">
       <aside class="folder-sidebar">
         <h3>文件夹</h3>
-        <button v-for="folder in folders" :key="folder.id" :data-file-id="folder.id" :class="{ selected: folder.id === currentFolder }" :style="{ paddingLeft: `${8 + folderDepth(folder.id) * 16}px` }" @click="openFolder(folder.id)" :ref="el => bindFolderSurface(folder.id, el as HTMLElement | null)">
+        <button v-for="folder in folders" :key="folder.id" :data-file-id="folder.id" :class="{ selected: folder.id === currentFolder }" :style="{ paddingLeft: `${8 + folderDepth(folder.id) * 16}px` }" @click="openFolder(folder.id)" :ref="el => bindFolder(folder.id, el as HTMLElement | null)">
           <span>{{ folderDepth(folder.id) ? '└' : '▰' }}</span>{{ folder.name }}<small>{{ folderItemCount(folder.id) }}</small>
         </button>
       </aside>
 
-      <section class="file-surface" data-file-surface="browser" data-layout-surface :ref="el => browserSurface.elementRef.value = el as HTMLElement | null">
+      <section class="file-surface" data-file-surface="browser" data-layout-surface :ref="el => bindSurface(browserSurfaceId, el as HTMLElement | null)">
         <div class="surface-heading"><span>{{ currentFolderName }}</span><span>{{ visibleItems.length }} 个项目</span></div>
         <div class="file-items" :class="`is-${view}`">
-          <article v-for="item in visibleItems" :key="item.id" class="file-item" :class="{ folder: item.kind === 'folder' }" :data-file-id="item.id" :ref="el => bindItem(item.id, el as HTMLElement | null)" @click="item.kind === 'folder' && openFolder(item.id)">
+          <article v-for="item in visibleItems" :key="item.id" class="file-item" :class="{ folder: item.kind === 'folder' }" :data-file-id="item.id" :ref="el => bindItem(item, el as HTMLElement | null)" @click="item.kind === 'folder' && openFolder(item.id)">
             <div class="file-icon">{{ item.kind === 'folder' ? '▰' : fileIcon(item.name) }}</div>
             <div class="file-name">{{ item.name }}</div>
             <small>{{ item.kind === 'folder' ? `${folderItemCount(item.id)} 个项目` : item.size }}</small>
@@ -50,7 +50,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref, watch, watchEffect } from 'vue'
 import { runtime } from '../Runtime'
-import { useSurface } from '../vue/useSurface'
 
 type FileItem = { id: string; name: string; kind: 'file' | 'folder'; parentId: string; size: string; children: FileItem[] }
 
@@ -58,6 +57,8 @@ const props = defineProps<{ strategy: 'detach' | 'clone' }>()
 const strategy = ref(props.strategy)
 
 const rootId = 'root'
+const browserSurfaceId = 'file:surface:browser'
+const fileObjectTypes = ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone']
 const view = ref<'grid' | 'list'>('grid')
 const currentFolder = ref(rootId)
 const files = reactive<FileItem[]>([
@@ -106,37 +107,6 @@ const breadcrumbs = computed(() => {
   return result.concat(chain.map(folder => ({ id: folder.id, label: folder.name })))
 })
 
-const browserSurface = useSurface({ id: 'file:surface:browser', type: 'file-browser', accepts: ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone'] })
-const folderSurfaces = files.filter(item => item.kind === 'folder').map(folder => ({
-  id: folder.id,
-  surface: useSurface({ id: `file:surface:${folder.id}`, type: 'file-folder', accepts: ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone'] }),
-}))
-const breadcrumbSurfaces = [rootId, ...files.filter(item => item.kind === 'folder').map(folder => folder.id)].map(id => ({
-  id,
-  surface: useSurface({ id: `file:breadcrumb:${id}`, type: 'file-breadcrumb', accepts: ['file-item', 'folder-item'] }),
-}))
-const registeredIds: string[] = []
-runtime.registerObjectType('file-item', {
-  defaultVisualMode: 'detach',
-  landingMode: 'target',
-  motion: { enabled: true },
-  preserveMoveTarget: true,
-  resolveMoveHit: resolveFileFolderHit,
-  resolveMoveTarget: resolveFileLandingTarget,
-  resolveMoveLandingTarget: resolveFileLandingTarget,
-})
-runtime.registerObjectType('file-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
-runtime.registerObjectType('folder-item', {
-  defaultVisualMode: 'detach',
-  landingMode: 'target',
-  motion: { enabled: true },
-  preserveMoveTarget: true,
-  resolveMoveHit: resolveFileFolderHit,
-  resolveMoveTarget: resolveFileLandingTarget,
-  resolveMoveLandingTarget: resolveFileLandingTarget,
-})
-runtime.registerObjectType('folder-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
-
 function setStrategy(next: 'detach' | 'clone'): void {
   strategy.value = next
 }
@@ -144,20 +114,6 @@ function setStrategy(next: 'detach' | 'clone'): void {
 watch(() => props.strategy, next => {
   strategy.value = next
 })
-
-function bindItem(id: string, element: HTMLElement | null): void {
-  runtime.objects.setElement(id, element)
-}
-
-function bindFolderSurface(id: string, element: HTMLElement | null): void {
-  const entry = folderSurfaces.find(item => item.id === id)
-  if (entry) entry.surface.elementRef.value = element
-}
-
-function bindBreadcrumbSurface(id: string, element: HTMLElement | null): void {
-  const entry = breadcrumbSurfaces.find(item => item.id === id)
-  if (entry) entry.surface.elementRef.value = element
-}
 
 function folderDepth(id: string): number {
   let depth = 0
@@ -184,71 +140,6 @@ function fileIcon(name: string): string {
   return 'F'
 }
 
-function resolveFileFolderHit(point: { objectId: string; x: number; y: number }): { columnId: string; index: number } | null {
-  const breadcrumb = Array.from(document.querySelectorAll<HTMLElement>('[data-file-breadcrumb-id]')).find(element => {
-    const rect = element.getBoundingClientRect()
-    return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
-  })
-  const breadcrumbId = breadcrumb?.dataset.fileBreadcrumbId
-  if (breadcrumbId) return { columnId: `file:breadcrumb:${breadcrumbId}`, index: 0 }
-
-  const folder = Array.from(document.querySelectorAll<HTMLElement>('.file-item.folder[data-file-id]')).find(element => {
-    if (element.closest('[data-runtime-proxy="true"]')) return false
-    const rect = element.getBoundingClientRect()
-    return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
-  })
-  const folderId = folder?.dataset.fileId
-  if (!folderId || folderId === point.objectId) return null
-  return { columnId: `file:surface:${folderId}`, index: 0 }
-}
-
-function resolveFileLandingTarget(context: { objectId: string; destination: unknown }): HTMLElement | null {
-  const destination = typeof context.destination === 'object' && context.destination !== null
-    ? (context.destination as { columnId?: unknown; invalidReturn?: unknown }).columnId
-    : undefined
-  const invalidReturn = typeof context.destination === 'object' && context.destination !== null
-    && (context.destination as { invalidReturn?: unknown }).invalidReturn === true
-  if (typeof destination !== 'string') return null
-  // 空白区域没有业务命中时，detach 会把源 Surface 作为回位目标。
-  // 这里必须回到原文件节点，不能把整个文件面板当成一张“目标卡片”，
-  // 否则 landing 代理会沿着面板矩形飞回，产生整块面板移动的错觉。
-  const source = runtime.objects.get(context.objectId)?.element ?? null
-  const sameSurface = runtime.objects.get(context.objectId)?.surfaceId === destination
-    && Boolean(source?.isConnected)
-  if (invalidReturn || sameSurface) {
-    return source
-  }
-  // 跨目录时直接返回文件夹卡或面包屑作为视觉落点。Runtime 会把它视为
-  // 语义目标，不要求它属于文件移动后的 destination surface。
-  if (destination.startsWith('file:surface:folder:') || destination.startsWith('file:breadcrumb:')) {
-    const id = destination.startsWith('file:breadcrumb:')
-      ? destination.replace('file:breadcrumb:', '')
-      : destination.replace('file:surface:', '')
-    // 优先使用对象注册的真实节点。文件夹卡可能在 Vue 重排的一帧内暂时
-    // 不在 querySelector 结果中，但 Runtime 对象仍保留稳定的身份映射。
-    const registeredTarget = destination.startsWith('file:breadcrumb:')
-      ? null
-      : runtime.objects.get(id)?.element ?? null
-    const surfaceTarget = runtime.surfaces.get(destination)?.element ?? null
-    if (registeredTarget?.isConnected) {
-      return registeredTarget
-    }
-
-    // 不使用带冒号的 CSS selector，避免策略切换或浏览器转义差异让目标
-    // 解析失败；dataset 比较也能覆盖侧栏文件夹节点和内容区文件夹卡。
-    const target = destination.startsWith('file:breadcrumb:')
-      ? Array.from(document.querySelectorAll<HTMLElement>('[data-file-breadcrumb-id]'))
-        .find(element => element.dataset.fileBreadcrumbId === id) ?? null
-      : Array.from(document.querySelectorAll<HTMLElement>('[data-file-id]'))
-        .find(element => element.dataset.fileId === id && element.dataset.runtimeProxy !== 'true') ?? null
-    if (target?.isConnected) {
-      return target
-    }
-    return surfaceTarget
-  }
-  return runtime.surfaces.get(destination)?.element ?? null
-}
-
 function moveFile(objectId: string, targetSurfaceId: string): void {
   const item = files.find(entry => entry.id === objectId)
   if (!item) return
@@ -270,45 +161,136 @@ function moveFile(objectId: string, targetSurfaceId: string): void {
   item.parentId = targetFolder.id
 }
 
-const stopAction = runtime.onAction(action => {
-  if (action.type !== 'move' || (!action.objectId.startsWith('file:') && !action.objectId.startsWith('folder:'))) return
-  moveFile(action.objectId, action.toSurfaceId)
+runtime.registerObjectType('file-item', {
+  defaultVisualMode: 'detach',
+  landingMode: 'target',
+  motion: { enabled: true },
+  preserveMoveTarget: true,
 })
+runtime.registerObjectType('file-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
+runtime.registerObjectType('folder-item', {
+  defaultVisualMode: 'detach',
+  landingMode: 'target',
+  motion: { enabled: true },
+  preserveMoveTarget: true,
+})
+runtime.registerObjectType('folder-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
+
+const objectGenerations = new Map<string, number>()
+const objectElements = new Map<string, HTMLElement>()
+const surfaceElements = new Map<string, HTMLElement>()
+const surfaceIds = new Set<string>()
+const targetIds = new Map<string, string>()
+
+function bindObject(id: string, element: HTMLElement | null): void {
+  const current = runtime.objects.get(id)
+  if (!current) return
+  if (element === null) {
+    const previous = objectElements.get(id)
+    if (previous && current.element !== previous) return
+    objectElements.delete(id)
+  } else {
+    objectElements.set(id, element)
+  }
+  runtime.objects.setElement(id, element)
+}
+
+function bindSurface(id: string, element: HTMLElement | null): void {
+  if (element) surfaceElements.set(id, element)
+  else surfaceElements.delete(id)
+  if (runtime.surfaces.has(id)) runtime.surfaces.setElement(id, element)
+}
+
+function bindTarget(id: string, surfaceId: string, element: HTMLElement | null, priority: number): void {
+  const targetId = targetIds.get(id) ?? `file-target:${id}`
+  targetIds.set(id, targetId)
+  if (!element) {
+    runtime.targets.unregister(targetId)
+    targetIds.delete(id)
+    return
+  }
+  runtime.targets.register({ id: targetId, surfaceId, element, accepts: fileObjectTypes, priority })
+}
 
 watchEffect(() => {
+  const nextObjectIds = new Set<string>()
   for (const item of files) {
     const type = item.kind === 'folder'
       ? (strategy.value === 'clone' ? 'folder-item-clone' : 'folder-item')
       : (strategy.value === 'clone' ? 'file-item-clone' : 'file-item')
-    if (!runtime.objects.has(item.id)) {
-      runtime.objects.register({
-        id: item.id,
-        type,
-        visual: type,
-        visualMode: strategy.value,
-        surfaceId: item.parentId === rootId ? 'file:surface:browser' : `file:surface:${item.parentId}`,
-        element: null,
-        abilities: ['move', 'sort'],
-      })
-      registeredIds.push(item.id)
-    } else {
-      runtime.objects.register({
-        ...runtime.objects.get(item.id)!,
-        type,
-        visual: type,
-        visualMode: strategy.value,
-      })
-      runtime.objects.setSurface(item.id, item.parentId === rootId ? 'file:surface:browser' : `file:surface:${item.parentId}`)
+    const object = {
+      id: item.id,
+      type,
+      visual: type,
+      visualMode: strategy.value,
+      surfaceId: item.parentId === rootId ? browserSurfaceId : `file:surface:${item.parentId}`,
+      element: objectElements.get(item.id) ?? null,
+      abilities: ['move', 'sort'],
+      target: item.kind === 'folder'
+        ? { surfaceId: `file:surface:${item.id}`, accepts: fileObjectTypes, priority: 2 }
+        : undefined,
     }
+    nextObjectIds.add(item.id)
+    const current = runtime.objects.get(item.id)
+    const ownedGeneration = objectGenerations.get(item.id)
+    const changed = !current || ownedGeneration === undefined
+      || current.generation !== ownedGeneration || current.type !== object.type
+      || current.surfaceId !== object.surfaceId || current.visualMode !== object.visualMode
+    if (changed) objectGenerations.set(item.id, runtime.objects.register(object))
+  }
+  for (const [id, generation] of objectGenerations) {
+    if (nextObjectIds.has(id)) continue
+    if (runtime.objects.get(id)?.generation === generation) runtime.objects.unregister(id)
+    objectGenerations.delete(id)
+    objectElements.delete(id)
+  }
+
+  const nextSurfaceIds = new Set<string>([browserSurfaceId])
+  for (const folder of folders.value) nextSurfaceIds.add(`file:surface:${folder.id}`)
+  for (const id of [rootId, ...folders.value.map(folder => folder.id)]) nextSurfaceIds.add(`file:breadcrumb:${id}`)
+  for (const id of nextSurfaceIds) {
+    if (!runtime.surfaces.has(id)) runtime.surfaces.register({
+      id,
+      type: id === browserSurfaceId ? 'file-browser' : id.startsWith('file:breadcrumb:') ? 'file-breadcrumb' : 'file-folder',
+      element: surfaceElements.get(id) ?? null,
+      accepts: fileObjectTypes,
+    })
+    surfaceIds.add(id)
+  }
+  for (const id of surfaceIds) {
+    if (nextSurfaceIds.has(id)) continue
+    runtime.surfaces.unregister(id)
+    surfaceIds.delete(id)
   }
 })
 
+const stopAction = runtime.onAction(action => {
+  if (action.type === 'move') moveFile(action.objectId, action.toSurfaceId)
+})
+
+function bindItem(item: FileItem, element: HTMLElement | null): void {
+  bindObject(item.id, element)
+}
+
+function bindFolder(id: string, element: HTMLElement | null): void {
+  const surfaceId = `file:surface:${id}`
+  bindSurface(surfaceId, element)
+  bindTarget(`sidebar:${id}`, surfaceId, element, 1)
+}
+
+function bindBreadcrumb(id: string, element: HTMLElement | null): void {
+  const surfaceId = `file:breadcrumb:${id}`
+  bindSurface(surfaceId, element)
+  bindTarget(`breadcrumb:${id}`, surfaceId, element, 1)
+}
+
 onUnmounted(() => {
   stopAction()
-  for (const id of registeredIds) runtime.objects.unregister(id)
-  runtime.surfaces.unregister('file:surface:browser')
-  for (const folder of folders.value) runtime.surfaces.unregister(`file:surface:${folder.id}`)
-  for (const breadcrumb of breadcrumbSurfaces) runtime.surfaces.unregister(`file:breadcrumb:${breadcrumb.id}`)
+  for (const [id, generation] of objectGenerations) {
+    if (runtime.objects.get(id)?.generation === generation) runtime.objects.unregister(id)
+  }
+  for (const id of surfaceIds) runtime.surfaces.unregister(id)
+  for (const targetId of targetIds.values()) runtime.targets.unregister(targetId)
 })
 </script>
 

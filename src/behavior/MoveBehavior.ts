@@ -40,19 +40,12 @@ export interface MoveSurfaceLifecycle {
 export interface MoveBehaviorDriver {
   prepare?(context: BehaviorContext, request: StartRequest): void | Promise<void>
   update?(context: BehaviorContext, input: RuntimeInput): void
-  /** @deprecated 使用 resolveDestination + commit 替代。 */
-  release?(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void>
   /**
    * 判定落点是否有效。纯函数，不修改 DOM/业务状态。
    * 返回 accepted=false 时 session 被 cancel。
-   * 未实现时 fallback 到旧 release()。
    */
   resolveDestination?(context: BehaviorContext, input: RuntimeInput): MoveReleaseResult | void | Promise<MoveReleaseResult | void>
-  /**
-   * 提交业务变更（emitAction + FLIP + 清理跟手样式）。
-   * 在 resolveDestination 返回 accepted=true 后调用。
-   * 未实现时 fallback 到旧 release()。
-   */
+  /** 提交业务变更（emitAction + FLIP + 清理跟手样式）。 */
   commit?(context: BehaviorContext, destination: unknown): void | Promise<void>
   cancel?(context: BehaviorContext, reason: string): void
   interrupt?(context: BehaviorContext, reason: string): void
@@ -213,26 +206,7 @@ export class MoveBehavior implements Behavior {
     const moveContext = this.getContext(context.session.id)
     moveContext.transaction.setPhase('release')
     const driver = this.driverFor(context.session.id)
-    // 优先使用新 resolveDestination 流程
-    if (driver.resolveDestination) {
-      const result = driver.resolveDestination(context, input)
-      if (isPromiseLike<MoveReleaseResult | void>(result)) {
-        return result.then((resolved: MoveReleaseResult | void) => {
-          if (resolved && resolved.accepted && resolved.destination !== undefined) {
-            moveContext.destination = resolved.destination
-            moveContext.transaction.destination = resolved.destination
-          }
-          return resolved
-        })
-      }
-      if (result && result.accepted && result.destination !== undefined) {
-        moveContext.destination = result.destination
-        moveContext.transaction.destination = result.destination
-      }
-      return result
-    }
-    // fallback: 旧 release
-    const result = driver.release?.(context, input)
+    const result = driver.resolveDestination?.(context, input)
     if (isPromiseLike<MoveReleaseResult | void>(result)) {
       return result.then((releaseResult: MoveReleaseResult | void) => {
         if (releaseResult && releaseResult.accepted && releaseResult.destination !== undefined) {

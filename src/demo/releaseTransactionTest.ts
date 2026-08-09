@@ -9,7 +9,7 @@
 
 import { MoveBehavior, type MoveBehaviorDriver, type MoveVisualLifecycle } from '../behavior/MoveBehavior'
 import type { BehaviorContext } from '../behavior/Behavior'
-import type { RuntimeInput, StartRequest } from '../core/Interaction'
+import type { RuntimeInput } from '../core/Interaction'
 
 interface TestCase {
   name: string
@@ -31,14 +31,6 @@ function createMockContext(): BehaviorContext {
     emitAction: () => undefined,
     visual: undefined,
     hit: null,
-  }
-}
-
-function createMockRequest(): StartRequest {
-  return {
-    type: 'move',
-    objectId: 'test-card',
-    input: { kind: 'pointerdown', event: new PointerEvent('pointerdown') },
   }
 }
 
@@ -180,29 +172,6 @@ export async function runReleaseTransactionTests(): Promise<{ passed: number; fa
       input: { kind: 'pointerup', event: new PointerEvent('pointerup') },
       expectedAccepted: true,
       expectedDestination: { columnId: 'todo', index: 1 },
-    },
-    // 5. 旧 release fallback：没有 resolveDestination 时走旧 release
-    {
-      name: 'legacy release fallback',
-      driver: {
-        release: () => ({ accepted: true, destination: { columnId: 'done', index: 3 } }),
-      },
-      lifecycle: {
-        landing: () => ({ completed: true }),
-        reveal: () => undefined,
-      },
-      input: { kind: 'pointerup', event: new PointerEvent('pointerup') },
-      expectedAccepted: true,
-      expectedDestination: { columnId: 'done', index: 3 },
-    },
-    // 6. 旧 release fallback：无效落点
-    {
-      name: 'legacy release rejected',
-      driver: {
-        release: () => ({ accepted: false }),
-      },
-      input: { kind: 'pointerup', event: new PointerEvent('pointerup') },
-      expectedAccepted: false,
     },
   ]
 

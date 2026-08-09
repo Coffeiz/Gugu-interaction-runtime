@@ -11,6 +11,10 @@ export interface VisualLifecycleContext {
     /** 抓取开始时冻结的内容快照；仅供视觉代理使用，不承载业务状态。 */
     readonly beforeContent?: HTMLElement;
     readonly targetElement?: HTMLElement;
+    /** 目标节点作为语义落点时保留其可见性，避免与源代理发生双重交接。 */
+    readonly preserveTarget?: boolean;
+    /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
+    readonly landingMode?: 'default' | 'target';
     readonly sourceRect?: DOMRect;
     readonly visualSnapshot?: VisualSnapshot;
     readonly targetSnapshot?: VisualSnapshot;
@@ -69,6 +73,7 @@ export declare class DefaultVisualAdapter implements VisualAdapter {
         objectId: string;
         element: HTMLElement;
         event: PointerEvent;
+        mode?: string;
         fromRect?: DOMRect;
         returnRect?: DOMRect;
     }): any;

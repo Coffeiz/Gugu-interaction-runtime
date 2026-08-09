@@ -1,7 +1,8 @@
-import { Owner, Lease } from './owner/Owner';
+import { Lease } from './owner/Owner';
 import { Session } from './session/Session';
 import { ObjectStore } from './object/ObjectStore';
 import { SurfaceStore } from './surface/SurfaceStore';
+import { TargetStore } from './target/TargetStore';
 import { RuntimeInput, SessionHandle, StartRequest } from './core/Interaction';
 import { Behavior } from './behavior/Behavior';
 import { BehaviorStore } from './behavior/BehaviorStore';
@@ -23,6 +24,9 @@ export type RuntimeEvent = {
     id: string;
 } | {
     type: 'surface-added' | 'surface-removed' | 'surface-changed';
+    id: string;
+} | {
+    type: 'target-added' | 'target-removed' | 'target-changed';
     id: string;
 } | {
     type: 'ownership-changed';
@@ -77,17 +81,30 @@ export interface ObjectTypeRegistration {
         enabled?: boolean;
         profile?: MotionProfile;
     };
+    /** landing 的终态表现；default 保持看板行为，target 到达语义目标后缩小淡出。 */
+    landingMode?: 'default' | 'target';
     /** 抓取对齐方式；不传就是纯几何中心对齐（等价于 { align: 'center' }）。 */
     grabAlign?: GrabAlignConfig;
     /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
     pointerInput?: PointerSessionInputOptions;
-    /** 兼容旧 demo 的手动启动入口。 */
-    start?(context: {
+    /** 可选业务目标解析；返回空时继续使用 Runtime 的注册 Surface 命中。 */
+    resolveMoveHit?(context: {
         objectId: string;
-        element: HTMLElement;
-        event: PointerEvent;
-        mode: string;
-    }): void;
+        x: number;
+        y: number;
+    }): HitResult | null;
+    /** 可选落地目标解析，用于目标不是被移动对象自身的场景。 */
+    resolveMoveTarget?(context: {
+        objectId: string;
+        destination: unknown;
+    }): HTMLElement | null;
+    /** 可选视觉落点解析；目标可以是文件夹卡、面包屑等语义接收节点。 */
+    resolveMoveLandingTarget?(context: {
+        objectId: string;
+        destination: unknown;
+    }): HTMLElement | null;
+    /** 落地代理飞向业务目标时是否保留目标节点可见。 */
+    preserveMoveTarget?: boolean;
     /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
     createMove?(context: {
         objectId: string;
@@ -133,9 +150,10 @@ export interface RegrabContext {
     interrupt(reason?: string): void;
 }
 export declare class Runtime {
-    readonly owner: Owner;
+    private readonly owner;
     readonly objects: ObjectStore;
     readonly surfaces: SurfaceStore;
+    readonly targets: TargetStore;
     readonly behaviors: BehaviorStore;
     readonly registry: RuntimeRegistry;
     /** 兼容现有调用方；新的注册逻辑统一落在 registry。 */
@@ -159,8 +177,12 @@ export declare class Runtime {
     constructor();
     registerVisualAdapter(type: string, adapter: VisualAdapter): void;
     registerVisualStrategy(type: string, strategy: MoveVisualStrategy): void;
+    /** 查询某个 Object/Surface 当前是否由 Runtime 接管视觉状态。 */
+    isControlled(id: string): boolean;
+    /** 订阅 Runtime 接管权变化，供框架层刷新 DOM 编排状态。 */
+    onOwnershipChange(listener: (id: string) => void): () => void;
     registerObjectType(type: string, registration: ObjectTypeRegistration): void;
-    registerSurface(surface: import('./surface/Surface').Surface): void;
+    private syncObjectTarget;
     configureMotion(config: {
         profile?: import('./dom/MotionProfile').MotionProfile;
         controller?: MotionControllerConfig;
@@ -248,6 +270,7 @@ export declare class Runtime {
     /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */
     cancelLayoutAnimations(root: ParentNode): void;
     resolveMoveTarget(sessionId: string, destination: unknown, fallback?: () => HTMLElement | null): HTMLElement | null;
+    resolveMoveLandingTarget(sessionId: string, destination: unknown, fallback?: () => HTMLElement | null): HTMLElement | null;
     /**
      * 统一取得 landing 交接目标：先尝试当前帧的同步目标，再等待业务 Action
      * 触发的 DOM 重渲染。视觉 adapter 不需要再组合这两个阶段，也不会各自

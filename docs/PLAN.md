@@ -1,7 +1,7 @@
 # Interaction Runtime · 分层结构与执行计划
 
 > 当前稳定版本：1.0.2。1.0.1 已以 Gugu-web 的真实看板作为回归场景，
-> 验证“只注册 Object、Surface 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
+> 验证“只注册 Object、Surface、Target 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
 > 直接编译本仓库 `src/`，不经 npm 包或构建产物。
 
 设计动机见 [DESIGN.md](./DESIGN.md)。本文件是具体的模块划分、目录结构和
@@ -125,11 +125,6 @@ src/
 │   └── Action.ts
 ├── cleanup/
 │   └── Cleanup.ts
-└── vue/
-    ├── useObject.ts
-    ├── useSurface.ts
-    ├── useRuntimeTransition.ts   # { disabled, transitionKey }，喂给 :css
-    └── useRuntime.ts
 ```
 
 ## 五、执行计划
@@ -157,8 +152,8 @@ file/canvas/drawer/multi 接入均不属于当前冻结版本。
 - [x] `Cleanup`
 - [x] demo 页面：三列看板（两个普通列 + 一个按分组展示的完成列），验证
       跨列拖拽触发兄弟重排 + 列表自身高度变化
-- [x] `useRuntimeTransition` 的最小实现，demo 里用 `<TransitionGroup
-      :css="!controlled">` 验证"总闸"确实能挡住 Vue 的 Transition
+- [x] Demo 通过 `runtime.isControlled()` 和 `runtime.onOwnershipChange()` 控制
+      `<TransitionGroup :css>`；不再引入 Vue 专用 transition composable
 
 验收标准（均已在浏览器 + 程序化 pointer 事件下验证，见 2026-07-19 两次提交）：
 - [x] 连续拖拽、中途中断（regrab）、快速连续操作，不出现"两套动画都在跑"
@@ -234,17 +229,15 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
       clone 与 detach 两条 demo 入口都已接入无效落点取消
 - [x] `ObjectStore`/`SurfaceStore` 最小实现 + `abilities` 声明，替代现在
       `session.takeObject(cardId)` 直接吃裸字符串、没有注册表的做法。
-      `useObject`/`useSurface` composable 也补上了；demo 里列（Surface）
-      用 `useSurface` 正常接了，卡片（Object）因为没有各自独立的组件，
-      暂时用 `ObjectStore` 原始 API + 一个 `watchEffect` 同步，等有了
-      per-card 组件再切换成 `useObject`。`hasAbility` 已经接进两条拖拽
-      入口，demo 里"补充测试用例"这张卡故意不给 `move` 能力做了验证。
+      Demo 已统一使用 Object/Surface Core API；对象 element、surface 和 generation
+      生命周期由业务组件直接接入，不再维护 `useObject`/`useSurface` 框架适配层。
+      `hasAbility` 已经接进两条拖拽入口，demo 里"补充测试用例"这张卡故意不给
+      `move` 能力做了验证。
 - [x] `hitTest` 从 `kanbanDrag.ts`/`kanbanDragDetach.ts` 里的两份重复代码
       抽成公共的 `Hit` 模块；clone 与 detach 现在共享同一套命中语义
 
-这几项做完，[INTEGRATION.md](./INTEGRATION.md) 里"未来目标 API"那节列的
-`useObject`/`useSurface`/`runtime.start()`/`runtime.onAction()` 才有地基
-可以立。`Motion`（速度延续、物理运动、飞行中重新瞄准目标）暂不在这批里，
+这几项做完，[INTEGRATION.md](./INTEGRATION.md) 里的 Core API 契约已经成立，
+不再保留 `useObject`/`useSurface` 作为接入入口。`Motion`（速度延续、物理运动、飞行中重新瞄准目标）暂不在这批里，
 单独排期——现在的落地动画是借用 `Layout` 的 `playFlip` 顶替的，见
 [VISUAL_STRATEGIES.md](./VISUAL_STRATEGIES.md)。
 
@@ -519,8 +512,8 @@ grabbing
 目标调用方只有三类代码：
 
 ```text
-对象组件：useObject({ id, type, surface, abilities })
-容器组件：useSurface({ id, type, accepts })
+对象组件：runtime.objects.register({ id, type, surfaceId, element, abilities })
+容器组件：runtime.surfaces.register({ id, type, element, accepts })
 页面 Store：runtime.onAction(action => store.apply(action))
 ```
 
@@ -653,40 +646,67 @@ Runtime 私有接口。当前 Demo 已具备多级目录、面包屑、网格/�
 Action 到 Store/API 的提交；Runtime 负责对象/Surface 注册、目标命中、landing、
 兄弟 FLIP、detach/clone 生命周期和 DOM ref 的清理。
 
-目标业务侧形态：
+目标业务侧形态（Core API）：
 
 ```ts
-const fileInteraction = useHierarchicalCollectionRuntime({
-  items,
-  currentContainerId,
-  getParentId: item => item.parentId,
-  isContainer: item => item.kind === 'folder',
-  onMove: ({ objectId, containerId, index }) => fileStore.move(objectId, containerId, index),
+runtime.objects.register({
+  id: item.id,
+  type: item.kind === 'folder' ? 'folder-item' : 'file-item',
+  surfaceId: surfaceIdFor(item),
+  element,
+  abilities: ['move'],
+  target: item.kind === 'folder' ? {
+    surfaceId: `file:surface:${item.id}`,
+    accepts: ['file-item', 'folder-item'],
+  } : undefined,
+})
+
+runtime.onAction(action => {
+  if (action.type === 'move') fileStore.move(action.objectId, action.toSurfaceId, action.toIndex)
 })
 ```
 
-模板只绑定 Runtime 已归一化的 ref：
+无拖动身份的面包屑单独注册 Target；Vue 和 React 都只需把自己的 DOM 元素绑定到同一
+Core API：
 
-```vue
-<FileCard :ref="el => fileInteraction.bindObject(item.id, el)" />
-<FolderTarget :ref="el => fileInteraction.bindContainer(folder.id, el)" />
-<Breadcrumb :ref="el => fileInteraction.bindBreadcrumb(folder.id, el)" />
+```ts
+runtime.targets.register({
+  id: `breadcrumb:${folder.id}`,
+  surfaceId: `file:surface:${folder.id}`,
+  element: breadcrumbElement,
+  accepts: ['file-item', 'folder-item'],
+})
 ```
 
-这里的 `useHierarchicalCollectionRuntime()` 是阶段 2 的目标 API，名称和参数在实现时
-可按现有 Runtime 命名收敛；其边界固定如下：
+Core API 直接覆盖 Vue、React 和其他框架；其边界固定如下：
 
 - Runtime 不读取或修改文件业务数据，不调用文件 API，也不处理权限、回收站或 rollback。
 - Runtime 可接受任意层级对象/容器，文件、项目文件和未来素材库共用同一套绑定。
 - 业务侧只通过 `onMove` 接收标准 MoveAction，并自行决定 optimistic update、持久化和失败恢复。
 - DOM 目标注册及语义 landing 的定位属于 Runtime，不继续散落在页面的 resolver 中。
 
+当前进度：看板和文件 Demo 都直接使用 Core API 注册 Object/Surface/Target，并通过 `runtime.onAction()`
+提交移动；Demo 仅保留 mock 文件树、目录导航、循环拦截与内存 `moveFile()`。集合专用
+绑定层已删除，下一步是用同一契约验证 Gugu-web 文件页。
+
+正式接入契约是 `runtime.objects.register()`、`runtime.surfaces.register()`、
+`runtime.targets.register()` 和 `runtime.onAction()`；Vue、React 共享这套 Core API。
+文件夹卡可通过 Object 的 `target` 同时声明 Object/Target，面包屑使用
+`runtime.targets.register()`。`runtime.registerObjectType()`
+只注册类型级视觉与行为策略，不代替具体 Object 注册。
+
+看板和文件 Demo 均直接使用上述 Core API，不再依赖 Surface/Target 的 Runtime 便捷包装；
+Runtime 包不再发布 `useObject.ts`、`useSurface.ts` 和 `useRuntimeTransition.ts`。
+
 收敛按四步推进：
 
 1. 提炼通用层级容器目标注册，收走文件页的命中与 landing target resolver。
-2. 提炼 Vue 绑定层，收走 `watchEffect` 中的 Object/Surface 同步和 DOM ref 卸载保护。
-3. 用标准 `onMove` 回调替换 Demo 的直接订阅；Demo 仍用内存 Store，Gugu-web 接真实 Store/API。
-4. 先迁移“文件卡 → 普通文件夹”一条真实链路，双侧验证后再迁移文件夹、面包屑、多选和回收站。
+2. [x] 增加 `TargetStore`；Object 可通过嵌套 `target` 自动登记语义落点，独立
+   面包屑继续使用 `runtime.targets.register()`。
+3. [x] 将 Core API 作为 Vue/React 共用唯一契约；删除 `useObject`、`useSurface` 和
+   `useRuntimeTransition`，不新增框架专用注册语义。
+4. 用标准 `onMove` 回调替换 Demo 的直接订阅；Demo 仍用内存 Store，Gugu-web 接真实 Store/API。
+5. 先迁移“文件卡 → 普通文件夹”一条真实链路，双侧验证后再迁移文件夹、面包屑、多选和回收站。
 
 在 1、2 步没有验证出可复用边界之前，Gugu-web 继续把临时代码放在
 `frontend/src/views/Files/runtime/`，不将任何文件专属逻辑硬塞进 Runtime Core。
@@ -716,8 +736,8 @@ Gugu-web/frontend/src/views/Files/runtime/
 过渡 adapter 只能使用以下公共能力：
 
 - `registerObjectType()`。
-- `useObject()`。
-- `useSurface()`。
+- `runtime.objects.register()` / `setElement()` / `setSurface()`。
+- `runtime.surfaces.register()` / `setElement()`。
 - `runtime.onAction()`。
 - 现有默认 HitResolver、detach、landing、FLIP 和清理生命周期。
 
@@ -743,7 +763,7 @@ project-files:19:file:123
 
 ##### 2-2.4：Runtime 侧配合清单
 
-- [ ] 确认 `useObject()` 可以稳定绑定网格卡片、列表行和项目文件面板对象。
+- [x] 确认 Core Object API 可以稳定绑定网格卡片、列表行和项目文件面板对象。
 - [ ] 确认嵌套文件夹 Surface 与面包屑 Surface 的命中优先级。
 - [ ] 确认同一对象在不同 scope 下可以并存，不发生 ObjectStore 冲突。
 - [ ] 确认单对象移动只产生一次 `MoveAction`、一次 landing 和一次 dispose。

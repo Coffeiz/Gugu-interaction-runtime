@@ -3,6 +3,8 @@ import type { Lease } from './owner/Owner'
 import { Session } from './session/Session'
 import { ObjectStore } from './object/ObjectStore'
 import { SurfaceStore } from './surface/SurfaceStore'
+import { TargetStore } from './target/TargetStore'
+import type { TargetItem } from './target/Target'
 import { Emitter } from './core/Emitter'
 import type { RuntimeInput, SessionHandle, StartRequest } from './core/Interaction'
 import type { Behavior, BehaviorContext } from './behavior/Behavior'
@@ -44,6 +46,7 @@ import { createAutoScroller, type AutoScrollController, type AutoScrollOptions }
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
   | { type: 'surface-added' | 'surface-removed' | 'surface-changed'; id: string }
+  | { type: 'target-added' | 'target-removed' | 'target-changed'; id: string }
   | { type: 'ownership-changed'; id: string }
 
 export type RuntimeLandingTargetOptions = Omit<
@@ -113,8 +116,6 @@ export interface ObjectTypeRegistration {
   resolveMoveLandingTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
   /** 落地代理飞向业务目标时是否保留目标节点可见。 */
   preserveMoveTarget?: boolean
-  /** 兼容旧 demo 的手动启动入口。 */
-  start?(context: { objectId: string; element: HTMLElement; event: PointerEvent; mode: string }): void
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
   createMove?(context: {
     objectId: string
@@ -164,9 +165,10 @@ export interface RegrabContext {
 }
 
 export class Runtime {
-  readonly owner = new Owner()
+  private readonly owner = new Owner()
   readonly objects = new ObjectStore()
   readonly surfaces = new SurfaceStore()
+  readonly targets = new TargetStore()
   readonly behaviors = new BehaviorStore()
   readonly registry = new RuntimeRegistry()
   /** 兼容现有调用方；新的注册逻辑统一落在 registry。 */
@@ -242,12 +244,15 @@ setMotionProfiles(this.registry.motionProfile)
       this.events.emit(event)
       if (event.type === 'object-added' || event.type === 'object-changed') {
         this.syncObjectPointerBinding(event.id)
+        this.syncObjectTarget(event.id)
       }
       if (event.type === 'object-removed') {
         this.inputCoordinator.remove(event.id)
+        this.targets.unregister(`object-target:${event.id}`)
       }
     })
     this.surfaces.subscribe(event => this.events.emit(event))
+    this.targets.subscribe(event => this.events.emit(event))
     this.owner.subscribe(id => this.events.emit({ type: 'ownership-changed', id }))
   }
 
@@ -259,6 +264,16 @@ setMotionProfiles(this.registry.motionProfile)
     this.registry.registerVisualStrategy(type, strategy)
   }
 
+  /** 查询某个 Object/Surface 当前是否由 Runtime 接管视觉状态。 */
+  isControlled(id: string): boolean {
+    return this.owner.isControlled(id)
+  }
+
+  /** 订阅 Runtime 接管权变化，供框架层刷新 DOM 编排状态。 */
+  onOwnershipChange(listener: (id: string) => void): () => void {
+    return this.owner.subscribe(listener)
+  }
+
   registerObjectType(type: string, registration: ObjectTypeRegistration): void {
     this.registry.registerObjectType(type, registration)
     for (const object of this.objects.values()) {
@@ -266,8 +281,18 @@ setMotionProfiles(this.registry.motionProfile)
     }
   }
 
-  registerSurface(surface: import('./surface/Surface').Surface): void {
-    this.surfaces.register(surface)
+  private syncObjectTarget(objectId: string): void {
+    const object = this.objects.get(objectId)
+    const targetId = `object-target:${objectId}`
+    if (!object?.target) {
+      this.targets.unregister(targetId)
+      return
+    }
+    this.targets.register({
+      ...object.target,
+      id: targetId,
+      element: object.target.element ?? object.element,
+    })
   }
 
   configureMotion(config: {
@@ -329,8 +354,6 @@ setMotionProfiles(this.registry.motionProfile)
     if (createMove) {
       const move = createMove(context)
       if (!move.driver && !move.lifecycle) {
-        // createMove 返回空对象（无能力 / 非 detach 模式），fallback 到 start
-        registration.start?.(context)
         return true
       }
       this.orchestrateMoveSession(
@@ -563,7 +586,7 @@ setMotionProfiles(this.registry.motionProfile)
 
   /** 默认命中由已注册 Object/Surface 推导；特殊几何才需 setHitResolver()。 */
   createRegisteredHitResolver(objectId: string): HitResolver<Surface, HTMLElement> {
-    return createRegisteredHitResolver(this.objects, this.surfaces, objectId)
+    return createRegisteredHitResolver(this.objects, this.surfaces, this.targets, objectId)
   }
 
   /** 将自定义或注册表默认命中统一归一成业务无关的 Surface id 与插入索引。 */
@@ -776,7 +799,8 @@ setMotionProfiles(this.registry.motionProfile)
     const resolveResult = context.visual?.resolveTarget?.(session.objectId, destination)
     const fallbackResult = fallback?.()
     const registeredElement = this.objects.get(session.objectId)?.element
-    const target = customTarget ?? resolveResult ?? fallbackResult ?? registeredElement ?? null
+    const semanticTarget = this.targets.findForSurface(this.getDestinationSurfaceId(destination) ?? '', object?.type)
+    const target = customTarget ?? resolveResult ?? fallbackResult ?? semanticTarget?.element ?? registeredElement ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
     return target
@@ -793,7 +817,8 @@ setMotionProfiles(this.registry.motionProfile)
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
     const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
     const fallbackTarget = fallback?.() ?? null
-    const target = customTarget ?? fallbackTarget ?? this.resolveMoveTarget(sessionId, destination)
+    const semanticTarget = this.targets.findForSurface(this.getDestinationSurfaceId(destination) ?? '', object?.type)
+    const target = customTarget ?? fallbackTarget ?? semanticTarget?.element ?? this.resolveMoveTarget(sessionId, destination)
     if (!target || !target.isConnected) return null
     return target
   }

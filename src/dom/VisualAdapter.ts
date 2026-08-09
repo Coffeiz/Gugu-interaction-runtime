@@ -85,7 +85,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
   }
 
   resolveSource(objectId: string): HTMLElement | null {
-    // 默认策略只认 ObjectStore 中由 useObject()/objects.setElement() 注册的真实节点。
+    // 默认策略只认 ObjectStore 中由 objects.register()/setElement() 注册的真实节点。
     // data-card 是早期看板 demo 的调试标记，不能成为业务接入的生命周期依赖。
     return this.runtime?.objects.get(objectId)?.element ?? null
   }

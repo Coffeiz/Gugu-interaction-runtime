@@ -10,7 +10,7 @@
 
 项目页已经接入 Runtime 的部分包括：
 
-- `useObject` / `useSurface`
+- `runtime.objects.register` / `runtime.surfaces.register`
 - object ownership
 - Action 订阅
 - group height transition
@@ -19,7 +19,7 @@
 - 全局 motion 配置
 - `project-card` 对象类型注册
 
-截至 `97de590`，项目页入口已经由 `useObject` 自动绑定到 Runtime；业务组件不再直接启动项目卡的旧拖拽入口。
+截至 `97de590`，项目页入口已经由 Runtime Core API 绑定到 Runtime；业务组件不再直接启动项目卡的旧拖拽入口。
 
 历史版本的拖拽入口曾经是：
 
@@ -136,7 +136,7 @@ resolveDestination
 
 ### Phase 1：统一项目卡入口（已完成）
 
-- `ProjectCard` 通过 `useObject` 注册并由 Runtime 自动绑定 element。
+- `ProjectCard` 通过 `runtime.objects.register` 注册，并在 DOM 生命周期中显式同步 element/surface。
 - `project-card` 已注册默认 detach 视觉模式与抓取对齐配置。
 - Action、Surface、Object ownership 和布局编排均通过 Runtime API 接入。
 - 项目页不再直接调用 `startPhysicsDrag` / `startThresholdDrag`。

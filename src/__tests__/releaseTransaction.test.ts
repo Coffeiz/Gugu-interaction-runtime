@@ -142,56 +142,6 @@ describe('release transaction', () => {
     expect(reveal).toHaveBeenCalledOnce()
   })
 
-  it('legacy release fallback: accepted', async () => {
-    const behavior = new MoveBehavior()
-    const sessionId = 'test-session'
-    const release = vi.fn().mockResolvedValue({ accepted: true, destination: { columnId: 'done', index: 3 } })
-
-    behavior.bindSession(sessionId, { release })
-
-    const context = createMockContext()
-    const result = await behavior.release(context, { kind: 'pointerup', event: new PointerEvent('pointerup') })
-    const releaseResult = result as { accepted: boolean; destination: unknown }
-
-    expect(releaseResult.accepted).toBe(true)
-    expect(releaseResult.destination).toEqual({ columnId: 'done', index: 3 })
-    expect(release).toHaveBeenCalledOnce()
-  })
-
-  it('legacy release fallback: rejected', async () => {
-    const behavior = new MoveBehavior()
-    const sessionId = 'test-session'
-    const release = vi.fn().mockResolvedValue({ accepted: false })
-
-    behavior.bindSession(sessionId, { release })
-
-    const context = createMockContext()
-    const result = await behavior.release(context, { kind: 'pointerup', event: new PointerEvent('pointerup') })
-    const releaseResult = result as { accepted: boolean }
-
-    expect(releaseResult.accepted).toBe(false)
-    expect(release).toHaveBeenCalledOnce()
-  })
-
-  it('resolveDestination takes priority over legacy release', async () => {
-    const behavior = new MoveBehavior()
-    const sessionId = 'test-session'
-    const resolveDestination = vi.fn().mockResolvedValue({ accepted: true, destination: { columnId: 'done', index: 0 } })
-    const release = vi.fn()
-
-    // 同时提供 resolveDestination 和 release，应优先走 resolveDestination
-    behavior.bindSession(sessionId, { resolveDestination, release })
-
-    const context = createMockContext()
-    const result = await behavior.release(context, { kind: 'pointerup', event: new PointerEvent('pointerup') })
-    const releaseResult = result as { accepted: boolean; destination: unknown }
-
-    expect(releaseResult.accepted).toBe(true)
-    expect(releaseResult.destination).toEqual({ columnId: 'done', index: 0 })
-    expect(resolveDestination).toHaveBeenCalledOnce()
-    expect(release).not.toHaveBeenCalled()
-  })
-
   it('commit stores destination in MoveContext', async () => {
     const behavior = new MoveBehavior()
     const sessionId = 'test-session'

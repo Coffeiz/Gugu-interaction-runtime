@@ -19,6 +19,24 @@ export interface MotionProfile {
         /** CSS easing 函数。 */
         easing: string;
     };
+    target?: {
+        /** 语义目标飞入使用的独立弹簧参数，不继承全局 landing。 */
+        motion?: {
+            position: import('../motion/MotionProfile').SpringParams;
+            scale: import('../motion/MotionProfile').SpringParams;
+        };
+        /** 语义目标 landing 的独立飞入参数。 */
+        landing?: {
+            duration: number;
+            easing: string;
+        };
+        /** 语义目标缩小淡出参数；从 landing 第一帧同步开始。 */
+        dismiss?: {
+            duration: number;
+            easing: string;
+            scale: number;
+        };
+    };
     group?: {
         /** 组展开/收起高度动画时长，ms。 */
         duration: number;

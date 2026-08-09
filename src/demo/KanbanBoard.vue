@@ -72,9 +72,7 @@
 import { computed, nextTick, reactive, ref, watch, watchEffect, onUnmounted } from 'vue'
 import { columns, cards, moveCard } from './store'
 import { buildDoneGroups } from './doneGrouping'
-import { useRuntimeTransition } from '../vue/useRuntimeTransition'
 import { DEFAULT_MOTION_PROFILE } from '../dom/MotionProfile'
-import { useSurface } from '../vue/useSurface'
 import { runtime } from '../Runtime'
 import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
 
@@ -112,31 +110,25 @@ const stopActionSubscription = runtime.onAction(action => {
 })
 onUnmounted(stopActionSubscription)
 
-// 三个列数量固定、组件全程只挂载一次，属于合法的"静态次数"composable 调用
-// （不是在 v-for 里动态调用）。每个列注册成一个 Surface，只接受
-// 'kanban-card' 类型的对象——见 docs/DESIGN.md 原则 4、docs/PLAN.md 阶段 0.5。
-const columnSurfaces = Object.fromEntries(
-  columns.map(col => [
-    col.id,
-    useSurface({
-      id: `column:${col.id}`,
-      type: 'kanban-column',
-      accepts: ['kanban-card', 'kanban-card-clone'],
-
-    }),
-  ]),
-)
+// Demo 直接使用 Runtime Core API 注册 Surface，清楚展示业务只需要提供
+// id、类型、可接受对象类型和 DOM 元素。
+const columnSurfaceIds = columns.map(col => `column:${col.id}`)
+for (const col of columns) {
+  runtime.surfaces.register({
+    id: `column:${col.id}`,
+    type: 'kanban-column',
+    element: null,
+    accepts: ['kanban-card', 'kanban-card-clone'],
+  })
+}
 const doneLayoutRoot = ref<HTMLElement | null>(null)
 function setColumnRef(colId: string, el: HTMLElement | null) {
-  columnSurfaces[colId].elementRef.value = el
+  runtime.surfaces.setElement(`column:${colId}`, el)
   if (colId === 'done') doneLayoutRoot.value = el
 }
 
-// 卡片没有各自独立的组件（demo 里所有卡片共用这一个模板渲染），没法像
-// useObject 设计的那样"在拥有 DOM 的组件里调用一次"。这里退而求其次，
-// 直接用 ObjectStore 的原始 API 做一次性注册 + 一个 watchEffect 保持
-// surfaceId 跟着 columns 数据同步——真正接入业务时，每张卡片如果有自己
-// 的组件，应该改成在那个组件里调用 useObject，而不是照抄这段。
+// Demo 的卡片共用一个列表模板，因此在列表组件内直接维护 Object Core API 的
+// 注册、element/surface 同步和 generation 校验；业务组件不需要额外的框架适配层。
 // c3（"补充测试用例"）故意不给 'move' 能力，用来验证这条门禁是真的在
 // 生效，不是摆设——demo 里它应该完全拖不动，pointerdown 直接被拒绝。
 function registerKanbanObjects(strategy: 'detach' | 'clone'): void {
@@ -183,28 +175,31 @@ watchEffect(() => {
 
 // reactive() 让模板里 columnControlled[col.id] 能自动解包内部的 computed ref，
 // 否则模板拿到的是 ref 对象本身而不是它的值。
-const columnControlled = reactive(
-  Object.fromEntries(columns.map(col => [col.id, useRuntimeTransition(`column:${col.id}`).controlled])),
-)
-
-// Owner 已属于框架无关 Core，不能再依赖直接读取 Map 触发 Vue 更新。
-// 这里由 Vue adapter 订阅对象级 ownership 变化，驱动 Teleport 的 disabled 状态。
 const ownershipVersion = ref(0)
-const stopOwnershipSubscription = runtime.owner.subscribe(() => {
+const stopOwnershipSubscription = runtime.onOwnershipChange(() => {
   ownershipVersion.value += 1
 })
 onUnmounted(stopOwnershipSubscription)
+const columnControlled = reactive(
+  Object.fromEntries(columns.map(col => [
+    col.id,
+    computed(() => {
+      ownershipVersion.value
+      return runtime.isControlled(`column:${col.id}`)
+    }),
+  ])),
+)
 
 onUnmounted(() => {
   for (const cardId of Object.keys(cards)) runtime.objects.unregister(cardId)
+  for (const surfaceId of columnSurfaceIds) runtime.surfaces.unregister(surfaceId)
 })
 
 // detach 策略专用：这个对象当前是不是被 Runtime 接管了，接管了就要被
-// <Teleport> 搬去 body。直接读 Owner 而不额外包一层 computed——Owner 内部
-// 是 reactive(Map)，模板渲染时读取会被 Vue 的响应式系统正常追踪到。
+// <Teleport> 搬去 body。
 function isDetached(cardId: string): boolean {
   ownershipVersion.value
-  return props.strategy === 'detach' && runtime.owner.isControlled(cardId)
+  return props.strategy === 'detach' && runtime.isControlled(cardId)
 }
 
 const doneColumn = computed(() => columns.find(col => col.id === 'done')!)

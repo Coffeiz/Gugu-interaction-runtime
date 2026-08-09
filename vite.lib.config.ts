@@ -17,9 +17,6 @@ export default defineConfig({
     lib: {
       entry: {
         'index': resolve(__dirname, 'src/index.ts'),
-        'vue/useSurface': resolve(__dirname, 'src/vue/useSurface.ts'),
-        'vue/useObject': resolve(__dirname, 'src/vue/useObject.ts'),
-        'vue/useRuntimeTransition': resolve(__dirname, 'src/vue/useRuntimeTransition.ts'),
         'runtime/detach/DetachAdapter': resolve(__dirname, 'src/runtime/detach/DetachAdapter.ts'),
       },
       name: 'GuguInteractionRuntime',

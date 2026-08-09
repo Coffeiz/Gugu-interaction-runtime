@@ -16,18 +16,6 @@
       "types": "./dist-lib/index.d.ts",
       "import": "./dist-lib/index.js"
     },
-    "./vue/useSurface": {
-      "types": "./dist-lib/vue/useSurface.d.ts",
-      "import": "./dist-lib/vue/useSurface.js"
-    },
-    "./vue/useObject": {
-      "types": "./dist-lib/vue/useObject.d.ts",
-      "import": "./dist-lib/vue/useObject.js"
-    },
-    "./vue/useRuntimeTransition": {
-      "types": "./dist-lib/vue/useRuntimeTransition.d.ts",
-      "import": "./dist-lib/vue/useRuntimeTransition.js"
-    },
     "./runtime/detach/DetachAdapter": {
       "types": "./dist-lib/runtime/detach/DetachAdapter.d.ts",
       "import": "./dist-lib/runtime/detach/DetachAdapter.js"

@@ -40,6 +40,34 @@ function createRequest() {
 }
 
 describe('Runtime move orchestration', () => {
+  it('Object 的嵌套 Target 会随对象登记、换绑和注销同步', () => {
+    const runtime = new Runtime()
+    const folder = document.createElement('article')
+
+    runtime.objects.register({
+      id: 'folder:references',
+      type: 'folder-item',
+      surfaceId: 'file:surface:browser',
+      element: null,
+      abilities: ['move'],
+      target: {
+        surfaceId: 'file:surface:folder:references',
+        accepts: ['file-item'],
+        priority: 2,
+      },
+    })
+
+    const target = runtime.targets.snapshot()[0]
+    expect(target?.surfaceId).toBe('file:surface:folder:references')
+    expect(target?.element).toBeNull()
+
+    runtime.objects.setElement('folder:references', folder)
+    expect(target && runtime.targets.get(target.id)?.element).toBe(folder)
+
+    runtime.objects.unregister('folder:references')
+    expect(target && runtime.targets.get(target.id)).toBeUndefined()
+  })
+
   it('通过 Runtime 统一转发 regrab handler', () => {
     const runtime = createRuntime()
     const handler = vi.fn()
@@ -92,7 +120,7 @@ describe('Runtime move orchestration', () => {
     })
     viewport.append(target)
     document.body.append(viewport)
-    runtime.registerSurface({ id: 'surface:scroll', type: 'list', element: viewport, viewport: () => viewport, accepts: ['project-card'] })
+    runtime.surfaces.register({ id: 'surface:scroll', type: 'list', element: viewport, viewport: () => viewport, accepts: ['project-card'] })
 
     runtime.keepSurfaceTargetVisible('surface:scroll', target)
     expect(viewport.scrollTop).toBe(100)
@@ -115,31 +143,10 @@ describe('Runtime move orchestration', () => {
 
     expect(runtime.takeSurface(first.id, 'column:todo')).toBe(true)
     expect(runtime.takeSurface(second.id, 'column:todo')).toBe(false)
-    expect(runtime.owner.isOwnedBy('column:todo', first.id)).toBe(true)
-    expect(runtime.owner.isOwnedBy('column:todo', second.id)).toBe(false)
+    expect(runtime.isControlled('column:todo')).toBe(true)
 
     runtime.cancel(first.id)
     runtime.cancel(second.id)
-  })
-
-  it('对象类型注册后由 Runtime 自动启动默认视觉模式', () => {
-    const runtime = createRuntime()
-    const start = vi.fn()
-    runtime.registerObjectType('project-card', {
-      defaultVisualMode: 'detach',
-      createMove: () => ({}),
-      start,
-    })
-    const element = document.createElement('div')
-    const event = new PointerEvent('pointerdown')
-
-    expect(runtime.startObjectPointer('card-1', element, event)).toBe(true)
-    expect(start).toHaveBeenCalledWith({
-      objectId: 'card-1',
-      element,
-      event,
-      mode: 'detach',
-    })
   })
 
   it('对象类型可以由 Runtime 自动创建 Move Session', () => {
@@ -545,28 +552,13 @@ describe('Runtime move orchestration', () => {
     expect(snapshot.rect).toHaveProperty('width')
   })
 
-  it('Runtime 会随对象 element 生命周期自动绑定并清理 pointerdown 入口', () => {
-    const runtime = createRuntime()
-    const start = vi.fn()
-    runtime.registerObjectType('project-card', { defaultVisualMode: 'detach', createMove: () => ({}), start })
-    const element = document.createElement('div')
-    runtime.objects.setElement('card-1', element)
-
-    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
-    expect(start).toHaveBeenCalledTimes(1)
-    runtime.objects.setElement('card-1', null)
-    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
-    expect(start).toHaveBeenCalledTimes(1)
-  })
-
   it('对象级 pointerInput 由 Runtime 统一执行拖拽阈值，未越过阈值保留 click', () => {
     const runtime = createRuntime()
-    const start = vi.fn()
+    const createMove = vi.fn(() => ({ driver: createDriver(() => undefined) }))
     runtime.registerObjectType('project-card', {
       defaultVisualMode: 'detach',
       pointerInput: { dragThreshold: 10 },
-      createMove: () => ({}),
-      start,
+      createMove,
     })
     const element = document.createElement('div')
     runtime.objects.setElement('card-1', element)
@@ -578,9 +570,9 @@ describe('Runtime move orchestration', () => {
       clientY: 10,
     }))
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 15, clientY: 10 }))
-    expect(start).not.toHaveBeenCalled()
+    expect(createMove).not.toHaveBeenCalled()
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 21, clientY: 10 }))
-    expect(start).toHaveBeenCalledOnce()
+    expect(createMove).toHaveBeenCalledOnce()
     window.dispatchEvent(new PointerEvent('pointerup'))
   })
 
