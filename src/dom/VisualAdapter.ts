@@ -34,6 +34,8 @@ export interface VisualLifecycleContext {
   readonly preserveTarget?: boolean
   /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
   readonly landingMode?: 'default' | 'target'
+  /** target landing 时跳过代理套上目标背景/圆角/内容的视觉 morph，只保留位置和缩小淡出。 */
+  readonly disableTargetVisualMorph?: boolean
   readonly sourceRect?: DOMRect
   readonly visualSnapshot?: VisualSnapshot
   readonly targetSnapshot?: VisualSnapshot
@@ -170,7 +172,11 @@ export class DefaultVisualAdapter implements VisualAdapter {
     el.style.transition = 'none'
     const isTargetLanding = context.landingMode === 'target'
     const targetSnapshot = context.targetSnapshot
-    const targetHasSurfaceStyle = Boolean(targetSnapshot && (
+    // disableTargetVisualMorph 只关掉"飞向语义目标（文件夹/面包屑）时代理套上目标样式"这段——
+    // 无效落点走的是 landingMode:'default' 飞回原位，这时候的目标样式 morph 是另一回事：把
+    // 抓取时的深阴影平滑过渡回正常静止态，跟 isTargetLanding 无关，关掉会导致深阴影一直保持到
+    // 代理销毁才突然消失，没有"落地"的感觉。
+    const targetHasSurfaceStyle = !(context.disableTargetVisualMorph && isTargetLanding) && Boolean(targetSnapshot && (
       (targetSnapshot.background && targetSnapshot.background !== 'transparent' && targetSnapshot.background !== 'rgba(0, 0, 0, 0)')
       || (targetSnapshot.backgroundImage && targetSnapshot.backgroundImage !== 'none')
       || (targetSnapshot.boxShadow && targetSnapshot.boxShadow !== 'none')

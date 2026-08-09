@@ -104,6 +104,12 @@ export interface ObjectTypeRegistration {
   motion?: { enabled?: boolean; profile?: MotionProfile }
   /** landing 的终态表现；default 保持看板行为，target 到达语义目标后缩小淡出。 */
   landingMode?: 'default' | 'target'
+  /** target landing 时是否跳过"代理套上目标背景/圆角/内容"的视觉 morph，只保留位置和
+   * 缩小淡出。目标和源对象内部结构差异较大（不同组件、不同子节点布局）时，内容 morph 会
+   * 插值出不对齐的中间态，看起来像"代理直接变成了目标"而不是"飞向目标后消失"；只有源和
+   * 目标共用同一套内部结构（如 demo 的 file-item/folder-item）时 morph 才会平滑。默认
+   * false（保留 morph，兼容原行为）。 */
+  disableTargetVisualMorph?: boolean
   /** 抓取对齐方式；不传就是纯几何中心对齐（等价于 { align: 'center' }）。 */
   grabAlign?: GrabAlignConfig
   /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
@@ -462,6 +468,7 @@ setMotionProfiles(this.registry.motionProfile)
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。
       landingMode: !invalidReturn && !targetIsSource && registration?.landingMode === 'target' ? 'target' : 'default',
+      disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
         const surfaceId = this.getDestinationSurfaceId(destination)
         const viewport = surfaceId ? this.resolveMoveSurfaceViewport(surfaceId) : null
