@@ -133,5 +133,10 @@ test('普通点击单卡不会打开多选工具栏，空白拖动可以框选�
   await expect(page.locator('.file-item.is-selected')).toHaveCount(5)
   await expect(page.locator('.file-item.is-selected[data-file-id="file:readme"]')).toHaveCount(1)
   await expect(page.locator('.file-item.is-selected[data-file-id="file:roadmap"]')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: '退出多选' })).toHaveCount(1)
   await expect(page.locator('.selection-box')).toHaveCount(0)
+
+  await page.mouse.click(startX, startY)
+  await expect(page.locator('.file-item.is-selected')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '多选' })).toHaveCount(1)
 })

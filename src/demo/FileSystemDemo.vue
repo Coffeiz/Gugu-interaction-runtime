@@ -15,8 +15,8 @@
           <button :class="{ active: view === 'grid' }" @click="view = 'grid'">网格</button>
           <button :class="{ active: view === 'list' }" @click="view = 'list'">列表</button>
         </div>
-        <button type="button" class="selection-mode-button" :class="{ active: selectionMode }" @click="toggleSelectionMode">
-          {{ selectionMode ? '退出多选' : '多选' }}
+        <button type="button" class="selection-mode-button" :class="{ active: selectionState.active }" @click="toggleSelectionMode">
+          {{ selectionState.active ? '退出多选' : '多选' }}
         </button>
       </div>
     </div>
@@ -70,7 +70,7 @@
             :file-object-types="fileObjectTypes"
             :folder-item-count="folderItemCount(item.id)"
             :is-list="view === 'list'"
-            :selected="selectedIds.has(item.id)"
+            :selected="selectionState.ids.has(item.id)"
             @open="handleItemClick"
             @pointerdown="handleCardPointerDown"
           />
@@ -78,8 +78,8 @@
         </div>
       </FileBrowserSurface>
       <Transition name="selection-bar">
-        <div v-if="selectedIds.size" class="selection-bar" @click.stop>
-          <span class="selection-count">已选 {{ selectedIds.size }} 项</span>
+        <div v-if="selectionState.ids.size" class="selection-bar" @click.stop>
+          <span class="selection-count">已选 {{ selectionState.ids.size }} 项</span>
           <span class="selection-hint">拖动其中一张可批量移动</span>
           <button type="button" class="selection-cancel" @click="toggleSelectionMode">取消</button>
         </div>
@@ -112,11 +112,11 @@ const fileObjectTypes = ['file-item', 'file-item-clone', 'folder-item', 'folder-
 const view = ref<'grid' | 'list'>('grid')
 const currentFolder = ref(rootId)
 const browserElement = ref<HTMLElement | null>(null)
-const selectionMode = ref(false)
-const selectedIds = ref<Set<string>>(new Set())
+const selectionState = reactive<{ active: boolean; ids: Set<string> }>({ active: false, ids: new Set() })
 const selectionBox = ref<{ left: string; top: string; width: string; height: string } | null>(null)
 let selectionPointerId: number | null = null
 let selectionStart: { x: number; y: number; surface: HTMLElement } | null = null
+let selectionMoved = false
 const activeGroups = new Set<string>()
 
 function clearActiveGroup(objectId: string): void {
@@ -127,6 +127,15 @@ function clearActiveGroup(objectId: string): void {
     visual: item.kind === 'folder' ? 'folder-item' : 'file-item',
     visualMode: strategy.value,
   })
+}
+
+function replaceSelection(ids: Set<string>, active = selectionState.active): void {
+  selectionState.ids = ids
+  selectionState.active = active
+}
+
+function clearSelection(): void {
+  replaceSelection(new Set(), false)
 }
 
 function syncListRotation(mode: 'grid' | 'list'): void {
@@ -206,14 +215,14 @@ function hasActiveMove(): boolean {
 }
 
 function handleItemClick(item: FileItem, event: MouseEvent): void {
-  if (selectionMode.value || event.metaKey || event.ctrlKey || event.shiftKey) {
-    const next = new Set(selectedIds.value)
+  if (selectionState.active || event.metaKey || event.ctrlKey || event.shiftKey) {
+    const next = new Set(selectionState.ids)
     if (next.has(item.id)) next.delete(item.id)
     else next.add(item.id)
-    selectedIds.value = next
+    replaceSelection(next, true)
     return
   }
-  selectedIds.value = new Set()
+  clearSelection()
   if (item.kind === 'folder') {
     if (!runtime.isControlled(item.id)) openFolder(item.id)
     return
@@ -221,15 +230,19 @@ function handleItemClick(item: FileItem, event: MouseEvent): void {
 }
 
 function toggleSelectionMode(): void {
-  selectionMode.value = !selectionMode.value
-  if (!selectionMode.value) {
-    selectedIds.value = new Set()
+  if (selectionState.active) {
+    clearSelection()
+  } else {
+    replaceSelection(new Set(), true)
     stopSelectionBox()
   }
 }
 
 function updateSelectionBox(event: PointerEvent): void {
   if (!selectionStart) return
+  if (Math.abs(event.clientX - selectionStart.x) > 3 || Math.abs(event.clientY - selectionStart.y) > 3) {
+    selectionMoved = true
+  }
   const surfaceRect = selectionStart.surface.getBoundingClientRect()
   const leftClient = Math.min(selectionStart.x, event.clientX)
   const topClient = Math.min(selectionStart.y, event.clientY)
@@ -250,7 +263,7 @@ function updateSelectionBox(event: PointerEvent): void {
       next.add(item.id)
     }
   }
-  selectedIds.value = next
+  replaceSelection(next, selectionState.active || next.size > 0)
 }
 
 function handleSelectionPointerMove(event: PointerEvent): void {
@@ -258,6 +271,7 @@ function handleSelectionPointerMove(event: PointerEvent): void {
 }
 
 function stopSelectionBox(): void {
+  const wasClick = selectionPointerId !== null && !selectionMoved
   if (selectionPointerId !== null) {
     window.removeEventListener('pointermove', handleSelectionPointerMove)
     window.removeEventListener('pointerup', stopSelectionBox)
@@ -265,7 +279,11 @@ function stopSelectionBox(): void {
   }
   selectionPointerId = null
   selectionStart = null
+  selectionMoved = false
   selectionBox.value = null
+  if (wasClick) {
+    clearSelection()
+  }
 }
 
 function handleSurfacePointerDown(event: PointerEvent): void {
@@ -276,7 +294,8 @@ function handleSurfacePointerDown(event: PointerEvent): void {
   if (!surface) return
   selectionPointerId = event.pointerId
   selectionStart = { x: event.clientX, y: event.clientY, surface }
-  selectedIds.value = new Set()
+  selectionMoved = false
+  replaceSelection(new Set(), selectionState.active)
   selectionBox.value = { left: '0px', top: '0px', width: '0px', height: '0px' }
   window.addEventListener('pointermove', handleSelectionPointerMove)
   window.addEventListener('pointerup', stopSelectionBox)
@@ -285,11 +304,11 @@ function handleSurfacePointerDown(event: PointerEvent): void {
 }
 
 function handleCardPointerDown(event: PointerEvent, item: FileItem): void {
-  if (selectedIds.value.size < 2 || !selectedIds.value.has(item.id)) return
+  if (selectionState.ids.size < 2 || !selectionState.ids.has(item.id)) return
   const element = event.currentTarget as HTMLElement | null
   if (!element) return
   const objectIds = [item.id, ...visibleItems.value
-    .filter(entry => entry.id !== item.id && selectedIds.value.has(entry.id))
+    .filter(entry => entry.id !== item.id && selectionState.ids.has(entry.id))
     .map(entry => entry.id)]
   activeGroups.add(item.id)
   runtime.objects.update(item.id, { visual: 'file-group-item', visualMode: strategy.value })
@@ -349,8 +368,7 @@ function moveGroup(action: MoveGroupAction): void {
   if (!targetItem && target !== 'root') return
   if (action.objectIds.some(id => id === target)) return
   for (const objectId of action.objectIds) moveFile(objectId, action.toSurfaceId)
-  selectedIds.value = new Set()
-  selectionMode.value = false
+  clearSelection()
 }
 
 const listProxyLayout = { compact: { selector: '[data-demo-list-layout="true"]', width: 'min(320px, calc(100vw - 48px))' } }
