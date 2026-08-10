@@ -1,4 +1,4 @@
-import { h as a, i as o } from "../../DetachAdapter-P5DYR40Y.js";
+import { h as a, i as o } from "../../DetachAdapter-DY-ZY6Kh.js";
 export {
   a as createCloneMoveFromAdapter,
   o as createDetachMoveFromAdapter

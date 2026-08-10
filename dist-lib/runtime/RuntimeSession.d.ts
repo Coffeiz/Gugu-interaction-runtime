@@ -15,6 +15,7 @@ export declare class SessionCoordinator {
     set(session: Session): void;
     delete(id: string): void;
     addGate(sessionId: string, gate: SessionCompletionGate<unknown>): void;
+    trackForObject(objectId: string, dispose: () => void): boolean;
     removeGate(sessionId: string, gate: SessionCompletionGate<unknown>): void;
     failGates(sessionId: string): void;
     acquireObject(sessionId: string, objectId: string): Lease | null;

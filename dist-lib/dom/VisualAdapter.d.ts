@@ -1,6 +1,7 @@
 import { VisualState, VisualSnapshot } from './VisualAdapterTypes';
 import { MotionProfile } from './MotionProfile';
 import { MotionState } from '../motion/CardMotionController';
+import { DragProxyLayoutConfig } from './Visual';
 import { Runtime } from '../Runtime';
 export interface VisualLifecycleContext {
     readonly objectId: string;
@@ -15,6 +16,8 @@ export interface VisualLifecycleContext {
     readonly preserveTarget?: boolean;
     /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
     readonly landingMode?: 'default' | 'target';
+    /** target landing 时跳过代理套上目标背景/圆角/内容的视觉 morph，只保留位置和缩小淡出。 */
+    readonly disableTargetVisualMorph?: boolean;
     readonly sourceRect?: DOMRect;
     readonly visualSnapshot?: VisualSnapshot;
     readonly targetSnapshot?: VisualSnapshot;
@@ -26,6 +29,8 @@ export interface VisualLifecycleContext {
     readonly landingBounds?: () => DOMRect | null;
     /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
     readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
+    /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
+    readonly proxyLayout?: DragProxyLayoutConfig;
 }
 export interface VisualProxy {
     readonly element: HTMLElement;

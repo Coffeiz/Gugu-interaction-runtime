@@ -17,4 +17,7 @@ export interface Surface {
             easing: string;
         };
     };
+    /** 注册代次，用于 Vue 组件卸载时保护新实例。 */
+    generation?: number;
 }
+export type SurfaceUpdate = Partial<Pick<Surface, 'type' | 'viewport' | 'accepts' | 'motion'>>;

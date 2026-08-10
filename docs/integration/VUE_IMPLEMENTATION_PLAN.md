@@ -1,12 +1,12 @@
 # Vue 适配层实施计划
 
-> 状态：Phase 4 已完成，Phase 5 待实施
+> 状态：Phase 6 已完成，后续进入适配层维护与业务接入
 >
 > 本文是 Vue 适配层的执行计划。Vue API 的设计基线见
 > [VUE.md](./VUE.md)，框架无关的 Core API 仍以
 > [INTEGRATION.md](../INTEGRATION.md) 为准。
 
-当前进度：Phase 0、Phase 1、Phase 2、Phase 3、Phase 4 已完成；下一步为适配层收敛。
+当前进度：Phase 0 至 Phase 6 已完成；后续只做兼容性维护和业务接入。
 
 ## 目标
 
@@ -337,6 +337,13 @@ const { runLayoutMutation } = useRuntimeLayoutMutation()
 - 没有重复的 generation、DOM ref 同步和 ownership 订阅；
 - 代码删除经过 typecheck 和 E2E 验证。
 
+已完成：
+
+- Demo 的对象、Surface、Target、Action 和 ownership 接入均由 Vue composable 负责；
+- `createVueRuntimeAdapter` 仅保留布局事务与低层 DOM 兼容能力；
+- 跨 Surface 移动时对象注册延迟到 session 结束再注销，避免 Vue 重排导致 landing 丢失对象配置；
+- 保留 Core API 和现有动画实现，不改变业务视觉行为。
+
 ### Phase 6：正式导出与文档收口
 
 内容：
@@ -353,6 +360,13 @@ const { runLayoutMutation } = useRuntimeLayoutMutation()
 - Demo 从正式 Vue 入口编译；
 - Runtime Core 不依赖 Vue；
 - 文档示例与实际导出 API 一致。
+
+已完成：
+
+- 增加 `gugu-interaction-runtime/vue` package export；
+- 库构建增加 `vue` 独立入口并生成对应类型声明；
+- `VUE.md` 更新为正式接入指南，保留低层 adapter 迁移说明；
+- Core 主入口不直接依赖 Vue composable。
 
 ## 测试清单
 
@@ -410,4 +424,4 @@ const { runLayoutMutation } = useRuntimeLayoutMutation()
 | Vue Action/Transition composable | 已实现 |
 | Kanban Demo composable 接入 | 已完成 |
 | FileSystem Demo composable 接入 | 已完成 |
-| Vue 独立导出入口 | 未开始 |
+| Vue 独立导出入口 | 已完成 |

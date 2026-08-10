@@ -16,6 +16,10 @@
       "types": "./dist-lib/index.d.ts",
       "import": "./dist-lib/index.js"
     },
+    "./vue": {
+      "types": "./dist-lib/vue/index.d.ts",
+      "import": "./dist-lib/vue.js"
+    },
     "./runtime/detach/DetachAdapter": {
       "types": "./dist-lib/runtime/detach/DetachAdapter.d.ts",
       "import": "./dist-lib/runtime/detach/DetachAdapter.js"

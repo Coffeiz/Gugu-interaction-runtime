@@ -1,4 +1,4 @@
-import { ObjectItem } from './ObjectItem';
+import { ObjectItem, ObjectUpdate } from './ObjectItem';
 export type ObjectStoreEvent = {
     type: 'object-added';
     id: string;
@@ -20,7 +20,7 @@ export declare class ObjectStore {
     /** 每个 id 的注册代次计数器——register 覆盖旧 item 时递增。 */
     private generations;
     register(item: ObjectItem): number;
-    unregister(id: string): boolean;
+    unregister(id: string, generation?: number): boolean;
     get(id: string): ObjectItem | undefined;
     has(id: string): boolean;
     values(): IterableIterator<ObjectItem>;
@@ -29,4 +29,5 @@ export declare class ObjectStore {
     hasAbility(id: string, ability: string): boolean;
     setElement(id: string, element: HTMLElement | null): void;
     setSurface(id: string, surfaceId: string): void;
+    update(id: string, patch: ObjectUpdate): boolean;
 }

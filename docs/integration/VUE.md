@@ -1,6 +1,6 @@
 # Vue 接入指南（设计基线）
 
-> 状态：设计草案，暂不作为 2.0.0 的正式导出 API。
+> 状态：Vue 适配层已作为 `gugu-interaction-runtime/vue` 正式导出。
 >
 > 本文记录下一版 Vue 适配层的目标形状。Core API 的完整契约仍以
 > [../INTEGRATION.md](../INTEGRATION.md) 为准。
@@ -160,6 +160,15 @@ provider 注入实例。旧版已经用 Core 返回的 generation 防止旧组�
 - Object、Surface、Target 卸载后 Core 注册表无残留；
 - Transition 在 Runtime 接管期间关闭，交接后恢复；
 - 现有浏览器视觉回归和 Runtime 单测保持通过。
+
+## 正式导入
+
+```ts
+import { provideRuntime, useObject, useSurface, useTarget } from 'gugu-interaction-runtime/vue'
+```
+
+Core 主入口仍保留低层 `createVueRuntimeAdapter()` 兼容入口，用于布局事务和旧接入迁移；
+新 Vue 业务组件优先使用本入口的 composable，不直接依赖 `src/` 路径。
 
 ## 实施顺序
 

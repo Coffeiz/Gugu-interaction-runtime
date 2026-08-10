@@ -71,10 +71,9 @@ const stop = runtime.onAction(action => {
 })
 ```
 
-Vue、React 和其他框架都使用同一组 Runtime Core API。需要减少 ref/卸载样板时，可以选择
-对应框架的 DOM 适配器；适配器不替代 Core 注册，也不形成第二套业务接入语义。Runtime
-不再提供 `useObject`、`useSurface` 或 `useRuntimeTransition` 这类旧的框架注册入口，Demo
-专用的 `useCollectionRuntime` 已删除。
+Vue、React 和其他框架都使用同一组 Runtime Core API。Vue 项目如果希望减少 ref、generation
+和卸载样板，优先从 `gugu-interaction-runtime/vue` 导入 composable；低层 DOM adapter
+仍保留给迁移期和布局事务使用。适配器不替代 Core 注册，也不形成第二套拖拽语义。
 
 ```ts
 import { runtime } from 'gugu-interaction-runtime'
@@ -98,6 +97,15 @@ const bindColumn = (element: HTMLElement | null) => dom.bindSurface(`column:${pr
 // 组件卸载时：业务按 generation 注销自己的 Object/Surface，适配器清理 Target DOM 绑定。
 dom.dispose()
 ```
+
+新 Vue 组件推荐使用独立入口：
+
+```ts
+import { provideRuntime, useObject } from 'gugu-interaction-runtime/vue'
+```
+
+完整的 Vue 生命周期、列表组件约束和正式 API 见
+[Vue 接入指南](./integration/VUE.md)。
 
 React 接入使用同一套 Core 注册和 `createReactRuntimeAdapter(runtime)`，把返回的
 `bindObject`/`bindSurface`/`bindTarget` 接到 callback ref。适配器不依赖 Vue 或 React

@@ -13,7 +13,7 @@ export interface ObjectItem {
     /** 未提供时默认使用 detach。 */
     visualMode?: string;
     /** Object 同时作为接收目标时的声明；Runtime 会自动同步到 TargetStore。 */
-    target?: Omit<TargetItem, 'id' | 'element'> & {
+    target?: Omit<TargetItem, 'id' | 'element' | 'generation'> & {
         id?: string;
         element?: HTMLElement | null;
     };
@@ -24,3 +24,4 @@ export interface ObjectItem {
      */
     generation?: number;
 }
+export type ObjectUpdate = Partial<Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities' | 'visual' | 'visualMode' | 'target'>>;

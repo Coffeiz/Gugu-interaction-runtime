@@ -16,6 +16,26 @@ export declare function applyInheritedStyleContext(target: HTMLElement, context:
  */
 export declare function verifyVisualContextConsistency(source: HTMLElement, proxy: HTMLElement): string[];
 export declare function setProxyInteractive(proxy: HTMLElement, enabled: boolean): void;
+/** 抓取代理的可选紧凑布局；尺寸和布局语义由业务声明，过渡由 Runtime 执行。 */
+export interface DragProxyLayoutConfig {
+    compact?: {
+        width: string;
+        /** 仅匹配指定源元素时启用；不传表示该对象类型全部启用。 */
+        selector?: string;
+        left?: string;
+        transform?: string;
+        duration?: number;
+        easing?: string;
+        /**
+         * 抓取时用来替换内容层 grid-template-columns 的值——要求轨道数量和类型跟本体
+         * CSS 里定义的真实列一致，只把紧凑态不展示的列宽度改成 0px（其余列原样保留
+         * 真实的 fr/px 值）。落地时会清空这份内联覆盖，退回本体 CSS 定义的真实列宽，
+         * 因为轨道数量全程不变，浏览器能把这次切换当成普通宽度过渡来平滑插值，不是
+         * 两套布局互相替换的瞬间跳变。业务不传时不触碰 grid-template-columns。
+         */
+        gridTemplateColumns?: string;
+    };
+}
 export interface ProxyVisualState {
     transform: string;
     boxShadow: string;
@@ -29,6 +49,7 @@ export declare function restoreProxyVisualState(proxy: HTMLElement, state: Proxy
  */
 export declare function createDragProxy(source: HTMLElement, rect?: DOMRect, options?: {
     glass?: boolean;
+    layout?: DragProxyLayoutConfig;
 }): HTMLElement;
 export declare function getProxyAttitude(proxy: HTMLElement): HTMLElement;
 export declare function getProxyContent(proxy: HTMLElement): HTMLElement;
@@ -38,6 +59,8 @@ export interface LandingVisualOptions {
     easing?: string;
     targetShadow?: string;
     targetRadius?: string;
+    targetBorder?: string;
+    targetBackdropFilter?: string;
     targetBackground?: string;
     /** 目标背景图（渐变等）。backgroundColor 与 backgroundImage 分设，避免
      *  background 简写把渐变覆盖成透明。 */
@@ -119,7 +142,9 @@ export declare function destroyDragProxy(proxy: HTMLElement): void;
 /** 清理 demo 中上一次异常中断留下的代理节点。 */
 export declare function destroyAllDragProxies(): void;
 export declare function destroyDragProxiesByCardId(cardId: string): void;
-export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect): void;
+export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect, options?: {
+    layout?: DragProxyLayoutConfig;
+}): void;
 export declare function getFloatingProxy(el: HTMLElement): HTMLElement | undefined;
 /** 将抓取阶段的 proxy 转交给 Runtime 的统一 landing 生命周期，不移除节点。 */
 export declare function takeFloatingProxy(el: HTMLElement): HTMLElement | undefined;
@@ -145,6 +170,12 @@ export declare function applyDraggingGlassStyle(element: HTMLElement): void;
  * 只有登记的 owner 才能通过 revealElement() 恢复可见性。
  */
 export declare function concealElement(el: HTMLElement, ownerId: string): void;
+/**
+ * 接管一个已经被旧拖拽 Session 隐藏的本体。
+ * regrab 会先打断旧 Session，再由新 Session 重新创建浮动代理；此时本体
+ * 仍需保持隐藏，但后续 preserveTarget 的 reveal 必须能由新 owner 执行。
+ */
+export declare function claimVisibilityOwnership(el: HTMLElement, ownerId: string): void;
 /**
  * 恢复元素的可见性。只有当前 owner 才能恢复，非 owner 调用无效果。
  * 返回是否实际执行了恢复操作。
