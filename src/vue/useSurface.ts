@@ -6,7 +6,8 @@ export interface UseSurfaceOptions {
   id: string
   type: MaybeRefOrGetter<string>
   accepts: MaybeRefOrGetter<readonly string[]>
-  viewport?: MaybeRefOrGetter<(() => HTMLElement | null) | undefined>
+  /** Surface 的滚动视口回调；它本身不能再作为 getter 被 toValue 解包。 */
+  viewport?: (() => HTMLElement | null) | undefined
   motion?: MaybeRefOrGetter<Surface['motion'] | undefined>
 }
 
@@ -19,7 +20,7 @@ function readSurface(options: UseSurfaceOptions): SurfaceUpdate & Pick<Surface, 
   return {
     type: toValue(options.type),
     accepts: [...toValue(options.accepts)],
-    viewport: options.viewport === undefined ? undefined : toValue(options.viewport),
+    viewport: options.viewport,
     motion: options.motion === undefined ? undefined : toValue(options.motion),
   }
 }

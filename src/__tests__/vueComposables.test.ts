@@ -110,6 +110,28 @@ describe('Vue Runtime composables', () => {
     mounted.host.remove()
   })
 
+  it('useSurface 保留 viewport 回调，不把回调提前执行成 DOM 节点', async () => {
+    const runtime = new Runtime()
+    const viewport = document.createElement('div')
+    const child = defineComponent({
+      setup() {
+        const surface = useSurface({
+          id: 'surface:viewport',
+          type: 'list',
+          accepts: ['card'],
+          viewport: () => viewport,
+        })
+        return () => h('section', { ref: surface.elementRef })
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+
+    expect(runtime.surfaces.get('surface:viewport')?.viewport?.()).toBe(viewport)
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
   it('useRuntimeAction 和 useRuntimeTransition 在组件卸载时解除订阅', async () => {
     const runtime = new Runtime()
     const received: Action[] = []
