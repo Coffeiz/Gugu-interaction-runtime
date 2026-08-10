@@ -21,6 +21,13 @@ import {
 import { preserveProxyVisualContext } from './ProxyVisualContext'
 import { createCloneMoveFromAdapter, createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
 import type { Runtime } from '../Runtime'
+import type { GroupObjectOffset } from '../session/GroupDragSession'
+
+export interface VisualGroupContext {
+  readonly primaryObjectId: string
+  readonly objectIds: readonly string[]
+  readonly offsets: ReadonlyMap<string, GroupObjectOffset>
+}
 
 export interface VisualLifecycleContext {
   readonly objectId: string
@@ -50,6 +57,8 @@ export interface VisualLifecycleContext {
   readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
   /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
   readonly proxyLayout?: DragProxyLayoutConfig
+  /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
+  readonly group?: VisualGroupContext
 }
 
 export interface VisualProxy {

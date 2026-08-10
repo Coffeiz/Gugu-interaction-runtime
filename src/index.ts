@@ -19,7 +19,9 @@ export * from './runtime/RuntimeVisual'
 export * from './runtime/RuntimeSession'
 export * from './runtime/RuntimeInput'
 export { Session } from './session/Session'
-export type { SessionState } from './session/Session'
+export type { SessionState, SessionEndReason } from './session/Session'
+export { GroupDragSession } from './session/GroupDragSession'
+export type { GroupDragSessionOptions, GroupObjectOffset } from './session/GroupDragSession'
 export { MoveBehavior } from './behavior/MoveBehavior'
 export { MoveTransaction } from './behavior/MoveTransaction'
 export type { MoveTransactionPhase, MoveActionDestination } from './behavior/MoveTransaction'
@@ -62,7 +64,7 @@ export type {
   PointerSessionInputOptions,
   PointerSessionInputRuntime,
 } from './input/PointerSessionInput'
-export type { Action, MoveAction, TransferAction, SortAction, ResizeAction, LinkAction } from './action/Action'
+export type { Action, MoveAction, MoveGroupAction, TransferAction, SortAction, ResizeAction, LinkAction } from './action/Action'
 export type { RuntimeInput, StartRequest, SessionHandle } from './core/Interaction'
 export {
   createCardMotionController,

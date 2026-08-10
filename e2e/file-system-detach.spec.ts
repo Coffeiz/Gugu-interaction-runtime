@@ -75,3 +75,63 @@ test('切换到子目录后，空白落点仍回到当前浏览器中的原卡�
   await expect(file).toHaveCount(1)
   await expect(file).toContainText('竞品截图.zip')
 })
+
+test('多选文件拖入文件夹时以主卡带动选中项', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文件系统' }).click()
+  await page.getByRole('button', { name: 'detach' }).last().click()
+  await page.getByRole('button', { name: '多选' }).click()
+
+  const readme = page.locator('.file-item[data-file-id="file:readme"]')
+  const roadmap = page.locator('.file-item[data-file-id="file:roadmap"]')
+  await readme.click()
+  await roadmap.click()
+  await expect(page.locator('.file-item.is-selected')).toHaveCount(2)
+
+  const target = page.locator('.file-item.folder[data-file-id="folder:references"]')
+  const sourceBox = await readme.boundingBox()
+  const targetBox = await target.boundingBox()
+  if (!sourceBox || !targetBox) throw new Error('多选源卡或目标文件夹未渲染')
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 12 })
+  await page.mouse.up()
+
+  await expect(page.locator('[data-runtime-proxy="true"]')).toHaveCount(0)
+  await expect(page.locator('.file-item.is-selected')).toHaveCount(0)
+  await target.click()
+  await expect(page.locator('.file-item[data-file-id="file:readme"]')).toHaveCount(1)
+  await expect(page.locator('.file-item[data-file-id="file:roadmap"]')).toHaveCount(1)
+})
+
+test('普通点击单卡不会打开多选工具栏，空白拖动可以框选文件', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文件系统' }).click()
+  await page.getByRole('button', { name: 'detach' }).last().click()
+
+  await page.locator('.file-item[data-file-id="file:readme"]').click()
+  await expect(page.locator('.selection-bar')).toHaveCount(0)
+
+  await page.getByRole('button', { name: '多选' }).click()
+  const readme = page.locator('.file-item[data-file-id="file:readme"]')
+  const roadmap = page.locator('.file-item[data-file-id="file:roadmap"]')
+  const items = page.locator('.file-items')
+  const readmeBox = await readme.boundingBox()
+  const roadmapBox = await roadmap.boundingBox()
+  const itemsBox = await items.boundingBox()
+  if (!readmeBox || !roadmapBox || !itemsBox) throw new Error('框选目标或文件列表未渲染')
+
+  const startX = itemsBox.x + 6
+  const startY = Math.min(readmeBox.y, roadmapBox.y) - 6
+  const endX = Math.max(readmeBox.x + readmeBox.width, roadmapBox.x + roadmapBox.width) + 6
+  const endY = Math.max(readmeBox.y + readmeBox.height, roadmapBox.y + roadmapBox.height) + 6
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(endX, endY, { steps: 8 })
+  await page.mouse.up()
+
+  await expect(page.locator('.file-item.is-selected')).toHaveCount(5)
+  await expect(page.locator('.file-item.is-selected[data-file-id="file:readme"]')).toHaveCount(1)
+  await expect(page.locator('.file-item.is-selected[data-file-id="file:roadmap"]')).toHaveCount(1)
+  await expect(page.locator('.selection-box')).toHaveCount(0)
+})

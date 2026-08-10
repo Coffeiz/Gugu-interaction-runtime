@@ -154,7 +154,11 @@ export interface MoveReleasePort {
   end(session: Session): void
 }
 
-export interface MoveActionPort { getObjectSurface(objectId: string): string | undefined; emit(action: Action): void | Promise<void> }
+export interface MoveActionPort {
+  getObjectSurface(objectId: string): string | undefined
+  getGroup?(objectId: string): { primaryObjectId: string; objectIds: readonly string[] } | undefined
+  emit(action: Action): void | Promise<void>
+}
 
 export interface MoveUpdatePort { getSession(id: string): { type: string; state: string } | undefined; getBehavior(type: string): Behavior | undefined; createContext(id: string): BehaviorContext }
 export class MoveUpdateCoordinator {
@@ -307,7 +311,21 @@ export class MoveActionCoordinator {
     if (!normalized) return false
     transaction.actionEmitted = true
     transaction.destination = normalized
-    await this.port.emit({ type: 'move', objectId, fromSurfaceId: normalized.fromSurfaceId, toSurfaceId: normalized.toSurfaceId, ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }), timestamp: Date.now() })
+    const group = this.port.getGroup?.(objectId)
+    if (group && group.objectIds.length > 1) {
+      await this.port.emit({
+        type: 'move-group',
+        objectId: group.primaryObjectId,
+        primaryObjectId: group.primaryObjectId,
+        objectIds: group.objectIds,
+        fromSurfaceId: normalized.fromSurfaceId,
+        toSurfaceId: normalized.toSurfaceId,
+        ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }),
+        timestamp: Date.now(),
+      })
+    } else {
+      await this.port.emit({ type: 'move', objectId, fromSurfaceId: normalized.fromSurfaceId, toSurfaceId: normalized.toSurfaceId, ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }), timestamp: Date.now() })
+    }
     return true
   }
   private isDestination(value: unknown): value is MoveActionDestination {

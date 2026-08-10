@@ -2,12 +2,13 @@
   <article
     ref="elementRef"
     class="file-item"
-    :class="{ folder: item.kind === 'folder' }"
+    :class="{ folder: item.kind === 'folder', 'is-selected': selected }"
     :data-demo-list-layout="isList ? 'true' : undefined"
     :data-file-id="item.id"
     data-layout-role="card"
     :data-layout-key="item.id"
-    @click="$emit('open', item)"
+    @pointerdown="$emit('pointerdown', $event, item)"
+    @click="$emit('open', item, $event)"
   >
     <div class="file-icon">{{ item.kind === 'folder' ? '▰' : fileIcon(item.name) }}</div>
     <div class="file-name">{{ item.name }}</div>
@@ -28,9 +29,13 @@ const props = defineProps<{
   fileObjectTypes: readonly string[]
   folderItemCount: number
   isList: boolean
+  selected?: boolean
 }>()
 
-defineEmits<{ open: [item: FileItem] }>()
+defineEmits<{
+  open: [item: FileItem, event: MouseEvent]
+  pointerdown: [event: PointerEvent, item: FileItem]
+}>()
 
 const objectType = computed(() => {
   const prefix = props.item.kind === 'folder' ? 'folder-item' : 'file-item'
@@ -70,6 +75,7 @@ function fileIcon(name: string): string {
 .file-item[data-demo-list-layout="true"][data-runtime-proxy-content] .file-icon { grid-column: 1 !important; justify-self: start !important; }
 .file-item[data-demo-list-layout="true"][data-runtime-proxy-content] small { grid-column: 3 !important; justify-self: end !important; text-align: right !important; margin: 0 !important; }
 .file-item:hover { border-color: #b8bff0; box-shadow: 0 7px 20px rgba(75,86,160,.12); }
+.file-item.is-selected { border-color: #818bd6; box-shadow: 0 0 0 2px rgba(129,139,214,.16), 0 7px 20px rgba(75,86,160,.12); }
 .file-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #eef0ff; color: #6972c5; font-weight: 700; }
 .file-name { margin-top: 12px; color: #394156; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-item[data-demo-list-layout="true"] .file-name { margin: 0 12px; }

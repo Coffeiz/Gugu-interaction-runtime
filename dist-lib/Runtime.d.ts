@@ -1,5 +1,6 @@
 import { Lease } from './owner/Owner';
 import { Session } from './session/Session';
+import { GroupDragSession, GroupObjectOffset } from './session/GroupDragSession';
 import { ObjectStore } from './object/ObjectStore';
 import { SurfaceStore } from './surface/SurfaceStore';
 import { TargetStore } from './target/TargetStore';
@@ -48,6 +49,8 @@ export interface OrchestrateMoveSessionOptions {
      * 用于 demo 等需要在 start() 和 wiring 之间做初始化的场景。
      */
     sessionId?: string;
+    /** 已创建的 GroupDragSession 需要先执行 MoveBehavior.prepare。 */
+    prepareExisting?: boolean;
     /**
      * 跟手定位的目标元素。设置后 MoveBehavior.update() 会自动更新该元素的
      * left/top 实现跟手。业务层无需手动设置 moveContext.followElement。
@@ -203,6 +206,13 @@ export declare class Runtime {
     }): void;
     getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null;
     startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, returnRect?: DOMRect): boolean;
+    /**
+     * 以一个主卡启动多对象移动。主卡仍复用单卡 MoveBehavior，GroupDragSession
+     * 负责其余对象的 ownership 和批量 Action；视觉适配器可以据 objectIds 创建
+     * 主代理及修饰代理。
+     */
+    startGroupObjectPointer(objectIds: readonly string[], primaryObjectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, returnRect?: DOMRect): boolean;
+    private startObjectPointerInSession;
     bindObjectPointer(objectId: string, element: HTMLElement): () => void;
     private syncObjectPointerBinding;
     private defaultVisualAdapter;
@@ -341,6 +351,10 @@ export declare class Runtime {
     interrupt(sessionId: string, reason?: string): void;
     private interruptInternal;
     startSession(type: string, objectId?: string): Session;
+    startGroupSession(objectIds: readonly string[], primaryObjectId: string, options?: {
+        type?: string;
+        offsets?: ReadonlyMap<string, GroupObjectOffset>;
+    }): GroupDragSession;
     getSession(id: string): Session | undefined;
     takeSurface(sessionId: string, surfaceId: string): boolean;
     /** 获取需要在 landing 前提前释放的对象 Lease（例如 detach 本体）。 */

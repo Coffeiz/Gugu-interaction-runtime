@@ -41,6 +41,10 @@ export interface MoveReleasePort {
 }
 export interface MoveActionPort {
     getObjectSurface(objectId: string): string | undefined;
+    getGroup?(objectId: string): {
+        primaryObjectId: string;
+        objectIds: readonly string[];
+    } | undefined;
     emit(action: Action): void | Promise<void>;
 }
 export interface MoveUpdatePort {

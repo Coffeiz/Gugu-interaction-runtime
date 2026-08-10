@@ -10,13 +10,14 @@ export class SessionCoordinator {
   private readonly completionGates = new Map<string, Set<SessionCompletionGate<unknown>>>()
   create(type: string, objectId: string, owner: Owner): Session { const session = new Session(type, objectId, owner); this.sessions.set(session.id, session); return session }
   get(id: string): Session | undefined { return this.sessions.get(id) }
+  snapshot(): readonly Session[] { return [...this.sessions.values()] }
   set(session: Session): void { this.sessions.set(session.id, session) }
   delete(id: string): void { this.sessions.delete(id) }
   addGate(sessionId: string, gate: SessionCompletionGate<unknown>): void { const gates = this.completionGates.get(sessionId) ?? new Set(); gates.add(gate); this.completionGates.set(sessionId, gates) }
   trackForObject(objectId: string, dispose: () => void): boolean {
     let tracked = false
     for (const session of this.sessions.values()) {
-      if (session.objectId !== objectId) continue
+      if (!session.hasObject(objectId)) continue
       session.trackCleanup(dispose)
       tracked = true
     }

@@ -12,6 +12,7 @@ export declare class SessionCoordinator {
     private readonly completionGates;
     create(type: string, objectId: string, owner: Owner): Session;
     get(id: string): Session | undefined;
+    snapshot(): readonly Session[];
     set(session: Session): void;
     delete(id: string): void;
     addGate(sessionId: string, gate: SessionCompletionGate<unknown>): void;

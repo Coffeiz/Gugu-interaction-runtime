@@ -7,7 +7,7 @@ export type SessionState =
 
 export type SessionEndReason = 'cancel' | 'finish' | 'regrab'
 
-const allowedTransitions: Record<SessionState, SessionState[]> = {
+export const allowedSessionTransitions: Record<SessionState, SessionState[]> = {
   prepare: ['active', 'interrupt', 'cancelled'],
   active: ['release', 'landing', 'interrupt', 'cancelled'],
   release: ['landing', 'saving', 'interrupt', 'cancelled'],
@@ -40,11 +40,14 @@ export class Session {
 
   transition(next: SessionState): void {
     if (this.state === next) return
-    if (!allowedTransitions[this.state].includes(next)) {
+    if (!allowedSessionTransitions[this.state].includes(next)) {
       throw new Error(`Invalid session transition: ${this.state} -> ${next}`)
     }
     this.state = next
   }
+
+  /** 判断对象是否属于本次会话；GroupDragSession 会扩展为多对象判断。 */
+  hasObject(objectId: string): boolean { return this.objectId === objectId }
 
   takeObject(objectId: string): Lease {
     const lease = this.owner.takeObject(objectId, this.id)

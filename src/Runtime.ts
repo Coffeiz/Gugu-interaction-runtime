@@ -1,6 +1,7 @@
 import { Owner } from './owner/Owner'
 import type { Lease } from './owner/Owner'
 import { Session } from './session/Session'
+import { GroupDragSession, type GroupObjectOffset } from './session/GroupDragSession'
 import { ObjectStore } from './object/ObjectStore'
 import { SurfaceStore } from './surface/SurfaceStore'
 import { TargetStore } from './target/TargetStore'
@@ -69,6 +70,8 @@ export interface OrchestrateMoveSessionOptions {
    * 用于 demo 等需要在 start() 和 wiring 之间做初始化的场景。
    */
   sessionId?: string
+  /** 已创建的 GroupDragSession 需要先执行 MoveBehavior.prepare。 */
+  prepareExisting?: boolean
   /**
    * 跟手定位的目标元素。设置后 MoveBehavior.update() 会自动更新该元素的
    * left/top 实现跟手。业务层无需手动设置 moveContext.followElement。
@@ -212,6 +215,11 @@ export class Runtime {
     })
     this.moveActions = new MoveActionCoordinator({
       getObjectSurface: objectId => this.objects.get(objectId)?.surfaceId,
+      getGroup: objectId => {
+        const session = this.sessionCoordinator.snapshot().find(candidate => candidate.hasObject(objectId))
+        if (!(session instanceof GroupDragSession)) return undefined
+        return { primaryObjectId: session.primaryObjectId, objectIds: session.objectIds }
+      },
       emit: action => this.actions.emitAsync(action),
     })
     this.moveCommit = new MoveCommitCoordinator({
@@ -336,6 +344,47 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, returnRect?: DOMRect): boolean {
+    return this.startObjectPointerInSession(objectId, element, event, fromRect, returnRect)
+  }
+
+  /**
+   * 以一个主卡启动多对象移动。主卡仍复用单卡 MoveBehavior，GroupDragSession
+   * 负责其余对象的 ownership 和批量 Action；视觉适配器可以据 objectIds 创建
+   * 主代理及修饰代理。
+   */
+  startGroupObjectPointer(
+    objectIds: readonly string[],
+    primaryObjectId: string,
+    element: HTMLElement,
+    event: PointerEvent,
+    fromRect?: DOMRect,
+    returnRect?: DOMRect,
+  ): boolean {
+    const ids = [...new Set(objectIds)]
+    if (ids.length < 2 || !ids.includes(primaryObjectId)) return false
+    const primaryRect = element.getBoundingClientRect()
+    const offsets = new Map<string, GroupObjectOffset>()
+    for (const objectId of ids) {
+      const objectElement = this.objects.get(objectId)?.element
+      if (!objectElement) continue
+      const rect = objectElement.getBoundingClientRect()
+      offsets.set(objectId, { x: rect.left - primaryRect.left, y: rect.top - primaryRect.top })
+    }
+    const session = this.startGroupSession(ids, primaryObjectId, { offsets })
+    session.takeObjects()
+    const started = this.startObjectPointerInSession(primaryObjectId, element, event, fromRect, returnRect, session.id)
+    if (!started) session.cancel()
+    return started
+  }
+
+  private startObjectPointerInSession(
+    objectId: string,
+    element: HTMLElement,
+    event: PointerEvent,
+    fromRect?: DOMRect,
+    returnRect?: DOMRect,
+    existingSessionId?: string,
+  ): boolean {
     // 对象当前已经登记了 regrab handler（悬空 landing 中的代理正等着被再次抓起）时，
     // 直接转发给它，不重新走一遍完整的 move 编排——避免代理与实体元素上的
     // pointerdown 在极端时序下重复触发两条 Session。
@@ -384,6 +433,8 @@ setMotionProfiles(this.registry.motionProfile)
           // 本体设为 followElement 会在同一 pointermove 写两次 left/top。
           // 跟手节点应由 Runtime visual driver 自行指定，业务 DOM 不参与。
           followElement: null,
+          sessionId: existingSessionId,
+          prepareExisting: Boolean(existingSessionId),
         },
       )
       return true
@@ -498,6 +549,15 @@ setMotionProfiles(this.registry.motionProfile)
       motion: motionProfile,
       motionEnabled: registration?.motion?.enabled,
       proxyLayout,
+      group: session instanceof GroupDragSession
+        ? {
+            primaryObjectId: session.primaryObjectId,
+            objectIds: session.objectIds,
+            offsets: new Map(session.objectIds
+              .map(objectId => [objectId, session.offsetFor(objectId)] as const)
+              .filter((entry): entry is readonly [string, GroupObjectOffset] => Boolean(entry[1]))),
+          }
+        : undefined,
     }
   }
 
@@ -1082,6 +1142,18 @@ setMotionProfiles(this.registry.motionProfile)
       this.bindMoveLifecycle(session.id, options.visualStrategy)
     }
 
+    if (options.sessionId && options.prepareExisting) {
+      const behavior = this.behaviors.get(session.type)
+      if (behavior instanceof MoveBehavior) {
+        try {
+          behavior.prepare(this.createBehaviorContext(session), request)
+          if (session.state === 'prepare') session.transition('active')
+        } catch (error) {
+          this.cancel(session.id, error instanceof Error ? error.message : 'prepare-failed')
+        }
+      }
+    }
+
     const stopPointerInput = this.bindPointerSessionInput(session.id, options.pointerInput)
 
     return {
@@ -1171,6 +1243,16 @@ setMotionProfiles(this.registry.motionProfile)
 
   startSession(type: string, objectId = ''): Session {
     return this.sessionCoordinator.create(type, objectId, this.owner)
+  }
+
+  startGroupSession(
+    objectIds: readonly string[],
+    primaryObjectId: string,
+    options: { type?: string; offsets?: ReadonlyMap<string, GroupObjectOffset> } = {},
+  ): GroupDragSession {
+    const session = new GroupDragSession(objectIds, primaryObjectId, this.owner, options)
+    this.sessionCoordinator.set(session)
+    return session
   }
 
   getSession(id: string): Session | undefined {

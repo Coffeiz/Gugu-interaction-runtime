@@ -11,6 +11,16 @@ export interface MoveAction extends BaseAction {
   readonly toIndex?: number
 }
 
+export interface MoveGroupAction extends BaseAction {
+  readonly type: 'move-group'
+  /** 主卡对应的 objectId，保留 BaseAction 兼容现有 Action 消费者。 */
+  readonly primaryObjectId: string
+  readonly objectIds: readonly string[]
+  readonly fromSurfaceId: string
+  readonly toSurfaceId: string
+  readonly toIndex?: number
+}
+
 export interface TransferAction extends BaseAction {
   readonly type: 'transfer'
   readonly fromSurfaceId: string
@@ -37,6 +47,7 @@ export interface LinkAction extends BaseAction {
 
 export type Action =
   | MoveAction
+  | MoveGroupAction
   | TransferAction
   | SortAction
   | ResizeAction
