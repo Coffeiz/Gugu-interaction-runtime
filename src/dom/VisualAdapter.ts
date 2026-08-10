@@ -130,6 +130,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     }
     const proxy = createDragProxy(context.beforeContent, context.sourceRect, { layout: context.proxyLayout })
     const content = getProxyContent(proxy)
+    const compact = Boolean(context.proxyLayout?.compact)
     preserveProxyVisualContext(context.sourceElement, content)
     const snapshot = context.visualSnapshot
     if (snapshot) {
@@ -140,7 +141,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
         content.style.backgroundImage = snapshot.backgroundImage
       }
       content.style.opacity = snapshot.opacity
-      getProxyAttitude(proxy).style.transform = 'scale(1.03)'
+      getProxyAttitude(proxy).style.transform = `scale(${compact ? 1 : 1.03})`
     }
     if (isDefaultDraggingGlassEnabled()) applyDraggingGlassStyle(content)
     // 业务卡片常把操作按钮做成默认 opacity:0、hover 时显示；proxy 是
@@ -176,6 +177,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (!context.preserveTarget) concealElement(target, context.sessionId)
     el.style.transition = 'none'
     const isTargetLanding = context.landingMode === 'target'
+    const isCompactProxy = getProxyContent(el).dataset.runtimeCompact === 'true'
     const targetSnapshot = context.targetSnapshot
     // disableTargetVisualMorph 只关掉"飞向语义目标（文件夹/面包屑）时代理套上目标样式"这段——
     // 无效落点走的是 landingMode:'default' 飞回原位，这时候的目标样式 morph 是另一回事：把
@@ -223,8 +225,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetOpacity: targetHasSurfaceStyle ? targetSnapshot?.opacity : undefined,
       // 透明面包屑/列表行没有可复用的卡片式内容结构，不能参与 content morph——列表行是
       // grid 多列布局，套这套给卡片设计的结构级 morph 会把列挤错位（类型跑到文件名下面）。
-      // 只有真正有背景/阴影这类卡片式表面的目标（网格卡）才复用同一套内容 morph。
-      targetContent: targetHasVisibleSurface ? target : undefined,
+      // compact 列表代理与目标卡结构相同，只需要让同一份内容跟随宽度恢复；如果再挂一层
+      // 目标 Grid，右侧文件大小会因为 justify-self:end 在 landing 第一帧瞬间回到完整宽度。
+      // 只有真正有背景/阴影且不是 compact 列表的目标才复用结构级 content morph。
+      targetContent: targetHasVisibleSurface && !isCompactProxy ? target : undefined,
       landingMode: context.landingMode,
       targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
       dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,

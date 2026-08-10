@@ -305,7 +305,9 @@ export function createDetachMoveFromAdapter(config: {
       sourceLease = acquireSourceVisualLease(element, sessionId!)
       // clone 和 detach 共用同一个抓取 proxy 工厂与 handoff 形式，保证 grabbing
       // 的姿态、过渡和 release 动量一致；唯一差别是 detach 立即移除源占位。
-      applyFloatingStyle(element, rect, { layout: runtime.getObjectProxyLayout(objectId, element) })
+      const proxyLayout = runtime.getObjectProxyLayout(objectId, element)
+      const compactProxy = Boolean(proxyLayout?.compact)
+      applyFloatingStyle(element, rect, { layout: proxyLayout })
       // regrab 的 source 会在 applyFloatingStyle() 中再次隐藏；如果旧 Session
       // 的 ownership 已被释放，preserveTarget 的 reveal 将无法恢复它。此时在
       // 新 Session 上登记 ownership，保持隐藏状态不变，等 reveal 统一交接。
@@ -346,7 +348,7 @@ export function createDetachMoveFromAdapter(config: {
         },
       })
       dragMotion.setProfile(FOLLOW_PROFILE)
-      dragMotion.seed({ x: rect.left, y: rect.top, scaleX: 1.03, scaleY: 1.03, rotateX: FOLLOW_ROTATION.tilt, rotateZ: 0 })
+      dragMotion.seed({ x: rect.left, y: rect.top, scaleX: compactProxy ? 1 : 1.03, scaleY: compactProxy ? 1 : 1.03, rotateX: FOLLOW_ROTATION.tilt, rotateZ: 0 })
       dragMotion.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
       dragMotion.start()
       dropState = createDetachDropState(

@@ -128,6 +128,8 @@ export function createDragProxy(
   rect: DOMRect = source.getBoundingClientRect(),
   options: { glass?: boolean; layout?: DragProxyLayoutConfig } = {},
 ): HTMLElement {
+  const compact = options.layout?.compact
+  const pickupScale = compact ? 1 : 1.03
   // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
   // perspective/rotate 由定位壳统一承载，不额外引入业务侧不存在的姿态节点。
   const proxy = document.createElement('div')
@@ -190,10 +192,9 @@ export function createDragProxy(
   // 而不是"左上角钉住、右边甩得更远"。translate3d 是位置平移，不受
   // transform-origin 影响，只改这一个值不需要连带调整任何位置计算。
   proxy.style.transformOrigin = '50% 50%'
-  proxy.style.transform = 'perspective(760px) rotateX(5deg) scale(1.03)'
+  proxy.style.transform = `perspective(760px) rotateX(5deg) scale(${pickupScale})`
   if (defaultDraggingGlassEnabled && options.glass !== false) applyDraggingGlassStyle(content)
   else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-  const compact = options.layout?.compact
   if (compact) content.dataset.runtimeCompact = 'true'
   const compactDuration = compact?.duration ?? 200
   const compactEasing = compact?.easing ?? 'cubic-bezier(.22,1,.36,1)'
@@ -946,6 +947,7 @@ export function applyFloatingStyle(
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
   const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout })
   const content = getProxyContent(proxy)
+  const compact = Boolean(options.layout?.compact)
   proxy.style.zIndex = '1000'
   // 首帧保留源卡片样式；下一帧才进入 grabbing 视觉，形成从原位被拎起的过渡。
   proxy.style.transform = 'scale(1)'
@@ -957,7 +959,7 @@ export function applyFloatingStyle(
     if (!proxy.isConnected) return
     if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
     else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-    proxy.style.transform = 'scale(1.03)'
+    proxy.style.transform = `scale(${compact ? 1 : 1.03})`
   })
 }
 
