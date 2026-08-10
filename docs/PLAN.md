@@ -124,6 +124,11 @@ Session、MoveBehavior、Action、MotionController、landing/reveal、regrab、F
 Vue/React DOM 适配器、文件系统 Demo 和 `proxyLayout` API 均已进入稳定实现。
 后续新增能力继续从独立分支开始，并通过 Demo 与浏览器回归验证；Gugu-web 文件页、
 画布和多选等业务迁移仍按阶段 2/3 的计划推进。
+Vue composable 适配层暂不冻结，兼容基线与迁移边界见
+[Vue 接入指南](integration/VUE.md)，等待 Gugu-web 接入侧的视觉和拖拽效果稳定后再实现。
+Vue 适配层的实现前置顺序为：恢复历史 Object/Surface/Transition composable，补齐
+TargetStore 的 generation 与增量更新，再实现 `useTarget`；不能用注销后重新注册
+的方式替代 Target 身份更新。
 
 ### 阶段 0：本仓库内的最小骨架（demo，不接业务）
 

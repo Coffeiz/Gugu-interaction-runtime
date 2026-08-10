@@ -5,6 +5,9 @@
 本文描述的是 2.0.0 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
 使用 Runtime 源码而非 npm 包；文件、画布和抽屉仍按各自 adapter 接入，尚未承诺零配置。
 
+本文只作为框架无关 Core API 的完整说明书。Vue 的简化接入方案单独记录在
+[Vue 接入指南](integration/VUE.md)，目前仍处于设计阶段，不改变本文的 Core 契约。
+
 本文的唯一业务语义契约是 Runtime Core API。Vue、React 或其他框架都可以直接调用同一套
 `runtime.objects`、`runtime.surfaces`、`runtime.targets` 和 `runtime.onAction()`；框架
 只负责把自己的 DOM ref 和组件生命周期接到这些 API 上，不产生另一套拖拽语义。Runtime
