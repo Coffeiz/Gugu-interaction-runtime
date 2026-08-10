@@ -1,6 +1,7 @@
 import { applyFloatingStyle, claimVisibilityOwnership, clearFloatingStyle, getFloatingProxy, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
-import { createCardMotionController, type CardMotionController } from '../../motion/CardMotionController'
+import { createCardMotionController } from '../../motion/CardMotionController'
+import { createDirectFollowController, type DragMotionDriver } from '../../motion/DirectFollowController'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
 import { shapeReleaseVelocity } from '../../motion/ReleaseMotion'
 import { captureDetachDraggingSnapshot, prepareDetachMotion, prepareDetachPickup, createDetachDropState, updateDetachDrop, resolveDetachLandingTarget, captureDetachTargetSnapshot, createDetachVisualContext, startDetachLandingVisual, completeDetachLanding, resolveDetachRegrabTarget, interruptDetachRegrab, scheduleDetachLandingFrame, createDetachLayoutLifecycle, createDetachLandingLifecycle } from '../DetachMoveDriver'
@@ -55,7 +56,7 @@ export function createDetachMoveFromAdapter(config: {
   let objectLease: { release: () => void } | null = null
   let sourceLease: SourceVisualLease | null = null
   let autoScroller: { update: (container: HTMLElement | null, point: { x: number; y: number }) => void; stop: () => void } | null = null
-  let dragMotion: CardMotionController | null = null
+  let dragMotion: DragMotionDriver | null = null
   let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number } | undefined
   let dragOffset = { x: 0, y: 0 }
   let pickupIndex: number | null = null
@@ -389,20 +390,32 @@ export function createDetachMoveFromAdapter(config: {
       // “强制自动重排”警告点名过 CardMotionController 这里的 onFrame）。
       const anchorLeft = rect.left
       const anchorTop = rect.top
-      dragMotion = createCardMotionController({
-        mode: 'follow',
-        followRotation: FOLLOW_ROTATION,
-        onFrame: frame => {
-          if (!floatingProxy.isConnected) return
-          const dx = frame.x - anchorLeft
-          const dy = frame.y - anchorTop
-          floatingProxy.style.transform = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
-        },
-      })
-      dragMotion.setProfile(FOLLOW_PROFILE)
-      dragMotion.seed({ x: rect.left, y: rect.top, scaleX: compactProxy ? 1 : 1.03, scaleY: compactProxy ? 1 : 1.03, rotateX: FOLLOW_ROTATION.tilt, rotateZ: 0 })
-      dragMotion.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
-      dragMotion.start()
+      const onDragFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
+        if (!floatingProxy.isConnected) return
+        const dx = frame.x - anchorLeft
+        const dy = frame.y - anchorTop
+        floatingProxy.style.transform = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
+      }
+      // motion.enabled === false：跳过 MotionController 的弹簧/tilt/sway，退化为
+      // pointermove 坐标直接写 transform 的 direct follow；landing 阶段已经在
+      // VisualAdapter.land() 里按同一个开关切到 legacy 非物理路径，这里只是把
+      // grabbing/follow 阶段补齐同一个契约，不引入第二套拖拽生命周期。
+      if (runtime.getObjectMotionEnabled(objectId)) {
+        const controller = createCardMotionController({
+          mode: 'follow',
+          followRotation: FOLLOW_ROTATION,
+          onFrame: onDragFrame,
+        })
+        controller.setProfile(FOLLOW_PROFILE)
+        controller.seed({ x: rect.left, y: rect.top, scaleX: compactProxy ? 1 : 1.03, scaleY: compactProxy ? 1 : 1.03, rotateX: FOLLOW_ROTATION.tilt, rotateZ: 0 })
+        controller.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
+        controller.start()
+        dragMotion = controller
+      } else {
+        const direct = createDirectFollowController({ onFrame: onDragFrame })
+        direct.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
+        dragMotion = direct
+      }
       dropState = createDetachDropState(
         findColumnIdOf(objectId),
         (ev: PointerEvent) => runtime.resolveMoveHit(objectId, ev.clientX, ev.clientY),

@@ -1,0 +1,174 @@
+import { describe, expect, it, vi } from 'vitest'
+import { Runtime } from '../Runtime'
+import { createDetachMoveFromAdapter } from '../runtime/move/MoveAdapter'
+import { DefaultVisualAdapter } from '../dom/VisualAdapter'
+import { createDragProxy, destroyDragProxy } from '../dom/Visual'
+import * as VisualModule from '../dom/Visual'
+import * as CardMotionControllerModule from '../motion/CardMotionController'
+import * as DirectFollowControllerModule from '../motion/DirectFollowController'
+
+function rect(left = 100, top = 100, width = 60, height = 40): DOMRect {
+  return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON() {} }
+}
+
+/** 搭一个可以手动驱动 grabbing/follow/release 阶段的最小 Runtime + Session。 */
+function setup(objectId: string, motion?: { enabled?: boolean }) {
+  const runtime = new Runtime()
+  const element = document.createElement('div')
+  element.className = 'card'
+  document.body.append(element)
+  vi.spyOn(element, 'getBoundingClientRect').mockReturnValue(rect())
+
+  const surfaceEl = document.createElement('div')
+  document.body.append(surfaceEl)
+  vi.spyOn(surfaceEl, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 800, 600))
+
+  runtime.registerObjectType('card', { defaultVisualMode: 'detach', motion })
+  runtime.surfaces.register({ id: 'surface:a', type: 'list', element: surfaceEl, accepts: ['card'] })
+  runtime.objects.register({ id: objectId, type: 'card', surfaceId: 'surface:a', element, abilities: ['move'] })
+
+  const session = runtime.startSession('move', objectId)
+  const pointerdown = new PointerEvent('pointerdown', { clientX: 120, clientY: 110 })
+  const { driver } = createDetachMoveFromAdapter({ runtime, objectId, element, event: pointerdown })
+
+  driver.prepare?.({ session } as never, undefined as never)
+  session.transition('active')
+
+  return { runtime, element, session, driver }
+}
+
+describe('motion.enabled 契约：grabbing/follow 阶段', () => {
+  it('A. 未配置/enabled=true：仍然创建并驱动 CardMotionController', () => {
+    const spy = vi.spyOn(CardMotionControllerModule, 'createCardMotionController')
+    const directSpy = vi.spyOn(DirectFollowControllerModule, 'createDirectFollowController')
+    const { driver, session } = setup('card:default')
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(directSpy).not.toHaveBeenCalled()
+
+    // release 阶段能正常拿到状态、不抛错，走完 resolveDestination。
+    const up = new PointerEvent('pointerup', { clientX: 130, clientY: 120 })
+    const result = driver.resolveDestination?.({ session } as never, { kind: 'pointerup', event: up } as never) as { accepted: boolean } | undefined
+    expect(result?.accepted).toBe(true)
+
+    spy.mockRestore()
+    directSpy.mockRestore()
+  })
+
+  it('B. enabled=false：grabbing 不创建 CardMotionController，改用 direct follow，pointermove 直接写 transform', () => {
+    const cardSpy = vi.spyOn(CardMotionControllerModule, 'createCardMotionController')
+    const directSpy = vi.spyOn(DirectFollowControllerModule, 'createDirectFollowController')
+    const { driver, session, runtime } = setup('card:direct', { enabled: false })
+
+    expect(cardSpy).not.toHaveBeenCalled()
+    expect(directSpy).toHaveBeenCalledTimes(1)
+    expect(runtime.getObjectMotionEnabled('card:direct')).toBe(false)
+
+    const proxy = runtime.getVisualProxy(session.id)?.element as HTMLElement | undefined
+    expect(proxy).toBeTruthy()
+
+    const move1 = new PointerEvent('pointermove', { clientX: 300, clientY: 260 })
+    driver.update?.({ session } as never, { kind: 'pointermove', event: move1 } as never)
+    const parseTranslate = (transform: string) => {
+      const match = transform.match(/translate3d\(([-\d.]+)px, ([-\d.]+)px, 0\)/)
+      return { x: Number(match?.[1]), y: Number(match?.[2]) }
+    }
+    const afterFirst = parseTranslate(proxy!.style.transform)
+
+    // direct follow 没有弹簧插值/惯性：第二次 pointermove 应立即把 transform 精确
+    // 平移了两次指针坐标之间的差值（40, 60），不带任何 tilt/sway/scale 姿态。
+    const move2 = new PointerEvent('pointermove', { clientX: 340, clientY: 320 })
+    driver.update?.({ session } as never, { kind: 'pointermove', event: move2 } as never)
+    const afterSecond = parseTranslate(proxy!.style.transform)
+    expect(afterSecond.x - afterFirst.x).toBeCloseTo(40, 5)
+    expect(afterSecond.y - afterFirst.y).toBeCloseTo(60, 5)
+    expect(proxy!.style.transform).toContain('rotateX(0.00deg)')
+    expect(proxy!.style.transform).toContain('rotateZ(0.00deg)')
+    expect(proxy!.style.transform).toContain('scale(1.0000, 1.0000)')
+
+    const up = new PointerEvent('pointerup', { clientX: 300, clientY: 260 })
+    const result = driver.resolveDestination?.({ session } as never, { kind: 'pointerup', event: up } as never) as { accepted: boolean } | undefined
+    expect(result?.accepted).toBe(true)
+
+    cardSpy.mockRestore()
+    directSpy.mockRestore()
+  })
+
+  it('C. createDirectFollowController 自身契约：release 不携带速度（vx/vy 恒为 0）', () => {
+    const direct = DirectFollowControllerModule.createDirectFollowController({ onFrame: () => undefined })
+    direct.setTarget({ x: 10, y: 20 })
+    direct.setTarget({ x: 40, y: 90 })
+    const state = direct.getState()
+    expect(state.x).toBe(40)
+    expect(state.y).toBe(90)
+    expect(state.vx).toBe(0)
+    expect(state.vy).toBe(0)
+    expect(state.rotateX).toBe(0)
+    expect(state.rotateZ).toBe(0)
+    expect(state.scaleX).toBe(1)
+    expect(state.scaleY).toBe(1)
+    expect(() => direct.stop()).not.toThrow()
+  })
+})
+
+describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）', () => {
+  function landingFixture() {
+    const source = document.createElement('article')
+    document.body.append(source)
+    const target = document.createElement('article')
+    document.body.append(target)
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(rect(200, 200, 60, 40))
+    const proxy = createDragProxy(source, rect())
+    return { source, target, proxy }
+  }
+
+  it('motionEnabled 未配置/true：使用 landDragProxyWithMotion 物理落地', async () => {
+    const legacySpy = vi.spyOn(VisualModule, 'landDragProxyLegacy')
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'o', sessionId: 's', mode: 'detach',
+    } as never)
+
+    expect(legacySpy).not.toHaveBeenCalled()
+    legacySpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('motionEnabled=false：切换到 landDragProxyLegacy 的 CSS 过渡落地，不经过 MotionController', async () => {
+    const legacySpy = vi.spyOn(VisualModule, 'landDragProxyLegacy')
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'o', sessionId: 's', mode: 'detach', motionEnabled: false,
+    } as never)
+
+    expect(legacySpy).toHaveBeenCalledTimes(1)
+    legacySpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+})
+
+describe('Runtime.getObjectMotionEnabled', () => {
+  it('未注册/未配置 motion 时默认视为启用', () => {
+    const runtime = new Runtime()
+    const element = document.createElement('div')
+    runtime.registerObjectType('plain', { defaultVisualMode: 'detach' })
+    runtime.objects.register({ id: 'x', type: 'plain', surfaceId: 's', element, abilities: ['move'] })
+    expect(runtime.getObjectMotionEnabled('x')).toBe(true)
+    expect(runtime.getObjectMotionEnabled('missing-object')).toBe(true)
+  })
+
+  it('motion.enabled 显式为 false 时返回 false，为 true 或省略时返回 true', () => {
+    const runtime = new Runtime()
+    const element = document.createElement('div')
+    runtime.registerObjectType('off', { defaultVisualMode: 'detach', motion: { enabled: false } })
+    runtime.registerObjectType('on', { defaultVisualMode: 'detach', motion: { enabled: true } })
+    runtime.objects.register({ id: 'a', type: 'off', surfaceId: 's', element, abilities: ['move'] })
+    runtime.objects.register({ id: 'b', type: 'on', surfaceId: 's', element, abilities: ['move'] })
+    expect(runtime.getObjectMotionEnabled('a')).toBe(false)
+    expect(runtime.getObjectMotionEnabled('b')).toBe(true)
+  })
+})

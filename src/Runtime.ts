@@ -515,6 +515,13 @@ setMotionProfiles(this.registry.motionProfile)
     return registration?.grabAlign
   }
 
+  /** 按对象类型读取运动策略；未显式关闭（`motion.enabled !== false`）时默认使用 MotionController。 */
+  getObjectMotionEnabled(objectId: string): boolean {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    return registration?.motion?.enabled !== false
+  }
+
   /** 按对象注册解析抓取代理布局，供 detach 浮动入口与生命周期入口共用。 */
   getObjectProxyLayout(objectId: string, sourceElement?: HTMLElement): DragProxyLayoutConfig | undefined {
     const object = this.objects.get(objectId)
