@@ -779,6 +779,8 @@ project-files:19:file:123
 - [x] 多选拖拽已按通用能力扩展 Runtime Core：使用 `GroupDragSession` 和
       `MoveGroupAction`，不加入文件专属字段；Gugu-web 真实文件页迁移另按 Phase 3-A
       剩余工作评估。
+- [x] 多选叠卡视觉已收敛为可选的 `GroupVisualAdapter`：未配置时使用 Runtime 默认效果，
+      可通过 `groupVisual: 'none'` 关闭，或传入自定义适配器；业务侧不再维护默认叠卡动画。
 
 ##### 2-2.5：API 复评门槛
 
@@ -789,7 +791,8 @@ project-files:19:file:123
 3. 多选拖拽需要通用的 Group Session。
 4. 文件视觉策略在 Runtime 之外无法保持一致的生命周期。
 
-候选扩展只能是通用能力，例如 Surface `metadata`、通用目标快照或 `GroupDragSession`；不得加入文件专属字段。
+候选扩展只能是通用能力，例如 Surface `metadata`、通用目标快照、`GroupDragSession` 或
+`GroupVisualAdapter`；不得加入文件专属字段。
 
 ##### 2-2.6：收敛规则
 

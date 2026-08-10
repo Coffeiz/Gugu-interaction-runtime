@@ -11,7 +11,7 @@ import type { RuntimeInput, SessionHandle, StartRequest } from './core/Interacti
 import type { Behavior, BehaviorContext } from './behavior/Behavior'
 import { BehaviorStore } from './behavior/BehaviorStore'
 import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle, type MoveVisualStrategy } from './behavior/MoveBehavior'
-import { DefaultVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
+import { DefaultVisualAdapter, type GroupVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
 import type { VisualState } from './dom/VisualAdapterTypes'
 import type { MotionProfile } from './dom/MotionProfile'
 import type { GroupDragConfig } from './dom/GroupDragProfile'
@@ -33,6 +33,7 @@ import { MoveCommitCoordinator, MoveLandingCoordinator } from './runtime/Runtime
 import { RuntimeInputCoordinator, RuntimeDispatcher } from './runtime/RuntimeInput'
 import { RuntimeMoveCoordinator, type MoveReleasePort } from './runtime/RuntimeMove'
 import { setDefaultDraggingGlassEnabled } from './dom/Visual'
+import { createGroupVisualAdapter } from './dom/GroupVisual'
 import { RuntimeSessionCoordinator } from './runtime/RuntimeSession'
 import {
   captureLayoutFlip,
@@ -105,6 +106,8 @@ export interface ObjectTypeRegistration {
   defaultVisualMode: string
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
   visual?: ObjectVisualAdapter
+  /** 多对象叠卡视觉；默认使用 Runtime 内置效果，也可传入自定义适配器或显式关闭。 */
+  groupVisual?: GroupVisualOption
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
   motion?: { enabled?: boolean; profile?: MotionProfile }
   /** landing 的终态表现；default 保持看板行为，target 到达语义目标后缩小淡出。 */
@@ -145,6 +148,8 @@ export interface ObjectTypeRegistration {
     pointerInput?: PointerSessionInputOptions
   }
 }
+
+export type GroupVisualOption = 'default' | 'none' | GroupVisualAdapter
 
 export interface ObjectVisualAdapter extends VisualAdapter {
   createMove?(context: {
@@ -203,6 +208,7 @@ export class Runtime {
   private readonly moveLanding: MoveLandingCoordinator
   private readonly visualState: VisualStateCoordinator
   private readonly visualMotion: VisualMotionCoordinator
+  private readonly groupVisualAdapters = new Map<string, VisualAdapter>()
   private readonly surfaceScrollFrames = new WeakMap<HTMLElement, number>()
 
   constructor() {
@@ -251,6 +257,7 @@ export class Runtime {
     this.visualMotion = new VisualMotionCoordinator({
       getSession: sessionId => this.sessionCoordinator.get(sessionId),
       getAdapter: objectId => this.getObjectVisualAdapter(objectId),
+      getGroupAdapter: objectId => this.getObjectGroupVisualAdapter(objectId),
       createContext: (sessionId, destination, target) => this.createVisualLifecycleContext(sessionId, destination, target),
     }, this.visualProxyCoordinator)
     this.dispatcher = new RuntimeDispatcher({
@@ -298,6 +305,7 @@ setMotionProfiles(this.registry.motionProfile)
 
   registerObjectType(type: string, registration: ObjectTypeRegistration): void {
     this.registry.registerObjectType(type, registration)
+    this.groupVisualAdapters.delete(type)
     for (const object of this.objects.values()) {
       if (object.type === type || object.visual === type) this.syncObjectPointerBinding(object.id)
     }
@@ -524,6 +532,21 @@ setMotionProfiles(this.registry.motionProfile)
     return this.getVisualAdapter(object?.visual ?? object?.type ?? '')
   }
 
+  getObjectGroupVisualAdapter(objectId: string): VisualAdapter | undefined {
+    const object = this.objects.get(objectId)
+    const type = object?.visual ?? object?.type
+    const registration = type ? this.registry.objectTypes.get(type) : undefined
+    const option = registration?.groupVisual
+    if (option === 'none') return undefined
+    if (option && option !== 'default') return option
+    if (!type) return undefined
+    const cached = this.groupVisualAdapters.get(type)
+    if (cached) return cached
+    const adapter = createGroupVisualAdapter(this, this.getObjectVisualAdapter(objectId))
+    this.groupVisualAdapters.set(type, adapter)
+    return adapter
+  }
+
   createVisualLifecycleContext(
     sessionId: string,
     destination?: unknown,
@@ -672,7 +695,9 @@ setMotionProfiles(this.registry.motionProfile)
     let adapterDisposed = false
     if (session) {
       const context = this.createVisualLifecycleContext(sessionId)
-      const adapter = this.getObjectVisualAdapter(session.objectId)
+      const adapter = context.group
+        ? (this.getObjectGroupVisualAdapter(session.objectId) ?? this.getObjectVisualAdapter(session.objectId))
+        : this.getObjectVisualAdapter(session.objectId)
       if (adapter.dispose) {
         adapter.dispose(proxy, context)
         adapterDisposed = true

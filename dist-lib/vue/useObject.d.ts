@@ -9,6 +9,7 @@ export interface UseObjectOptions {
     type: MaybeRefOrGetter<string>;
     surface: MaybeRefOrGetter<string>;
     abilities: MaybeRefOrGetter<readonly string[]>;
+    selected?: MaybeRefOrGetter<boolean>;
     visual?: MaybeRefOrGetter<string | undefined>;
     visualMode?: MaybeRefOrGetter<string | undefined>;
     target?: MaybeRefOrGetter<ObjectTargetOptions | undefined>;

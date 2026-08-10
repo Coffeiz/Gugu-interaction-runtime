@@ -43,15 +43,20 @@ export class VisualProxyCoordinator {
 export interface VisualMotionPort {
   getSession(id: string): Session | undefined
   getAdapter(objectId: string): VisualAdapter
+  getGroupAdapter?(objectId: string): VisualAdapter | undefined
   createContext(id: string, destination?: unknown, target?: HTMLElement): VisualLifecycleContext
 }
 
 export class VisualMotionCoordinator {
   constructor(private readonly port: VisualMotionPort, private readonly proxies: VisualProxyCoordinator) {}
+  private getAdapter(session: Session, context?: VisualLifecycleContext): VisualAdapter {
+    if (context?.group) return this.port.getGroupAdapter?.(session.objectId) ?? this.port.getAdapter(session.objectId)
+    return this.port.getAdapter(session.objectId)
+  }
   create(sessionId: string, context: VisualLifecycleContext): VisualProxy | undefined {
     const session = this.port.getSession(sessionId)
     if (!session) return undefined
-    const proxy = this.port.getAdapter(session.objectId).createProxy?.(context)
+    const proxy = this.getAdapter(session, context).createProxy?.(context)
     if (!proxy) return undefined
     this.proxies.register(sessionId, proxy)
     return proxy
@@ -65,7 +70,7 @@ export class VisualMotionCoordinator {
     const proxy = this.proxies.get(sessionId)
     if (!session || !proxy) return { completed: false, reason: 'visual-proxy-missing' }
     const lifecycleContext = context ?? this.port.createContext(sessionId, undefined, target)
-    const result = await this.port.getAdapter(session.objectId).land?.(proxy, target, lifecycleContext)
+    const result = await this.getAdapter(session, lifecycleContext).land?.(proxy, target, lifecycleContext)
     if (!result) return { completed: true }
     return result
   }
@@ -73,12 +78,14 @@ export class VisualMotionCoordinator {
     const session = this.port.getSession(sessionId)
     const proxy = this.proxies.get(sessionId)
     if (!session || !proxy) return
-    this.port.getAdapter(session.objectId).updateProxy?.(proxy, context ?? this.port.createContext(sessionId))
+    const lifecycleContext = context ?? this.port.createContext(sessionId)
+    this.getAdapter(session, lifecycleContext).updateProxy?.(proxy, lifecycleContext)
   }
   async reveal(sessionId: string, target: HTMLElement, context?: VisualLifecycleContext): Promise<void> {
     const session = this.port.getSession(sessionId)
     const proxy = this.proxies.get(sessionId)
     if (!session || !proxy) return
-    await this.port.getAdapter(session.objectId).reveal?.(proxy, target, context ?? this.port.createContext(sessionId, undefined, target))
+    const lifecycleContext = context ?? this.port.createContext(sessionId, undefined, target)
+    await this.getAdapter(session, lifecycleContext).reveal?.(proxy, target, lifecycleContext)
   }
 }

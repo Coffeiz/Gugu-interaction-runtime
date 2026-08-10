@@ -3,7 +3,7 @@
  * 接入方不需要了解 src 下的目录结构，也不应直接依赖 demo 实现。
  */
 export { Runtime, runtime } from './Runtime'
-export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, GrabAlignConfig } from './Runtime'
+export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, GrabAlignConfig, GroupVisualOption } from './Runtime'
 export { RuntimeRegistry } from './runtime/RuntimeRegistry'
 export { createVueRuntimeAdapter } from './adapters/vue'
 export { createReactRuntimeAdapter } from './adapters/react'
@@ -39,7 +39,7 @@ export { ObjectStore } from './object/ObjectStore'
 export { SurfaceStore } from './surface/SurfaceStore'
 export { TargetStore } from './target/TargetStore'
 export type { TargetItem } from './target/Target'
-export type { VisualAdapter, VisualAdapterRegistry } from './dom/VisualAdapter'
+export type { VisualAdapter, GroupVisualAdapter, VisualAdapterRegistry } from './dom/VisualAdapter'
 export {
   DEFAULT_GROUP_DRAG_CONFIG,
   resolveGroupDragConfig,
@@ -50,6 +50,7 @@ export {
 export type { DragProxyLayoutConfig } from './dom/Visual'
 export { DefaultVisualAdapter, VisualAdapters } from './dom/VisualAdapter'
 export type { VisualPhase, VisualState, VisualSnapshot } from './dom/VisualAdapterTypes'
+export { createGroupVisualAdapter } from './dom/GroupVisual'
 export { createDetachMoveFromAdapter } from './runtime/move/MoveAdapter'
 export type { HitResolver, HitResult } from './dom/Hit'
 export { createDomHitResolver, hitWithResolver } from './dom/Hit'

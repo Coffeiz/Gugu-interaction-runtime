@@ -293,9 +293,43 @@ const ids = runtime.getObjectsInRect(surfaceId, {
 选择集合、框选框和工具栏仍属于业务 UI；Runtime 只负责对象命中、多卡会话、代理
 视觉和最终的 `move-group` Action。
 
-多选拖拽通过对象类型注册中的 `groupDrag` 配置修饰卡视觉。它只影响抓取时的
-叠牌和 modifier 淡出，不影响 `move-group` action 携带的对象数量，也不负责业务
-侧的选择状态。
+多选拖拽默认使用 Runtime 内置的 `GroupVisualAdapter`，负责主卡、修饰卡叠放、
+源卡幽灵、landing 淡出和回位恢复。它只影响抓取时的叠牌视觉，不影响
+`move-group` action 携带的对象数量，也不负责业务侧的选择状态。
+
+默认情况下不需要额外配置：
+
+```ts
+runtime.registerObjectType('file-item', {
+  defaultVisualMode: 'detach',
+  // 未配置 groupVisual 也等价于 'default'
+  groupVisual: 'default',
+})
+```
+
+如果对象需要自己的叠卡外观，可以传入自定义 `GroupVisualAdapter`。它会在
+`context.group` 存在时接管代理的 `createProxy`、`land`、`reveal` 和 `dispose`，
+普通单卡仍使用 `visual`：
+
+```ts
+runtime.registerObjectType('custom-card', {
+  defaultVisualMode: 'detach',
+  visual: cardVisual,
+  groupVisual: customGroupVisual,
+})
+```
+
+不需要多选叠卡的对象可以显式关闭：
+
+```ts
+groupVisual: 'none'
+```
+
+配置优先级为：`'none'` 关闭，自定义适配器优先，`'default'` 或未配置时使用
+Runtime 默认实现。
+
+`GroupVisualAdapter` 与 `VisualAdapter` 使用相同的生命周期接口；Runtime 只在
+多对象会话中调用它，不要求业务侧自行判断单卡/多卡。
 
 ```ts
 runtime.registerObjectType('file-item', {

@@ -107,6 +107,18 @@ test('多选文件拖入文件夹时以主卡带动选中项', async ({ page }) 
   await target.click()
   await expect(page.locator('.file-item[data-file-id="file:readme"]')).toHaveCount(1)
   await expect(page.locator('.file-item[data-file-id="file:roadmap"]')).toHaveCount(1)
+
+  // Group visual dispose 必须恢复所有源卡的 pointer-events；否则只有主卡能再次抓取，
+  // 其他源卡会把 pointerdown 穿透到 surface，错误进入框选流程。
+  const movedFile = page.locator('.file-item[data-file-id="file:roadmap"]')
+  const movedBox = await movedFile.boundingBox()
+  if (!movedBox) throw new Error('移动后的文件卡未渲染')
+  await page.mouse.move(movedBox.x + movedBox.width / 2, movedBox.y + movedBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(movedBox.x + movedBox.width / 2 + 12, movedBox.y + movedBox.height / 2, { steps: 4 })
+  await expect(page.locator('[data-runtime-proxy="true"]')).toHaveCount(1)
+  await page.mouse.up()
+  await expect(page.locator('[data-runtime-proxy="true"]')).toHaveCount(0)
 })
 
 test('普通点击单卡不会打开多选工具栏，空白拖动可以框选文件', async ({ page }) => {

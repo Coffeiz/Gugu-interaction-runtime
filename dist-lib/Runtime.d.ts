@@ -8,7 +8,7 @@ import { RuntimeInput, SessionHandle, StartRequest } from './core/Interaction';
 import { Behavior } from './behavior/Behavior';
 import { BehaviorStore } from './behavior/BehaviorStore';
 import { MoveBehaviorDriver, MoveContext, MoveVisualLifecycle, MoveVisualStrategy } from './behavior/MoveBehavior';
-import { VisualAdapter, VisualLifecycleContext, VisualProxy } from './dom/VisualAdapter';
+import { GroupVisualAdapter, VisualAdapter, VisualLifecycleContext, VisualProxy } from './dom/VisualAdapter';
 import { VisualState } from './dom/VisualAdapterTypes';
 import { MotionProfile } from './dom/MotionProfile';
 import { GroupDragConfig } from './dom/GroupDragProfile';
@@ -81,6 +81,8 @@ export interface ObjectTypeRegistration {
     defaultVisualMode: string;
     /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
     visual?: ObjectVisualAdapter;
+    /** 多对象叠卡视觉；默认使用 Runtime 内置效果，也可传入自定义适配器或显式关闭。 */
+    groupVisual?: GroupVisualOption;
     /** 运动实现与参数；默认启用 Runtime MotionController。 */
     motion?: {
         enabled?: boolean;
@@ -134,6 +136,7 @@ export interface ObjectTypeRegistration {
         pointerInput?: PointerSessionInputOptions;
     };
 }
+export type GroupVisualOption = 'default' | 'none' | GroupVisualAdapter;
 export interface ObjectVisualAdapter extends VisualAdapter {
     createMove?(context: {
         objectId: string;
@@ -188,6 +191,7 @@ export declare class Runtime {
     private readonly moveLanding;
     private readonly visualState;
     private readonly visualMotion;
+    private readonly groupVisualAdapters;
     private readonly surfaceScrollFrames;
     constructor();
     registerVisualAdapter(type: string, adapter: VisualAdapter): void;
@@ -208,6 +212,12 @@ export declare class Runtime {
         layoutPresence?: boolean;
     }): void;
     getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null;
+    /**
+     * 返回与矩形相交的已注册对象。
+     * Runtime 只负责对象命中计算，选择状态仍由业务保存；代理节点、断开节点和
+     * 不可见节点不会进入结果，避免框选把落地代理或隐藏列表项带进来。
+     */
+    getObjectsInRect(surfaceId: string, rect: Pick<DOMRect, 'left' | 'top' | 'right' | 'bottom'>): string[];
     startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, returnRect?: DOMRect): boolean;
     /**
      * 以一个主卡启动多对象移动。主卡仍复用单卡 MoveBehavior，GroupDragSession
@@ -225,6 +235,7 @@ export declare class Runtime {
     /** 按对象注册解析抓取代理布局，供 detach 浮动入口与生命周期入口共用。 */
     getObjectProxyLayout(objectId: string, sourceElement?: HTMLElement): DragProxyLayoutConfig | undefined;
     getObjectVisualAdapter(objectId: string): VisualAdapter;
+    getObjectGroupVisualAdapter(objectId: string): VisualAdapter | undefined;
     createVisualLifecycleContext(sessionId: string, destination?: unknown, targetElement?: HTMLElement, beforeContent?: HTMLElement): VisualLifecycleContext;
     /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
     createVisualProxy(sessionId: string, context: VisualLifecycleContext): VisualProxy | undefined;

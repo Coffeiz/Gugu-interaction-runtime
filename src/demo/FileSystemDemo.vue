@@ -95,7 +95,6 @@ import { runtime } from '../Runtime'
 import { createVueRuntimeAdapter } from '../adapters/vue'
 import { useRuntimeAction } from '../vue'
 import type { FileItem } from './fileTypes'
-import { createGroupFileVisualAdapter } from './groupFileVisual'
 import type { MoveGroupAction } from '../action/Action'
 import BreadcrumbItem from './BreadcrumbItem.vue'
 import FileBrowserSurface from './FileBrowserSurface.vue'
@@ -341,11 +340,10 @@ function moveGroup(action: MoveGroupAction): void {
 
 const listProxyLayout = { compact: { selector: '[data-demo-list-layout="true"]', width: 'min(320px, calc(100vw - 48px))' } }
 
-const groupVisual = createGroupFileVisualAdapter(runtime)
 for (const type of ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone']) {
   runtime.registerObjectType(type, {
     defaultVisualMode: type.endsWith('-clone') ? 'clone' : 'detach',
-    visual: groupVisual,
+    groupVisual: 'default',
     landingMode: 'target',
     motion: { enabled: true },
     preserveMoveTarget: true,

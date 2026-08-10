@@ -1,9 +1,9 @@
-import { provide as j, inject as y, ref as f, watch as a, onUnmounted as s, toValue as u } from "vue";
+import { provide as j, inject as y, ref as m, watch as l, onUnmounted as s, toValue as i } from "vue";
 const b = Symbol("gugu-interaction-runtime");
 function w(e) {
   j(b, e);
 }
-function m() {
+function f() {
   const e = y(b);
   if (!e)
     throw new Error("Vue Runtime provider is missing; call provideRuntime(runtime) in a parent component");
@@ -11,88 +11,89 @@ function m() {
 }
 function o(e) {
   return {
-    type: u(e.type),
-    surfaceId: u(e.surface),
-    abilities: [...u(e.abilities)],
-    visual: e.visual === void 0 ? void 0 : u(e.visual),
-    visualMode: e.visualMode === void 0 ? void 0 : u(e.visualMode),
-    target: e.target === void 0 ? void 0 : u(e.target)
+    type: i(e.type),
+    surfaceId: i(e.surface),
+    abilities: [...i(e.abilities)],
+    selected: e.selected === void 0 ? !1 : i(e.selected),
+    visual: e.visual === void 0 ? void 0 : i(e.visual),
+    visualMode: e.visualMode === void 0 ? void 0 : i(e.visualMode),
+    target: e.target === void 0 ? void 0 : i(e.target)
   };
 }
 function h(e) {
-  const t = m(), c = f(null), d = o(e), i = t.objects.register({
+  const t = f(), c = m(null), d = o(e), u = t.objects.register({
     id: e.id,
     ...d,
     element: null
   });
-  return a(
+  return l(
     () => o(e),
     (n) => t.objects.update(e.id, n),
     { deep: !0 }
-  ), a(c, (n, l) => {
+  ), l(c, (n, a) => {
     const r = t.objects.get(e.id);
-    (r == null ? void 0 : r.generation) === i && (n === null && r.element && r.element !== l || t.objects.setElement(e.id, n));
+    (r == null ? void 0 : r.generation) === u && (n === null && r.element && r.element !== a || t.objects.setElement(e.id, n));
   }), s(() => {
-    t.unregisterObjectWhenIdle(e.id, i);
-  }), { elementRef: c, generation: i };
+    t.unregisterObjectWhenIdle(e.id, u);
+  }), { elementRef: c, generation: u };
 }
 function g(e) {
   return {
-    type: u(e.type),
-    accepts: [...u(e.accepts)],
+    type: i(e.type),
+    accepts: [...i(e.accepts)],
     viewport: e.viewport,
-    motion: e.motion === void 0 ? void 0 : u(e.motion)
+    motion: e.motion === void 0 ? void 0 : i(e.motion)
   };
 }
 function I(e) {
-  const t = m(), c = f(null), d = g(e), i = t.surfaces.register({
+  const t = f(), c = m(null), d = g(e), u = t.surfaces.register({
     id: e.id,
     ...d,
     element: null
   });
-  return a(
+  return l(
     () => g(e),
     (n) => t.surfaces.update(e.id, n),
     { deep: !0 }
-  ), a(c, (n, l) => {
+  ), l(c, (n, a) => {
     const r = t.surfaces.get(e.id);
-    (r == null ? void 0 : r.generation) === i && (n === null && r.element && r.element !== l || t.surfaces.setElement(e.id, n));
+    (r == null ? void 0 : r.generation) === u && (n === null && r.element && r.element !== a || t.surfaces.setElement(e.id, n));
   }), s(() => {
-    t.surfaces.unregister(e.id, i);
-  }), { elementRef: c, generation: i };
+    t.surfaces.unregister(e.id, u);
+  }), { elementRef: c, generation: u };
 }
 function v(e) {
   return {
-    surfaceId: u(e.surfaceId),
-    accepts: [...u(e.accepts)],
-    priority: e.priority === void 0 ? void 0 : u(e.priority),
-    resolve: e.resolve === void 0 ? void 0 : u(e.resolve)
+    surfaceId: i(e.surfaceId),
+    accepts: [...i(e.accepts)],
+    priority: e.priority === void 0 ? void 0 : i(e.priority),
+    resolve: e.resolve === void 0 ? void 0 : i(e.resolve)
   };
 }
 function E(e) {
-  const t = m(), c = f(null), d = v(e), i = t.targets.register({
+  const t = f(), c = m(null), d = v(e), u = t.targets.register({
     id: e.id,
     ...d,
     element: null
   });
-  return a(
+  return l(
     () => v(e),
     (n) => t.targets.update(e.id, n),
     { deep: !0 }
-  ), a(c, (n, l) => {
+  ), l(c, (n, a) => {
     const r = t.targets.get(e.id);
-    (r == null ? void 0 : r.generation) === i && (n === null && r.element && r.element !== l || t.targets.setElement(e.id, n));
+    (r == null ? void 0 : r.generation) === u && (n === null && r.element && r.element !== a || t.targets.setElement(e.id, n));
   }), s(() => {
-    t.targets.unregister(e.id, i);
-  }), { elementRef: c, generation: i };
+    t.targets.unregister(e.id, u);
+  }), { elementRef: c, generation: u };
 }
 function O(e) {
-  const t = m().onAction(e);
+  const t = f().onAction(e);
   s(t);
 }
 function C(e) {
-  const t = m(), c = f(t.isControlled(e)), d = t.onOwnershipChange((i) => {
-    i === e && (c.value = t.isControlled(e));
+  const t = f(), c = m(t.isControlled(e)), d = t.onOwnershipChange((u) => {
+    u === e && (c.value = t.isControlled(e));
   });
   return s(d), { controlled: c };
 }
@@ -100,7 +101,7 @@ export {
   w as provideRuntime,
   b as runtimeInjectionKey,
   h as useObject,
-  m as useRuntime,
+  f as useRuntime,
   O as useRuntimeAction,
   C as useRuntimeTransition,
   I as useSurface,

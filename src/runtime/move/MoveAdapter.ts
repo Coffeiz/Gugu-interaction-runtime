@@ -193,7 +193,21 @@ export function createDetachMoveFromAdapter(config: {
         // 才在这里补建，覆盖异常中断或 regrab 后代理已被清理的情况。
         createProxy: () => runtime.getVisualProxy(sid) ?? runtime.createVisualProxy(sid, visualContext) ?? null,
         enableProxy: (proxy: HTMLElement) => setProxyInteractive(proxy, true),
-        bindRegrab: (proxy: HTMLElement) => runtime.bindRegrabTarget(sid, objectId, proxy, onRegrab),
+        bindRegrab: (proxy: HTMLElement) => {
+          runtime.bindRegrabTarget(sid, objectId, proxy, event => onRegrab(event, objectId))
+          const group = runtime.getGroup(sid)
+          if (!group) return
+          // 多选 landing 期间源卡仍留在原布局中作为幽灵；每张源卡都要能
+          // 重新接管同一个 group session，而不是只有主卡和飞行代理可抓。
+          for (const groupObjectId of group.objectIds) {
+            const source = runtime.objects.get(groupObjectId)?.element
+            if (!source?.isConnected) continue
+            source.style.pointerEvents = 'auto'
+            if (groupObjectId !== objectId) {
+              runtime.registerRegrab(groupObjectId, event => onRegrab(event, groupObjectId))
+            }
+          }
+        },
         land: () => runtime.landVisualProxy(sid, landedEl, visualContext),
         onMissing: () => { landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' }); landingGate = null },
         onComplete: (landingResult: LandingResult) => {
@@ -220,23 +234,29 @@ export function createDetachMoveFromAdapter(config: {
     return { accepted: true as const, destination: pendingDrop, ...(invalidReturn ? { emitAction: false } : {}) }
   }
 
-  function onRegrab(regrabEvent: PointerEvent) {
+  function clearGroupRegrabs(group: ReturnType<Runtime['getGroup']>): void {
+    for (const groupObjectId of group?.objectIds ?? [objectId]) runtime.clearRegrab(groupObjectId)
+  }
+
+  function onRegrab(regrabEvent: PointerEvent, grabbedObjectId = objectId) {
     if (getSessionState() !== 'landing') return
     const proxy = landingProxy
     if (!proxy || !sessionId) return
     const group = runtime.getGroup(sessionId)
     const groupVisual = group ? runtime.objects.get(group.primaryObjectId)?.visual : undefined
-    const liveEl = resolveDetachRegrabTarget(
-      () => runtime.resolveVisualTarget(sessionId!, pendingDrop),
-      () => runtime.objects.get(objectId)?.element ?? null,
-    )
+    const liveEl = group
+      ? runtime.objects.get(group.primaryObjectId)?.element ?? null
+      : resolveDetachRegrabTarget(
+        () => runtime.resolveVisualTarget(sessionId!, pendingDrop),
+        () => runtime.objects.get(objectId)?.element ?? null,
+      )
     if (!liveEl) return
     const regrabContext = runtime.createRegrabContext(sessionId!, regrabEvent, proxy, liveEl)
     if (!regrabContext) return
     interruptDetachRegrab({
       event: regrabContext.event, sessionId: sessionId!, proxy, source: liveEl,
       interrupt: () => runtime.takeoverRegrab(sessionId!),
-      clearRegrab: () => runtime.clearRegrab(objectId),
+      clearRegrab: () => clearGroupRegrabs(group),
     })
     const targetRect = liveEl.getBoundingClientRect()
     // proxyRect 是带缩放/旋转的视觉外接框，不能作为新 session 的布局尺寸。
@@ -257,7 +277,7 @@ export function createDetachMoveFromAdapter(config: {
         targetRect,
       )
     } else {
-      runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.regrabRect, targetRect)
+      runtime.startObjectPointer(grabbedObjectId, liveEl, regrabEvent, regrabContext.regrabRect, targetRect)
     }
   }
 
@@ -433,7 +453,7 @@ export function createDetachMoveFromAdapter(config: {
       if (runtime.getVisualProxy(sessionId!)) runtime.disposeVisualProxy(sessionId!)
       else if (landingProxy) { runtime.disposeVisualProxy(sessionId!); landingProxy = null }
       else clearFloatingStyle(element)
-      runtime.clearRegrab(objectId)
+      clearGroupRegrabs(runtime.getGroup(sessionId!))
       document.body.classList.remove('kb-dragging')
       delete element.dataset.runtimeActive
       clearFloatingStyle(element)
@@ -457,7 +477,7 @@ export function createDetachMoveFromAdapter(config: {
       onGate: (gate: RuntimeCompletionGate<LandingResult>) => { landingGate = gate },
       clearDragging: () => document.body.classList.remove('kb-dragging'),
       scheduleLanding: () => { landingPlan?.(); landingPlan = null },
-      clearRegrab: () => runtime.clearRegrab(objectId),
+      clearRegrab: () => clearGroupRegrabs(runtime.getGroup(sessionId!)),
       finishReveal: () => {
         if (landingProxy) setProxyInteractive(landingProxy, false)
         // landing 完成后再保险清理旧 floating registry；正常 handoff 后这里是

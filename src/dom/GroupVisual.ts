@@ -1,17 +1,19 @@
-import { DefaultVisualAdapter, type VisualLifecycleContext, type VisualProxy } from '../dom/VisualAdapter'
-import { getProxyContent } from '../dom/Visual'
-import { resolveGroupDragConfig } from '../dom/GroupDragProfile'
-import type { ObjectVisualAdapter, Runtime } from '../Runtime'
+import { DefaultVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './VisualAdapter'
+import { getProxyContent } from './Visual'
+import { resolveGroupDragConfig } from './GroupDragProfile'
+import type { Runtime } from '../Runtime'
 
 /**
- * 文件 Demo 的多选视觉：主卡仍由 Runtime 的单卡 MotionController 驱动，
- * 修饰卡挂在同一个 proxy 内容壳里，跟随同一套 transform / landing 时间线。
+ * Runtime 默认的多对象叠卡视觉。
+ *
+ * 这层只处理 DOM 代理、修饰卡和源节点的视觉交接，不读取业务字段，
+ * 因此可以被文件、看板或其他对象类型复用。业务若需要特殊卡片内容，
+ * 可以传入自己的 GroupVisualAdapter 替换默认实现。
  */
-export function createGroupFileVisualAdapter(
+export function createGroupVisualAdapter(
   runtime: Runtime,
-  clearGroup: (objectId: string) => void = () => undefined,
-): ObjectVisualAdapter {
-  const base = new DefaultVisualAdapter(runtime)
+  base: VisualAdapter = new DefaultVisualAdapter(runtime),
+): VisualAdapter {
   const states = new WeakMap<HTMLElement, {
     modifiers: HTMLElement[]
     dismissModifiers: () => void
@@ -48,8 +50,6 @@ export function createGroupFileVisualAdapter(
       .map(objectId => runtime.objects.get(objectId)?.element)
       .filter((element): element is HTMLElement => Boolean(element?.isConnected))
 
-    // 源节点保留布局占位，和咕咕文件库一样呈现为半透明幽灵；主卡在
-    // Runtime proxy 中跟手，源节点只承担原位置的空间锚点。
     for (const source of ghostSources) {
       sources.push({
         element: source,
@@ -64,11 +64,6 @@ export function createGroupFileVisualAdapter(
       source.style.transition = 'none'
     }
 
-    // 保持和咕咕文件库一致：主卡之外最多叠两张修饰卡，避免选中数量很大时
-    // 代理变成一摞不可读的完整列表。
-    // 修饰卡不沿用源卡之间的布局距离。它们和主卡共享一个视觉中心，按
-    // 咕咕文件库的 spread -> tight 参数叠成一摞，避免多选项在原列表中
-    // 相距较远时，抓起后仍然散落在各自原位置。
     const stackConfigs = groupDrag.spread.map((spread, index) => ({ spread, tight: groupDrag.tight[index] }))
       .filter((config): config is typeof config & { tight: NonNullable<typeof config.tight> } => Boolean(config.tight))
     const extraIds = group.objectIds
@@ -93,8 +88,6 @@ export function createGroupFileVisualAdapter(
         zIndex: String(1 - index),
         opacity: '1',
         willChange: 'transform, opacity',
-        // 多层 backdrop-filter 会重复采样同一片背景；只保留最靠近主卡
-        // 的一层轻模糊，其余修饰卡被遮挡大半，不再承担全尺寸模糊。
         backdropFilter: index === 0 ? 'blur(6px) saturate(1.15)' : 'none',
         WebkitBackdropFilter: index === 0 ? 'blur(6px) saturate(1.15)' : 'none',
         transform: `translate3d(${config.spread.x}px, ${config.spread.y}px, 0) rotateZ(${config.spread.rotate}deg) scale(${config.spread.scale})`,
@@ -102,14 +95,11 @@ export function createGroupFileVisualAdapter(
       })
       extra.dataset.runtimeGroupModifier = 'true'
       delete extra.dataset.runtimeGroupGhost
-      // 修饰卡与主卡同属缩放壳，但位于主内容层下方；不能放进 content，
-      // 否则它会继承主卡的布局规则，也不能用负 z-index，否则会被卡片背景压住。
       shell.insertBefore(extra, content)
       modifiers.push(extra)
       stackAnimations.push({ element: extra, spread: config.spread, tight: config.tight })
     }
 
-    // 所有修饰卡共享一条 RAF；多选数量增加时不再为每张卡各自调度动画循环。
     let stackRaf: number | null = null
     const stackStart = performance.now()
     const animateStack = (now: number) => {
@@ -154,7 +144,7 @@ export function createGroupFileVisualAdapter(
       }
     }
 
-    const restoreSources = () => {
+    const cleanup = () => {
       if (stackRaf !== null) cancelAnimationFrame(stackRaf)
       if (modifierTimer !== null) window.clearTimeout(modifierTimer)
       for (const modifier of modifiers) modifier.remove()
@@ -164,31 +154,32 @@ export function createGroupFileVisualAdapter(
         if (source.marker === undefined) delete source.element.dataset.runtimeGroupGhost
         else source.element.dataset.runtimeGroupGhost = source.marker
       }
-      clearGroup(group.primaryObjectId)
     }
-    states.set(proxy.element, { modifiers, dismissModifiers, restoreGhosts, cleanup: restoreSources })
+    states.set(proxy.element, { modifiers, dismissModifiers, restoreGhosts, cleanup })
   }
 
   return {
-    createMove: context => base.createMove?.(context),
+    resolveSource: base.resolveSource?.bind(base),
+    resolveTarget: base.resolveTarget?.bind(base),
+    captureVisualState: base.captureVisualState?.bind(base),
+    applyState: base.applyState?.bind(base),
     createProxy(context): VisualProxy {
       const proxy = base.createProxy?.(context)
-      if (!proxy) throw new Error('group file visual requires a base proxy')
+      if (!proxy) throw new Error('group visual requires a base proxy')
       decorateProxy(proxy, context)
-      return { element: proxy.element }
+      return proxy
     },
-    updateProxy(proxy, context) { decorateProxy(proxy, context) },
+    updateProxy(proxy, context) {
+      base.updateProxy?.(proxy, context)
+      decorateProxy(proxy, context)
+    },
     land: (proxy, target, context) => {
       const state = states.get(proxy.element)
-      // 该适配器现在也注册给普通单卡。没有 group 时必须完全走基础
-      // landing，否则多选专用的透明度处理会让单卡代理提前淡出。
       if (!context.group || !state) return base.land?.(proxy, target, context)
-      state?.dismissModifiers()
+      state.dismissModifiers()
       if (context.landingMode !== 'target') {
         const duration = context.motion?.landing?.duration ?? 420
-        state?.restoreGhosts(duration)
-        // DefaultVisualAdapter 通过 targetSnapshot.opacity 驱动内容层淡出；
-        // 普通多选回位不能把半透明幽灵的 opacity 当成代理终态。
+        state.restoreGhosts(duration)
         const targetSnapshot = context.targetSnapshot
           ? { ...context.targetSnapshot, opacity: '0' }
           : undefined

@@ -23,12 +23,14 @@ export declare class VisualProxyCoordinator {
 export interface VisualMotionPort {
     getSession(id: string): Session | undefined;
     getAdapter(objectId: string): VisualAdapter;
+    getGroupAdapter?(objectId: string): VisualAdapter | undefined;
     createContext(id: string, destination?: unknown, target?: HTMLElement): VisualLifecycleContext;
 }
 export declare class VisualMotionCoordinator {
     private readonly port;
     private readonly proxies;
     constructor(port: VisualMotionPort, proxies: VisualProxyCoordinator);
+    private getAdapter;
     create(sessionId: string, context: VisualLifecycleContext): VisualProxy | undefined;
     land(sessionId: string, target: HTMLElement, context?: VisualLifecycleContext): Promise<{
         completed: boolean;

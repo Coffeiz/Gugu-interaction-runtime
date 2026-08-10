@@ -63,6 +63,8 @@ export interface VisualAdapter {
     /** 完整销毁代理；实现该回调后由 adapter 负责调用 proxy.dispose（如有）。 */
     dispose?(proxy: VisualProxy, context: VisualLifecycleContext): void;
 }
+/** 多对象拖拽的视觉适配器；接口与普通 VisualAdapter 相同，仅在 group session 中调用。 */
+export type GroupVisualAdapter = VisualAdapter;
 export interface VisualAdapterRegistry {
     register(type: string, adapter: VisualAdapter): void;
     get(type: string): VisualAdapter | undefined;
