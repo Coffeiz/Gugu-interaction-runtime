@@ -253,9 +253,10 @@ runtime.registerObjectType('canvas-sticker', {
 - `useCardDrag`（`canvasDrag.ts`）——整个文件是 `startPhysicsDrag` 的适配层，接入 Runtime
   后应替换为 `runtime.objects.register('canvas-sticker', ...)` +
   `registerObjectType('canvas-sticker', { landingMode: 'coordinate', ... })` +
-  `useObject`（画布贴纸场景下 `useObject` 的 `surface` 语义需要重新设计，画布不是"卡片
-  归属某个列表容器"的模型，可能不需要真正的 Surface，只需要 Object + 自定义
-  `createMove`）。
+  `useObject`。`MindCanvas.vue` 本来就有 `.canvas-world` 容器（相机 `translate3d/scale`
+  应用在这一层，贴纸是它的绝对定位子元素），跟文件列表/看板列同构——直接 `useSurface`
+  挂在这个容器上作为画布当前唯一的 Surface 即可，贴纸注册到这个 Surface 下，不需要发明
+  "无 Surface 的 Object"这种新概念（上一版报告在这里判断有误，已更正）。
 - `animateLanding()`（`canvasDrag.ts`）——手写的 cubic-bezier 落地插值，功能上被
   `landDragProxyWithMotion` 的 `retarget`/`onFrame` 回调取代；但"给 `RelationLayer` 喂
   落地过程中的插值位置"这个接口需要保留（Runtime 侧通过 `useRuntimeTransition` 或
@@ -298,6 +299,7 @@ runtime.registerObjectType('canvas-sticker', {
 
 - [ ] `setup.ts` 注册 `canvas-sticker` 对象类型（`landingMode: 'coordinate'`，
       `resolveMoveLandingRect` 桥接 `screenToWorld`/`camera`）
+- [ ] `MindCanvas.vue` 的 `.canvas-world` 容器接入 `useSurface`，作为画布当前唯一 Surface
 - [ ] 选一种贴纸（建议先做 `NoteSticker.vue`，样式最简单）接入 `useObject`，验证抓取/跟手/
       落地手感与旧引擎（`usePhysicsDrag`）对齐
 - [ ] 验证 pan/zoom 期间抓取、缩放变化中松手的命中/落点正确性（对照"验证 2"的结论做实测，
@@ -332,7 +334,7 @@ runtime.registerObjectType('canvas-sticker', {
 |---|---|---|
 | `resolveMoveLandingTarget` 返回类型改判别联合，是破坏性签名变更 | 影响所有已注册 `resolveMoveLandingTarget` 的现有类型（`file-item`/`folder-item`），需要同步改造调用点 | 优先评估新增平行方法（如 `resolveMoveLandingResolution`）而非改造现有签名，降低对已上线看板/文件的回归风险；具体取舍留到阶段 1 实现时按改造成本决定 |
 | `waitForMoveTarget` 的跨 Surface 等待逻辑在坐标落地场景下语义空洞 | 若草率复用会引入无意义的多帧等待，拖慢落地动画首帧 | `'rect'` 分支应完全绕开 `waitForMoveTarget`，不能只是把它的条件判断改成恒真 |
-| 画布贴纸目前没有"Surface"概念（不是列表容器归属模型） | `useObject` 的 `surface` 语义可能不适用，需要设计"无 Surface 的 Object"用法或明确画布世界本身作为唯一 Surface | 阶段 2 实现前需要先在 Core 或 Vue 适配层确认"Object 可以不归属任何 Surface"是否已支持，不确认清楚会卡住整个阶段 2 |
+~~画布贴纸没有 Surface 概念~~（已更正，见下） | ~~可能卡住阶段 2~~ | **不成立**：`MindCanvas.vue` 的 `.canvas-world` 容器（相机变换应用层，贴纸的直接父容器）跟文件列表/看板列同构，直接作为画布唯一 Surface 使用即可，`useObject`/`useSurface` 按现有模型原样套用，不是设计空白 |
 | 多选目前在画布代码中未见现有实现 | 阶段 4 可能是新功能而非迁移，工作量被低估的风险 | 排期前找产品/前端确认多选是否是当前迭代范围，不确定就先移出本轮迁移范围 |
 | pan/zoom 命中判定结论基于代码阅读 + `getBoundingClientRect` 标准行为推断，未做浏览器实测 | 如果真实浏览器有边界情况（如极端缩放比例下的亚像素误差）会在阶段 2 才暴露 | 阶段 2 checklist 已包含专项实测项，不要跳过 |
 | `extras` 装饰卡片方案让影子卡继承主代理的 transform，堆叠效果的像素级观感未验证 | 多选视觉效果可能需要多轮调参 | 阶段 4 单独排足够的视觉联调时间，不要和阶段 2/3 混排 |
