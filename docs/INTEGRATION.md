@@ -2,7 +2,7 @@
 
 ## 接入状态
 
-本文描述的是 1.0.3 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
+本文描述的是 2.0.0 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
 使用 Runtime 源码而非 npm 包；文件、画布和抽屉仍按各自 adapter 接入，尚未承诺零配置。
 
 本文的唯一业务语义契约是 Runtime Core API。Vue、React 或其他框架都可以直接调用同一套
@@ -33,7 +33,7 @@ project-files:19:file:123
 Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽不属于单对象接入契约，
 在通用 Group Session 设计完成前由业务 adapter 保留。
 
-## 五分钟接入（1.0.3）
+## 五分钟接入（2.0.0）
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
 默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器

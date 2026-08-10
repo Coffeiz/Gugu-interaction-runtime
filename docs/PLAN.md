@@ -1,6 +1,6 @@
 # Interaction Runtime · 分层结构与执行计划
 
-> 当前稳定版本：1.0.3。1.0.1 已以 Gugu-web 的真实看板作为回归场景，
+> 当前稳定版本：2.0.0。Runtime 2.0.0 已以 Gugu-web 的真实看板作为回归场景，
 > 验证“只注册 Object、Surface、Target 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
 > 直接编译本仓库 `src/`，不经 npm 包或构建产物。
 
@@ -83,60 +83,47 @@ pointerup
   → 恢复 Vue Transition，Cleanup 清理
 ```
 
-## 四、目录结构（第一版，不拆得过散）
+## 四、目录结构（2.0.0）
 
 ```
 src/
-├── core/
-│   └── Emitter.ts
-├── Runtime.ts
-├── session/
-│   ├── Session.ts
-│   └── SessionStore.ts
-├── object/
-│   ├── ObjectItem.ts
-│   └── ObjectStore.ts
-├── surface/
-│   ├── Surface.ts
-│   └── SurfaceStore.ts
-├── input/
-│   └── Input.ts
-├── hit/
-│   └── Hit.ts
-├── owner/
-│   ├── Owner.ts          # ControlMode 总闸 + channel Lease 两层
-│   ├── Lease.ts
-│   └── Channel.ts
-├── visual/
+├── Runtime.ts              # 对外编排门面
+├── core/                   # 框架无关事件与交互公共类型
+├── behavior/               # 行为注册与移动事务
+├── session/                # Session 状态机与生命周期
+├── object/                 # 业务对象注册表
+├── surface/                # 可接收对象的容器注册表
+├── input/                  # 指针生命周期、取消与 regrab
+├── owner/                  # ControlMode 与 channel Lease
+├── action/                 # 业务可消费的语义事件
+├── motion/                 # 速度、landing、retarget 与运动配置
+├── dom/                    # 浏览器视觉、命中、测量与布局实现
 │   ├── Visual.ts
-│   ├── Proxy.ts
-│   └── Placeholder.ts
-├── motion/
-│   ├── Motion.ts
-│   ├── Spring.ts
-│   └── Frame.ts
-├── layout/
-│   ├── Layout.ts
-│   ├── Flip.ts
-│   └── GroupLayout.ts       # 组展开/收起、尺寸测量、组级 FLIP
-├── render/
-│   └── Render.ts
-├── action/
-│   └── Action.ts
-├── cleanup/
-│   └── Cleanup.ts
+│   ├── VisualAdapter.ts
+│   ├── Hit.ts
+│   ├── GroupLayout.ts      # 组展开/收起与组级 FLIP
+│   └── ...
+├── runtime/                # 默认编排与 detach 视觉策略
+│   ├── RuntimeInput.ts
+│   ├── RuntimeMove.ts
+│   ├── RuntimeSession.ts
+│   ├── RuntimeVisual.ts
+│   └── detach/DetachAdapter.ts
+├── adapters/               # Vue/React DOM 生命周期适配器
+│   ├── vue.ts
+│   └── react.ts
+└── demo/                   # 看板、文件系统与调试演示
 ```
 
 ## 五、执行计划
 
-### 当前冻结基线
+### 当前稳定基线
 
-Runtime demo 当前冻结于提交 `2153600`（`feat: 收口Runtime移动事务编排`）。
-该基线已经完成 Session、MoveBehavior、Action、landing/reveal 顺序和清理编排，
-clone/detach 两种视觉策略保持现状，浏览器回归暂不继续扩大范围。
-
-后续功能请从新分支开始，不直接改变冻结基线；MotionController、CardVisualHost、
-file/canvas/drawer/multi 接入均不属于当前冻结版本。
+Runtime 2.0.0 当前基线为提交 `4fde68e`（`完善抓取代理紧凑布局配置`）。
+Session、MoveBehavior、Action、MotionController、landing/reveal、regrab、FLIP、
+Vue/React DOM 适配器、文件系统 Demo 和 `proxyLayout` API 均已进入稳定实现。
+后续新增能力继续从独立分支开始，并通过 Demo 与浏览器回归验证；Gugu-web 文件页、
+画布和多选等业务迁移仍按阶段 2/3 的计划推进。
 
 ### 阶段 0：本仓库内的最小骨架（demo，不接业务）
 
@@ -147,8 +134,7 @@ file/canvas/drawer/multi 接入均不属于当前冻结版本。
 目标：只验证机制本身有没有设计缺陷，不接 Gugu-web 任何真实组件。
 
 - [x] `Runtime`/`Session`/`Owner`（对象级 `ControlMode` + channel Lease）
-- [x] `Visual`/`Layout` 的最小实现（`Motion` 暂以 CSS transition 落地飞行
-      代替，尚未做弹簧/惯性）
+- [x] `Visual`/`Layout` 的最小实现，并由 MotionController 提供跟手、释放和 landing 运动
 - [x] `Cleanup`
 - [x] demo 页面：三列看板（两个普通列 + 一个按分组展示的完成列），验证
       跨列拖拽触发兄弟重排 + 列表自身高度变化
@@ -179,7 +165,8 @@ file/canvas/drawer/multi 接入均不属于当前冻结版本。
 - [x] 抽出 `MoveBehavior`，把移动事务状态、跟手更新、落地/reveal 调用时机和
       handoff 生命周期收回 Runtime；proxy、placeholder 和具体 tween 作为
       clone/detach driver 的视觉策略保留——按分阶段方案推进，每阶段独立验证：
-      - [x] 已建立无 DOM 的生命周期适配器，当前 demo 仍由 legacy driver 编排
+      - [x] 已建立无 DOM 的生命周期适配器；当前 demo 通过 Runtime 入口接入，
+            仅保留业务命中与 Action 回调
       - [x] clone/detach 已改用 `runtime.start({ type: 'move' })` 创建 Session
       - [x] 阶段 A：`MoveContext`（sourceElement/dragOffset/visualSnapshot/
             destination）挂在 `MoveBehavior` 自己的 Map 上，不塞进通用 Session
@@ -245,7 +232,8 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 
 目标是让业务端只注册 Object、Surface、HitResolver、Action 订阅和视觉策略，
 不再手动编排 Session、FLIP、target、landing、reveal 或 regrab。运动数学仍由
-业务侧现有视觉实现提供，本阶段不新增 MotionController，也不引入 CardVisualHost。
+Runtime 已提供 MotionController 和默认 clone/detach 视觉策略；业务侧只在需要时覆盖
+视觉适配器或类型级运动配置。
 
 执行顺序固定为：
 
@@ -259,7 +247,7 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 5. [x] 将 clone/detach 的视觉实现注册为 `VisualStrategy`，Runtime 只调用统一的
    `beginDrag/landing/reveal/cancel/dispose` 生命周期；
 6. [x] 将 regrab、旧 token 失效和旧 session cleanup 收回 Runtime；
-7. 删除 demo 中重复的 Session、Action、FLIP、target 和 regrab 编排（待看板接入）。
+7. [x] 删除 demo 中重复的 Session、Action、FLIP、target 和 regrab 编排。
 
 验收标准：
 
@@ -269,7 +257,7 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 - commit/landing/reveal 失败都进入统一取消和清理路径；
 - interrupt 后旧 Promise、旧 listener 和旧 Lease 不再影响新 Session；
 - clone/detach 视觉行为不改变；clone 的 target wait 不得发生在 proxy 创建之前；
-- Runtime 不实现 MotionController，不保存业务 Store 状态。
+- Runtime 提供并驱动 MotionController，但不保存业务 Store 状态。
 
 0.7 的最终边界：Runtime 不阻塞视觉代理的创建。detach 直接使用同步 target；clone
 先创建可见 proxy，再由策略内部等待目标节点 mount。目标等待不能放在 source 隐藏和
@@ -279,7 +267,8 @@ proxy 创建之间，否则会产生 release 视觉空窗。
 
 0.8 建立在 0.7 稳定实现之上，目标是让业务端只提供对象、Surface、命中和视觉
 策略，不再手动编排卡片与 Surface 的事务生命周期。本阶段不重新实现运动数学，
-不引入 `MotionController` 或 `CardVisualHost`，也不改变 clone/detach 的视觉行为。
+不引入新的 `CardVisualHost`，并保持 Runtime 内置 MotionController 与 clone/detach
+视觉行为兼容。
 
 执行顺序：
 
@@ -504,11 +493,11 @@ grabbing
 - 任意 cancel/interrupt 后 RAF、监听器和 proxy 都能清理；
 - 现有 Runtime 测试和 detach 浏览器回归不改变行为。
 
-### 阶段 1：迁移 Gugu-web 看板项目卡（已完成，原 1.0.1）
+### 阶段 1：迁移 Gugu-web 看板项目卡（已完成）
 
 首个真实接入目标是看板项目卡。看板已有 clone/detach 两种视觉策略和
 完整的跨列、同列、落地中断回归场景，适合先验证 Runtime 纯 API 是否能收回
-业务侧的事务编排。这也是 1.0 的发布门槛，不再把 Demo 通过视为业务接入通过。
+业务侧的事务编排。这也是 2.0.0 的真实业务回归门槛，不再把 Demo 通过视为业务接入通过。
 目标调用方只有三类代码：
 
 ```text
@@ -573,7 +562,7 @@ grabbing
 - [x] 每个交互只输出一次 Action；任意时刻每张卡最多一个视觉 proxy；结束后无受控样式、
       listener、RAF、lease 或残留 overlay 节点；
 - [x] Gugu-web 项目页不再 import 旧项目拖拽/完成列 FLIP 编排模块；
-- [x] Runtime 单测、真实浏览器集成回归、Gugu-web typecheck/build 全部通过后发布 1.0.1。
+- [x] Runtime 单测、真实浏览器集成回归、Gugu-web typecheck/build 全部通过后发布 2.0.0。
 
 **完成定义（已满足）**：Gugu-web 只保留对象/Surface 注册、对象与容器样式、Action 到 Store/API 的映射，
 不再为普通卡片移动写 adapter 或生命周期闭包。回归记录用例细节（1-1 最后一项）留待后续按需补充，

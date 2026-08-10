@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.0.0
+
+### 新增
+- **文件系统 Demo 接入基线**：新增多级目录、面包屑、文件夹目标、目录切换，以及网格/列表视图；文件和文件夹统一复用 Runtime 的 detach/clone 生命周期。
+- **框架无关的 DOM 接入**：收敛 Vue/React DOM 适配器和 Core API，业务只需注册 Object、Surface、Target 并订阅 Action。
+- **类型级代理布局配置**：新增 `ObjectTypeRegistration.proxyLayout`，可声明列表卡片等对象的 compact 抓取布局；Runtime 统一处理首帧、收缩过渡和 landing 恢复。
+
+### 改进
+- **Runtime Core API 收口**：移除 Vue 适配层对核心生命周期的隐式依赖，统一由 Runtime 编排 Session、Owner、输入、目标解析、proxy、landing、reveal、regrab 和清理。
+- **目标落地交接稳定化**：支持语义目标可见性控制、可选 `disableTargetVisualMorph`、面包屑目标内容交接和落地期间目标实时跟随兄弟卡片 FLIP。
+- **拖拽视觉一致性**：修复高刷屏落地卡顿、代理边框/毛玻璃/深阴影不回落本体、regrab hover 状态丢失，以及布局锚点列尾首帧闪动。
+- **运动与布局性能**：拖拽代理提升为独立合成层，命中测量和 Surface 查询去重，跳过折叠分组快照；自动滚动速度按刷新率归一化，减少跨列和 landing 阶段主线程阻塞。
+- **文档与接入边界**：补充文件系统迁移计划、Runtime 文件职责、视觉适配边界和 compact proxy API 示例。
+
+### 测试
+- Runtime 单元测试、Vue/React 接入类型检查、文件系统 Demo 浏览器回归和 Gugu-web 看板回归保持通过。
+- 覆盖文件夹、面包屑、非法落点、连续拖拽、regrab、FLIP、滚动目标和 landing/reveal 清理路径。
+
 ## v1.0.3
 
 ### 改进
