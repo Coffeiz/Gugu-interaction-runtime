@@ -1,4 +1,4 @@
-import type { ObjectItem } from './ObjectItem'
+import type { ObjectItem, ObjectUpdate } from './ObjectItem'
 import { Emitter } from '../core/Emitter'
 
 export type ObjectStoreEvent =
@@ -25,7 +25,9 @@ export class ObjectStore {
     return generation
   }
 
-  unregister(id: string): boolean {
+  unregister(id: string, generation?: number): boolean {
+    const current = this.items.get(id)
+    if (generation !== undefined && current?.generation !== generation) return false
     const removed = this.items.delete(id)
     if (removed) this.events.emit({ type: 'object-removed', id })
     return removed
@@ -64,10 +66,16 @@ export class ObjectStore {
   }
 
   setSurface(id: string, surfaceId: string) {
+    this.update(id, { surfaceId })
+  }
+
+  update(id: string, patch: ObjectUpdate): boolean {
     const item = this.items.get(id)
-    if (item && item.surfaceId !== surfaceId) {
-      item.surfaceId = surfaceId
-      this.events.emit({ type: 'object-changed', id })
-    }
+    if (!item) return false
+    const changed = Object.entries(patch).some(([key, value]) => item[key as keyof ObjectUpdate] !== value)
+    if (!changed) return true
+    Object.assign(item, patch)
+    this.events.emit({ type: 'object-changed', id })
+    return true
   }
 }

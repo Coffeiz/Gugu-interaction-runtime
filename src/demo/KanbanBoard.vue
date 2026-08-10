@@ -4,7 +4,13 @@
       <span>默认视觉模式：detach</span>
     </div>
     <div class="kb-board">
-      <div v-for="col in columns" :key="col.id" class="kb-column" :data-column="col.id" data-layout-surface data-surface-type="kanban-column" :ref="el => setColumnRef(col.id, el as HTMLElement | null)">
+      <KanbanColumn
+        v-for="col in columns"
+        :key="col.id"
+        :column-id="col.id"
+        @element="setColumnElement(col.id, $event)"
+      >
+      <template #default="{ controlled }">
       <div class="kb-column-title">{{ col.title }}<span>{{ col.cardIds.length }}</span></div>
 
       <template v-if="col.id === 'done'">
@@ -26,17 +32,17 @@
                 {{ month.label }}<span>{{ month.cardIds.length }}</span>
               </button>
               <div class="kb-month-content" :ref="el => setGroupContentRef(monthContentRefs, month.key, el as HTMLElement | null)">
-                <TransitionGroup tag="div" class="kb-card-list" name="kb-card" :css="!columnControlled[col.id]">
+                <TransitionGroup tag="div" class="kb-card-list" name="kb-card" :css="!controlled">
                   <Teleport v-for="cardId in month.cardIds" :key="cardId" to="body" :disabled="!isDetached(cardId)">
-                    <div
-                      class="kb-card kb-card-done"
-                      :class="{ 'kb-card-locked': isLocked(cardId) }"
-                      :data-card="cardId"
-                      :ref="el => bindCardPointer(cardId, el as HTMLElement | null)"
-                    >
-                      {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
-                      <span class="kb-done-badge">✓ 完成</span>
-                    </div>
+                    <KanbanCard
+                      :card-id="cardId"
+                      :title="cards[cardId].title"
+                      :surface-id="`column:${col.id}`"
+                      :strategy="props.strategy"
+                      done
+                      :locked="isLocked(cardId)"
+                      @detached-change="setCardDetached(cardId, $event)"
+                    />
                   </Teleport>
                 </TransitionGroup>
               </div>
@@ -50,31 +56,34 @@
         tag="div"
         class="kb-card-list"
         name="kb-card"
-        :css="!columnControlled[col.id]"
+        :css="!controlled"
       >
         <Teleport v-for="cardId in col.cardIds" :key="cardId" to="body" :disabled="!isDetached(cardId)">
-          <div
-            class="kb-card"
-            :class="{ 'kb-card-locked': isLocked(cardId) }"
-            :data-card="cardId"
-            :ref="el => bindCardPointer(cardId, el as HTMLElement | null)"
-          >
-            {{ cards[cardId].title }}<span v-if="isLocked(cardId)" class="kb-lock-hint"> 🔒 不可拖动</span>
-          </div>
+          <KanbanCard
+            :card-id="cardId"
+            :title="cards[cardId].title"
+            :surface-id="`column:${col.id}`"
+            :strategy="props.strategy"
+            :locked="isLocked(cardId)"
+            @detached-change="setCardDetached(cardId, $event)"
+          />
         </Teleport>
       </TransitionGroup>
-      </div>
+      </template>
+      </KanbanColumn>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch, watchEffect, onUnmounted } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { columns, cards, moveCard } from './store'
 import { buildDoneGroups } from './doneGrouping'
 import { DEFAULT_MOTION_PROFILE } from '../dom/MotionProfile'
 import { runtime } from '../Runtime'
-import { FLIP_DURATION, FLIP_EASING } from '../dom/Flip'
+import KanbanCard from './KanbanCard.vue'
+import KanbanColumn from './KanbanColumn.vue'
+import { useRuntimeAction } from '../vue'
 
 const props = defineProps<{ strategy: 'detach' | 'clone' }>()
 
@@ -103,103 +112,25 @@ runtime.configureMotion({
 // 阶段 D：业务数据怎么变，由业务层订阅 Runtime 的 Action 通道自己决定，
 // 不是 kanbanDrag.ts 直接调 moveCard——这两个文件现在
 // 只负责生成"发生了什么"（Action），不负责"这意味着业务数据要怎么改"。
-const stopActionSubscription = runtime.onAction(action => {
+useRuntimeAction(action => {
   if (action.type !== 'move') return
   const toColumnId = action.toSurfaceId.replace(/^column:/, '')
   moveCard(action.objectId, toColumnId, action.toIndex ?? 0)
 })
-onUnmounted(stopActionSubscription)
-
-// Demo 直接使用 Runtime Core API 注册 Surface，清楚展示业务只需要提供
-// id、类型、可接受对象类型和 DOM 元素。
-const columnSurfaceIds = columns.map(col => `column:${col.id}`)
-for (const col of columns) {
-  runtime.surfaces.register({
-    id: `column:${col.id}`,
-    type: 'kanban-column',
-    element: null,
-    accepts: ['kanban-card', 'kanban-card-clone'],
-  })
-}
 const doneLayoutRoot = ref<HTMLElement | null>(null)
-function setColumnRef(colId: string, el: HTMLElement | null) {
-  runtime.surfaces.setElement(`column:${colId}`, el)
+const detachedCards = reactive<Record<string, boolean>>({})
+function setColumnElement(colId: string, el: HTMLElement | null) {
   if (colId === 'done') doneLayoutRoot.value = el
 }
-
-// Demo 的卡片共用一个列表模板，因此在列表组件内直接维护 Object Core API 的
-// 注册、element/surface 同步和 generation 校验；业务组件不需要额外的框架适配层。
-// c3（"补充测试用例"）故意不给 'move' 能力，用来验证这条门禁是真的在
-// 生效，不是摆设——demo 里它应该完全拖不动，pointerdown 直接被拒绝。
-function registerKanbanObjects(strategy: 'detach' | 'clone'): void {
-  Object.keys(cards).forEach(cardId => {
-    const current = runtime.objects.get(cardId)
-    const surfaceId = current?.surfaceId ?? ''
-    runtime.objects.register({
-      id: cardId,
-      type: strategy === 'clone' ? 'kanban-card-clone' : 'kanban-card',
-      visual: strategy === 'clone' ? 'kanban-clone' : 'kanban',
-      visualMode: strategy,
-      surfaceId,
-      element: current?.element ?? null,
-      abilities: cardId === 'c3' ? [] : ['move', 'sort'],
-    })
-  })
+function setCardDetached(cardId: string, detached: boolean): void {
+  detachedCards[cardId] = detached
 }
-
-registerKanbanObjects(props.strategy)
-watch(() => props.strategy, registerKanbanObjects)
-
-function bindCardPointer(cardId: string, element: HTMLElement | null): void {
-  // 卸载回调（element=null）可能在目标列新节点已挂载（element=新节点）
-  // 之后执行——跨列时 Vue 按模板顺序 patch，源列卸载晚于目标列挂载。
-  // 此时不能清空新注册的 element，否则 Runtime 的 landing 会以为
-  // 目标从未渲染（waitForMoveTarget 6 帧内 element=null → landing 失败）。
-  if (element === null) {
-    const current = runtime.objects.get(cardId)?.element ?? null
-    if (current && current.isConnected) return
-  }
-  runtime.objects.setElement(cardId, element)
+function isDetached(cardId: string): boolean {
+  return props.strategy === 'detach' && detachedCards[cardId] === true
 }
 
 function isLocked(cardId: string): boolean {
-  return !runtime.objects.hasAbility(cardId, 'move')
-}
-watchEffect(() => {
-  for (const col of columns) {
-    for (const cardId of col.cardIds) {
-      runtime.objects.setSurface(cardId, `column:${col.id}`)
-    }
-  }
-})
-
-// reactive() 让模板里 columnControlled[col.id] 能自动解包内部的 computed ref，
-// 否则模板拿到的是 ref 对象本身而不是它的值。
-const ownershipVersion = ref(0)
-const stopOwnershipSubscription = runtime.onOwnershipChange(() => {
-  ownershipVersion.value += 1
-})
-onUnmounted(stopOwnershipSubscription)
-const columnControlled = reactive(
-  Object.fromEntries(columns.map(col => [
-    col.id,
-    computed(() => {
-      ownershipVersion.value
-      return runtime.isControlled(`column:${col.id}`)
-    }),
-  ])),
-)
-
-onUnmounted(() => {
-  for (const cardId of Object.keys(cards)) runtime.objects.unregister(cardId)
-  for (const surfaceId of columnSurfaceIds) runtime.surfaces.unregister(surfaceId)
-})
-
-// detach 策略专用：这个对象当前是不是被 Runtime 接管了，接管了就要被
-// <Teleport> 搬去 body。
-function isDetached(cardId: string): boolean {
-  ownershipVersion.value
-  return props.strategy === 'detach' && runtime.isControlled(cardId)
+  return cardId === 'c3'
 }
 
 const doneColumn = computed(() => columns.find(col => col.id === 'done')!)
@@ -262,10 +193,6 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 .kb-demo { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .kb-strategy-switch { display: flex; flex: 0 0 auto; gap: 16px; padding: 12px 24px 0; font-family: system-ui, sans-serif; font-size: 13px; }
 .kb-board { display: flex; flex: 1; min-height: 0; gap: 16px; padding: 24px; align-items: stretch; font-family: system-ui, sans-serif; }
-.kb-column { height: 100%; min-height: 80px; overflow-y: auto; overflow-anchor: none;
-  width: 220px; background: #f4f5f7; border-radius: 10px; padding: 10px;
-  display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;
-}
 .kb-column-title { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; color: #444; padding: 2px 4px; }
 .kb-card-list { display: flex; flex-direction: column; gap: 8px; min-height: 4px; }
 .kb-year-group { display: flex; flex-direction: column; overflow: visible; }
@@ -293,36 +220,4 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 .kb-month-chevron.open { transform: rotate(180deg); }
 .kb-month-content { display: flex; flex-direction: column; overflow: visible; }
 .kb-month-content .kb-card-list { padding-top: 6px; }
-.kb-card {
-  box-sizing: border-box;
-  background: #fff; border-radius: 8px; padding: 10px 12px; font-size: 13px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08); cursor: grab; user-select: none;
-  transition: box-shadow .15s ease, transform .15s ease;
-}
-.kb-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,.12);
-}
-.kb-card[data-runtime-landing-capture="true"]:hover {
-  transform: none !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08) !important;
-}
-.kb-card-done { background: #f0f6ff; }
-.kb-card-locked { cursor: not-allowed; opacity: .6; }
-.kb-lock-hint { font-size: 11px; color: #999; }
-.kb-done-badge {
-  display: inline-flex; align-items: center; margin-left: 6px;
-  font-size: 10px; font-weight: 700; color: #3a8870;
-  background: rgba(90,158,136,.12); border-radius: 20px; padding: 0 6px;
-  box-shadow: inset 0 0 0 1px rgba(90,158,136,.35);
-}
-.kb-card-dragging-source { opacity: .35; visibility: hidden; }
-.kb-card-move { transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .15s ease; }
-.kb-card-enter-active, .kb-card-leave-active { transition: opacity .18s ease; }
-.kb-card-enter-from, .kb-card-leave-to { opacity: 0; }
-/* 拖动期间禁用所有卡片 hover */
-body.kb-dragging .kb-card:hover {
-  transform: none;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
-}
 </style>

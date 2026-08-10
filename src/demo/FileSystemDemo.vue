@@ -19,28 +19,49 @@
     </div>
 
     <div class="breadcrumbs" data-file-surface="breadcrumbs">
-      <button v-for="crumb in breadcrumbs" :key="crumb.id" :data-file-breadcrumb-id="crumb.id" @click="openFolder(crumb.id)" :ref="el => bindBreadcrumb(crumb.id, el as HTMLElement | null)">{{ crumb.label }}</button>
+      <BreadcrumbItem
+        v-for="crumb in breadcrumbs"
+        :key="crumb.id"
+        :id="crumb.id"
+        :label="crumb.label"
+        :accepts="fileObjectTypes"
+        @open="openFolder"
+      />
     </div>
 
     <div class="file-layout">
       <aside class="folder-sidebar">
         <h3>文件夹</h3>
-        <button v-for="folder in folders" :key="folder.id" :data-file-id="folder.id" :class="{ selected: folder.id === currentFolder }" :style="{ paddingLeft: `${8 + folderDepth(folder.id) * 16}px` }" @click="openFolder(folder.id)" :ref="el => bindFolder(folder.id, el as HTMLElement | null)">
-          <span>{{ folderDepth(folder.id) ? '└' : '▰' }}</span>{{ folder.name }}<small>{{ folderItemCount(folder.id) }}</small>
-        </button>
+        <FolderSidebarItem
+          v-for="folder in folders"
+          :key="folder.id"
+          :folder="folder"
+          :selected="folder.id === currentFolder"
+          :depth="folderDepth(folder.id)"
+          :item-count="folderItemCount(folder.id)"
+          :accepts="fileObjectTypes"
+          @open="openFolder"
+        />
       </aside>
 
-      <section class="file-surface" data-file-surface="browser" data-layout-surface :ref="el => domAdapter.bindSurface(browserSurfaceId, el as HTMLElement | null)">
+      <FileBrowserSurface :id="browserSurfaceId" :accepts="fileObjectTypes" @element="browserElement = $event">
         <div class="surface-heading"><span>{{ currentFolderName }}</span><span>{{ visibleItems.length }} 个项目</span></div>
         <div class="file-items" data-layout-collection="file-browser" :class="`is-${view}`">
-          <article v-for="item in visibleItems" :key="item.id" class="file-item" :class="{ folder: item.kind === 'folder' }" :data-demo-list-layout="view === 'list' ? 'true' : undefined" :data-file-id="item.id" data-layout-role="card" :data-layout-key="item.id" :ref="el => bindItem(item, el as HTMLElement | null)" @click="handleItemClick(item)">
-            <div class="file-icon">{{ item.kind === 'folder' ? '▰' : fileIcon(item.name) }}</div>
-            <div class="file-name">{{ item.name }}</div>
-            <small>{{ item.kind === 'folder' ? `${folderItemCount(item.id)} 个项目` : item.size }}</small>
-          </article>
+          <FileItemCard
+            v-for="item in visibleItems"
+            :key="item.id"
+            :item="item"
+            :strategy="strategy"
+            :rendered-folder-id="currentFolder"
+            :browser-surface-id="browserSurfaceId"
+            :file-object-types="fileObjectTypes"
+            :folder-item-count="folderItemCount(item.id)"
+            :is-list="view === 'list'"
+            @open="handleItemClick"
+          />
           <div v-if="visibleItems.length === 0" class="empty-state">这个文件夹还是空的</div>
         </div>
-      </section>
+      </FileBrowserSurface>
     </div>
 
     <p class="file-hint">拖动文件到左侧文件夹，或拖动文件夹调整目标位置。当前策略：{{ strategy }}。</p>
@@ -48,11 +69,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, reactive, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { runtime } from '../Runtime'
 import { createVueRuntimeAdapter } from '../adapters/vue'
-
-type FileItem = { id: string; name: string; kind: 'file' | 'folder'; parentId: string; size: string; children: FileItem[] }
+import { useRuntimeAction } from '../vue'
+import type { FileItem } from './fileTypes'
+import BreadcrumbItem from './BreadcrumbItem.vue'
+import FileBrowserSurface from './FileBrowserSurface.vue'
+import FileItemCard from './FileItemCard.vue'
+import FolderSidebarItem from './FolderSidebarItem.vue'
 
 const props = defineProps<{ strategy: 'detach' | 'clone' }>()
 const strategy = ref(props.strategy)
@@ -62,6 +87,7 @@ const browserSurfaceId = 'file:surface:browser'
 const fileObjectTypes = ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone']
 const view = ref<'grid' | 'list'>('grid')
 const currentFolder = ref(rootId)
+const browserElement = ref<HTMLElement | null>(null)
 
 function syncListRotation(mode: 'grid' | 'list'): void {
   runtime.configureMotion({ controller: { rotation: { tilt: mode === 'list' ? 0 : 5 } } })
@@ -146,7 +172,7 @@ function handleItemClick(item: FileItem): void {
 
 function openFolder(id: string): void {
   if (id === currentFolder.value || hasActiveMove()) return
-  const browser = domAdapter.getSurfaceElement(browserSurfaceId)
+  const browser = browserElement.value
   const beforeCards = visibleItems.value
     .map(item => runtime.objects.get(item.id)?.element)
     .filter((element): element is HTMLElement => Boolean(element?.isConnected))
@@ -160,13 +186,6 @@ function openFolder(id: string): void {
     mutate: () => { currentFolder.value = id },
     waitForPatch: () => nextTick(),
   })
-}
-
-function fileIcon(name: string): string {
-  if (name.endsWith('.md')) return 'M'
-  if (name.endsWith('.pdf')) return 'P'
-  if (name.match(/\.(png|jpg|jpeg)$/i)) return 'I'
-  return 'F'
 }
 
 function moveFile(objectId: string, targetSurfaceId: string): void {
@@ -221,91 +240,13 @@ runtime.registerObjectType('folder-item-clone', {
   proxyLayout: listProxyLayout,
 })
 
-const objectGenerations = new Map<string, number>()
-const surfaceIds = new Set<string>()
 const domAdapter = createVueRuntimeAdapter(runtime)
-
-watchEffect(() => {
-  // 文件页始终把当前目录内容渲染到同一个 browser surface。
-  // 文件夹自己的 surface 只代表语义目标，不代表卡片当前所在的 DOM 容器。
-  const renderedFolderId = currentFolder.value
-  const nextObjectIds = new Set<string>()
-  for (const item of files) {
-    const type = item.kind === 'folder'
-      ? (strategy.value === 'clone' ? 'folder-item-clone' : 'folder-item')
-      : (strategy.value === 'clone' ? 'file-item-clone' : 'file-item')
-    const object = {
-      id: item.id,
-      type,
-      visual: type,
-      visualMode: strategy.value,
-      surfaceId: item.parentId === renderedFolderId ? browserSurfaceId : `file:surface:${item.parentId}`,
-      element: runtime.objects.get(item.id)?.element ?? null,
-      abilities: ['move', 'sort'],
-      target: item.kind === 'folder'
-        ? { surfaceId: `file:surface:${item.id}`, accepts: fileObjectTypes, priority: 2 }
-        : undefined,
-    }
-    nextObjectIds.add(item.id)
-    const current = runtime.objects.get(item.id)
-    const ownedGeneration = objectGenerations.get(item.id)
-    const changed = !current || ownedGeneration === undefined
-      || current.generation !== ownedGeneration || current.type !== object.type
-      || current.surfaceId !== object.surfaceId || current.visualMode !== object.visualMode
-    if (changed) objectGenerations.set(item.id, runtime.objects.register(object))
-  }
-  for (const [id, generation] of objectGenerations) {
-    if (nextObjectIds.has(id)) continue
-    if (runtime.objects.get(id)?.generation === generation) runtime.objects.unregister(id)
-    objectGenerations.delete(id)
-  }
-
-  const nextSurfaceIds = new Set<string>([browserSurfaceId])
-  for (const folder of folders.value) nextSurfaceIds.add(`file:surface:${folder.id}`)
-  for (const id of [rootId, ...folders.value.map(folder => folder.id)]) nextSurfaceIds.add(`file:breadcrumb:${id}`)
-  for (const id of nextSurfaceIds) {
-    if (!runtime.surfaces.has(id)) runtime.surfaces.register({
-      id,
-      type: id === browserSurfaceId ? 'file-browser' : id.startsWith('file:breadcrumb:') ? 'file-breadcrumb' : 'file-folder',
-      element: null,
-      accepts: fileObjectTypes,
-    })
-    surfaceIds.add(id)
-  }
-  for (const id of surfaceIds) {
-    if (nextSurfaceIds.has(id)) continue
-    runtime.surfaces.unregister(id)
-    surfaceIds.delete(id)
-  }
-})
-
-const stopAction = runtime.onAction(action => {
+useRuntimeAction(action => {
   if (action.type === 'move') moveFile(action.objectId, action.toSurfaceId)
 })
 
-function bindItem(item: FileItem, element: HTMLElement | null): void {
-  domAdapter.bindObject(item.id, element)
-}
-
-function bindFolder(id: string, element: HTMLElement | null): void {
-  const surfaceId = `file:surface:${id}`
-  domAdapter.bindSurface(surfaceId, element)
-  domAdapter.bindTarget(`sidebar:${id}`, { surfaceId, accepts: fileObjectTypes, priority: 1 }, element)
-}
-
-function bindBreadcrumb(id: string, element: HTMLElement | null): void {
-  const surfaceId = `file:breadcrumb:${id}`
-  domAdapter.bindSurface(surfaceId, element)
-  domAdapter.bindTarget(`breadcrumb:${id}`, { surfaceId, accepts: fileObjectTypes, priority: 1 }, element)
-}
-
 onUnmounted(() => {
   syncListRotation('grid')
-  stopAction()
-  for (const [id, generation] of objectGenerations) {
-    if (runtime.objects.get(id)?.generation === generation) runtime.objects.unregister(id)
-  }
-  for (const id of surfaceIds) runtime.surfaces.unregister(id)
   domAdapter.dispose()
 })
 </script>
@@ -336,43 +277,6 @@ onUnmounted(() => {
 .surface-heading { display: flex; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid #edf0f5; color: #5b647b; font-size: 13px; }
 .file-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; padding-top: 18px; }
 .file-items.is-list { display: flex; flex-direction: column; }
-.file-item { min-height: 106px; box-sizing: border-box; border: 1px solid #e3e7f0; border-radius: 10px; padding: 14px; background: #fff; box-shadow: 0 4px 16px rgba(50,60,100,.05); cursor: grab; user-select: none; }
-.file-item.folder { border-color: #d7dcfa; background: #f8f9ff; }
-.file-items.is-list .file-item { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; min-height: 54px; padding: 10px 14px; }
-.file-item[data-demo-list-layout="true"][data-runtime-proxy-content] {
-  box-sizing: border-box !important;
-  display: grid !important;
-  grid-template-columns: 32px minmax(0, 1fr) auto !important;
-  align-items: center !important;
-  justify-items: stretch !important;
-  justify-content: stretch !important;
-  min-height: 54px !important;
-  padding: 10px 14px !important;
-  border-radius: 10px !important;
-}
-.file-item[data-demo-list-layout="true"][data-runtime-proxy-content] .file-name {
-  grid-column: 2 !important;
-  justify-self: start !important;
-  text-align: left !important;
-  min-width: 0 !important;
-  margin: 0 12px !important;
-}
-.file-item[data-demo-list-layout="true"][data-runtime-proxy-content] .file-icon {
-  grid-column: 1 !important;
-  justify-self: start !important;
-}
-.file-item[data-demo-list-layout="true"][data-runtime-proxy-content] small {
-  grid-column: 3 !important;
-  justify-self: end !important;
-  text-align: right !important;
-  margin: 0 !important;
-}
-.file-item:hover { border-color: #b8bff0; box-shadow: 0 7px 20px rgba(75,86,160,.12); }
-.file-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #eef0ff; color: #6972c5; font-weight: 700; }
-.file-name { margin-top: 12px; color: #394156; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-items.is-list .file-name { margin: 0 12px; }
-.file-item small { display: block; margin-top: 6px; color: #a0a7b8; font-size: 11px; }
-.file-items.is-list small { margin: 0; }
 .empty-state { grid-column: 1 / -1; padding: 80px 20px; color: #a5acc0; text-align: center; }
 .file-hint { margin: 12px 2px 0; color: #949caf; font-size: 12px; }
 </style>

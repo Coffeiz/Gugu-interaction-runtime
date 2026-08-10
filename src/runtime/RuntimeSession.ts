@@ -13,6 +13,15 @@ export class SessionCoordinator {
   set(session: Session): void { this.sessions.set(session.id, session) }
   delete(id: string): void { this.sessions.delete(id) }
   addGate(sessionId: string, gate: SessionCompletionGate<unknown>): void { const gates = this.completionGates.get(sessionId) ?? new Set(); gates.add(gate); this.completionGates.set(sessionId, gates) }
+  trackForObject(objectId: string, dispose: () => void): boolean {
+    let tracked = false
+    for (const session of this.sessions.values()) {
+      if (session.objectId !== objectId) continue
+      session.trackCleanup(dispose)
+      tracked = true
+    }
+    return tracked
+  }
   removeGate(sessionId: string, gate: SessionCompletionGate<unknown>): void { this.completionGates.get(sessionId)?.delete(gate) }
   failGates(sessionId: string): void { const gates = this.completionGates.get(sessionId); if (!gates) return; for (const gate of [...gates]) gate.fail(); this.completionGates.delete(sessionId) }
   acquireObject(sessionId: string, objectId: string): Lease | null { const session = this.sessions.get(sessionId); return session ? session.takeObject(objectId) : null }

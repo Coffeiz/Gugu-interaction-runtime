@@ -1,4 +1,4 @@
-import type { Surface } from './Surface'
+import type { Surface, SurfaceUpdate } from './Surface'
 import { Emitter } from '../core/Emitter'
 
 export type SurfaceStoreEvent =
@@ -8,14 +8,20 @@ export type SurfaceStoreEvent =
 
 export class SurfaceStore {
   private items = new Map<string, Surface>()
+  private generations = new Map<string, number>()
   private readonly events = new Emitter<SurfaceStoreEvent>()
 
-  register(surface: Surface): void {
-    this.items.set(surface.id, surface)
+  register(surface: Surface): number {
+    const generation = (this.generations.get(surface.id) ?? 0) + 1
+    this.generations.set(surface.id, generation)
+    this.items.set(surface.id, { ...surface, generation })
     this.events.emit({ type: 'surface-added', id: surface.id })
+    return generation
   }
 
-  unregister(id: string): boolean {
+  unregister(id: string, generation?: number): boolean {
+    const current = this.items.get(id)
+    if (generation !== undefined && current?.generation !== generation) return false
     const removed = this.items.delete(id)
     if (removed) this.events.emit({ type: 'surface-removed', id })
     return removed
@@ -47,6 +53,16 @@ export class SurfaceStore {
       surface.element = element
       this.events.emit({ type: 'surface-changed', id })
     }
+  }
+
+  update(id: string, patch: SurfaceUpdate): boolean {
+    const surface = this.items.get(id)
+    if (!surface) return false
+    const changed = Object.entries(patch).some(([key, value]) => surface[key as keyof SurfaceUpdate] !== value)
+    if (!changed) return true
+    Object.assign(surface, patch)
+    this.events.emit({ type: 'surface-changed', id })
+    return true
   }
 
   /** 空 accepts 数组表示不限制类型。 */

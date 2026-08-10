@@ -299,11 +299,14 @@ setMotionProfiles(this.registry.motionProfile)
       this.targets.unregister(targetId)
       return
     }
-    this.targets.register({
-      ...object.target,
-      id: targetId,
-      element: object.target.element ?? object.element,
-    })
+    const { id: _ignoredTargetId, element: configuredElement, ...targetPatch } = object.target
+    const targetElement = configuredElement ?? object.element
+    if (this.targets.get(targetId)) {
+      this.targets.update(targetId, targetPatch)
+      this.targets.setElement(targetId, targetElement ?? null)
+      return
+    }
+    this.targets.register({ ...targetPatch, id: targetId, element: targetElement ?? null })
   }
 
   configureMotion(config: {
@@ -1184,6 +1187,18 @@ setMotionProfiles(this.registry.motionProfile)
   /** 获取需要在 landing 前提前释放的对象 Lease（例如 detach 本体）。 */
   acquireObject(sessionId: string, objectId: string): Lease | null {
     return this.sessionCoordinator.acquireObject(sessionId, objectId)
+  }
+
+  /**
+   * 组件因业务重排卸载时延迟注销对象。
+   *
+   * 跨 Surface 移动会先触发业务状态更新，再触发 landing；Vue 组件可能在
+   * landing 解析前卸载。如果对象仍被当前 session 持有，必须把注销推迟到
+   * session cleanup，并由 generation 防止新实例接管后被旧实例误删。
+   */
+  unregisterObjectWhenIdle(objectId: string, generation: number): void {
+    const unregister = () => this.objects.unregister(objectId, generation)
+    if (!this.sessionCoordinator.trackForObject(objectId, unregister)) unregister()
   }
 
   /** 将 Surface placeholder 的销毁纳入当前移动事务清理。 */

@@ -4,6 +4,8 @@
 >
 > 本文记录下一版 Vue 适配层的目标形状。Core API 的完整契约仍以
 > [../INTEGRATION.md](../INTEGRATION.md) 为准。
+>
+> 分阶段执行计划见 [VUE_IMPLEMENTATION_PLAN.md](./VUE_IMPLEMENTATION_PLAN.md)。
 
 ## 目标
 

@@ -1,0 +1,133 @@
+import { createApp, defineComponent, h, nextTick, ref } from 'vue'
+import { describe, expect, it } from 'vitest'
+import { Runtime } from '../Runtime'
+import type { Action } from '../action/Action'
+import { provideRuntime } from '../vue/context'
+import { useObject } from '../vue/useObject'
+import { useRuntimeAction } from '../vue/useRuntimeAction'
+import { useRuntimeTransition } from '../vue/useRuntimeTransition'
+import { useSurface } from '../vue/useSurface'
+import { useTarget } from '../vue/useTarget'
+
+function createHost(runtime: Runtime, child: ReturnType<typeof defineComponent>) {
+  return defineComponent({
+    setup() {
+      provideRuntime(runtime)
+      return () => h(child)
+    },
+  })
+}
+
+function mount(runtime: Runtime, child: ReturnType<typeof defineComponent>) {
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const app = createApp(createHost(runtime, child))
+  app.mount(host)
+  return { app, host }
+}
+
+describe('Vue Runtime composables', () => {
+  it('useObject/useSurface/useTarget 负责注册、绑定 DOM 和卸载', async () => {
+    const runtime = new Runtime()
+    const child = defineComponent({
+      setup() {
+        const object = useObject({
+          id: 'object:1',
+          type: 'card',
+          surface: () => 'surface:1',
+          abilities: ['move'],
+          target: { surfaceId: 'surface:1', accepts: ['card'], priority: 1 },
+        })
+        const surface = useSurface({ id: 'surface:1', type: 'list', accepts: ['card'] })
+        const target = useTarget({ id: 'target:1', surfaceId: 'surface:1', accepts: ['card'] })
+        return () => h('section', { ref: surface.elementRef }, [
+          h('article', { ref: object.elementRef }),
+          h('button', { ref: target.elementRef }),
+        ])
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+
+    expect(runtime.objects.get('object:1')?.element).toBeInstanceOf(HTMLElement)
+    expect(runtime.surfaces.get('surface:1')?.element).toBeInstanceOf(HTMLElement)
+    expect(runtime.targets.get('target:1')?.element).toBeInstanceOf(HTMLElement)
+    expect(runtime.targets.get('object-target:object:1')).toBeDefined()
+
+    mounted.app.unmount()
+    await nextTick()
+    expect(runtime.objects.get('object:1')).toBeUndefined()
+    expect(runtime.surfaces.get('surface:1')).toBeUndefined()
+    expect(runtime.targets.get('target:1')).toBeUndefined()
+    expect(runtime.targets.get('object-target:object:1')).toBeUndefined()
+    mounted.host.remove()
+  })
+
+  it('旧组件卸载不会清理同 ID 的新 Object', async () => {
+    const runtime = new Runtime()
+    const createObjectChild = () => defineComponent({
+      setup() {
+        const object = useObject({ id: 'object:shared', type: 'card', surface: 'surface:1', abilities: ['move'] })
+        return () => h('article', { ref: object.elementRef })
+      },
+    })
+    const first = mount(runtime, createObjectChild())
+    await nextTick()
+    const firstGeneration = runtime.objects.get('object:shared')?.generation
+    const second = mount(runtime, createObjectChild())
+    await nextTick()
+    const secondElement = runtime.objects.get('object:shared')?.element
+    const secondGeneration = runtime.objects.get('object:shared')?.generation
+
+    first.app.unmount()
+    await nextTick()
+    expect(secondGeneration).toBeGreaterThan(firstGeneration ?? 0)
+    expect(runtime.objects.get('object:shared')?.element).toBe(secondElement)
+
+    second.app.unmount()
+    first.host.remove()
+    second.host.remove()
+  })
+
+  it('响应式 Surface/Target 字段使用 update 而不改变 generation', async () => {
+    const runtime = new Runtime()
+    const targetSurfaceId = ref('surface:a')
+    const child = defineComponent({
+      setup() {
+        const surface = useSurface({ id: 'surface:dynamic', type: 'list', accepts: () => ['card'] })
+        const target = useTarget({ id: 'target:dynamic', surfaceId: targetSurfaceId, accepts: ['card'] })
+        return () => h('section', { ref: surface.elementRef }, [h('button', { ref: target.elementRef })])
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+    const targetGeneration = runtime.targets.get('target:dynamic')?.generation
+    targetSurfaceId.value = 'surface:b'
+    await nextTick()
+
+    expect(runtime.targets.get('target:dynamic')).toMatchObject({ surfaceId: 'surface:b', generation: targetGeneration })
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
+  it('useRuntimeAction 和 useRuntimeTransition 在组件卸载时解除订阅', async () => {
+    const runtime = new Runtime()
+    const received: Action[] = []
+    const child = defineComponent({
+      setup() {
+        useRuntimeAction(action => { received.push(action) })
+        const { controlled } = useRuntimeTransition('surface:owned')
+        return () => h('output', { 'data-controlled': String(controlled.value) })
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+    runtime.emitAction({ type: 'move', objectId: 'object:1', fromSurfaceId: 'a', toSurfaceId: 'b', timestamp: 1 })
+    expect(received).toHaveLength(1)
+
+    mounted.app.unmount()
+    runtime.emitAction({ type: 'move', objectId: 'object:2', fromSurfaceId: 'a', toSurfaceId: 'b', timestamp: 2 })
+    expect(received).toHaveLength(1)
+    mounted.host.remove()
+  })
+})
