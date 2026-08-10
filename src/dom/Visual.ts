@@ -91,6 +91,14 @@ export interface DragProxyLayoutConfig {
     transform?: string
     duration?: number
     easing?: string
+    /**
+     * 抓取时用来替换内容层 grid-template-columns 的值——要求轨道数量和类型跟本体
+     * CSS 里定义的真实列一致，只把紧凑态不展示的列宽度改成 0px（其余列原样保留
+     * 真实的 fr/px 值）。落地时会清空这份内联覆盖，退回本体 CSS 定义的真实列宽，
+     * 因为轨道数量全程不变，浏览器能把这次切换当成普通宽度过渡来平滑插值，不是
+     * 两套布局互相替换的瞬间跳变。业务不传时不触碰 grid-template-columns。
+     */
+    gridTemplateColumns?: string
   }
 }
 
@@ -198,7 +206,7 @@ export function createDragProxy(
   if (compact) content.dataset.runtimeCompact = 'true'
   const compactDuration = compact?.duration ?? 200
   const compactEasing = compact?.easing ?? 'cubic-bezier(.22,1,.36,1)'
-  content.style.transition = `left ${compactDuration}ms ${compactEasing}, width ${compactDuration}ms ${compactEasing}, transform ${compactDuration}ms ${compactEasing}, box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease`
+  content.style.transition = `left ${compactDuration}ms ${compactEasing}, width ${compactDuration}ms ${compactEasing}, transform ${compactDuration}ms ${compactEasing}, grid-template-columns ${compactDuration}ms ${compactEasing}, box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease`
   proxy.style.transition = 'transform .15s ease'
   // 逃出玻璃裁切（overflow:hidden / backdrop-filter 祖先）靠的就是这次重新
   // 挂载：只要还在被裁切祖先的子树里，z-index 再高也没用；只要挂到 <html>
@@ -211,6 +219,7 @@ export function createDragProxy(
         content.style.left = compact.left ?? '50%'
         content.style.width = compact.width
         content.style.transform = compact.transform ?? 'translateX(-50%)'
+        if (compact.gridTemplateColumns) content.style.gridTemplateColumns = compact.gridTemplateColumns
       }
     }
   })
@@ -795,6 +804,7 @@ export function landDragProxyWithMotion(
           `left ${duration}ms ${easing}`,
           `width ${duration}ms ${easing}`,
           `transform ${duration}ms ${easing}`,
+          `grid-template-columns ${duration}ms ${easing}`,
         ]
       : []),
     `box-shadow ${duration}ms ${easing}`,
@@ -816,6 +826,10 @@ export function landDragProxyWithMotion(
         content.style.left = '0'
         content.style.width = '100%'
         content.style.transform = 'none'
+        // 清空覆盖，退回本体 CSS 里定义的真实列宽——轨道数量没变，只是宽度值从紧凑
+        // 态的 0px 平滑插值回真实值，字段落回它们在本体行里原本的准确位置，不是
+        // 换一套布局瞬间跳变。
+        content.style.gridTemplateColumns = ''
       }
     }
     if (targetShadow != null) content.style.boxShadow = targetShadow

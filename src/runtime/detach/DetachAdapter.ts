@@ -385,7 +385,10 @@ export function createDetachMoveFromAdapter(config: {
       // landing 才能从同一个业务节点读到最终布局矩形；display:none 会让它
       // 变成 0x0，代理随后被错误收缩成细条。跨 Surface 仍保持脱离布局，
       // 等目标 Surface 完成渲染后再交接。
-      if (invalidReturn || sameSurfaceLanding) sourceLease?.restoreLayoutHidden()
+      // clone 始终保留源节点的布局占位；否则跨 Surface 落地时会把源卡片从
+      // 文档流移除，兄弟卡片重新排布并触发不必要的回位 FLIP。detach 才在
+      // 跨 Surface 时真正移除源占位，等待目标节点挂载后再交接。
+      if (clone || invalidReturn || sameSurfaceLanding) sourceLease?.restoreLayoutHidden()
       else sourceLease?.detachFromLayout()
       document.body.classList.remove('kb-dragging')
     },

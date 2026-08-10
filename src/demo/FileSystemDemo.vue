@@ -199,7 +199,13 @@ runtime.registerObjectType('file-item', {
   preserveMoveTarget: true,
   proxyLayout: listProxyLayout,
 })
-runtime.registerObjectType('file-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true }, proxyLayout: listProxyLayout })
+runtime.registerObjectType('file-item-clone', {
+  defaultVisualMode: 'clone',
+  landingMode: 'target',
+  motion: { enabled: true },
+  preserveMoveTarget: true,
+  proxyLayout: listProxyLayout,
+})
 runtime.registerObjectType('folder-item', {
   defaultVisualMode: 'detach',
   landingMode: 'target',
@@ -207,7 +213,13 @@ runtime.registerObjectType('folder-item', {
   preserveMoveTarget: true,
   proxyLayout: listProxyLayout,
 })
-runtime.registerObjectType('folder-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true }, proxyLayout: listProxyLayout })
+runtime.registerObjectType('folder-item-clone', {
+  defaultVisualMode: 'clone',
+  landingMode: 'target',
+  motion: { enabled: true },
+  preserveMoveTarget: true,
+  proxyLayout: listProxyLayout,
+})
 
 const objectGenerations = new Map<string, number>()
 const surfaceIds = new Set<string>()
