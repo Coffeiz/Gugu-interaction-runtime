@@ -27,10 +27,12 @@ describe('createAutoScroller', () => {
     vi.unstubAllGlobals()
   })
 
+  let now = 0
   function tick(): void {
+    now += 16
     const callbacks = rafCallbacks
     rafCallbacks = []
-    for (const cb of callbacks) cb(0)
+    for (const cb of callbacks) cb(now)
   }
 
   it('指针贴近容器底部边缘时向下滚动', () => {
@@ -39,6 +41,7 @@ describe('createAutoScroller', () => {
     const scroller = createAutoScroller(cleanup, { edgeSize: 48, maxSpeed: 16 })
 
     scroller.update(container, { x: 100, y: 390 })
+    tick()
     tick()
 
     expect(container.scrollTop).toBeGreaterThan(0)
@@ -51,6 +54,7 @@ describe('createAutoScroller', () => {
     const scroller = createAutoScroller(cleanup, { edgeSize: 48, maxSpeed: 16 })
 
     scroller.update(container, { x: 100, y: 10 })
+    tick()
     tick()
 
     expect(container.scrollTop).toBeLessThan(200)
@@ -98,12 +102,14 @@ describe('createAutoScroller', () => {
     const scrollerA = createAutoScroller(cleanupA, { edgeSize: 48, maxSpeed: 16 })
     scrollerA.update(containerA, { x: 100, y: 399 }) // 距边缘 1px
     tick()
+    tick()
     const fastSpeed = containerA.scrollTop
 
     const cleanupB = new Cleanup()
     const containerB = createContainer({ top: 0, bottom: 400 })
     const scrollerB = createAutoScroller(cleanupB, { edgeSize: 48, maxSpeed: 16 })
     scrollerB.update(containerB, { x: 100, y: 360 }) // 距边缘 40px
+    tick()
     tick()
     const slowSpeed = containerB.scrollTop
 

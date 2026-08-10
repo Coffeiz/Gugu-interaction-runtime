@@ -845,7 +845,9 @@ setMotionProfiles(this.registry.motionProfile)
     const immediate = this.resolveMoveLandingTarget(sessionId, destination)
     if (immediate) {
       const rect = immediate.getBoundingClientRect()
-      if (rect.width > 0 && rect.height > 0) return immediate
+      if (rect.width > 0 && rect.height > 0) {
+        return immediate
+      }
     }
     return this.waitForMoveTarget(sessionId, destination, maxFrames)
   }

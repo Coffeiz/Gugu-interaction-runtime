@@ -39,6 +39,7 @@ export function createAutoScroller(cleanup: Cleanup, options: AutoScrollOptions 
   let rectFrame = 0
   let observedContainer: HTMLElement | null = null
   let resizeObserver: ResizeObserver | null = null
+  let lastTime: number | null = null
 
   const refreshContainerRect = (): void => {
     if (!container || !container.isConnected) {
@@ -61,14 +62,18 @@ export function createAutoScroller(cleanup: Cleanup, options: AutoScrollOptions 
     resizeObserver.observe(nextContainer)
   }
 
-  const speedFor = (distanceToEdge: number): number => {
+  // maxSpeed 按 60fps 下的 px/frame 校准；实际按 dt 换算成 px/s 应用，
+  // 保证不同刷新率屏幕上的滚动速度观感一致。
+  const speedFor = (distanceToEdge: number, dt: number): number => {
     const ratio = (edgeSize - distanceToEdge) / edgeSize
-    return Math.ceil(maxSpeed * ratio)
+    return Math.ceil(maxSpeed * ratio * (dt * 60))
   }
 
-  const tick = (): void => {
+  const tick = (time: number): void => {
     if (stopped) return
     rafId = requestAnimationFrame(tick)
+    const dt = Math.min(0.05, Math.max(0, (time - (lastTime ?? time)) / 1000))
+    lastTime = time
     if (!container || !point || !container.isConnected) return
     // 容器边界在滚动时不会变化；ResizeObserver 负责尺寸变化，低频
     // 兜底刷新则覆盖祖先滚动/布局移动等 Observer 感知不到的情况。
@@ -81,11 +86,11 @@ export function createAutoScroller(cleanup: Cleanup, options: AutoScrollOptions 
     const distanceToBottom = rect.bottom - point.y
     if (distanceToTop < edgeSize) {
       const before = container.scrollTop
-      container.scrollTop -= speedFor(distanceToTop)
+      container.scrollTop -= speedFor(distanceToTop, dt)
       if (container.scrollTop !== before) options.onScroll?.(point)
     } else if (distanceToBottom < edgeSize) {
       const before = container.scrollTop
-      container.scrollTop += speedFor(distanceToBottom)
+      container.scrollTop += speedFor(distanceToBottom, dt)
       if (container.scrollTop !== before) options.onScroll?.(point)
     }
   }

@@ -206,6 +206,7 @@ export interface LandingVisualOptions {
   easing?: string
   targetShadow?: string
   targetRadius?: string
+  targetBorder?: string
   targetBackground?: string
   /** 目标背景图（渐变等）。backgroundColor 与 backgroundImage 分设，避免
    *  background 简写把渐变覆盖成透明。 */
@@ -413,6 +414,7 @@ export function landDragProxyLegacy(
   const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
   const targetShadow = options.targetShadow
   const targetRadius = options.targetRadius
+  const targetBorder = options.targetBorder
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
   const content = getProxyContent(proxy)
@@ -506,6 +508,7 @@ export function landDragProxyLegacy(
     content.style.transition = [
       `box-shadow ${animDuration}ms ease`,
       `border-radius ${animDuration}ms ease`,
+      `border-color ${animDuration}ms ease`,
       `background-color ${animDuration}ms ease`,
       `background-image ${animDuration}ms ease`,
       `opacity ${animDuration}ms ease`,
@@ -522,6 +525,10 @@ export function landDragProxyLegacy(
       proxy.style.height = `${nextTarget.height.toFixed(2)}px`
       if (targetShadow != null) content.style.boxShadow = targetShadow
       if (targetRadius != null) content.style.borderRadius = targetRadius
+      // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
+      // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
+      // 不清掉这份抓起态残留会导致代理揭示前一直带着四边高光，跟本体明显不一样。
+      if (targetBorder != null) content.style.border = targetBorder
       if (targetBackground != null) {
         content.style.backgroundColor = targetBackground
         if (options.targetBackgroundImage) {
@@ -595,6 +602,7 @@ export function landDragProxyWithMotion(
   const easing = options.easing ?? 'cubic-bezier(.22,1,.36,1)'
   const targetShadow = options.targetShadow
   const targetRadius = options.targetRadius
+  const targetBorder = options.targetBorder
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
   const content = getProxyContent(proxy)
@@ -728,6 +736,7 @@ export function landDragProxyWithMotion(
   content.style.transition = [
     `box-shadow ${duration}ms ${easing}`,
     `border-radius ${duration}ms ${easing}`,
+    `border-color ${duration}ms ${easing}`,
     `background-color ${duration}ms ${easing}`,
     `background-image ${duration}ms ${easing}`,
     `opacity ${duration}ms ${easing}`,
@@ -736,6 +745,10 @@ export function landDragProxyWithMotion(
     if (settled) return
     if (targetShadow != null) content.style.boxShadow = targetShadow
     if (targetRadius != null) content.style.borderRadius = targetRadius
+    // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
+    // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
+    // 不清掉这份抓起态残留会导致代理揭示前一直带着四边高光，跟本体明显不一样。
+    if (targetBorder != null) content.style.border = targetBorder
     if (targetBackground != null) {
       // 分开设置：background 简写会重置 background-image，业务卡片常用
       // linear-gradient（在 backgroundImage），渐变会被 backgroundColor

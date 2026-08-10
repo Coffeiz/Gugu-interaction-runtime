@@ -113,7 +113,7 @@ export function createCardMotionController(options: CardMotionControllerOptions)
 
   function tick(time: number): void {
     if (!running) return
-    const dt = Math.min(0.032, lastTime == null ? 1 / 60 : Math.max(0, (time - lastTime) / 1000))
+    const dt = Math.min(0.032, Math.max(0, (time - (lastTime ?? time)) / 1000))
     lastTime = time
 
     if (phase === 'coast') {

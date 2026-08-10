@@ -105,6 +105,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       rect: element.getBoundingClientRect(),
       borderRadius: style.borderRadius,
       boxShadow: style.boxShadow,
+      border: style.border,
       background: style.backgroundColor,
       backgroundImage: style.backgroundImage,
       opacity: style.opacity,
@@ -200,6 +201,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // 样式覆盖到代理卡片；有可见表面的文件夹卡仍完整执行视觉 morph。
       targetShadow: targetHasSurfaceStyle ? targetSnapshot?.boxShadow : undefined,
       targetRadius: targetHasSurfaceStyle ? targetSnapshot?.borderRadius : undefined,
+      targetBorder: targetHasSurfaceStyle ? targetSnapshot?.border : undefined,
       targetBackground: targetHasSurfaceStyle ? targetSnapshot?.background : undefined,
       targetBackgroundImage: targetHasSurfaceStyle ? targetSnapshot?.backgroundImage : undefined,
       targetOpacity: targetHasSurfaceStyle ? targetSnapshot?.opacity : undefined,
