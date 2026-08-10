@@ -28,7 +28,7 @@
 
 - `RegisteredHit.ts`：先把候选元素的 rect 一次性测好缓存下来，过滤/排序/遍历都只读缓存。
 - `CardMotionController` 的 onFrame：`left`/`top` 只在代理创建时定死一次，之后每帧只写 `transform` 的 `translate3d` 叠加位移量。
-- `DetachAdapter.ts` 的 `registeredElements()`：用 `closest('[data-layout-content][data-layout-open="false"]')` 排除被折叠祖先包住的卡片，不参与本次 FLIP。
+- `MoveAdapter.ts` 的 `registeredElements()`：用 `closest('[data-layout-content][data-layout-open="false"]')` 排除被折叠祖先包住的卡片，不参与本次 FLIP。
 - `captureLayoutFlip`：合并两次重复的 `[data-layout-surface]` 查询为一次，两处复用同一份结果。
 - `createDragProxy`：加 `will-change: transform`，grabbing 浮动本体和 landing 落地代理都走这一个创建入口，一次改动同时覆盖两种代理。
 

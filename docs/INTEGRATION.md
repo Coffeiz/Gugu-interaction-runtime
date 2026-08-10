@@ -264,6 +264,41 @@ runtime.configureMotion({
 `group` 控制分组展开/收起。所有字段可选，未设置时回退到 Runtime 默认值。
 推荐在应用初始化时调用一次。
 
+### 多选拖拽叠牌
+
+多选拖拽通过对象类型注册中的 `groupDrag` 配置修饰卡视觉。它只影响抓取时的
+叠牌和 modifier 淡出，不影响 `move-group` action 携带的对象数量，也不负责业务
+侧的选择状态。
+
+```ts
+runtime.registerObjectType('file-item', {
+  defaultVisualMode: 'detach',
+  groupDrag: {
+    maxModifiers: 2,
+    foldDuration: 300,
+    modifierFadeDuration: 180,
+    spread: [
+      { x: 50, y: -20, rotate: 20, scale: 1 },
+      { x: 90, y: -38, rotate: 34, scale: 1 },
+    ],
+    tight: [
+      { x: 7, y: 6, rotate: 4, scale: 0.97 },
+      { x: 13, y: 12, rotate: 8, scale: 0.94 },
+    ],
+  },
+})
+```
+
+- `maxModifiers`：最多显示的修饰卡数量；业务移动仍作用于全部选中对象。
+- `foldDuration`：修饰卡从扇开位置收拢到叠牌位置的时长，单位为毫秒。
+- `modifierFadeDuration`：进入 landing 后修饰卡淡出并移除的时长，单位为毫秒。
+- `spread`：每张修饰卡抓起时的初始位置、旋转和缩放。
+- `tight`：每张修饰卡最终叠在主卡后的目标位置、旋转和缩放。
+
+`spread[i]` 与 `tight[i]` 对应第 `i` 张修饰卡。未提供配置时使用 Runtime
+默认的两张叠牌参数。Core 只传递 group 元数据和配置，具体 DOM 克隆与绘制由
+Visual Adapter 负责。
+
 如果分组展开/收起时还需要卡片淡入淡出，可开启布局 presence：
 
 ```ts

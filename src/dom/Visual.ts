@@ -952,7 +952,7 @@ const pickupHandoffPending = new WeakSet<HTMLElement>()
 export function applyFloatingStyle(
   el: HTMLElement,
   rect: DOMRect,
-  options: { layout?: DragProxyLayoutConfig } = {},
+  options: { layout?: DragProxyLayoutConfig; keepSourceVisible?: boolean } = {},
 ) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
   // 抓取阶段的视觉交给独立 proxy：挂在 <html> 下，containing block 是 viewport，
@@ -968,7 +968,7 @@ export function applyFloatingStyle(
   proxy.style.transition = 'transform 150ms cubic-bezier(.22,1,.36,1), box-shadow 150ms ease, background 150ms ease, opacity 150ms ease'
   pickupHandoffPending.add(proxy)
   floatingProxies.set(el, proxy)
-  el.style.visibility = 'hidden'
+  if (!options.keepSourceVisible) el.style.visibility = 'hidden'
   requestAnimationFrame(() => {
     if (!proxy.isConnected) return
     if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)

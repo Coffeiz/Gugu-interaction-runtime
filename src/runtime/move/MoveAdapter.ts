@@ -60,6 +60,7 @@ export function createDetachMoveFromAdapter(config: {
   let dragOffset = { x: 0, y: 0 }
   let pickupIndex: number | null = null
   let pointerMoved = false
+  let isGroupSession = false
 
   // 布局 FLIP 只需要比较当前源 Surface 与最后命中的目标 Surface。
   // 这样已完成列之外的大量项目不会参与每次拖拽的分组、Surface 和
@@ -166,7 +167,9 @@ export function createDetachMoveFromAdapter(config: {
     //   本身就要等卡片被 Teleport 传送回真实 DOM 才能找到它，一直不释放会
     //   直接找不到目标，表现为飞向页面默认兜底位置。）
     if (invalidReturn) {
-      sourceLease?.restoreLayoutHidden()
+      // 多选组的源卡片要在回位动画期间保持幽灵可见，由组视觉层在
+      // landing/reveal 完成时恢复原样；单卡继续沿用原先的隐藏回位逻辑。
+      if (!isGroupSession) sourceLease?.restoreLayoutHidden()
       objectLease?.release()
     }
     const proceedWithTarget = (sid: string, target: HTMLElement | null) => {
@@ -221,6 +224,8 @@ export function createDetachMoveFromAdapter(config: {
     if (getSessionState() !== 'landing') return
     const proxy = landingProxy
     if (!proxy || !sessionId) return
+    const group = runtime.getGroup(sessionId)
+    const groupVisual = group ? runtime.objects.get(group.primaryObjectId)?.visual : undefined
     const liveEl = resolveDetachRegrabTarget(
       () => runtime.resolveVisualTarget(sessionId!, pendingDrop),
       () => runtime.objects.get(objectId)?.element ?? null,
@@ -237,7 +242,23 @@ export function createDetachMoveFromAdapter(config: {
     // proxyRect 是带缩放/旋转的视觉外接框，不能作为新 session 的布局尺寸。
     // Runtime 已将代理位置与真实节点的未变换尺寸合成为 regrabRect，避免
     // regrab 时再次叠加 3D 姿态导致卡片变高、底部出现空白。
-    runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.regrabRect, targetRect)
+    if (group) {
+      // 落地中的多选代理必须继续以 group session 接管；如果先走单卡入口，
+      // 后续 release 会只提交主卡，且 modifier 视觉也会被丢掉。
+      // 旧 session 的 dispose 可能已把主对象 visual 恢复为普通类型，先恢复
+      // 原 group visual，再让新 session 按原 objectIds 建立完整会话。
+      if (groupVisual) runtime.objects.update(group.primaryObjectId, { visual: groupVisual })
+      runtime.startGroupObjectPointer(
+        group.objectIds,
+        group.primaryObjectId,
+        liveEl,
+        regrabEvent,
+        regrabContext.regrabRect,
+        targetRect,
+      )
+    } else {
+      runtime.startObjectPointer(objectId, liveEl, regrabEvent, regrabContext.regrabRect, targetRect)
+    }
   }
 
   const driver: MoveBehaviorDriver = {
@@ -268,6 +289,8 @@ export function createDetachMoveFromAdapter(config: {
       if (wasHiddenBeforePickup) element.style.transition = ''
       objectLease = runtime.acquireObject(sessionId!, objectId)
       runtime.takeSurfaces(sessionId!, surfaceIds)
+      const group = runtime.getGroup(sessionId!)
+      isGroupSession = Boolean(group)
       const { beforePickup } = prepareDetachPickup(element, registeredElements, layoutScopeSurfaces)
       pickupIndex = runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)
       beforeContent = element.cloneNode(true) as HTMLElement
@@ -307,15 +330,23 @@ export function createDetachMoveFromAdapter(config: {
       // 的姿态、过渡和 release 动量一致；唯一差别是 detach 立即移除源占位。
       const proxyLayout = runtime.getObjectProxyLayout(objectId, element)
       const compactProxy = Boolean(proxyLayout?.compact)
-      applyFloatingStyle(element, rect, { layout: proxyLayout })
+      applyFloatingStyle(element, rect, {
+        layout: proxyLayout,
+        // 多选时源卡是布局幽灵，不能像单卡 detach 一样整张隐藏；主代理
+        // 负责跟手，源节点保留在原位并由 group visual 降低透明度。
+        keepSourceVisible: Boolean(group && group.objectIds.length > 1),
+      })
       // regrab 的 source 会在 applyFloatingStyle() 中再次隐藏；如果旧 Session
       // 的 ownership 已被释放，preserveTarget 的 reveal 将无法恢复它。此时在
       // 新 Session 上登记 ownership，保持隐藏状态不变，等 reveal 统一交接。
       claimVisibilityOwnership(element, sessionId!)
       const adoptedProxy = takeFloatingProxy(element)
       if (adoptedProxy) runtime.registerVisualProxy(sessionId!, { element: adoptedProxy })
+      // 抓取阶段的默认 proxy 也要交给 VisualAdapter 装饰；多选适配器在这里
+      // 添加修饰卡和源节点幽灵，不能等到 landing 才第一次创建视觉。
+      if (adoptedProxy) runtime.updateVisualProxy(sessionId!)
       element.style.pointerEvents = 'none'
-      if (!clone) {
+      if (!clone && !group) {
         // 让兄弟卡片立即看到源节点已离开布局流，随后复用同一份 beforePickup
         // 快照播放收位 FLIP；可见主体仍由 floating proxy 承担。
         sourceLease.detachFromLayout()
@@ -323,7 +354,8 @@ export function createDetachMoveFromAdapter(config: {
       // grabbing 期间 transform 由 MotionController 每帧写入，不能再让 CSS transition
       // 对每次物理更新做线性插值，否则角度回正会覆盖弹簧的非线性轨迹（0.9.6 原有的坑）。
       element.style.transition = 'none'
-      runtime.scheduleLayout(beforePickup)
+      // 多选源卡保留布局，不播放单卡移除后的兄弟让位 FLIP。
+      if (!group) runtime.scheduleLayout(beforePickup)
       element.dataset.runtimeActive = 'true'
       const floatingProxy = runtime.getVisualProxy(sessionId!)?.element
         ?? getFloatingProxy(element)
@@ -388,7 +420,9 @@ export function createDetachMoveFromAdapter(config: {
       // clone 始终保留源节点的布局占位；否则跨 Surface 落地时会把源卡片从
       // 文档流移除，兄弟卡片重新排布并触发不必要的回位 FLIP。detach 才在
       // 跨 Surface 时真正移除源占位，等待目标节点挂载后再交接。
-      if (clone || invalidReturn || sameSurfaceLanding) sourceLease?.restoreLayoutHidden()
+      if (isGroupSession) {
+        // 多选源卡始终保留为幽灵，等待 group visual 的 landing/reveal 同步恢复。
+      } else if (clone || invalidReturn || sameSurfaceLanding) sourceLease?.restoreLayoutHidden()
       else sourceLease?.detachFromLayout()
       document.body.classList.remove('kb-dragging')
     },

@@ -18,7 +18,7 @@ export default defineConfig({
       entry: {
         'index': resolve(__dirname, 'src/index.ts'),
         'vue': resolve(__dirname, 'src/vue/index.ts'),
-        'runtime/detach/DetachAdapter': resolve(__dirname, 'src/runtime/detach/DetachAdapter.ts'),
+        'runtime/move/MoveAdapter': resolve(__dirname, 'src/runtime/move/MoveAdapter.ts'),
       },
       name: 'GuguInteractionRuntime',
       formats: ['es'],

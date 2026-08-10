@@ -144,6 +144,7 @@ export declare function destroyAllDragProxies(): void;
 export declare function destroyDragProxiesByCardId(cardId: string): void;
 export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect, options?: {
     layout?: DragProxyLayoutConfig;
+    keepSourceVisible?: boolean;
 }): void;
 export declare function getFloatingProxy(el: HTMLElement): HTMLElement | undefined;
 /** 将抓取阶段的 proxy 转交给 Runtime 的统一 landing 生命周期，不移除节点。 */

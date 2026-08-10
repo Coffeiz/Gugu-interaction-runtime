@@ -1,5 +1,6 @@
 import type { VisualState, VisualSnapshot } from './VisualAdapterTypes'
 import type { MotionProfile } from './MotionProfile'
+import type { GroupDragConfig } from './GroupDragProfile'
 import type { MotionState } from '../motion/CardMotionController'
 import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { DEFAULT_COAST_FRICTION, DEFAULT_RELEASE_PROFILE } from '../motion/ReleaseMotion'
@@ -19,7 +20,7 @@ import {
   type DragProxyLayoutConfig,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
-import { createCloneMoveFromAdapter, createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
+import { createCloneMoveFromAdapter, createDetachMoveFromAdapter } from '../runtime/move/MoveAdapter'
 import type { Runtime } from '../Runtime'
 import type { GroupObjectOffset } from '../session/GroupDragSession'
 
@@ -59,6 +60,8 @@ export interface VisualLifecycleContext {
   readonly proxyLayout?: DragProxyLayoutConfig
   /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
   readonly group?: VisualGroupContext
+  /** 对象类型注册的多选叠牌视觉配置。 */
+  readonly groupDrag?: GroupDragConfig
 }
 
 export interface VisualProxy {

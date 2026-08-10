@@ -40,10 +40,17 @@ export { SurfaceStore } from './surface/SurfaceStore'
 export { TargetStore } from './target/TargetStore'
 export type { TargetItem } from './target/Target'
 export type { VisualAdapter, VisualAdapterRegistry } from './dom/VisualAdapter'
+export {
+  DEFAULT_GROUP_DRAG_CONFIG,
+  resolveGroupDragConfig,
+  type GroupDragConfig,
+  type GroupDragStackTransform,
+  type ResolvedGroupDragConfig,
+} from './dom/GroupDragProfile'
 export type { DragProxyLayoutConfig } from './dom/Visual'
 export { DefaultVisualAdapter, VisualAdapters } from './dom/VisualAdapter'
 export type { VisualPhase, VisualState, VisualSnapshot } from './dom/VisualAdapterTypes'
-export { createDetachMoveFromAdapter } from './runtime/detach/DetachAdapter'
+export { createDetachMoveFromAdapter } from './runtime/move/MoveAdapter'
 export type { HitResolver, HitResult } from './dom/Hit'
 export { createDomHitResolver, hitWithResolver } from './dom/Hit'
 export { createRegisteredHitResolver } from './dom/RegisteredHit'

@@ -1,5 +1,6 @@
 import { VisualState, VisualSnapshot } from './VisualAdapterTypes';
 import { MotionProfile } from './MotionProfile';
+import { GroupDragConfig } from './GroupDragProfile';
 import { MotionState } from '../motion/CardMotionController';
 import { DragProxyLayoutConfig } from './Visual';
 import { Runtime } from '../Runtime';
@@ -39,6 +40,8 @@ export interface VisualLifecycleContext {
     readonly proxyLayout?: DragProxyLayoutConfig;
     /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
     readonly group?: VisualGroupContext;
+    /** 对象类型注册的多选叠牌视觉配置。 */
+    readonly groupDrag?: GroupDragConfig;
 }
 export interface VisualProxy {
     readonly element: HTMLElement;

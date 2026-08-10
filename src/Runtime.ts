@@ -14,6 +14,7 @@ import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisua
 import { DefaultVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
 import type { VisualState } from './dom/VisualAdapterTypes'
 import type { MotionProfile } from './dom/MotionProfile'
+import type { GroupDragConfig } from './dom/GroupDragProfile'
 import type { DragProxyLayoutConfig } from './dom/Visual'
 import type { MotionControllerConfig } from './motion/MotionProfile'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
@@ -118,6 +119,8 @@ export interface ObjectTypeRegistration {
   grabAlign?: GrabAlignConfig
   /** 抓取代理的可选紧凑布局；Runtime 负责尺寸和位置过渡。 */
   proxyLayout?: DragProxyLayoutConfig
+  /** 多选拖拽的叠牌与 modifier 淡出配置；未设置时使用 Runtime 默认值。 */
+  groupDrag?: GroupDragConfig
   /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
   pointerInput?: PointerSessionInputOptions
   /** 可选业务目标解析；返回空时继续使用 Runtime 的注册 Surface 命中。 */
@@ -549,6 +552,7 @@ setMotionProfiles(this.registry.motionProfile)
       motion: motionProfile,
       motionEnabled: registration?.motion?.enabled,
       proxyLayout,
+      groupDrag: registration?.groupDrag,
       group: session instanceof GroupDragSession
         ? {
             primaryObjectId: session.primaryObjectId,
@@ -1257,6 +1261,13 @@ setMotionProfiles(this.registry.motionProfile)
 
   getSession(id: string): Session | undefined {
     return this.sessionCoordinator.get(id)
+  }
+
+  /** 返回多对象会话的公开元数据，供视觉层决定源节点占位策略。 */
+  getGroup(sessionId: string): { primaryObjectId: string; objectIds: readonly string[] } | undefined {
+    const session = this.sessionCoordinator.get(sessionId)
+    if (!(session instanceof GroupDragSession)) return undefined
+    return { primaryObjectId: session.primaryObjectId, objectIds: session.objectIds }
   }
 
   takeSurface(sessionId: string, surfaceId: string): boolean {

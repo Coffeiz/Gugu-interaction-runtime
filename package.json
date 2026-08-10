@@ -20,9 +20,13 @@
       "types": "./dist-lib/vue/index.d.ts",
       "import": "./dist-lib/vue.js"
     },
+    "./runtime/move/MoveAdapter": {
+      "types": "./dist-lib/runtime/move/MoveAdapter.d.ts",
+      "import": "./dist-lib/runtime/move/MoveAdapter.js"
+    },
     "./runtime/detach/DetachAdapter": {
-      "types": "./dist-lib/runtime/detach/DetachAdapter.d.ts",
-      "import": "./dist-lib/runtime/detach/DetachAdapter.js"
+      "types": "./dist-lib/runtime/move/MoveAdapter.d.ts",
+      "import": "./dist-lib/runtime/move/MoveAdapter.js"
     }
   },
   "files": [

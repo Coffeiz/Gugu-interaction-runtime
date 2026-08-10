@@ -108,7 +108,7 @@ src/
 │   ├── RuntimeMove.ts
 │   ├── RuntimeSession.ts
 │   ├── RuntimeVisual.ts
-│   └── detach/DetachAdapter.ts
+│   └── move/MoveAdapter.ts
 ├── adapters/               # Vue/React DOM 生命周期适配器
 │   ├── vue.ts
 │   └── react.ts
@@ -124,11 +124,9 @@ Session、MoveBehavior、Action、MotionController、landing/reveal、regrab、F
 Vue/React DOM 适配器、文件系统 Demo 和 `proxyLayout` API 均已进入稳定实现。
 后续新增能力继续从独立分支开始，并通过 Demo 与浏览器回归验证；Gugu-web 文件页、
 画布和多选等业务迁移仍按阶段 2/3 的计划推进。
-Vue composable 适配层暂不冻结，兼容基线与迁移边界见
-[Vue 接入指南](integration/VUE.md)，等待 Gugu-web 接入侧的视觉和拖拽效果稳定后再实现。
-Vue 适配层的实现前置顺序为：恢复历史 Object/Surface/Transition composable，补齐
-TargetStore 的 generation 与增量更新，再实现 `useTarget`；不能用注销后重新注册
-的方式替代 Target 身份更新。
+Vue composable 适配层已经恢复并进入稳定接入路径，兼容基线与迁移边界见
+[Vue 接入指南](integration/VUE.md)。新业务优先使用 `useObject`、`useSurface`、
+`useTarget` 和 `useRuntimeAction`，`createVueRuntimeAdapter` 只作为旧接入面的过渡桥接。
 
 ### 阶段 0：本仓库内的最小骨架（demo，不接业务）
 
@@ -417,7 +415,7 @@ pointerdown → Runtime.start → DetachMoveDriver.prepare
 Runtime 内部只有一套生命周期编排”为准。
 
 **0.9 完成情况（2026-07-27）**：detach 策略迁移已全部完成。
-- `kanbanDragDetach.ts` → 已删除，编排迁入 `src/runtime/detach/DetachAdapter.ts`
+- `kanbanDragDetach.ts` → 已删除，编排迁入 `src/runtime/move/MoveAdapter.ts`
 - `DetachReleaseCoordinator.ts` → 已删除，幂等保护内联为 `released` 布尔
 - `legacyStart` 已删除，默认视觉模式通过 `DefaultVisualAdapter.createMove()` 启动 detach driver
 - clone 编排已从 demo 收敛到 Runtime；detach 与 clone 均由 `DefaultVisualAdapter.createMove()`
@@ -778,7 +776,9 @@ project-files:19:file:123
       旧对象注册。
 - [x] 确认单对象移动只产生一次 `MoveAction`、一次 landing 和一次 dispose。
 - [x] 补充 Runtime 集成测试：文件对象、文件夹目标、面包屑目标和非法落点。
-- [ ] 不为多选拖拽提前修改 Runtime 核心；多选继续由 Gugu-web 旧 adapter 暂存。
+- [x] 多选拖拽已按通用能力扩展 Runtime Core：使用 `GroupDragSession` 和
+      `MoveGroupAction`，不加入文件专属字段；Gugu-web 真实文件页迁移另按 Phase 3-A
+      剩余工作评估。
 
 ##### 2-2.5：API 复评门槛
 

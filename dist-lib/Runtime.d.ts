@@ -11,6 +11,7 @@ import { MoveBehaviorDriver, MoveContext, MoveVisualLifecycle, MoveVisualStrateg
 import { VisualAdapter, VisualLifecycleContext, VisualProxy } from './dom/VisualAdapter';
 import { VisualState } from './dom/VisualAdapterTypes';
 import { MotionProfile } from './dom/MotionProfile';
+import { GroupDragConfig } from './dom/GroupDragProfile';
 import { DragProxyLayoutConfig } from './dom/Visual';
 import { MotionControllerConfig } from './motion/MotionProfile';
 import { HitResolver, HitResult } from './dom/Hit';
@@ -97,6 +98,8 @@ export interface ObjectTypeRegistration {
     grabAlign?: GrabAlignConfig;
     /** 抓取代理的可选紧凑布局；Runtime 负责尺寸和位置过渡。 */
     proxyLayout?: DragProxyLayoutConfig;
+    /** 多选拖拽的叠牌与 modifier 淡出配置；未设置时使用 Runtime 默认值。 */
+    groupDrag?: GroupDragConfig;
     /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
     pointerInput?: PointerSessionInputOptions;
     /** 可选业务目标解析；返回空时继续使用 Runtime 的注册 Surface 命中。 */
@@ -356,6 +359,11 @@ export declare class Runtime {
         offsets?: ReadonlyMap<string, GroupObjectOffset>;
     }): GroupDragSession;
     getSession(id: string): Session | undefined;
+    /** 返回多对象会话的公开元数据，供视觉层决定源节点占位策略。 */
+    getGroup(sessionId: string): {
+        primaryObjectId: string;
+        objectIds: readonly string[];
+    } | undefined;
     takeSurface(sessionId: string, surfaceId: string): boolean;
     /** 获取需要在 landing 前提前释放的对象 Lease（例如 detach 本体）。 */
     acquireObject(sessionId: string, objectId: string): Lease | null;

@@ -10,7 +10,7 @@
 
 ## 根因
 
-`objectLease?.release()`（[`DetachAdapter.ts`](../../src/runtime/detach/DetachAdapter.ts) `onUp()`）原本是松手瞬间同步调用的，早于业务 Action 真正落地：
+`objectLease?.release()`（[`MoveAdapter.ts`](../../src/runtime/move/MoveAdapter.ts) `onUp()`）原本是松手瞬间同步调用的，早于业务 Action 真正落地：
 
 ```
 onUp() 同步执行:
