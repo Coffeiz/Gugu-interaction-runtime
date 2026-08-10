@@ -106,6 +106,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       borderRadius: style.borderRadius,
       boxShadow: style.boxShadow,
       border: style.border,
+      backdropFilter: style.backdropFilter,
       background: style.backgroundColor,
       backgroundImage: style.backgroundImage,
       opacity: style.opacity,
@@ -177,11 +178,22 @@ export class DefaultVisualAdapter implements VisualAdapter {
     // 无效落点走的是 landingMode:'default' 飞回原位，这时候的目标样式 morph 是另一回事：把
     // 抓取时的深阴影平滑过渡回正常静止态，跟 isTargetLanding 无关，关掉会导致深阴影一直保持到
     // 代理销毁才突然消失，没有"落地"的感觉。
-    const targetHasSurfaceStyle = !(context.disableTargetVisualMorph && isTargetLanding) && Boolean(targetSnapshot && (
+    // 目标视觉上是否有“可见表面”（背景/阴影/背景图）——面包屑等透明文字锚点没有，不能让
+    // 代理套上它的怪样式，也不能拿它的 DOM 结构去做内容级 morph（会把卡片内部布局替换成
+    // 面包屑文字）。这条门槛继续原样控制 targetContent（结构级 morph），跟落地模式无关。
+    const targetHasVisibleSurface = Boolean(targetSnapshot && (
       (targetSnapshot.background && targetSnapshot.background !== 'transparent' && targetSnapshot.background !== 'rgba(0, 0, 0, 0)')
       || (targetSnapshot.backgroundImage && targetSnapshot.backgroundImage !== 'none')
       || (targetSnapshot.boxShadow && targetSnapshot.boxShadow !== 'none')
     ))
+    // 表面视觉属性（阴影/圆角/边框/玻璃模糊/背景/透明度）要不要 morph 回目标真实值，判断
+    // 更宽松：disableTargetVisualMorph 只关掉“飞向语义目标（文件夹/面包屑）时代理套上目标
+    // 样式”这段；默认落地（飞回对象自己在列表/网格里的原位）跟这个开关无关，即使目标静止态
+    // 没有背景/阴影（比如列表行本来就是透明的），也必须把抓起态的玻璃/深阴影 morph 回它的
+    // 真实（可能就是透明/none）样子，否则代理会一直糊到销毁揭示那一刻才突然切换。
+    const targetHasSurfaceStyle = !isTargetLanding
+      ? Boolean(targetSnapshot)
+      : !context.disableTargetVisualMorph && targetHasVisibleSurface
     const landingProfile = context.landingMode === 'target'
       ? context.motion?.target?.landing ?? context.motion?.landing
       : context.motion?.landing
@@ -202,12 +214,14 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetShadow: targetHasSurfaceStyle ? targetSnapshot?.boxShadow : undefined,
       targetRadius: targetHasSurfaceStyle ? targetSnapshot?.borderRadius : undefined,
       targetBorder: targetHasSurfaceStyle ? targetSnapshot?.border : undefined,
+      targetBackdropFilter: targetHasSurfaceStyle ? targetSnapshot?.backdropFilter : undefined,
       targetBackground: targetHasSurfaceStyle ? targetSnapshot?.background : undefined,
       targetBackgroundImage: targetHasSurfaceStyle ? targetSnapshot?.backgroundImage : undefined,
       targetOpacity: targetHasSurfaceStyle ? targetSnapshot?.opacity : undefined,
-      // 透明面包屑没有卡片内容结构，不能参与 content morph；否则代理会把
-      // 卡片内部布局替换成面包屑文字。可见的文件夹卡仍复用同一套内容 morph。
-      targetContent: targetHasSurfaceStyle ? target : undefined,
+      // 透明面包屑/列表行没有可复用的卡片式内容结构，不能参与 content morph——列表行是
+      // grid 多列布局，套这套给卡片设计的结构级 morph 会把列挤错位（类型跑到文件名下面）。
+      // 只有真正有背景/阴影这类卡片式表面的目标（网格卡）才复用同一套内容 morph。
+      targetContent: targetHasVisibleSurface ? target : undefined,
       landingMode: context.landingMode,
       targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
       dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,

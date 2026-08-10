@@ -207,6 +207,7 @@ export interface LandingVisualOptions {
   targetShadow?: string
   targetRadius?: string
   targetBorder?: string
+  targetBackdropFilter?: string
   targetBackground?: string
   /** 目标背景图（渐变等）。backgroundColor 与 backgroundImage 分设，避免
    *  background 简写把渐变覆盖成透明。 */
@@ -415,6 +416,7 @@ export function landDragProxyLegacy(
   const targetShadow = options.targetShadow
   const targetRadius = options.targetRadius
   const targetBorder = options.targetBorder
+  const targetBackdropFilter = options.targetBackdropFilter
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
   const content = getProxyContent(proxy)
@@ -509,6 +511,8 @@ export function landDragProxyLegacy(
       `box-shadow ${animDuration}ms ease`,
       `border-radius ${animDuration}ms ease`,
       `border-color ${animDuration}ms ease`,
+      `backdrop-filter ${animDuration}ms ease`,
+      `-webkit-backdrop-filter ${animDuration}ms ease`,
       `background-color ${animDuration}ms ease`,
       `background-image ${animDuration}ms ease`,
       `opacity ${animDuration}ms ease`,
@@ -529,6 +533,12 @@ export function landDragProxyLegacy(
       // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
       // 不清掉这份抓起态残留会导致代理揭示前一直带着四边高光，跟本体明显不一样。
       if (targetBorder != null) content.style.border = targetBorder
+      // 同上：backdrop-filter 也是抓起态才有的玻璃模糊，本体基本是 none，
+      // 同样得纳入 morph，否则代理全程糊着，揭示瞬间才"唰"地变清晰。
+      if (targetBackdropFilter != null) {
+        content.style.backdropFilter = targetBackdropFilter
+        content.style.setProperty('-webkit-backdrop-filter', targetBackdropFilter)
+      }
       if (targetBackground != null) {
         content.style.backgroundColor = targetBackground
         if (options.targetBackgroundImage) {
@@ -603,6 +613,7 @@ export function landDragProxyWithMotion(
   const targetShadow = options.targetShadow
   const targetRadius = options.targetRadius
   const targetBorder = options.targetBorder
+  const targetBackdropFilter = options.targetBackdropFilter
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
   const content = getProxyContent(proxy)
@@ -737,6 +748,8 @@ export function landDragProxyWithMotion(
     `box-shadow ${duration}ms ${easing}`,
     `border-radius ${duration}ms ${easing}`,
     `border-color ${duration}ms ${easing}`,
+    `backdrop-filter ${duration}ms ${easing}`,
+    `-webkit-backdrop-filter ${duration}ms ${easing}`,
     `background-color ${duration}ms ${easing}`,
     `background-image ${duration}ms ${easing}`,
     `opacity ${duration}ms ${easing}`,
@@ -749,6 +762,12 @@ export function landDragProxyWithMotion(
     // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
     // 不清掉这份抓起态残留会导致代理揭示前一直带着四边高光，跟本体明显不一样。
     if (targetBorder != null) content.style.border = targetBorder
+    // 同上：backdrop-filter 也是抓起态才有的玻璃模糊，本体基本是 none，
+    // 同样得纳入 morph，否则代理全程糊着，揭示瞬间才"唰"地变清晰。
+    if (targetBackdropFilter != null) {
+      content.style.backdropFilter = targetBackdropFilter
+      content.style.setProperty('-webkit-backdrop-filter', targetBackdropFilter)
+    }
     if (targetBackground != null) {
       // 分开设置：background 简写会重置 background-image，业务卡片常用
       // linear-gradient（在 backgroundImage），渐变会被 backgroundColor
