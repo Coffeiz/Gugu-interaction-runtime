@@ -81,6 +81,19 @@ export function setProxyInteractive(
   proxy.style.pointerEvents = enabled ? 'auto' : 'none'
 }
 
+/** 抓取代理的可选紧凑布局；尺寸和布局语义由业务声明，过渡由 Runtime 执行。 */
+export interface DragProxyLayoutConfig {
+  compact?: {
+    width: string
+    /** 仅匹配指定源元素时启用；不传表示该对象类型全部启用。 */
+    selector?: string
+    left?: string
+    transform?: string
+    duration?: number
+    easing?: string
+  }
+}
+
 export interface ProxyVisualState {
   transform: string
   boxShadow: string
@@ -113,7 +126,7 @@ export function restoreProxyVisualState(
 export function createDragProxy(
   source: HTMLElement,
   rect: DOMRect = source.getBoundingClientRect(),
-  options: { glass?: boolean } = {},
+  options: { glass?: boolean; layout?: DragProxyLayoutConfig } = {},
 ): HTMLElement {
   // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
   // perspective/rotate 由定位壳统一承载，不额外引入业务侧不存在的姿态节点。
@@ -130,6 +143,9 @@ export function createDragProxy(
     position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
     boxSizing: 'border-box', margin: '0', pointerEvents: 'none',
   })
+  // 先以本体尺寸绘制一帧，下一帧再切换到业务定义的紧凑抓取形态，
+  // 这样列表卡片会把信息压进窄卡片，而不是创建代理时瞬间变窄。
+  content.dataset.runtimePhase = 'grab-start'
   scaleShell.appendChild(content)
   proxy.appendChild(scaleShell)
   // 源节点在 clone 策略中会暂时使用隐藏类保留列表占位；代理必须是唯一可见
@@ -177,12 +193,26 @@ export function createDragProxy(
   proxy.style.transform = 'perspective(760px) rotateX(5deg) scale(1.03)'
   if (defaultDraggingGlassEnabled && options.glass !== false) applyDraggingGlassStyle(content)
   else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-  content.style.transition = 'box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease'
+  const compact = options.layout?.compact
+  if (compact) content.dataset.runtimeCompact = 'true'
+  const compactDuration = compact?.duration ?? 200
+  const compactEasing = compact?.easing ?? 'cubic-bezier(.22,1,.36,1)'
+  content.style.transition = `left ${compactDuration}ms ${compactEasing}, width ${compactDuration}ms ${compactEasing}, transform ${compactDuration}ms ${compactEasing}, box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease`
   proxy.style.transition = 'transform .15s ease'
   // 逃出玻璃裁切（overflow:hidden / backdrop-filter 祖先）靠的就是这次重新
   // 挂载：只要还在被裁切祖先的子树里，z-index 再高也没用；只要挂到 <html>
   // 下，不需要额外一层 overlay 容器。
   document.documentElement.appendChild(proxy)
+  requestAnimationFrame(() => {
+    if (proxy.isConnected && content.dataset.runtimePhase === 'grab-start') {
+      content.dataset.runtimePhase = 'grabbing'
+      if (compact) {
+        content.style.left = compact.left ?? '50%'
+        content.style.width = compact.width
+        content.style.transform = compact.transform ?? 'translateX(-50%)'
+      }
+    }
+  })
   activeDragProxies.add(proxy)
   return proxy
 }
@@ -334,6 +364,20 @@ function wrapContentForMorph(
   // 的 flex 布局才排得正确——不带 display，子节点会退化成块级堆叠、
   // flex 子项（align-self:stretch 的按钮）从右侧掉走。
   contentLayer.style.display = targetStyle.display
+  // 列表行使用 CSS Grid。这里只复制 display 会让脱离原父级后的
+  // 内容层退化成隐式网格，文件名和大小会在 landing 阶段重新分配到
+  // 中间列。把网格轨道和对齐规则一并固化，保证代理与本体同构。
+  contentLayer.style.gridTemplateColumns = targetStyle.gridTemplateColumns
+  contentLayer.style.gridTemplateRows = targetStyle.gridTemplateRows
+  contentLayer.style.gridAutoColumns = targetStyle.gridAutoColumns
+  contentLayer.style.gridAutoRows = targetStyle.gridAutoRows
+  contentLayer.style.gridAutoFlow = targetStyle.gridAutoFlow
+  contentLayer.style.justifyItems = targetStyle.justifyItems
+  contentLayer.style.alignItems = targetStyle.alignItems
+  contentLayer.style.justifyContent = targetStyle.justifyContent
+  contentLayer.style.alignContent = targetStyle.alignContent
+  contentLayer.style.columnGap = targetStyle.columnGap
+  contentLayer.style.rowGap = targetStyle.rowGap
   contentLayer.style.flexDirection = targetStyle.flexDirection
   contentLayer.style.flexWrap = targetStyle.flexWrap
   contentLayer.style.alignItems = targetStyle.alignItems
@@ -745,6 +789,13 @@ export function landDragProxyWithMotion(
   // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
   proxy.style.transition = ''
   content.style.transition = [
+    ...(options.landingMode !== 'target'
+      ? [
+          `left ${duration}ms ${easing}`,
+          `width ${duration}ms ${easing}`,
+          `transform ${duration}ms ${easing}`,
+        ]
+      : []),
     `box-shadow ${duration}ms ${easing}`,
     `border-radius ${duration}ms ${easing}`,
     `border-color ${duration}ms ${easing}`,
@@ -756,6 +807,16 @@ export function landDragProxyWithMotion(
   ].join(', ')
   requestAnimationFrame(() => {
     if (settled) return
+    // 列表代理在抓取阶段是紧凑宽度；回到本体行时让内容层先平滑恢复
+    // 全宽布局，再由 landing 生命周期揭示本体，避免最后一帧突然切换。
+    if (options.landingMode !== 'target') {
+      content.dataset.runtimePhase = 'landing'
+      if (content.dataset.runtimeCompact === 'true') {
+        content.style.left = '0'
+        content.style.width = '100%'
+        content.style.transform = 'none'
+      }
+    }
     if (targetShadow != null) content.style.boxShadow = targetShadow
     if (targetRadius != null) content.style.borderRadius = targetRadius
     // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
@@ -873,13 +934,17 @@ const floatingSnapshots = new WeakMap<HTMLElement, { style: string }>()
 const floatingProxies = new WeakMap<HTMLElement, HTMLElement>()
 const pickupHandoffPending = new WeakSet<HTMLElement>()
 
-export function applyFloatingStyle(el: HTMLElement, rect: DOMRect) {
+export function applyFloatingStyle(
+  el: HTMLElement,
+  rect: DOMRect,
+  options: { layout?: DragProxyLayoutConfig } = {},
+) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
   // 抓取阶段的视觉交给独立 proxy：挂在 <html> 下，containing block 是 viewport，
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
-  const proxy = createDragProxy(el, rect, { glass: false })
+  const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout })
   const content = getProxyContent(proxy)
   proxy.style.zIndex = '1000'
   // 首帧保留源卡片样式；下一帧才进入 grabbing 视觉，形成从原位被拎起的过渡。

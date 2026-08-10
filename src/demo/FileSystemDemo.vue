@@ -33,7 +33,7 @@
       <section class="file-surface" data-file-surface="browser" data-layout-surface :ref="el => domAdapter.bindSurface(browserSurfaceId, el as HTMLElement | null)">
         <div class="surface-heading"><span>{{ currentFolderName }}</span><span>{{ visibleItems.length }} 个项目</span></div>
         <div class="file-items" data-layout-collection="file-browser" :class="`is-${view}`">
-          <article v-for="item in visibleItems" :key="item.id" class="file-item" :class="{ folder: item.kind === 'folder' }" :data-file-id="item.id" data-layout-role="card" :data-layout-key="item.id" :ref="el => bindItem(item, el as HTMLElement | null)" @click="handleItemClick(item)">
+          <article v-for="item in visibleItems" :key="item.id" class="file-item" :class="{ folder: item.kind === 'folder' }" :data-demo-list-layout="view === 'list' ? 'true' : undefined" :data-file-id="item.id" data-layout-role="card" :data-layout-key="item.id" :ref="el => bindItem(item, el as HTMLElement | null)" @click="handleItemClick(item)">
             <div class="file-icon">{{ item.kind === 'folder' ? '▰' : fileIcon(item.name) }}</div>
             <div class="file-name">{{ item.name }}</div>
             <small>{{ item.kind === 'folder' ? `${folderItemCount(item.id)} 个项目` : item.size }}</small>
@@ -62,6 +62,11 @@ const browserSurfaceId = 'file:surface:browser'
 const fileObjectTypes = ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone']
 const view = ref<'grid' | 'list'>('grid')
 const currentFolder = ref(rootId)
+
+function syncListRotation(mode: 'grid' | 'list'): void {
+  runtime.configureMotion({ controller: { rotation: { tilt: mode === 'list' ? 0 : 5 } } })
+}
+watch(view, syncListRotation, { immediate: true })
 const files = reactive<FileItem[]>([
   { id: 'folder:plans', name: '方案', kind: 'folder', parentId: rootId, size: '', children: [] },
   { id: 'folder:plans:research', name: '调研', kind: 'folder', parentId: 'folder:plans', size: '', children: [] },
@@ -185,20 +190,24 @@ function moveFile(objectId: string, targetSurfaceId: string): void {
   item.parentId = targetFolder.id
 }
 
+const listProxyLayout = { compact: { selector: '[data-demo-list-layout="true"]', width: 'min(320px, calc(100vw - 48px))' } }
+
 runtime.registerObjectType('file-item', {
   defaultVisualMode: 'detach',
   landingMode: 'target',
   motion: { enabled: true },
   preserveMoveTarget: true,
+  proxyLayout: listProxyLayout,
 })
-runtime.registerObjectType('file-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
+runtime.registerObjectType('file-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true }, proxyLayout: listProxyLayout })
 runtime.registerObjectType('folder-item', {
   defaultVisualMode: 'detach',
   landingMode: 'target',
   motion: { enabled: true },
   preserveMoveTarget: true,
+  proxyLayout: listProxyLayout,
 })
-runtime.registerObjectType('folder-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true } })
+runtime.registerObjectType('folder-item-clone', { defaultVisualMode: 'clone', motion: { enabled: true }, proxyLayout: listProxyLayout })
 
 const objectGenerations = new Map<string, number>()
 const surfaceIds = new Set<string>()
@@ -279,6 +288,7 @@ function bindBreadcrumb(id: string, element: HTMLElement | null): void {
 }
 
 onUnmounted(() => {
+  syncListRotation('grid')
   stopAction()
   for (const [id, generation] of objectGenerations) {
     if (runtime.objects.get(id)?.generation === generation) runtime.objects.unregister(id)
@@ -317,6 +327,34 @@ onUnmounted(() => {
 .file-item { min-height: 106px; box-sizing: border-box; border: 1px solid #e3e7f0; border-radius: 10px; padding: 14px; background: #fff; box-shadow: 0 4px 16px rgba(50,60,100,.05); cursor: grab; user-select: none; }
 .file-item.folder { border-color: #d7dcfa; background: #f8f9ff; }
 .file-items.is-list .file-item { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; min-height: 54px; padding: 10px 14px; }
+.file-item[data-demo-list-layout="true"][data-runtime-proxy-content] {
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  justify-items: stretch !important;
+  justify-content: stretch !important;
+  min-height: 54px !important;
+  padding: 10px 14px !important;
+  border-radius: 10px !important;
+}
+.file-item[data-demo-list-layout="true"][data-runtime-proxy-content] .file-name {
+  grid-column: 2 !important;
+  justify-self: start !important;
+  text-align: left !important;
+  min-width: 0 !important;
+  margin: 0 12px !important;
+}
+.file-item[data-demo-list-layout="true"][data-runtime-proxy-content] .file-icon {
+  grid-column: 1 !important;
+  justify-self: start !important;
+}
+.file-item[data-demo-list-layout="true"][data-runtime-proxy-content] small {
+  grid-column: 3 !important;
+  justify-self: end !important;
+  text-align: right !important;
+  margin: 0 !important;
+}
 .file-item:hover { border-color: #b8bff0; box-shadow: 0 7px 20px rgba(75,86,160,.12); }
 .file-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #eef0ff; color: #6972c5; font-weight: 700; }
 .file-name { margin-top: 12px; color: #394156; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

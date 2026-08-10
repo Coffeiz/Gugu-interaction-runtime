@@ -383,6 +383,36 @@ runtime.registerObjectType('kanban', {
 })
 ```
 
+### 抓取代理的紧凑布局
+
+列表卡片等场景可以在抓起时收缩到更适合跟手的尺寸。业务只声明紧凑态的目标
+布局，Runtime 负责本体尺寸首帧、下一帧切换、尺寸过渡，以及 landing 时恢复本体
+尺寸；业务 CSS 仍只负责卡片内部的 Grid/Flex 排布。
+
+```ts
+runtime.registerObjectType('file-item', {
+  defaultVisualMode: 'detach',
+  proxyLayout: {
+    compact: {
+      // 只对列表形态启用；网格卡片仍保持原尺寸
+      selector: '[data-view="list"]',
+      width: 'min(320px, calc(100vw - 48px))',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      duration: 200,
+      easing: 'cubic-bezier(.22,1,.36,1)',
+    },
+  },
+})
+```
+
+`proxyLayout.compact` 的 `width`、`left` 和 `transform` 是代理的抓取目标值；不传
+`left`/`transform` 时默认分别使用 `50%` 和 `translateX(-50%)`。`selector` 可选，
+用于让同一对象类型只在特定 DOM 形态下启用。不要在这里声明文件名、图标等子元素
+的列位置，那些属于业务组件自身的布局。
+
+如果没有配置 `proxyLayout`，代理行为保持原有的本体尺寸抓取方式。
+
 对象类型也可以选择是否使用 Runtime 内置的 MotionController，并覆盖该对象的运动参数。
 未填写 `enabled` 时默认启用；未填写的参数继续回退到全局配置和 Runtime 默认值：
 

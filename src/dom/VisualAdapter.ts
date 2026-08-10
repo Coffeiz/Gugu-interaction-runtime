@@ -16,6 +16,7 @@ import {
   revealElement,
   clampLandingRectToBounds,
   type LandingRect,
+  type DragProxyLayoutConfig,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
 import { createCloneMoveFromAdapter, createDetachMoveFromAdapter } from '../runtime/detach/DetachAdapter'
@@ -47,6 +48,8 @@ export interface VisualLifecycleContext {
   readonly landingBounds?: () => DOMRect | null
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
   readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
+  /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
+  readonly proxyLayout?: DragProxyLayoutConfig
 }
 
 export interface VisualProxy {
@@ -125,7 +128,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (!context.sourceElement || !context.sourceRect || !context.beforeContent) {
       throw new Error('visual proxy requires source snapshot')
     }
-    const proxy = createDragProxy(context.beforeContent, context.sourceRect)
+    const proxy = createDragProxy(context.beforeContent, context.sourceRect, { layout: context.proxyLayout })
     const content = getProxyContent(proxy)
     preserveProxyVisualContext(context.sourceElement, content)
     const snapshot = context.visualSnapshot

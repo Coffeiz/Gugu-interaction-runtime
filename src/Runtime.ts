@@ -13,6 +13,7 @@ import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisua
 import { DefaultVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
 import type { VisualState } from './dom/VisualAdapterTypes'
 import type { MotionProfile } from './dom/MotionProfile'
+import type { DragProxyLayoutConfig } from './dom/Visual'
 import type { MotionControllerConfig } from './motion/MotionProfile'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
@@ -112,6 +113,8 @@ export interface ObjectTypeRegistration {
   disableTargetVisualMorph?: boolean
   /** 抓取对齐方式；不传就是纯几何中心对齐（等价于 { align: 'center' }）。 */
   grabAlign?: GrabAlignConfig
+  /** 抓取代理的可选紧凑布局；Runtime 负责尺寸和位置过渡。 */
+  proxyLayout?: DragProxyLayoutConfig
   /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
   pointerInput?: PointerSessionInputOptions
   /** 可选业务目标解析；返回空时继续使用 Runtime 的注册 Surface 命中。 */
@@ -406,6 +409,16 @@ setMotionProfiles(this.registry.motionProfile)
     return registration?.grabAlign
   }
 
+  /** 按对象注册解析抓取代理布局，供 detach 浮动入口与生命周期入口共用。 */
+  getObjectProxyLayout(objectId: string, sourceElement?: HTMLElement): DragProxyLayoutConfig | undefined {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const layout = registration?.proxyLayout
+    const element = sourceElement ?? object?.element ?? undefined
+    if (!layout?.compact?.selector || element?.matches(layout.compact.selector)) return layout
+    return undefined
+  }
+
   getObjectVisualAdapter(objectId: string): VisualAdapter {
     const object = this.objects.get(objectId)
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
@@ -449,6 +462,7 @@ setMotionProfiles(this.registry.motionProfile)
       && (destination as { invalidReturn?: unknown }).invalidReturn === true
     const targetIsSource = Boolean(targetElement && sourceElement && targetElement === sourceElement)
 
+    const proxyLayout = this.getObjectProxyLayout(session?.objectId ?? '', sourceElement)
     return {
       objectId: session?.objectId ?? '',
       sessionId,
@@ -480,6 +494,7 @@ setMotionProfiles(this.registry.motionProfile)
       },
       motion: motionProfile,
       motionEnabled: registration?.motion?.enabled,
+      proxyLayout,
     }
   }
 
