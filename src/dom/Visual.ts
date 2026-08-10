@@ -233,7 +233,11 @@ export function getProxyAttitude(proxy: HTMLElement): HTMLElement {
 }
 
 export function getProxyContent(proxy: HTMLElement): HTMLElement {
-  return proxy.querySelector<HTMLElement>('[data-runtime-proxy-content]') ?? proxy
+  // 多选 modifier 也复用 proxy content 标记来继承布局，但它们不是主代理
+  // 内容。必须排除 modifier，否则 landing 时会把展开/落位样式写到装饰卡。
+  return proxy.querySelector<HTMLElement>(
+    '[data-runtime-proxy-content]:not([data-runtime-group-modifier])',
+  ) ?? proxy
 }
 
 export function moveDragProxy(proxy: HTMLElement, x: number, y: number, offsetX: number, offsetY: number) {
@@ -830,6 +834,10 @@ export function landDragProxyWithMotion(
         // 态的 0px 平滑插值回真实值，字段落回它们在本体行里原本的准确位置，不是
         // 换一套布局瞬间跳变。
         content.style.gridTemplateColumns = ''
+        // compact 专用的列表规则只应存在于紧凑跟手阶段。列轨道恢复后
+        // 继续保留标记会让 landing 代理的项目/阶段字段比真实行向右偏移，
+        // 直到代理销毁才恢复。
+        delete content.dataset.runtimeCompact
       }
     }
     if (targetShadow != null) content.style.boxShadow = targetShadow

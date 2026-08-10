@@ -2,6 +2,21 @@ import { DefaultVisualAdapter, type VisualAdapter, type VisualLifecycleContext, 
 import { getProxyContent } from './Visual'
 import { resolveGroupDragConfig } from './GroupDragProfile'
 import type { Runtime } from '../Runtime'
+import type { DragProxyLayoutConfig } from './Visual'
+
+/** 将主代理的 compact 布局契约复用到多选 modifier。 */
+export function applyGroupModifierLayout(
+  element: HTMLElement,
+  compact: DragProxyLayoutConfig['compact'] | undefined,
+): void {
+  if (!compact) return
+  element.dataset.runtimeProxyContent = 'true'
+  element.dataset.runtimeCompact = 'true'
+  element.style.boxSizing = 'border-box'
+  element.style.left = compact.left ?? '50%'
+  element.style.width = compact.width
+  if (compact.gridTemplateColumns) element.style.gridTemplateColumns = compact.gridTemplateColumns
+}
 
 /**
  * Runtime 默认的多对象叠卡视觉。
@@ -33,6 +48,7 @@ export function createGroupVisualAdapter(
     const primaryRect = context.sourceRect ?? context.sourceElement?.getBoundingClientRect()
     if (!primaryRect) return
     const groupDrag = resolveGroupDragConfig(context.groupDrag)
+    const compactLayout = context.proxyLayout?.compact
 
     const sources: Array<{
       element: HTMLElement
@@ -90,9 +106,13 @@ export function createGroupVisualAdapter(
         willChange: 'transform, opacity',
         backdropFilter: index === 0 ? 'blur(6px) saturate(1.15)' : 'none',
         WebkitBackdropFilter: index === 0 ? 'blur(6px) saturate(1.15)' : 'none',
-        transform: `translate3d(${config.spread.x}px, ${config.spread.y}px, 0) rotateZ(${config.spread.rotate}deg) scale(${config.spread.scale})`,
+        transform: `${compactLayout?.transform ?? (compactLayout ? 'translateX(-50%)' : '')}${compactLayout ? ' ' : ''}translate3d(${config.spread.x}px, ${config.spread.y}px, 0) rotateZ(${config.spread.rotate}deg) scale(${config.spread.scale})`,
         transformOrigin: 'center center',
       })
+      // modifier 与主代理必须共享同一份紧凑布局。主代理通过 createDragProxy
+      // 应用了 proxyLayout，但 modifier 是从源卡直接 clone 出来的；如果这里不
+      // 复制 compact 标记/列定义，列表视图的装饰卡会恢复成完整表格行宽度。
+      applyGroupModifierLayout(extra, compactLayout)
       extra.dataset.runtimeGroupModifier = 'true'
       delete extra.dataset.runtimeGroupGhost
       shell.insertBefore(extra, content)
@@ -110,7 +130,10 @@ export function createGroupVisualAdapter(
         const y = animation.spread.y + (animation.tight.y - animation.spread.y) * eased
         const rotate = animation.spread.rotate + (animation.tight.rotate - animation.spread.rotate) * eased
         const scale = animation.spread.scale + (animation.tight.scale - animation.spread.scale) * eased
-        animation.element.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) rotateZ(${rotate.toFixed(2)}deg) scale(${scale.toFixed(4)})`
+        const compactTransform = compactLayout
+          ? compactLayout.transform ?? 'translateX(-50%)'
+          : ''
+        animation.element.style.transform = `${compactTransform} translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) rotateZ(${rotate.toFixed(2)}deg) scale(${scale.toFixed(4)})`
       }
       if (progress < 1) stackRaf = requestAnimationFrame(animateStack)
       else stackRaf = null
@@ -180,6 +203,8 @@ export function createGroupVisualAdapter(
       if (context.landingMode !== 'target') {
         const duration = context.motion?.landing?.duration ?? 420
         state.restoreGhosts(duration)
+        // 多卡回位时主代理负责展开和淡出，源卡幽灵同步恢复；两者交叉过渡，
+        // 避免落地瞬间同时出现两张完整卡片。
         const targetSnapshot = context.targetSnapshot
           ? { ...context.targetSnapshot, opacity: '0' }
           : undefined
