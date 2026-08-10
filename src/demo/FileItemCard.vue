@@ -7,7 +7,6 @@
     :data-file-id="item.id"
     data-layout-role="card"
     :data-layout-key="item.id"
-    @pointerdown="$emit('pointerdown', $event, item)"
     @click="$emit('open', item, $event)"
   >
     <div class="file-icon">{{ item.kind === 'folder' ? '▰' : fileIcon(item.name) }}</div>
@@ -34,7 +33,6 @@ const props = defineProps<{
 
 defineEmits<{
   open: [item: FileItem, event: MouseEvent]
-  pointerdown: [event: PointerEvent, item: FileItem]
 }>()
 
 const objectType = computed(() => {
@@ -55,6 +53,7 @@ const { elementRef } = useObject({
   visualMode: computed(() => props.strategy),
   surface: surfaceId,
   abilities: ['move', 'sort'],
+  selected: computed(() => Boolean(props.selected)),
   target,
 })
 

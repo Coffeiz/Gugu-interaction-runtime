@@ -9,7 +9,7 @@ import type { ObjectVisualAdapter, Runtime } from '../Runtime'
  */
 export function createGroupFileVisualAdapter(
   runtime: Runtime,
-  clearGroup: (objectId: string) => void,
+  clearGroup: (objectId: string) => void = () => undefined,
 ): ObjectVisualAdapter {
   const base = new DefaultVisualAdapter(runtime)
   const states = new WeakMap<HTMLElement, {
@@ -180,6 +180,9 @@ export function createGroupFileVisualAdapter(
     updateProxy(proxy, context) { decorateProxy(proxy, context) },
     land: (proxy, target, context) => {
       const state = states.get(proxy.element)
+      // 该适配器现在也注册给普通单卡。没有 group 时必须完全走基础
+      // landing，否则多选专用的透明度处理会让单卡代理提前淡出。
+      if (!context.group || !state) return base.land?.(proxy, target, context)
       state?.dismissModifiers()
       if (context.landingMode !== 'target') {
         const duration = context.motion?.landing?.duration ?? 420

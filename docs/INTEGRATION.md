@@ -202,6 +202,8 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `surfaceId` | 当前 Surface ID |
 |  | `element` | 对象真实 DOM 元素 |
 |  | `abilities` | 能力列表，包含 `move` 才允许拖动 |
+|  | `selected` | 当前是否参与多选；抓取已选对象时 Runtime 自动创建 Group Session |
+| `runtime.getObjectsInRect(surfaceId, rect)` | `rect` | 查询与矩形相交的已注册对象 ID，用于框选 |
 | `runtime.surfaces.register(options)` | `id` | Surface 唯一标识 |
 |  | `type` | Surface 类型 |
 |  | `element` | Surface 真实 DOM 元素 |
@@ -265,6 +267,31 @@ runtime.configureMotion({
 推荐在应用初始化时调用一次。
 
 ### 多选拖拽叠牌
+
+业务只需要把选中状态写入 `useObject`，Runtime 会在抓取已选主卡时自动收集同一
+Surface 的其他已选对象并创建 `GroupDragSession`，不需要业务侧调用
+`startGroupObjectPointer()`：
+
+```ts
+useObject({
+  id: props.id,
+  type: 'file-item',
+  surface: browserSurfaceId,
+  abilities: ['move'],
+  selected: computed(() => selection.has(props.id)),
+})
+```
+
+框选命中也可以直接复用 Runtime 的对象查询：
+
+```ts
+const ids = runtime.getObjectsInRect(surfaceId, {
+  left, top, right, bottom,
+})
+```
+
+选择集合、框选框和工具栏仍属于业务 UI；Runtime 只负责对象命中、多卡会话、代理
+视觉和最终的 `move-group` Action。
 
 多选拖拽通过对象类型注册中的 `groupDrag` 配置修饰卡视觉。它只影响抓取时的
 叠牌和 modifier 淡出，不影响 `move-group` action 携带的对象数量，也不负责业务

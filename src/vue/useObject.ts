@@ -13,6 +13,7 @@ export interface UseObjectOptions {
   type: MaybeRefOrGetter<string>
   surface: MaybeRefOrGetter<string>
   abilities: MaybeRefOrGetter<readonly string[]>
+  selected?: MaybeRefOrGetter<boolean>
   visual?: MaybeRefOrGetter<string | undefined>
   visualMode?: MaybeRefOrGetter<string | undefined>
   target?: MaybeRefOrGetter<ObjectTargetOptions | undefined>
@@ -28,6 +29,7 @@ function readObject(options: UseObjectOptions): ObjectUpdate & Pick<ObjectItem, 
     type: toValue(options.type),
     surfaceId: toValue(options.surface),
     abilities: [...toValue(options.abilities)],
+    selected: options.selected === undefined ? false : toValue(options.selected),
     visual: options.visual === undefined ? undefined : toValue(options.visual),
     visualMode: options.visualMode === undefined ? undefined : toValue(options.visualMode),
     target: options.target === undefined ? undefined : toValue(options.target),

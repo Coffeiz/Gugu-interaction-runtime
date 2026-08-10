@@ -346,7 +346,48 @@ setMotionProfiles(this.registry.motionProfile)
     return this.registry.motionProfile
   }
 
+  /**
+   * 返回与矩形相交的已注册对象。
+   * Runtime 只负责对象命中计算，选择状态仍由业务保存；代理节点、断开节点和
+   * 不可见节点不会进入结果，避免框选把落地代理或隐藏列表项带进来。
+   */
+  getObjectsInRect(
+    surfaceId: string,
+    rect: Pick<DOMRect, 'left' | 'top' | 'right' | 'bottom'>,
+  ): string[] {
+    return [...this.objects.values()]
+      .filter(object => object.surfaceId === surfaceId)
+      .filter(object => {
+        const element = object.element
+        if (!element?.isConnected || element.dataset.runtimeProxy === 'true') return false
+        const target = element.getBoundingClientRect()
+        if (target.width <= 0 || target.height <= 0) return false
+        return target.left < rect.right
+          && target.right > rect.left
+          && target.top < rect.bottom
+          && target.bottom > rect.top
+      })
+      .map(object => object.id)
+  }
+
   startObjectPointer(objectId: string, element: HTMLElement, event: PointerEvent, fromRect?: DOMRect, returnRect?: DOMRect): boolean {
+    // 已选中的主卡自动升级为多对象会话；选择状态由业务通过 Object
+    // descriptor 提供，Runtime 只负责收集同一 Surface 的可见对象和编排拖拽。
+    if (this.getRegrab(objectId)) {
+      return this.startObjectPointerInSession(objectId, element, event, fromRect, returnRect)
+    }
+    const object = this.objects.get(objectId)
+    if (object?.selected) {
+      const selectedIds = [...this.objects.values()]
+        .filter(candidate => candidate.selected
+          && candidate.surfaceId === object.surfaceId
+          && candidate.element?.isConnected
+          && candidate.abilities.includes('move'))
+        .map(candidate => candidate.id)
+      if (selectedIds.length > 1) {
+        return this.startGroupObjectPointer(selectedIds, objectId, element, event, fromRect, returnRect)
+      }
+    }
     return this.startObjectPointerInSession(objectId, element, event, fromRect, returnRect)
   }
 

@@ -94,6 +94,9 @@ test('多选文件拖入文件夹时以主卡带动选中项', async ({ page }) 
   if (!sourceBox || !targetBox) throw new Error('多选源卡或目标文件夹未渲染')
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
   await page.mouse.down()
+  // Runtime 的默认 pointer 输入沿用单卡拖拽阈值；移动几像素后才正式创建
+  // Group Session，避免普通点击已选卡片被误判成拖拽。
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 8, sourceBox.y + sourceBox.height / 2)
   await expect(page.locator('[data-runtime-group-ghost="true"]')).toHaveCount(2)
   await expect(page.locator('[data-runtime-group-modifier="true"]')).toHaveCount(1)
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 12 })

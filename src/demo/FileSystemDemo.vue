@@ -72,7 +72,6 @@
             :is-list="view === 'list'"
             :selected="selectionState.ids.has(item.id)"
             @open="handleItemClick"
-            @pointerdown="handleCardPointerDown"
           />
           <div v-if="visibleItems.length === 0" class="empty-state">这个文件夹还是空的</div>
         </div>
@@ -117,18 +116,6 @@ const selectionBox = ref<{ left: string; top: string; width: string; height: str
 let selectionPointerId: number | null = null
 let selectionStart: { x: number; y: number; surface: HTMLElement } | null = null
 let selectionMoved = false
-const activeGroups = new Set<string>()
-
-function clearActiveGroup(objectId: string): void {
-  activeGroups.delete(objectId)
-  const item = files.find(entry => entry.id === objectId)
-  if (!item) return
-  runtime.objects.update(objectId, {
-    visual: item.kind === 'folder' ? 'folder-item' : 'file-item',
-    visualMode: strategy.value,
-  })
-}
-
 function replaceSelection(ids: Set<string>, active = selectionState.active): void {
   selectionState.ids = ids
   selectionState.active = active
@@ -255,14 +242,12 @@ function updateSelectionBox(event: PointerEvent): void {
     height: `${bottomClient - topClient}px`,
   }
 
-  const next = new Set<string>()
-  for (const item of visibleItems.value) {
-    const rect = runtime.objects.get(item.id)?.element?.getBoundingClientRect()
-    if (!rect) continue
-    if (rect.left < rightClient && rect.right > leftClient && rect.top < bottomClient && rect.bottom > topClient) {
-      next.add(item.id)
-    }
-  }
+  const next = new Set(runtime.getObjectsInRect(browserSurfaceId, {
+    left: leftClient,
+    top: topClient,
+    right: rightClient,
+    bottom: bottomClient,
+  }))
   replaceSelection(next, selectionState.active || next.size > 0)
 }
 
@@ -301,23 +286,6 @@ function handleSurfacePointerDown(event: PointerEvent): void {
   window.addEventListener('pointerup', stopSelectionBox)
   window.addEventListener('pointercancel', stopSelectionBox)
   event.preventDefault()
-}
-
-function handleCardPointerDown(event: PointerEvent, item: FileItem): void {
-  if (selectionState.ids.size < 2 || !selectionState.ids.has(item.id)) return
-  const element = event.currentTarget as HTMLElement | null
-  if (!element) return
-  const objectIds = [item.id, ...visibleItems.value
-    .filter(entry => entry.id !== item.id && selectionState.ids.has(entry.id))
-    .map(entry => entry.id)]
-  activeGroups.add(item.id)
-  runtime.objects.update(item.id, { visual: 'file-group-item', visualMode: strategy.value })
-  event.preventDefault()
-  event.stopImmediatePropagation()
-  if (!runtime.startGroupObjectPointer(objectIds, item.id, element, event)) {
-    activeGroups.delete(item.id)
-    runtime.objects.update(item.id, { visual: item.kind === 'folder' ? 'folder-item' : 'file-item' })
-  }
 }
 
 function openFolder(id: string): void {
@@ -373,43 +341,17 @@ function moveGroup(action: MoveGroupAction): void {
 
 const listProxyLayout = { compact: { selector: '[data-demo-list-layout="true"]', width: 'min(320px, calc(100vw - 48px))' } }
 
-runtime.registerObjectType('file-item', {
-  defaultVisualMode: 'detach',
-  landingMode: 'target',
-  motion: { enabled: true },
-  preserveMoveTarget: true,
-  proxyLayout: listProxyLayout,
-})
-runtime.registerObjectType('file-item-clone', {
-  defaultVisualMode: 'clone',
-  landingMode: 'target',
-  motion: { enabled: true },
-  preserveMoveTarget: true,
-  proxyLayout: listProxyLayout,
-})
-runtime.registerObjectType('folder-item', {
-  defaultVisualMode: 'detach',
-  landingMode: 'target',
-  motion: { enabled: true },
-  preserveMoveTarget: true,
-  proxyLayout: listProxyLayout,
-})
-runtime.registerObjectType('folder-item-clone', {
-  defaultVisualMode: 'clone',
-  landingMode: 'target',
-  motion: { enabled: true },
-  preserveMoveTarget: true,
-  proxyLayout: listProxyLayout,
-})
-const groupVisual = createGroupFileVisualAdapter(runtime, clearActiveGroup)
-runtime.registerObjectType('file-group-item', {
-  defaultVisualMode: 'detach',
-  visual: groupVisual,
-  landingMode: 'target',
-  motion: { enabled: true },
-  preserveMoveTarget: true,
-  proxyLayout: listProxyLayout,
-})
+const groupVisual = createGroupFileVisualAdapter(runtime)
+for (const type of ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone']) {
+  runtime.registerObjectType(type, {
+    defaultVisualMode: type.endsWith('-clone') ? 'clone' : 'detach',
+    visual: groupVisual,
+    landingMode: 'target',
+    motion: { enabled: true },
+    preserveMoveTarget: true,
+    proxyLayout: listProxyLayout,
+  })
+}
 
 const domAdapter = createVueRuntimeAdapter(runtime)
 useRuntimeAction(action => {
@@ -420,7 +362,6 @@ useRuntimeAction(action => {
 })
 
 onUnmounted(() => {
-  activeGroups.clear()
   stopSelectionBox()
   syncListRotation('grid')
   domAdapter.dispose()
