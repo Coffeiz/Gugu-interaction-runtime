@@ -51,6 +51,22 @@ describe('代理布局', () => {
     source.remove()
   })
 
+  it('抓取代理的阴影从零开始，由下一帧进入浮起阴影', () => {
+    const source = document.createElement('article')
+    source.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.2)'
+    document.body.append(source)
+
+    applyFloatingStyle(source, rect(180, 40))
+    const proxy = getFloatingProxy(source)!
+    const content = getProxyContent(proxy)
+
+    expect(content.style.boxShadow).toBe('none')
+    expect(content.style.getPropertyPriority('box-shadow')).toBe('important')
+
+    clearFloatingStyle(source)
+    source.remove()
+  })
+
   it('compact 抓取不会叠加默认放大', async () => {
     const source = document.createElement('article')
     document.body.append(source)
@@ -67,13 +83,13 @@ describe('代理布局', () => {
     source.remove()
   })
 
-  it('普通代理仍保留默认浮起缩放', () => {
+  it('普通代理创建时保持本体尺寸，由抓取启动阶段负责浮起缩放', () => {
     const source = document.createElement('article')
     document.body.append(source)
 
     const proxy = createDragProxy(source, rect())
 
-    expect(proxy.style.transform).toContain('scale(1.05)')
+    expect(proxy.style.transform).toContain('scale(1)')
 
     destroyDragProxy(proxy)
     source.remove()

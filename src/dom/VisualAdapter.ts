@@ -158,7 +158,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     preserveProxyVisualContext(context.sourceElement, content)
     const snapshot = context.visualSnapshot
     if (snapshot) {
-      content.style.boxShadow = snapshot.boxShadow
+      content.style.setProperty('box-shadow', snapshot.boxShadow, 'important')
       content.style.borderRadius = snapshot.borderRadius
       content.style.backgroundColor = snapshot.background
       if (snapshot.backgroundImage && snapshot.backgroundImage !== 'none') {

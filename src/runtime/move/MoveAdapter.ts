@@ -473,8 +473,8 @@ export function createDetachMoveFromAdapter(config: {
         controller.setTarget({
           x: event.clientX - dragOffset.x,
           y: event.clientY - dragOffset.y,
-          scaleX: compactProxy ? 1 : 1.05,
-          scaleY: compactProxy ? 1 : 1.05,
+          scaleX: compactProxy ? 1 : 1.03,
+          scaleY: compactProxy ? 1 : 1.03,
         })
         controller.start()
         dragMotion = controller

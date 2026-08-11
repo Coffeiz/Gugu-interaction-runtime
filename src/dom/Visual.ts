@@ -110,6 +110,12 @@ export interface ProxyVisualState {
   opacity: string
 }
 
+function setVisualBoxShadow(element: HTMLElement, value: string): void {
+  // 业务卡片可能通过 .glass-card !important 提供默认阴影；代理的抓取/落地
+  // 阴影属于 Runtime 视觉状态，必须能覆盖这条业务默认规则。
+  element.style.setProperty('box-shadow', value, 'important')
+}
+
 export function captureProxyVisualState(
   proxy: HTMLElement,
 ): ProxyVisualState {
@@ -139,7 +145,6 @@ export function createDragProxy(
   options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number) } = {},
 ): HTMLElement {
   const compact = options.layout?.compact
-  const pickupScale = compact ? 1 : 1.05
   // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
   // perspective/rotate 由定位壳统一承载，不额外引入业务侧不存在的姿态节点。
   const proxy = document.createElement('div')
@@ -203,9 +208,11 @@ export function createDragProxy(
   // 而不是"左上角钉住、右边甩得更远"。translate3d 是位置平移，不受
   // transform-origin 影响，只改这一个值不需要连带调整任何位置计算。
   proxy.style.transformOrigin = '50% 50%'
-  proxy.style.transform = `perspective(760px) rotateX(5deg) scale(${pickupScale})`
+  // 抓取启动的缩放由 applyFloatingStyle()/MotionController 统一驱动。
+  // 创建阶段必须保持本体尺寸，避免先以最终比例绘制一帧后再回到起点。
+  proxy.style.transform = 'scale(1)'
   if (defaultDraggingGlassEnabled && options.glass !== false) applyDraggingGlassStyle(content)
-  else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  else setVisualBoxShadow(content, '0 12px 24px rgba(0,0,0,.18)')
   if (compact) content.dataset.runtimeCompact = 'true'
   const compactDuration = compact?.duration ?? 200
   const compactEasing = compact?.easing ?? 'cubic-bezier(.22,1,.36,1)'
@@ -451,7 +458,7 @@ function prepareBoxShadowMorph(
   }
   const sourceShadow = content.style.boxShadow || getComputedStyle(content).boxShadow
   content.style.transition = 'none'
-  content.style.boxShadow = normalizeBoxShadowTransition(sourceShadow, targetShadow)
+  setVisualBoxShadow(content, normalizeBoxShadowTransition(sourceShadow, targetShadow))
   void content.offsetWidth
   content.style.transition = transition
 }
@@ -758,7 +765,7 @@ export function landDragProxyLegacy(
       proxy.style.transform = targetTransform
       proxy.style.width = `${nextTarget.width.toFixed(2)}px`
       proxy.style.height = `${nextTarget.height.toFixed(2)}px`
-      if (targetShadow != null) content.style.boxShadow = targetShadow
+      if (targetShadow != null) setVisualBoxShadow(content, targetShadow)
       if (targetRadius != null) content.style.borderRadius = targetRadius
       // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
       // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
@@ -1084,7 +1091,7 @@ export function landDragProxyWithMotion(
     // 在交接前也通过强制布局读取保留了这一帧。
     if (targetShadow != null) {
       void content.offsetWidth
-      content.style.boxShadow = targetShadow
+      setVisualBoxShadow(content, targetShadow)
     }
     if (targetRadius != null) content.style.borderRadius = targetRadius
     // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
@@ -1229,16 +1236,22 @@ export function applyFloatingStyle(
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
-  // 抓取态阴影不能在代理创建时直接写入，否则代理的高度/姿态还没开始过渡，
-  // 阴影已经瞬间变成最终值。先以源卡片当前阴影作为起点，在抓取首帧统一
-  // 提交玻璃态样式，让阴影和卡片的浮起变换同时进入过渡。
-  const sourceShadow = getComputedStyle(el).boxShadow
+  // 抓取态阴影必须从零开始，不能继承本体当前阴影作为起点；否则卡片还没
+  // 浮起就已经带着一层深阴影。下一帧由 beginFloatingPickup() 统一提交浮起
+  // 阴影，让阴影和卡片的启动变换同时进入过渡。
   const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout, contentScale: options.contentScale })
   const content = getProxyContent(proxy)
   // 抓起 proxy 同样脱离了 source 的 DOM 继承链；landing 入口由
   // VisualAdapter 处理，这里补齐 grabbing 入口，避免代理回退到 body 字体。
   preserveProxyVisualContext(el, content)
-  content.style.boxShadow = sourceShadow
+  const pickupTransition = content.style.transition
+  // createDragProxy() 为后续视觉过渡预先设置了 box-shadow transition；如果直接
+  // 把初始阴影改成 none，浏览器会把创建时的深阴影也纳入过渡，首帧读到的仍是
+  // 深阴影。先冻结、提交零阴影，再恢复 transition，下一帧才开始真正的 0 -> 浮起。
+  content.style.transition = 'none'
+  setVisualBoxShadow(content, 'none')
+  void content.offsetWidth
+  content.style.transition = pickupTransition
   const compact = Boolean(options.layout?.compact)
   proxy.style.zIndex = '1000'
   // 首帧保留源卡片样式；下一帧才进入 grabbing 视觉，形成从原位被拎起的过渡。
@@ -1264,7 +1277,7 @@ function beginFloatingPickup(proxy: HTMLElement, compact = false, applyScale = t
   if (!proxy.isConnected) return
   const content = getProxyContent(proxy)
   if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
-  else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  else setVisualBoxShadow(content, '0 12px 24px rgba(0,0,0,.18)')
   if (applyScale) proxy.style.transform = `scale(${compact ? 1 : 1.03})`
 }
 
@@ -1361,7 +1374,7 @@ export function applyDraggingGlassStyle(element: HTMLElement): void {
   element.style.backdropFilter = 'blur(12px) saturate(1.15)'
   element.style.setProperty('-webkit-backdrop-filter', 'blur(12px) saturate(1.15)')
   element.style.border = '1px solid rgba(255, 255, 255, 0.72)'
-  element.style.boxShadow = '0 22px 50px rgba(30, 35, 60, 0.30)'
+  setVisualBoxShadow(element, '0 22px 50px rgba(30, 35, 60, 0.30)')
   element.style.opacity = '0.97'
 }
 
