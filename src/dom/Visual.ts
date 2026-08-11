@@ -249,12 +249,18 @@ export function updateDragProxyContentScale(
   const baseHeight = Number(proxy.dataset.runtimeProxyBaseHeight) || rectHeight / scale
   proxy.dataset.runtimeProxyBaseWidth = String(baseWidth)
   proxy.dataset.runtimeProxyBaseHeight = String(baseHeight)
-  proxy.style.width = `${(baseWidth * scale).toFixed(2)}px`
-  proxy.style.height = `${(baseHeight * scale).toFixed(2)}px`
   const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
   if (!shell) return
   shell.style.width = `${baseWidth}px`
   shell.style.height = `${baseHeight}px`
+  // 跟旧版 holder + scaleShell 一样，定位壳尺寸保持抓取时的视觉尺寸；
+  // 只把内容层放到壳中心并实时缩放，避免相机变化反过来改写 MotionController
+  // 的坐标基准，导致代理每次缩放都重新贴回鼠标。
+  const proxyWidth = parseFloat(proxy.style.width) || rectWidth
+  const proxyHeight = parseFloat(proxy.style.height) || rectHeight
+  // 以缩放后的视觉尺寸居中，保证相机变化时内容中心仍锁在定位壳中心。
+  shell.style.left = `${(proxyWidth - baseWidth * scale) / 2}px`
+  shell.style.top = `${(proxyHeight - baseHeight * scale) / 2}px`
   shell.style.transform = `scale(${scale})`
 }
 
@@ -734,13 +740,38 @@ export function landDragProxyWithMotion(
 
   // proxy 创建时仍使用 source snapshot；landing 必须在启动控制器前切到
   // grabbing 的最后一帧，否则第一帧会从鼠标/旧 source 位置直接跳入。
+  let landingMotionState = options.motionState
   if (options.motionState) {
-    proxy.style.left = `${options.motionState.x}px`
-    proxy.style.top = `${options.motionState.y}px`
+    // 抓取时定位壳保持初始尺寸，MotionState 的坐标对应壳的运动位置；
+    // landing 要从当前视觉壳接管，先把抓取放大归一到新的起始盒，避免
+    // 相机变化后的内容继续沿用旧的盒尺寸，从鼠标旁边重新起飞。
+    const layoutWidth = parseFloat(proxy.style.width) || proxy.getBoundingClientRect().width
+    const layoutHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
+    const scaleX = Math.abs(options.motionState.scaleX) || 1
+    const scaleY = Math.abs(options.motionState.scaleY) || 1
+    const cameraScale = resolveContentScale(options.contentScale)
+    const baseWidth = Number(proxy.dataset.runtimeProxyBaseWidth) || layoutWidth / cameraScale
+    const baseHeight = Number(proxy.dataset.runtimeProxyBaseHeight) || layoutHeight / cameraScale
+    const visualWidth = baseWidth * cameraScale * scaleX
+    const visualHeight = baseHeight * cameraScale * scaleY
+    const visualLeft = options.motionState.x + (layoutWidth - visualWidth) / 2
+    const visualTop = options.motionState.y + (layoutHeight - visualHeight) / 2
+    proxy.style.left = `${visualLeft}px`
+    proxy.style.top = `${visualTop}px`
+    proxy.style.width = `${visualWidth}px`
+    proxy.style.height = `${visualHeight}px`
     // 保留 grabbing 的倾斜（rotateX/rotateZ），避免 transform:none 让
     // proxy 在松手瞬间突然变平造成视觉卡顿；后续 spring 每帧都会用
     // rotateX/rotateZ 覆盖 transform，这里只需一个合法的 transform 初始值。
     proxy.style.transform = 'translate3d(0px, 0px, 0)'
+    landingMotionState = {
+      ...options.motionState,
+      x: visualLeft,
+      y: visualTop,
+      scaleX: 1,
+      scaleY: 1,
+    }
+    updateDragProxyScaleShell(proxy, options.contentScale)
   }
   const layoutLeft = parseFloat(proxy.style.left) || proxy.getBoundingClientRect().left
   const layoutTop = parseFloat(proxy.style.top) || proxy.getBoundingClientRect().top
@@ -826,7 +857,7 @@ export function landDragProxyWithMotion(
     },
     onArrived: settle,
   })
-  const releaseSpeed = Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0)
+  const releaseSpeed = Math.hypot(landingMotionState?.vx ?? 0, landingMotionState?.vy ?? 0)
   const releaseDamping = options.releaseDamping ?? 0.78
   const baseProfile = options.targetMotion
     ? {
@@ -846,17 +877,17 @@ export function landDragProxyWithMotion(
   motion.seed({
     // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
     // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
-    x: options.motionState?.x ?? startRect.left,
-    y: options.motionState?.y ?? startRect.top,
-    vx: options.motionState?.vx ?? 0,
-    vy: options.motionState?.vy ?? 0,
+    x: landingMotionState?.x ?? startRect.left,
+    y: landingMotionState?.y ?? startRect.top,
+    vx: landingMotionState?.vx ?? 0,
+    vy: landingMotionState?.vy ?? 0,
     // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)。
     // 不能在 landing 起点把它重置为 1，否则目标位置相同的回放会被
     // MotionController 判定为已到达，代理瞬间消失。
-    scaleX: options.motionState?.scaleX ?? 1,
-    scaleY: options.motionState?.scaleY ?? 1,
-    rotateX: options.motionState?.rotateX ?? 0,
-    rotateZ: options.motionState?.rotateZ ?? 0,
+    scaleX: landingMotionState?.scaleX ?? 1,
+    scaleY: landingMotionState?.scaleY ?? 1,
+    rotateX: landingMotionState?.rotateX ?? 0,
+    rotateZ: landingMotionState?.rotateZ ?? 0,
   })
   const initialTarget = centeredTarget(target)
   // 语义目标（文件夹卡、面包屑）统一以目标中心作为落点，尺寸收缩交给
@@ -966,7 +997,7 @@ export function landDragProxyWithMotion(
   }
   scheduleMotionTimeout()
   const coast = options.coast
-  if (coast && coast.maxDistance > 0 && Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0) > coast.minVelocity) {
+  if (coast && coast.maxDistance > 0 && Math.hypot(landingMotionState?.vx ?? 0, landingMotionState?.vy ?? 0) > coast.minVelocity) {
     motion.startCoastThenSettle(coast)
   } else {
     motion.start()
