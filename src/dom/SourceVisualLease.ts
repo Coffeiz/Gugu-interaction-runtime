@@ -9,6 +9,20 @@ interface SourceLeaseRecord {
   readonly cssText: string
 }
 
+const LIVE_LAYOUT_PROPERTIES = ['left', 'top', 'right', 'bottom', 'width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight', 'zIndex'] as const
+
+function preserveLiveLayout(element: HTMLElement): Record<typeof LIVE_LAYOUT_PROPERTIES[number], string> {
+  return Object.fromEntries(LIVE_LAYOUT_PROPERTIES.map(property => [property, element.style[property]])) as Record<typeof LIVE_LAYOUT_PROPERTIES[number], string>
+}
+
+function restoreSourceStyle(element: HTMLElement, cssText: string): void {
+  const liveLayout = preserveLiveLayout(element)
+  element.style.cssText = cssText
+  for (const property of LIVE_LAYOUT_PROPERTIES) {
+    if (liveLayout[property] !== '') element.style[property] = liveLayout[property]
+  }
+}
+
 const sourceLeases = new WeakMap<HTMLElement, SourceLeaseRecord>()
 
 export interface SourceVisualLease {
@@ -60,7 +74,10 @@ export function acquireSourceVisualLease(
     },
     restore: () => {
       if (!owns()) return false
-      element.style.cssText = record.cssText
+      // Vue 可能已在 landing 期间把卡片提交到新坐标；不能用抓取前的整段
+      // cssText 把这些实时布局字段覆盖回旧位置。Runtime 只恢复自己接管的
+      // 可见性/交互状态，保留当前业务布局。
+      restoreSourceStyle(element, record.cssText)
       sourceLeases.delete(element)
       return true
     },

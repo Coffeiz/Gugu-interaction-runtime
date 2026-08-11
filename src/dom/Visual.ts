@@ -976,6 +976,17 @@ export function destroyDragProxiesByCardId(cardId: string): void {
  * docs/DESIGN.md 对"手工挪动 Vue 追踪的节点"的风险提示）。
  */
 const floatingSnapshots = new WeakMap<HTMLElement, { style: string }>()
+const LIVE_LAYOUT_PROPERTIES = ['left', 'top', 'right', 'bottom', 'width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight', 'zIndex'] as const
+
+function restoreFloatingStyle(element: HTMLElement, cssText: string): void {
+  const liveLayout = Object.fromEntries(
+    LIVE_LAYOUT_PROPERTIES.map(property => [property, element.style[property]]),
+  ) as Record<typeof LIVE_LAYOUT_PROPERTIES[number], string>
+  element.style.cssText = cssText
+  for (const property of LIVE_LAYOUT_PROPERTIES) {
+    if (liveLayout[property] !== '') element.style[property] = liveLayout[property]
+  }
+}
 /** source 节点 ↔ 抓取阶段独立 proxy 的映射。proxy 挂在 <html> 下，避免
  *  .glass-card 祖先的 backdrop-filter 创建 containing block 拦截 fixed
  *  坐标系，同时不 reparent 业务 DOM，Vue 追踪不受影响。 */
@@ -1054,7 +1065,7 @@ export function clearFloatingStyle(el: HTMLElement) {
     floatingProxies.delete(el)
   }
   const snapshot = floatingSnapshots.get(el)
-  el.setAttribute('style', snapshot?.style ?? '')
+  if (snapshot) restoreFloatingStyle(el, snapshot.style)
   floatingSnapshots.delete(el)
 }
 
