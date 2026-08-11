@@ -1,18 +1,24 @@
-const INHERITED_TEXT_PROPERTIES = [
-  'fontFamily',
-  'fontSize',
-  'fontWeight',
-  'fontStyle',
-  'lineHeight',
-  'letterSpacing',
-  'color',
-  'textAlign',
-  'textTransform',
-  'direction',
-  'writingMode',
+/**
+ * 代理脱离原 DOM 后只复制影响字形栅格化的上下文。
+ *
+ * 不要把 font-size、line-height、color 等布局/组件属性写到代理根节点：
+ * 它们会覆盖徽标、按钮等子元素自己的 CSS，导致子树重新排版。咕咕旧
+ * physics clone 的回归记录也确认，完整复制继承样式会让卡片变高或换行。
+ */
+const FONT_RENDER_PROPERTIES = [
+  'font-family',
+  'font-kerning',
+  'font-feature-settings',
+  'font-variation-settings',
+  'font-optical-sizing',
+  'font-stretch',
+  'letter-spacing',
+  'text-rendering',
+  '-webkit-font-smoothing',
+  '-moz-osx-font-smoothing',
 ] as const
 
-export type ProxyVisualContext = Partial<Pick<CSSStyleDeclaration, typeof INHERITED_TEXT_PROPERTIES[number]>>
+export type ProxyVisualContext = Partial<Record<typeof FONT_RENDER_PROPERTIES[number], string>>
 
 /**
  * Capture the inherited text context before a clone leaves its original DOM
@@ -22,13 +28,16 @@ export type ProxyVisualContext = Partial<Pick<CSSStyleDeclaration, typeof INHERI
 export function captureProxyVisualContext(source: HTMLElement): ProxyVisualContext {
   const computed = getComputedStyle(source)
   return Object.fromEntries(
-    INHERITED_TEXT_PROPERTIES.map(property => [property, computed[property]]),
+    FONT_RENDER_PROPERTIES.map(property => [property, computed.getPropertyValue(property)]),
   ) as ProxyVisualContext
 }
 
 /** Apply the captured context to the proxy as explicit inline styles. */
 export function applyProxyVisualContext(proxy: HTMLElement, context: ProxyVisualContext): void {
-  Object.assign(proxy.style, context)
+  for (const property of FONT_RENDER_PROPERTIES) {
+    const value = context[property]
+    if (value) proxy.style.setProperty(property, value)
+  }
 }
 
 /** Capture from the source and immediately apply to a detached clone. */

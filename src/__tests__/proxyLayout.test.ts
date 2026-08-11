@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createDragProxy,
   destroyDragProxy,
+  applyFloatingStyle,
+  clearFloatingStyle,
   landDragProxyWithMotion,
+  getFloatingProxy,
+  getProxyContent,
   updateDragProxyContentScale,
   updateDragProxyScaleShell,
 } from '../dom/Visual'
@@ -22,6 +26,31 @@ function rect(width = 900, height = 64): DOMRect {
 }
 
 describe('代理布局', () => {
+  it('抓取代理继承字体渲染上下文但不覆盖卡片内容布局', () => {
+    const source = document.createElement('article')
+    source.style.fontFamily = 'system-ui, sans-serif'
+    source.style.fontSize = '13px'
+    source.style.lineHeight = '16px'
+    const badge = document.createElement('span')
+    badge.style.fontSize = '10px'
+    badge.style.lineHeight = '12px'
+    source.append(badge)
+    document.body.append(source)
+
+    applyFloatingStyle(source, rect(180, 40))
+    const proxy = getFloatingProxy(source)
+    expect(proxy).toBeDefined()
+    const content = getProxyContent(proxy!)
+    const proxyBadge = content.querySelector('span')!
+
+    expect(content.style.fontFamily).toBe('system-ui, sans-serif')
+    expect(proxyBadge.style.fontSize).toBe('10px')
+    expect(proxyBadge.style.lineHeight).toBe('12px')
+
+    clearFloatingStyle(source)
+    source.remove()
+  })
+
   it('compact 抓取不会叠加默认放大', async () => {
     const source = document.createElement('article')
     document.body.append(source)

@@ -4,6 +4,7 @@ import { createCardMotionController } from '../motion/CardMotionController'
 import type { CardMotionController, MotionState } from '../motion/CardMotionController'
 import { createFreeLandingMotion } from '../motion/FreeLandingMotion'
 import { LANDING_PROFILE, type MotionProfile } from '../motion/MotionProfile'
+import { preserveProxyVisualContext } from './ProxyVisualContext'
 
 
 /**
@@ -941,15 +942,28 @@ export function landDragProxyWithMotion(
         }
       }
       proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
-      // holder 的宽高从 landing 开始就固定。frame.scale、相机变化和
-      // contentScale 统一落在 scaleShell，避免每帧改宽高触发内容重排。
-      if (landingShell) {
+      if (options.landingMode === 'free' && landingShell) {
+        // 自由画布脱离 camera 祖先后，scaleShell 承担相机比例和 free landing
+        // 的视觉缩放；这里不能改 holder 的布局尺寸，否则世界坐标会被重新解释。
         applyLandingScale(
           landingShell,
           startWidth,
           startHeight,
           cameraRatio * frame.scaleX * initialContentScale,
         )
+      } else {
+        // 普通列表/看板的列宽差是布局变化，不是整体视觉缩放。尤其是有无滚动条
+        // 的两列，targetScale 可能达到 1.1；写入 scaleShell 会连字体和内边距一起
+        // 放大，落地揭示本体时就会出现尺寸跳变。恢复旧版的布局 landing：让代理
+        // width/height 过渡，内容按目标宽度自然重排，交叉淡化仍由 contentLayers 保留。
+        const width = startWidth * frame.scaleX
+        const height = startHeight * frame.scaleY
+        const layoutLeftForSize = frame.x + (startWidth - width) / 2
+        const layoutTopForSize = frame.y + (startHeight - height) / 2
+        proxy.style.width = `${width.toFixed(2)}px`
+        proxy.style.height = `${height.toFixed(2)}px`
+        proxy.style.transform = `perspective(760px) translate3d(${(layoutLeftForSize - layoutLeft).toFixed(2)}px, ${(layoutTopForSize - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
+        if (landingShell) updateDragProxyScaleShell(proxy, undefined)
       }
   }
   const motion = options.landingMode === 'free'
@@ -1221,6 +1235,9 @@ export function applyFloatingStyle(
   const sourceShadow = getComputedStyle(el).boxShadow
   const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout, contentScale: options.contentScale })
   const content = getProxyContent(proxy)
+  // 抓起 proxy 同样脱离了 source 的 DOM 继承链；landing 入口由
+  // VisualAdapter 处理，这里补齐 grabbing 入口，避免代理回退到 body 字体。
+  preserveProxyVisualContext(el, content)
   content.style.boxShadow = sourceShadow
   const compact = Boolean(options.layout?.compact)
   proxy.style.zIndex = '1000'
