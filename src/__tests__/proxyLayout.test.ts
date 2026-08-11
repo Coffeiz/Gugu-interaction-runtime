@@ -147,6 +147,58 @@ describe('代理布局', () => {
     source.remove()
   })
 
+  it('相机缩放后 landing 从松手时的视觉尺寸开始且不从侧面飞入', async () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+
+    const proxy = createDragProxy(source, rect(200, 100), { contentScale: 1 })
+    updateDragProxyContentScale(proxy, 1.5)
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 300,
+      top: 200,
+      width: 300,
+      height: 150,
+    }, {
+      landingMode: 'free',
+      contentScale: 1.5,
+      motionState: {
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        scaleX: 1.03,
+        scaleY: 1.03,
+        rotateX: 5,
+        rotateZ: 0,
+      },
+    })
+
+    const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
+    // 世界尺寸仍为 200x100，当前相机把它显示为 300x150；抓取态的 1.03
+    // 只负责浮起，不应再叠加一段从 200x100 到 300x150 的首帧放大。
+    expect(shell.style.width).toBe('200px')
+    expect(shell.style.height).toBe('100px')
+    // scaleShell 必须围绕 holder 中心承载当前 150% 的视觉尺寸，不能回到左上角，
+    // 否则 landing 会表现为从右下/左上方向飞入。
+    expect(parseFloat(shell.style.left)).toBeCloseTo(-54.5, 1)
+    expect(parseFloat(shell.style.top)).toBeCloseTo(-27.25, 1)
+    expect(shell.style.transform).toBe('scale(1.545)')
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
   it('landing 尺寸起点不使用带旋转的外接矩形', async () => {
     const source = document.createElement('article')
     document.body.append(source)

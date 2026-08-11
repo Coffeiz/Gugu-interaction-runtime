@@ -298,8 +298,12 @@ function prepareLandingScaleShell(
   const holderWidth = parseFloat(proxy.style.width) || proxy.getBoundingClientRect().width
   const holderHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
   const scale = contentScale > 0 ? contentScale : 1
-  const baseWidth = holderWidth / scale
-  const baseHeight = holderHeight / scale
+  // 抓取阶段已经记录了脱离 camera 后的世界尺寸。landing 不能用当前缩放
+  // 重新反推它，否则相机在抓取期间变化时会把实时视觉尺寸缩回抓取时的壳尺寸，
+  // 造成松手首帧从小尺寸重新放大。没有记录时才使用旧的尺寸推导作为普通代理
+  // 的兼容路径。
+  const baseWidth = Number(proxy.dataset.runtimeProxyBaseWidth) || holderWidth / scale
+  const baseHeight = Number(proxy.dataset.runtimeProxyBaseHeight) || holderHeight / scale
   shell.style.width = `${baseWidth}px`
   shell.style.height = `${baseHeight}px`
   shell.style.left = `${(holderWidth - baseWidth * scale) / 2}px`
@@ -987,9 +991,19 @@ export function landDragProxyWithMotion(
   // 语义目标（文件夹卡、面包屑）统一以目标中心作为落点，尺寸收缩交给
   // target dismiss 负责。若再把代理缩到面包屑文字按钮的尺寸，会先发生一
   // 次目标尺寸缩放、再发生一次 dismiss 缩放，导致面包屑动画明显快于文件夹卡。
+  const landingBaseWidth = landingShell?.baseWidth ?? startWidth
+  const landingBaseHeight = landingShell?.baseHeight ?? startHeight
+  // Motion 的 scale 是相对于 landing shell 基准尺寸的。相机缩放已经由
+  // initialContentScale 应用到 shell，因此目标比例必须以松手瞬间的视觉尺寸
+  // 为分母，不能再直接用 holder 的固定宽高，否则 camera scale 会被计算两次。
+  const visualStartWidth = landingBaseWidth * initialContentScale
+  const visualStartHeight = landingBaseHeight * initialContentScale
   const targetScale = options.landingMode === 'target'
     ? { scaleX: 1, scaleY: 1 }
-    : { scaleX: initialTarget.width / startWidth, scaleY: initialTarget.height / startHeight }
+    : {
+        scaleX: visualStartWidth > 0 ? initialTarget.width / visualStartWidth : 1,
+        scaleY: visualStartHeight > 0 ? initialTarget.height / visualStartHeight : 1,
+      }
   motion.setTarget({
     x: initialTarget.left,
     y: initialTarget.top,

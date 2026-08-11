@@ -232,15 +232,17 @@ export class DefaultVisualAdapter implements VisualAdapter {
     const landingProfile = context.landingMode === 'target'
       ? context.motion?.target?.landing ?? context.motion?.landing
       : context.motion?.landing
-    // 普通 landing 需要沿用目标 border box 的布局尺寸；语义目标不能在
+    const useLegacyLanding = context.motionEnabled === false || context.releaseMode === 'normal'
+    // 旧 CSS landing 需要沿用目标 border box 的布局尺寸；语义目标不能在
     // 松手瞬间切成面包屑/侧栏按钮的窄高度，否则源卡片会先被裁掉，视觉上
-    // 像是向目标下方跳了一段。语义目标的缩小由 target dismiss 的 scale
-    // 动画统一接管，代理在运动期间保留源卡片尺寸。
-    if (!isTargetLanding) {
+    // 像是向目标下方跳了一段。Motion landing 的尺寸收敛由 scaleShell 统一
+    // 接管，代理必须保留抓取阶段的源卡片尺寸；否则 Visual.ts 会把目标尺寸
+    // 误当成 landing 起点，缩放后的卡片会从左上角/右下角重新飞入。
+    if (!isTargetLanding && useLegacyLanding) {
       el.style.width = `${targetRect.width}px`
       el.style.height = `${targetRect.height}px`
     }
-    const land = context.motionEnabled === false || context.releaseMode === 'normal'
+    const land = useLegacyLanding
       ? landDragProxyLegacy
       : landDragProxyWithMotion
     const { finished, retarget } = land(el, targetRect, {
