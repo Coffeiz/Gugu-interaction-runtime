@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { createDragProxy, destroyDragProxy } from '../dom/Visual'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  createDragProxy,
+  destroyDragProxy,
+  landDragProxyWithMotion,
+  updateDragProxyContentScale,
+  updateDragProxyScaleShell,
+} from '../dom/Visual'
 
 function rect(width = 900, height = 64): DOMRect {
   return {
@@ -43,5 +49,162 @@ describe('代理布局', () => {
     destroyDragProxy(proxy)
     source.remove()
   })
-})
 
+  it('相机缩放只更新内容缩放，不改写代理的定位壳尺寸', () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+
+    const proxy = createDragProxy(source, rect(200, 100), { contentScale: 0.5 })
+    const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
+
+    expect(proxy.style.width).toBe('200px')
+    expect(proxy.style.height).toBe('100px')
+    expect(shell.style.transform).toBe('scale(0.5)')
+
+    updateDragProxyContentScale(proxy, 0.75)
+
+    // 相机变化不能让 MotionController 的屏幕坐标基准重新贴回鼠标。
+    expect(proxy.style.width).toBe('200px')
+    expect(proxy.style.height).toBe('100px')
+    expect(shell.style.transform).toBe('scale(0.75)')
+    expect(shell.style.left).toBe('-50px')
+    expect(shell.style.top).toBe('-25px')
+
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
+  it('landing 缩放壳会清除 grabbing 阶段的居中偏移', () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+
+    const proxy = createDragProxy(source, rect(200, 100), { contentScale: 0.5 })
+    const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
+    expect(shell.style.left).toBe('0px')
+    expect(shell.style.top).toBe('0px')
+
+    proxy.style.width = '120px'
+    proxy.style.height = '60px'
+    updateDragProxyScaleShell(proxy, 0.5)
+
+    expect(shell.style.left).toBe('0px')
+    expect(shell.style.top).toBe('0px')
+    expect(shell.style.width).toBe('240px')
+    expect(shell.style.height).toBe('120px')
+    expect(shell.style.transform).toBe('scale(0.5)')
+
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
+  it('相机缩放后没有新的 pointermove，landing 仍从释放时视觉中心和尺寸开始', async () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+
+    const proxy = createDragProxy(source, rect(200, 100), { contentScale: 0.5 })
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 500,
+      top: 300,
+      width: 200,
+      height: 100,
+    }, {
+      motionState: {
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        scaleX: 1.03,
+        scaleY: 1.03,
+        rotateX: 5,
+        rotateZ: 0,
+      },
+      contentScale: 0.5,
+      releaseVisual: { centerX: 320, centerY: 240, width: 120, height: 60 },
+    })
+
+    // 旧实现会使用 motionState.x/y，从 (0, 0) 起飞；这里必须保留释放时的视觉快照。
+    expect(proxy.style.left).toBe('260px')
+    expect(proxy.style.top).toBe('210px')
+    expect(proxy.style.width).toBe('120px')
+    expect(proxy.style.height).toBe('60px')
+
+    // 清理 MotionController 的超时和测试替身，避免未完成的 landing 泄漏到其他用例。
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
+  it('landing 中相机变化会按新的世界比例更新代理尺寸', async () => {
+    const source = document.createElement('article')
+    const camera = document.createElement('div')
+    document.body.append(source, camera)
+
+    const proxy = createDragProxy(source, rect(200, 100), { contentScale: 1 })
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+    let cameraWidth = 100
+    camera.getBoundingClientRect = () => new DOMRect(0, 0, cameraWidth, 100)
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 300,
+      top: 200,
+      width: 200,
+      height: 100,
+    }, {
+      landingMode: 'free',
+      cameraSource: camera,
+      contentScale: 1,
+      motionState: {
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotateX: 0,
+        rotateZ: 0,
+      },
+    })
+
+    cameraWidth = 200
+    vi.advanceTimersByTime(16)
+
+    // camera 放大一倍后，代理应在同一 landing 帧中扩大，而不是留在旧屏幕尺寸。
+    expect(parseFloat(proxy.style.width)).toBeGreaterThan(200)
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+    camera.remove()
+  })
+})
