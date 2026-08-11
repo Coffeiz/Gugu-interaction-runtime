@@ -274,6 +274,11 @@ export function updateDragProxyScaleShell(
   const rectHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
   const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
   if (!shell) return
+  // landing 已把定位壳改成当前视觉尺寸；缩放壳此时应从壳左上角重新计算，
+  // 不能继续沿用 grabbing 阶段为“固定壳 + 居中内容”写入的旧偏移，否则
+  // 松手后代理的视觉起点/终点会整体错开，最后揭示本体时出现一帧位移。
+  shell.style.left = '0px'
+  shell.style.top = '0px'
   shell.style.width = `${rectWidth / scale}px`
   shell.style.height = `${rectHeight / scale}px`
   shell.style.transform = `scale(${scale})`
@@ -335,6 +340,8 @@ export interface LandingVisualOptions {
   /** free 画布 landing 的实时相机比例。 */
   contentScale?: number | (() => number)
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
+  /** 松手瞬间的实时视觉中心/尺寸，优先于 motionState 推导 landing 起点。 */
+  releaseVisual?: { centerX: number; centerY: number; width: number; height: number }
   coast?: { duration: number; friction: number; maxDistance: number; minVelocity: number }
   /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
   releaseDamping?: number
@@ -752,10 +759,15 @@ export function landDragProxyWithMotion(
     const cameraScale = resolveContentScale(options.contentScale)
     const baseWidth = Number(proxy.dataset.runtimeProxyBaseWidth) || layoutWidth / cameraScale
     const baseHeight = Number(proxy.dataset.runtimeProxyBaseHeight) || layoutHeight / cameraScale
-    const visualWidth = baseWidth * cameraScale * scaleX
-    const visualHeight = baseHeight * cameraScale * scaleY
-    const visualLeft = options.motionState.x + (layoutWidth - visualWidth) / 2
-    const visualTop = options.motionState.y + (layoutHeight - visualHeight) / 2
+    const visualWidth = options.releaseVisual?.width ?? baseWidth * cameraScale * scaleX
+    const visualHeight = options.releaseVisual?.height ?? baseHeight * cameraScale * scaleY
+    const currentProxyRect = proxy.getBoundingClientRect()
+    const centerX = options.releaseVisual?.centerX
+      ?? currentProxyRect.left + currentProxyRect.width / 2
+    const centerY = options.releaseVisual?.centerY
+      ?? currentProxyRect.top + currentProxyRect.height / 2
+    const visualLeft = centerX - visualWidth / 2
+    const visualTop = centerY - visualHeight / 2
     proxy.style.left = `${visualLeft}px`
     proxy.style.top = `${visualTop}px`
     proxy.style.width = `${visualWidth}px`

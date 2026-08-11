@@ -58,6 +58,7 @@ export function createDetachMoveFromAdapter(config: {
   let autoScroller: { update: (container: HTMLElement | null, point: { x: number; y: number }) => void; stop: () => void } | null = null
   let dragMotion: DragMotionDriver | null = null
   let releaseMotionState: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number } | undefined
+  let releaseVisual: { centerX: number; centerY: number; width: number; height: number } | undefined
   let dragOffset = { x: 0, y: 0 }
   let pickupIndex: number | null = null
   let pointerMoved = false
@@ -137,6 +138,22 @@ export function createDetachMoveFromAdapter(config: {
     if (released) return { accepted: false as const }
     released = true
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
+    const releaseProxy = sessionId ? runtime.getVisualProxy(sessionId)?.element : null
+    if (releaseProxy && releaseMotionState) {
+      const proxyRect = releaseProxy.getBoundingClientRect()
+      const contentScaleValue = objectItem?.contentScale
+      const contentScale = typeof contentScaleValue === 'function' ? contentScaleValue() : contentScaleValue ?? 1
+      const proxyWidth = parseFloat(releaseProxy.style.width) || proxyRect.width
+      const proxyHeight = parseFloat(releaseProxy.style.height) || proxyRect.height
+      const baseWidth = Number(releaseProxy.dataset.runtimeProxyBaseWidth) || proxyWidth / contentScale
+      const baseHeight = Number(releaseProxy.dataset.runtimeProxyBaseHeight) || proxyHeight / contentScale
+      releaseVisual = {
+        centerX: proxyRect.left + proxyRect.width / 2,
+        centerY: proxyRect.top + proxyRect.height / 2,
+        width: baseWidth * contentScale * Math.abs(releaseMotionState.scaleX || 1),
+        height: baseHeight * contentScale * Math.abs(releaseMotionState.scaleY || 1),
+      }
+    }
     if (releaseMotionState) {
       const releaseVelocity = shapeReleaseVelocity({ x: releaseMotionState.vx, y: releaseMotionState.vy })
       releaseMotionState.vx = releaseVelocity.x
@@ -237,6 +254,7 @@ export function createDetachMoveFromAdapter(config: {
         ),
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,
         motionState: releaseMotionState,
+        releaseVisual,
       })
       landingProxy = startDetachLandingVisual({
         // 抓取阶段已登记统一 proxy，landing 直接接管它；getVisualProxy 缺失时
