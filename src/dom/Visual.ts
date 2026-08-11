@@ -1,7 +1,8 @@
 import type { VisualContext } from './VisualAdapterTypes'
 import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { createCardMotionController } from '../motion/CardMotionController'
-import type { MotionState } from '../motion/CardMotionController'
+import type { CardMotionController, MotionState } from '../motion/CardMotionController'
+import { createFreeLandingMotion } from '../motion/FreeLandingMotion'
 import { LANDING_PROFILE, type MotionProfile } from '../motion/MotionProfile'
 
 
@@ -922,9 +923,7 @@ export function landDragProxyWithMotion(
     finishWhenVisualsSettled()
   }
 
-  const motion = createCardMotionController({
-    mode: 'settle',
-    onFrame: frame => {
+  const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
       let left = frame.x
       let top = frame.y
       let cameraRatio = 1
@@ -952,9 +951,19 @@ export function landDragProxyWithMotion(
           cameraRatio * frame.scaleX * initialContentScale,
         )
       }
-    },
-    onArrived: settle,
-  })
+  }
+  const motion = options.landingMode === 'free'
+    ? createFreeLandingMotion({
+        duration,
+        easing,
+        onFrame: onMotionFrame,
+        onArrived: settle,
+      })
+    : createCardMotionController({
+        mode: 'settle',
+        onFrame: onMotionFrame,
+        onArrived: settle,
+      })
   const releaseSpeed = Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0)
   const releaseDamping = options.releaseDamping ?? 0.78
   const baseProfile = options.targetMotion
@@ -963,15 +972,18 @@ export function landDragProxyWithMotion(
         scale: { ...LANDING_PROFILE.scale, ...options.targetMotion.scale },
       }
     : LANDING_PROFILE
-  motion.setProfile(releaseSpeed > 30
-    ? {
-        ...baseProfile,
-        position: {
-          ...baseProfile.position,
-          damping: baseProfile.position.damping * releaseDamping,
-        },
-      }
-    : baseProfile)
+  if (options.landingMode !== 'free') {
+    const springMotion = motion as CardMotionController
+    springMotion.setProfile(releaseSpeed > 30
+      ? {
+          ...baseProfile,
+          position: {
+            ...baseProfile.position,
+            damping: baseProfile.position.damping * releaseDamping,
+          },
+        }
+      : baseProfile)
+  }
   motion.seed({
     // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
     // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
@@ -1113,8 +1125,10 @@ export function landDragProxyWithMotion(
   }
   scheduleMotionTimeout()
   const coast = options.coast
-  if (coast && coast.maxDistance > 0 && Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0) > coast.minVelocity) {
-    motion.startCoastThenSettle(coast)
+  if (options.landingMode === 'free') {
+    motion.start()
+  } else if (coast && coast.maxDistance > 0 && Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0) > coast.minVelocity) {
+    ;(motion as CardMotionController).startCoastThenSettle(coast)
   } else {
     motion.start()
   }

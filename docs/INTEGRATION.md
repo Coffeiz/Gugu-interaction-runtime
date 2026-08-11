@@ -199,6 +199,8 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `releaseMode` | 释放后的降落策略：`physical` 继承释放速度（默认），`normal` 使用普通过渡 |
 |  | `landingMode` | `default` 普通回位、`target` 语义目标吸入、`free` 自由矩形落点 |
 |  | `resolveFreeLandingRect` | `free` 模式解析视口坐标 `LandingRect`，不要求目标 DOM |
+| `runtime.configureMotion(config)` | `freeLanding.duration` | 画布 free landing 的非回弹飞行时长，默认 550ms |
+|  | `freeLanding.easing` | 画布 landing 缓动曲线，默认 `cubic-bezier(.22,1,.36,1)` |
 |  | `grabAlign.align` | 抓取基准对齐方式：`'center'`（默认，卡片中心对指针）或 `'pointer'`（点哪抓哪） |
 |  | `grabAlign.offsetX` / `offsetY` | 在基准对齐结果上叠加的固定像素偏移，正值往右/往下 |
 | `runtime.objects.register(options)` | `id` | 对象唯一标识 |

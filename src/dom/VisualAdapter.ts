@@ -232,9 +232,11 @@ export class DefaultVisualAdapter implements VisualAdapter {
     const targetHasSurfaceStyle = !isTargetLanding
       ? Boolean(targetSnapshot)
       : !context.disableTargetVisualMorph && targetHasVisibleSurface
-    const landingProfile = context.landingMode === 'target'
-      ? context.motion?.target?.landing ?? context.motion?.landing
-      : context.motion?.landing
+    const landingProfile = context.landingMode === 'free'
+      ? context.motion?.freeLanding ?? context.motion?.landing
+      : context.landingMode === 'target'
+        ? context.motion?.target?.landing ?? context.motion?.landing
+        : context.motion?.landing
     const useLegacyLanding = context.motionEnabled === false || context.releaseMode === 'normal'
     // 旧 CSS landing 需要沿用目标 border box 的布局尺寸；语义目标不能在
     // 松手瞬间切成面包屑/侧栏按钮的窄高度，否则源卡片会先被裁掉，视觉上
@@ -249,8 +251,12 @@ export class DefaultVisualAdapter implements VisualAdapter {
       ? landDragProxyLegacy
       : landDragProxyWithMotion
     const { finished, retarget } = land(el, targetRect, {
-      duration: landingProfile?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
-      easing: landingProfile?.easing ?? DEFAULT_MOTION_PROFILE.landing.easing,
+      duration: landingProfile?.duration ?? (context.landingMode === 'free'
+        ? DEFAULT_MOTION_PROFILE.freeLanding.duration
+        : DEFAULT_MOTION_PROFILE.landing.duration),
+      easing: landingProfile?.easing ?? (context.landingMode === 'free'
+        ? DEFAULT_MOTION_PROFILE.freeLanding.easing
+        : DEFAULT_MOTION_PROFILE.landing.easing),
       // 面包屑是透明文本节点，只提供位置和消失时机，不能把它的透明表面
       // 样式覆盖到代理卡片；有可见表面的文件夹卡仍完整执行视觉 morph。
       targetShadow: targetHasSurfaceStyle ? targetSnapshot?.boxShadow : undefined,

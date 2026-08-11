@@ -19,6 +19,12 @@ export interface MotionProfile {
     /** CSS easing 函数。 */
     easing: string
   }
+  freeLanding?: {
+    /** 画布 free landing 的非回弹飞行时长，ms。 */
+    duration: number
+    /** 画布 landing 的缓动曲线。 */
+    easing: string
+  }
   target?: {
     /** 语义目标飞入使用的独立弹簧参数，不继承全局 landing。 */
     motion?: {
@@ -50,6 +56,10 @@ export const DEFAULT_MOTION_PROFILE: Required<MotionProfile> = {
   flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
   resize: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
   landing: { duration: 300, easing: 'cubic-bezier(.22,1,.36,1)' },
+  freeLanding: {
+    duration: 550,
+    easing: 'cubic-bezier(.22,1,.36,1)',
+  },
   target: {
     motion: {
       position: { stiffness: 420, damping: 41 },

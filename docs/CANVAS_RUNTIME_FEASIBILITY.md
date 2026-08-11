@@ -142,8 +142,9 @@ runtime.objects.register({
 
 - `normal`：以释放时的最终位置为起点，使用标准 landing profile 到达自由落点；不把释放
   速度继续注入目标运动。
-- `physical`：将 MotionController 的释放 `vx/vy/rotate/scale` 传给 landing controller，
-  按咕咕现有 `coastOffset`/释放曲线的参数计算自由落点，并在降落过程中逐步衰减。
+- `physical`：保留抓取阶段的释放状态交给 Runtime 完成视觉交接；最终自由落点由业务
+  通过 `resolveFreeLandingRect` 提供，落点后的视觉飞行由 free 专用的单调缓出策略完成，
+  不把释放速度继续注入固定目标弹簧。
 
 默认值必须是 `physical`。调试面板可以切换模式，但业务页面不能根据模式分别绑定两套
 pointer 事件。
@@ -177,6 +178,28 @@ runtime.registerObjectType('canvas-card', {
 
 Stage 1 不把 `camera` 放进该接口。咕咕业务在计算 free rect 前，把世界坐标转换为当前
 屏幕坐标；Stage 2 再把这个转换下沉为 Camera API。
+
+### 3.4 free landing 运动参数
+
+画布 free landing 不复用 `LANDING_PROFILE` 的列表弹簧。旧版 Gugu-web 的行为是：释放
+速度只参与惯性落点计算，代理从当前视觉位置以固定时长缓出到最终位置。因此 Runtime
+对外提供独立配置：
+
+```ts
+runtime.configureMotion({
+  freeLanding: {
+    duration: 550,
+    easing: 'cubic-bezier(.22,1,.36,1)',
+  },
+})
+```
+
+默认值与旧画布的落地时长和缓动对齐。`landing` 仍只控制列表/网格 landing，
+`freeLanding` 不影响项目列、文件网格或语义目标吸入。free landing 不使用欠阻尼弹簧，
+因此不应出现目标点附近的回弹。释放后的最终世界坐标仍由业务通过
+`resolveFreeLandingRect` 提供，Runtime 不在视觉层偷偷追加偏移，避免代理终点与真实本体
+坐标不一致。释放惯性落点的计算若要下沉到 Runtime，需要另行扩展带 release state 的
+解析契约，不属于本次改动。
 
 ## 四、职责边界
 
