@@ -108,6 +108,31 @@ const { controlled } = useRuntimeTransition(`column:${status}`)
 Action 订阅由适配层自动在组件卸载时解除。Transition composable 只负责把 ownership
 状态映射成 Vue 可消费的响应式值，不重新实现动画。
 
+### Node / Connection
+
+画布卡片可以直接在 `useObject` 中声明端口，端口位置不需要业务保存屏幕坐标：
+
+```ts
+const card = useObject({
+  id: `canvas:card:${id}`,
+  type: 'canvas-card',
+  surface: 'canvas:main',
+  abilities: ['move', 'link'],
+  node: {
+    ports: [
+      { id: 'left', side: 'left', position: 0.5 },
+      { id: 'right', side: 'right', position: 0.5 },
+    ],
+  },
+})
+```
+
+Runtime 提供 `getNodePorts()`、`hitNodePort()`、`beginNodeConnection()`、
+`updateNodeConnection()`、`finishNodeConnection()` 和 `cancelNodeConnection()`；它们每次
+从当前 DOMRect 计算端点，覆盖卡片移动、尺寸变化和相机变换后的几何变化。创建、取消、删除
+通过 `connection-create`、`connection-cancel`、`connection-delete` Action 输出，Vue 侧只需
+用 `useRuntimeAction()` 接收并持久化；SVG 线条仍由业务 RelationLayer 绘制。
+
 ## 生命周期要求
 
 每个使用 `useObject` 或 `useSurface` 的资源必须属于自己的 Vue 组件实例。对于父组件

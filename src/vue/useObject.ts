@@ -1,6 +1,7 @@
 import { onUnmounted, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import type { ObjectItem, ObjectUpdate } from '../object/ObjectItem'
 import type { TargetItem } from '../target/Target'
+import type { NodeConfig } from '../node/Node'
 import { useRuntime } from './context'
 
 export type ObjectTargetOptions = Omit<TargetItem, 'id' | 'element' | 'generation'> & {
@@ -17,6 +18,7 @@ export interface UseObjectOptions {
   visual?: MaybeRefOrGetter<string | undefined>
   visualMode?: MaybeRefOrGetter<string | undefined>
   target?: MaybeRefOrGetter<ObjectTargetOptions | undefined>
+  node?: MaybeRefOrGetter<NodeConfig | undefined>
 }
 
 export interface UseObjectResult {
@@ -33,6 +35,7 @@ function readObject(options: UseObjectOptions): ObjectUpdate & Pick<ObjectItem, 
     visual: options.visual === undefined ? undefined : toValue(options.visual),
     visualMode: options.visualMode === undefined ? undefined : toValue(options.visualMode),
     target: options.target === undefined ? undefined : toValue(options.target),
+    node: options.node === undefined ? undefined : toValue(options.node),
   }
 }
 

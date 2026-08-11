@@ -25,6 +25,7 @@ import type { Surface } from './surface/Surface'
 import type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
 import type { PointerSessionInputOptions } from './input/PointerSessionInput'
 import type { Action } from './action/Action'
+import type { NodeConnectionState, NodePortSnapshot } from './node/Node'
 import { RuntimeRegistry } from './runtime/RuntimeRegistry'
 import { SessionCoordinator, type SessionCompletionGate } from './runtime/RuntimeSession'
 import { MoveActionCoordinator } from './runtime/RuntimeMove'
@@ -223,6 +224,8 @@ export class Runtime {
   private readonly visualMotion: VisualMotionCoordinator
   private readonly groupVisualAdapters = new Map<string, VisualAdapter>()
   private readonly surfaceScrollFrames = new WeakMap<HTMLElement, number>()
+  private activeNodeConnection: NodeConnectionState | null = null
+  private readonly nodeConnections = new Set<string>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
@@ -927,6 +930,112 @@ setMotionProfiles(this.registry.motionProfile)
     this.actions.emit(action)
   }
 
+  /** 读取对象当前端口；位置始终来自当前 DOMRect，不缓存拖拽/相机变换后的坐标。 */
+  getNodePorts(objectId: string): NodePortSnapshot[] {
+    const object = this.objects.get(objectId)
+    const element = object?.element
+    const ports = object?.node?.ports
+    if (!object || !element?.isConnected || !ports) return []
+    const rect = element.getBoundingClientRect()
+    return ports.map(port => {
+      const position = Math.max(0, Math.min(1, port.position ?? 0.5))
+      const x = port.side === 'left' ? rect.left : rect.right
+      const y = rect.top + rect.height * position
+      const hitRadius = port.hitRadius ?? 10
+      return {
+        ...port,
+        position,
+        objectId,
+        point: { x, y },
+        rect: new DOMRect(x - hitRadius, y - hitRadius, hitRadius * 2, hitRadius * 2),
+      }
+    })
+  }
+
+  /** 在实时端点附近命中一个端口；命中结果按距离和对象 DOM 顺序稳定返回。 */
+  hitNodePort(point: { x: number; y: number }, options: { objectId?: string; objectType?: string } = {}): NodePortSnapshot | null {
+    const candidates = options.objectId
+      ? this.getNodePorts(options.objectId)
+      : [...this.objects.values()].flatMap(object => this.getNodePorts(object.id))
+    const valid = candidates.filter(port => {
+      if (!options.objectType) return true
+      return !port.accepts || port.accepts.length === 0 || port.accepts.includes(options.objectType)
+    })
+    return valid
+      .map(port => ({ port, distance: Math.hypot(point.x - port.point.x, point.y - port.point.y) }))
+      .filter(entry => entry.distance <= (entry.port.hitRadius ?? 10))
+      .sort((left, right) => left.distance - right.distance)[0]?.port ?? null
+  }
+
+  beginNodeConnection(objectId: string, portId: string): NodeConnectionState | null {
+    const source = this.getNodePorts(objectId).find(port => port.id === portId)
+    if (!source) return null
+    this.activeNodeConnection = {
+      sourceObjectId: objectId,
+      sourcePortId: portId,
+      source,
+      currentPoint: { ...source.point },
+    }
+    return this.activeNodeConnection
+  }
+
+  updateNodeConnection(point: { x: number; y: number }): NodeConnectionState | null {
+    if (!this.activeNodeConnection) return null
+    this.activeNodeConnection = { ...this.activeNodeConnection, currentPoint: { ...point } }
+    return this.activeNodeConnection
+  }
+
+  finishNodeConnection(targetObjectId: string, targetPortId: string): boolean {
+    const active = this.activeNodeConnection
+    const target = this.getNodePorts(targetObjectId).find(port => port.id === targetPortId)
+    if (!active || !target || active.sourceObjectId === targetObjectId) return false
+    const targetObject = this.objects.get(targetObjectId)
+    const sourceObject = this.objects.get(active.sourceObjectId)
+    if (!targetObject || !sourceObject) return false
+    if (target.accepts?.length && !target.accepts.includes(sourceObject.type)) return false
+    const connectionId = this.nodeConnectionId(active.sourceObjectId, active.sourcePortId, targetObjectId, targetPortId)
+    if (this.nodeConnections.has(connectionId)) return false
+    this.nodeConnections.add(connectionId)
+    this.activeNodeConnection = null
+    this.actions.emit({
+      type: 'connection-create',
+      objectId: active.sourceObjectId,
+      sourceObjectId: active.sourceObjectId,
+      sourcePortId: active.sourcePortId,
+      targetObjectId,
+      targetPortId,
+      timestamp: Date.now(),
+    })
+    return true
+  }
+
+  cancelNodeConnection(): void {
+    const active = this.activeNodeConnection
+    if (!active) return
+    this.activeNodeConnection = null
+    this.actions.emit({
+      type: 'connection-cancel',
+      objectId: active.sourceObjectId,
+      sourceObjectId: active.sourceObjectId,
+      sourcePortId: active.sourcePortId,
+      timestamp: Date.now(),
+    })
+  }
+
+  deleteNodeConnection(connectionId: string): boolean {
+    if (!this.nodeConnections.delete(connectionId)) return false
+    this.actions.emit({ type: 'connection-delete', objectId: connectionId, connectionId, timestamp: Date.now() })
+    return true
+  }
+
+  get activeConnection(): NodeConnectionState | null {
+    return this.activeNodeConnection
+  }
+
+  private nodeConnectionId(sourceObjectId: string, sourcePortId: string, targetObjectId: string, targetPortId: string): string {
+    return `${sourceObjectId}:${sourcePortId}->${targetObjectId}:${targetPortId}`
+  }
+
   snapshot() {
     return {
       objects: this.objects.snapshot(),
@@ -1010,8 +1119,10 @@ setMotionProfiles(this.registry.motionProfile)
     const resolveResult = context.visual?.resolveTarget?.(session.objectId, destination)
     const fallbackResult = fallback?.()
     const registeredElement = this.objects.get(session.objectId)?.element
-    const semanticTarget = this.targets.findForSurface(this.getDestinationSurfaceId(destination) ?? '', object?.type)
-    const target = customTarget ?? resolveResult ?? fallbackResult ?? semanticTarget?.element ?? registeredElement ?? null
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
+    const surfaceElement = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId)?.element : null
+    const target = customTarget ?? resolveResult ?? fallbackResult ?? semanticTarget?.element ?? surfaceElement ?? registeredElement ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
     return target
@@ -1028,8 +1139,10 @@ setMotionProfiles(this.registry.motionProfile)
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
     const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
     const fallbackTarget = fallback?.() ?? null
-    const semanticTarget = this.targets.findForSurface(this.getDestinationSurfaceId(destination) ?? '', object?.type)
-    const target = customTarget ?? fallbackTarget ?? semanticTarget?.element ?? this.resolveMoveTarget(sessionId, destination)
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
+    const surfaceElement = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId)?.element : null
+    const target = customTarget ?? fallbackTarget ?? semanticTarget?.element ?? surfaceElement ?? this.resolveMoveTarget(sessionId, destination)
     if (!target || !target.isConnected) return null
     return target
   }

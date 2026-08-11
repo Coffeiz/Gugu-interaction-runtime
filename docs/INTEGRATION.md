@@ -72,6 +72,14 @@ const stop = runtime.onAction(action => {
 })
 ```
 
+### 画布 Node / Connection
+
+需要连接点的 Object 可在注册时提供 `node.ports`。每个端口至少声明 `id`、`side` 和可选的
+`position`（0 到 1，表示沿卡片边缘的比例）。Runtime 不缓存端点坐标，而是从对象当前
+`getBoundingClientRect()` 计算；连接创建、取消、去重和删除分别通过 `connection-create`、
+`connection-cancel`、`connection-delete` Action 通知业务。Runtime 只负责几何和连接生命周期，
+关系数据、SVG 绘制和后端持久化仍属于业务层。
+
 Vue、React 和其他框架都使用同一组 Runtime Core API。Vue 项目如果希望减少 ref、generation
 和卸载样板，优先从 `gugu-interaction-runtime/vue` 导入 composable；低层 DOM adapter
 仍保留给迁移期和布局事务使用。适配器不替代 Core 注册，也不形成第二套拖拽语义。

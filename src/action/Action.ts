@@ -49,6 +49,25 @@ export interface LinkAction extends BaseAction {
   readonly targetObjectId: string
 }
 
+export interface ConnectionCreateAction extends BaseAction {
+  readonly type: 'connection-create'
+  readonly sourceObjectId: string
+  readonly sourcePortId: string
+  readonly targetObjectId: string
+  readonly targetPortId: string
+}
+
+export interface ConnectionDeleteAction extends BaseAction {
+  readonly type: 'connection-delete'
+  readonly connectionId: string
+}
+
+export interface ConnectionCancelAction extends BaseAction {
+  readonly type: 'connection-cancel'
+  readonly sourceObjectId: string
+  readonly sourcePortId: string
+}
+
 export type Action =
   | MoveAction
   | MoveGroupAction
@@ -56,3 +75,6 @@ export type Action =
   | SortAction
   | ResizeAction
   | LinkAction
+  | ConnectionCreateAction
+  | ConnectionDeleteAction
+  | ConnectionCancelAction

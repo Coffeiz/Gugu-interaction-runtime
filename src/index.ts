@@ -72,7 +72,19 @@ export type {
   PointerSessionInputOptions,
   PointerSessionInputRuntime,
 } from './input/PointerSessionInput'
-export type { Action, MoveAction, MoveGroupAction, TransferAction, SortAction, ResizeAction, LinkAction } from './action/Action'
+export type {
+  Action,
+  MoveAction,
+  MoveGroupAction,
+  TransferAction,
+  SortAction,
+  ResizeAction,
+  LinkAction,
+  ConnectionCreateAction,
+  ConnectionDeleteAction,
+  ConnectionCancelAction,
+} from './action/Action'
+export type { NodeConfig, NodePortConfig, NodePortSide, NodePortSnapshot, NodeConnectionState } from './node/Node'
 export type { RuntimeInput, StartRequest, SessionHandle } from './core/Interaction'
 export {
   createCardMotionController,

@@ -1,6 +1,6 @@
 # 画布 Runtime 接入方案
 
-> 状态：Stage 1 A-B 已完成，S1-C 已完成基础 Object/Surface 接入，正在收尾关系临时位置与完整回归。
+> 状态：Stage 1 A-B 已完成，C 的 Object/Surface/Group 接入和抽屉无 Target 目标解析已完成；D 的 Core Node/Port、Vue 声明和连接生命周期已完成，Gugu 侧手势/RelationLayer 预览桥接与最终回归待收口。
 >
 > 本文是画布接入的执行基线，不把实验性 Demo、相机适配和连线 Runtime 混入 Stage 1。
 > Stage 1 先让咕咕画布使用现有 Runtime Core API，完成抽屉、画布卡片、自由落点和两种
@@ -33,7 +33,7 @@
 - Stage 1 不制作独立 Runtime Canvas Demo；Demo 放到 Stage 2，避免用半成品相机模型反向
   约束 Core。
 - Stage 1 不把 SVG 连线、关系持久化或 RelationLayer 搬进 Runtime。
-- Stage 1 不实现多选、框选、群组拖拽和 ConnectionRuntime。
+- Stage 1 不实现多选、框选和群组拖拽；ConnectionRuntime 的 Core 契约在 D 阶段实现，但不迁移 SVG Renderer。
 - 不重写卡片视觉组件；优先复用咕咕现有卡片、抽屉和 RelationLayer 的渲染。
 
 ## 二、现状审核
@@ -294,13 +294,13 @@ runtime.configureMotion({
 
 - [x] 在咕咕画布入口注册 `canvas` 与 `drawer` Surface。
 - [x] 为 Note、Entity、Project、File 卡片建立稳定 Object ID 和统一 Object 类型；Drawer 作为语义 Surface 接收项目回退。
-- [ ] 为抽屉内容注册 Group，并接入展开/收起、容器高度和卡片 FLIP；抽屉本身不注册 Target。
+- [x] 为抽屉内容注册 Group 标记，并接入 Runtime 的布局捕获；抽屉本身不注册 Target，Surface 元素作为默认落地目标。
 - [x] 将 `.canvas-world` 和抽屉 DOM 接到 Core API，保留现有卡片视觉组件。
 - [x] 首先迁移 Note 卡，并复用同一 Runtime 对象绑定入口。
 - [x] 迁移 Entity、Project、File 卡片，统一使用 `releaseMode: 'physical'`；Runtime 类型保留
       `normal` 配置能力。
 - [x] 将画布内部自由落点接到 `screenToWorld -> 当前屏幕 LandingRect`，不改 camera 实现。
-- [x] 将画布到抽屉的业务提交接到 Runtime Action；抽屉的 Surface 变化和基础卡片进入路径已接通，Group FLIP 与反向进入动画待下一小步收尾。
+- [x] 将画布到抽屉的业务提交接到 Runtime Action；抽屉的 Surface 变化、Group 布局捕获和卡片进入路径已接通。
 - [ ] 验证抽屉展开/收起、卡片让位、卡片进入/退出、regrab、快速连续拖拽。
 - [ ] 确认 RelationLayer 仍能读取 Runtime 提供的拖动/landing 临时位置；不迁移连接手势。
 - [ ] 清理画布专属旧拖拽代码和无调用的兼容导出，保留看板/文件仍在使用的公共代码。
@@ -346,11 +346,11 @@ useObject({
 
 #### D.3 D 阶段 TODO
 
-- [ ] 在 Core 中增加 Node/Port 描述和对象类型配置。
-- [ ] 增加 Vue 层 Node 声明与 DOM 生命周期适配，不新增独立业务拖拽编排。
-- [ ] 实现左右连接点的位置计算、视觉状态和命中检测。
-- [ ] 实现点击连接点创建连接、取消和重复连接校验。
-- [ ] 提供连接端点实时解析和 RelationLayer 所需的预览状态。
+- [x] 在 Core 中增加 Node/Port 描述和对象类型配置。
+- [x] 增加 Vue 层 Node 声明与 DOM 生命周期适配，不新增独立业务拖拽编排。
+- [x] 实现左右连接点的位置计算和命中检测；位置每次从实时 DOMRect 读取。
+- [x] 实现连接创建、取消和重复连接校验；通过 `connection-*` Action 输出生命周期。
+- [x] 提供连接会话的实时端点解析和当前预览状态 Core API；Gugu RelationLayer 接线仍待收口。
 - [ ] 补充卡片移动、FLIP、landing、regrab、尺寸变化和相机变化的端点回归测试。
 - [ ] 对齐咕咕当前连接点样式、连接方向和连接线几何算法。
 

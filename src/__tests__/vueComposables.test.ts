@@ -110,6 +110,42 @@ describe('Vue Runtime composables', () => {
     mounted.host.remove()
   })
 
+  it('useObject 的 node 声明由 Runtime 按实时 DOMRect 计算端口并完成连接生命周期', async () => {
+    const runtime = new Runtime()
+    const actions: Action[] = []
+    runtime.onAction(action => { actions.push(action) })
+    const child = defineComponent({
+      setup() {
+        const left = useObject({
+          id: 'node:left', type: 'card', surface: 'surface:canvas', abilities: ['move', 'link'],
+          node: { ports: [{ id: 'out', side: 'right', position: 0.5 }] },
+        })
+        const right = useObject({
+          id: 'node:right', type: 'card', surface: 'surface:canvas', abilities: ['move', 'link'],
+          node: { ports: [{ id: 'in', side: 'left', position: 0.25, accepts: ['card'] }] },
+        })
+        return () => h('section', [
+          h('article', { ref: left.elementRef, style: { width: '100px', height: '80px' } }),
+          h('article', { ref: right.elementRef, style: { width: '100px', height: '80px' } }),
+        ])
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+
+    const source = runtime.getNodePorts('node:left')[0]
+    const target = runtime.getNodePorts('node:right')[0]
+    expect(source?.point).toBeDefined()
+    expect(target?.position).toBe(0.25)
+    expect(runtime.beginNodeConnection('node:left', 'out')).not.toBeNull()
+    runtime.updateNodeConnection(target!.point)
+    expect(runtime.finishNodeConnection('node:right', 'in')).toBe(true)
+    expect(actions.some(action => action.type === 'connection-create')).toBe(true)
+
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
   it('useSurface 保留 viewport 回调，不把回调提前执行成 DOM 节点', async () => {
     const runtime = new Runtime()
     const viewport = document.createElement('div')
