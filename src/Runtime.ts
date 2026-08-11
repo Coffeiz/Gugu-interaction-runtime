@@ -1148,8 +1148,13 @@ setMotionProfiles(this.registry.motionProfile)
     if (!session || session.state !== 'landing') return null
     const proxyRect = proxyElement.getBoundingClientRect()
     const sourceRect = sourceElement.getBoundingClientRect()
-    const layoutWidth = sourceElement.offsetWidth || sourceRect.width
-    const layoutHeight = sourceElement.offsetHeight || sourceRect.height
+    // regrab 代理需要的是当前屏幕上的布局尺寸，而不是未经过画布 camera
+    // transform 的 offsetWidth/offsetHeight。后者在 50% 画布上会把新代理
+    // 重建成 100% 大小。proxyRect 不能直接作为尺寸来源，因为它包含抓取
+    // 姿态的旋转外接框；源节点的 getBoundingClientRect() 保留了当前 camera
+    // 缩放后的尺寸，同时不受落地代理旋转影响。
+    const layoutWidth = sourceRect.width || proxyRect.width
+    const layoutHeight = sourceRect.height || proxyRect.height
     const regrabRect = new DOMRect(proxyRect.left, proxyRect.top, layoutWidth, layoutHeight)
     return {
       sessionId,
