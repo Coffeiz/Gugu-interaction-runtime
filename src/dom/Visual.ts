@@ -347,6 +347,41 @@ export interface LandingVisualOptions {
   releaseDamping?: number
 }
 
+/**
+ * CSS box-shadow 只有阴影层数一致时才会做连续插值。文件卡的抓取态通常只有
+ * 一层外阴影，而静止态是「外阴影 + inset 高光」多层；浏览器会把这类变化当成
+ * 离散切换。给起点在对应的层级补透明 inset，保持视觉等价，同时让 landing 能
+ * 真正渐变。
+ */
+function splitBoxShadowLayers(value: string): string[] {
+  const layers: string[] = []
+  let start = 0
+  let depth = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]
+    if (char === '(') depth += 1
+    else if (char === ')') depth = Math.max(0, depth - 1)
+    else if (char === ',' && depth === 0) {
+      layers.push(value.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  const last = value.slice(start).trim()
+  if (last) layers.push(last)
+  return layers
+}
+
+function normalizeBoxShadowTransition(source: string, target: string): string {
+  const sourceLayers = splitBoxShadowLayers(source)
+  const targetLayers = splitBoxShadowLayers(target)
+  if (sourceLayers.length >= targetLayers.length || sourceLayers.length === 0) return source
+  const transparentLayers = targetLayers.length - sourceLayers.length
+  return [
+    ...sourceLayers,
+    ...Array.from({ length: transparentLayers }, () => 'inset 0 0 0 0 rgba(0, 0, 0, 0)'),
+  ].join(', ')
+}
+
 /** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
  * 徽章、按钮这类会增减的子元素文字内容本身就是区分度最高的信息，不需要真的做
  * 一整套 DOM diff。 */
@@ -628,6 +663,15 @@ export function landDragProxyLegacy(
       `translate3d(${(nextTarget.left - layoutLeft).toFixed(2)}px, ${(nextTarget.top - layoutTop).toFixed(2)}px, 0)`
 
     proxy.style.transition = `transform ${animDuration}ms ${easing}, width ${animDuration}ms ${easing}, height ${animDuration}ms ${easing}`
+    const sourceShadow = content.style.boxShadow || getComputedStyle(content).boxShadow
+    if (targetShadow != null) {
+      // 文件卡静止态有 inset + 外阴影两层，抓取态通常只有一层外阴影。
+      // 先把起点补成同样的层数，否则 box-shadow 会被浏览器离散切换。
+      const normalizedSourceShadow = normalizeBoxShadowTransition(sourceShadow, targetShadow)
+      content.style.transition = 'none'
+      content.style.boxShadow = normalizedSourceShadow
+      void content.offsetWidth
+    }
     content.style.transition = [
       `box-shadow ${animDuration}ms ease`,
       `border-radius ${animDuration}ms ease`,
@@ -865,7 +909,9 @@ export function landDragProxyWithMotion(
       proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
       proxy.style.width = `${width.toFixed(2)}px`
       proxy.style.height = `${height.toFixed(2)}px`
-      if (hasCameraAnchor) updateDragProxyScaleShell(proxy, options.contentScale)
+      // landing 会逐帧改变外层代理尺寸；scaleShell 也必须同步，否则仍会保留
+      // grabbing 阶段的旧尺寸，内容会在动画全程比本体大一圈并溢出代理。
+      updateDragProxyScaleShell(proxy, options.contentScale)
     },
     onArrived: settle,
   })
@@ -917,7 +963,7 @@ export function landDragProxyWithMotion(
 
   // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
   proxy.style.transition = ''
-  content.style.transition = [
+  const visualTransition = [
     ...(options.landingMode !== 'target'
       ? [
           `left ${duration}ms ${easing}`,
@@ -935,6 +981,15 @@ export function landDragProxyWithMotion(
     `background-image ${duration}ms ${easing}`,
     `opacity ${duration}ms ${easing}`,
   ].join(', ')
+  content.style.transition = visualTransition
+  if (targetShadow != null) {
+    const sourceShadow = content.style.boxShadow || getComputedStyle(content).boxShadow
+    const normalizedSourceShadow = normalizeBoxShadowTransition(sourceShadow, targetShadow)
+    content.style.transition = 'none'
+    content.style.boxShadow = normalizedSourceShadow
+    void content.offsetWidth
+    content.style.transition = visualTransition
+  }
   requestAnimationFrame(() => {
     if (settled) return
     // 列表代理在抓取阶段是紧凑宽度；回到本体行时让内容层先平滑恢复
@@ -955,7 +1010,14 @@ export function landDragProxyWithMotion(
         delete content.dataset.runtimeCompact
       }
     }
-    if (targetShadow != null) content.style.boxShadow = targetShadow
+    // 抓取态和 landing 态可能在同一个 rAF 内交接（静止鼠标松手尤其容易发生）。
+    // 先提交抓取态的阴影与 transition，再写入目标阴影，否则浏览器会把两次写入
+    // 合并成一次样式计算，文件卡看起来就像阴影瞬间消失。旧版 landing clone
+    // 在交接前也通过强制布局读取保留了这一帧。
+    if (targetShadow != null) {
+      void content.offsetWidth
+      content.style.boxShadow = targetShadow
+    }
     if (targetRadius != null) content.style.borderRadius = targetRadius
     // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
     // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
@@ -1086,7 +1148,11 @@ const pickupHandoffPending = new WeakSet<HTMLElement>()
 export function applyFloatingStyle(
   el: HTMLElement,
   rect: DOMRect,
-  options: { layout?: DragProxyLayoutConfig; keepSourceVisible?: boolean; contentScale?: number | (() => number) } = {},
+  options: {
+    layout?: DragProxyLayoutConfig
+    keepSourceVisible?: boolean
+    contentScale?: number | (() => number)
+  } = {},
 ) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
   // 抓取阶段的视觉交给独立 proxy：挂在 <html> 下，containing block 是 viewport，
@@ -1104,7 +1170,13 @@ export function applyFloatingStyle(
   floatingProxies.set(el, proxy)
   if (!options.keepSourceVisible) el.style.visibility = 'hidden'
   requestAnimationFrame(() => {
-    if (!proxy.isConnected) return
+    // landing 可能在首次抓取帧绘制前就接管代理（静止松手时尤其容易发生）。
+    // 一旦 takeFloatingProxy() 清掉了 handoff 标记，抓取态玻璃样式就不能再
+    // 写回，否则会覆盖 landing 已经提交的阴影/背景，表现为画布文件卡落地
+    // 时阴影瞬间消失或在下一帧又被抓取态覆盖。
+    if (!proxy.isConnected || !pickupHandoffPending.has(proxy)) {
+      return
+    }
     if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
     else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
     proxy.style.transform = `scale(${compact ? 1 : 1.03})`

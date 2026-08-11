@@ -58,6 +58,26 @@ describe('CardMotionController', () => {
     vi.useRealTimers()
   })
 
+  it('位置已到但尺寸仍在收缩时不会提前结束', () => {
+    vi.useFakeTimers()
+    const arrived = vi.fn()
+    const controller = createCardMotionController({
+      onFrame: () => {},
+      onArrived: arrived,
+    })
+    controller.seed({ x: 0, y: 0, scaleX: 1, scaleY: 1 })
+    controller.setTarget({ x: 0, y: 0, scaleX: 0.8, scaleY: 0.8 })
+    controller.start()
+
+    vi.advanceTimersByTime(16)
+    expect(arrived).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(16 * 120)
+    expect(arrived).toHaveBeenCalledOnce()
+    controller.stop()
+    vi.useRealTimers()
+  })
+
   it('interrupt 返回当前帧状态并停止后续 RAF', () => {
     vi.useFakeTimers()
     const onFrame = vi.fn()

@@ -33,6 +33,9 @@ export interface MotionFrame {
 export interface ArriveThreshold {
   position: number
   velocity: number
+  /** 缩放是无量纲值，不能复用像素位置阈值。 */
+  scalePosition?: number
+  scaleVelocity?: number
 }
 
 export interface FollowRotationConfig {
@@ -72,7 +75,12 @@ export interface CardMotionController {
   stop(): void
 }
 
-const DEFAULT_ARRIVE: ArriveThreshold = { position: 0.35, velocity: 5 }
+const DEFAULT_ARRIVE: Required<ArriveThreshold> = {
+  position: 0.35,
+  velocity: 5,
+  scalePosition: 0.001,
+  scaleVelocity: 0.01,
+}
 // 停止移动后更快清掉残余速度，避免卡片保持倾斜太久。
 
 /**
@@ -185,6 +193,10 @@ export function createCardMotionController(options: CardMotionControllerOptions)
       && Math.abs(target.y - state.y) < arrive.position
       && Math.abs(state.vx) < arrive.velocity
       && Math.abs(state.vy) < arrive.velocity
+      && Math.abs((target.scaleX ?? state.scaleX) - state.scaleX) < (arrive.scalePosition ?? DEFAULT_ARRIVE.scalePosition)
+      && Math.abs((target.scaleY ?? state.scaleY) - state.scaleY) < (arrive.scalePosition ?? DEFAULT_ARRIVE.scalePosition)
+      && Math.abs(state.scaleVX) < (arrive.scaleVelocity ?? DEFAULT_ARRIVE.scaleVelocity)
+      && Math.abs(state.scaleVY) < (arrive.scaleVelocity ?? DEFAULT_ARRIVE.scaleVelocity)
     if (arrived) {
       running = false
       raf = null
