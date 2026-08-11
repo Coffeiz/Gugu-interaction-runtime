@@ -200,6 +200,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
       height: rawTargetRect.height,
     }
     const clampTarget = (rect: LandingRect): LandingRect => {
+      // free landing 代表画布上的连续物理落点，允许代理沿惯性轨迹飞出
+      // viewport；viewport clamp 只适用于列表/抽屉等需要留在可视区域内的落地。
+      if (context.landingMode === 'free') return rect
       const bounds = context.landingBounds?.()
       return bounds ? clampLandingRectToBounds(rect, bounds) : rect
     }
@@ -270,7 +273,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
       cameraSource: context.landingMode === 'free' && context.contentScale
         ? context.sourceElement
         : undefined,
-      contentScale: context.landingMode === 'free' ? context.contentScale : undefined,
+      // contentScale 描述的是对象所在画布的视觉缩放，不是 free landing
+      // 专属配置。拖出 viewport 后会回到 default landing，但仍必须沿用
+      // 松手瞬间的画布比例，否则代理会按 100% 尺寸回飞。
+      contentScale: context.contentScale,
       motionState: context.releaseMode === 'normal' ? undefined : context.motionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
