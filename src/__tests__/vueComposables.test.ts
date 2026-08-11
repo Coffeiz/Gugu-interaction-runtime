@@ -159,6 +159,36 @@ describe('Vue Runtime composables', () => {
     expect(runtime.hasNodeConnection(connection)).toBe(false)
   })
 
+  it('端点读取实时 DOMRect，移动、缩放和尺寸变化不会复用旧坐标', async () => {
+    const runtime = new Runtime()
+    let rect = { x: 20, y: 30, width: 100, height: 80 }
+    const child = defineComponent({
+      setup() {
+        const object = useObject({
+          id: 'node:live', type: 'card', surface: 'surface:canvas', abilities: ['link'],
+          node: { ports: [{ id: 'right', side: 'right', position: 0.5, hitRadius: 12 }] },
+        })
+        return () => h('article', { ref: object.elementRef })
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+    const element = runtime.objects.get('node:live')?.element
+    expect(element).toBeInstanceOf(HTMLElement)
+    Object.defineProperty(element, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ ...rect, left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height }),
+    })
+
+    expect(runtime.getNodePorts('node:live')[0]?.point).toEqual({ x: 120, y: 70 })
+    rect = { x: 200, y: 100, width: 160, height: 120 }
+    expect(runtime.getNodePorts('node:live')[0]?.point).toEqual({ x: 360, y: 160 })
+    expect(runtime.hitNodePort({ x: 360, y: 160 }, { objectType: 'card' })?.objectId).toBe('node:live')
+
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
   it('useSurface 保留 viewport 回调，不把回调提前执行成 DOM 节点', async () => {
     const runtime = new Runtime()
     const viewport = document.createElement('div')
