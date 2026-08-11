@@ -60,8 +60,6 @@ export interface VisualLifecycleContext {
   readonly landingBounds?: () => DOMRect | null
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
   readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
-  /** 松手瞬间的实时视觉中心与尺寸；对应旧版 physics drag 的 cloneCenter/dropSize。 */
-  readonly releaseVisual?: { centerX: number; centerY: number; width: number; height: number }
   /** 代理脱离缩放祖先后需要复现的当前视觉缩放。 */
   readonly contentScale?: number | (() => number)
   /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
@@ -272,7 +270,6 @@ export class DefaultVisualAdapter implements VisualAdapter {
         : undefined,
       contentScale: context.landingMode === 'free' ? context.contentScale : undefined,
       motionState: context.releaseMode === 'normal' ? undefined : context.motionState,
-      releaseVisual: context.releaseVisual,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
         friction: DEFAULT_COAST_FRICTION,

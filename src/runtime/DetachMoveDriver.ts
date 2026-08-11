@@ -258,7 +258,6 @@ export function createDetachVisualContext<TContext extends object>(args: {
   visualSnapshot: VisualSnapshot
   targetSnapshot: VisualSnapshot
   motionState?: { x: number; y: number; vx: number; vy: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }
-  releaseVisual?: { centerX: number; centerY: number; width: number; height: number }
 }): TContext & {
   sourceElement: HTMLElement
   sourceRect: DOMRect
@@ -272,7 +271,6 @@ export function createDetachVisualContext<TContext extends object>(args: {
     visualSnapshot: args.visualSnapshot,
     targetSnapshot: args.targetSnapshot,
     motionState: args.motionState,
-    releaseVisual: args.releaseVisual,
   }
 }
 
