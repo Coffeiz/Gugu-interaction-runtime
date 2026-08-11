@@ -449,6 +449,7 @@ export function createDetachMoveFromAdapter(config: {
       const anchorTop = rect.top
       const onDragFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
         if (!floatingProxy.isConnected) return
+        runtime.updateVisualProxy(sessionId!)
         const dx = frame.x - anchorLeft
         const dy = frame.y - anchorTop
         floatingProxy.style.transform = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`

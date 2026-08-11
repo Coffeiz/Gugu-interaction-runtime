@@ -207,6 +207,7 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `element` | 对象真实 DOM 元素 |
 |  | `abilities` | 能力列表，包含 `move` 才允许拖动 |
 |  | `selected` | 当前是否参与多选；抓取已选对象时 Runtime 自动创建 Group Session |
+|  | `contentScale` | 对象脱离画布缩放祖先后代理需要复现的视觉比例；可传数字或返回当前比例的函数 |
 | `runtime.getObjectsInRect(surfaceId, rect)` | `rect` | 查询与矩形相交的已注册对象 ID，用于框选 |
 | `runtime.surfaces.register(options)` | `id` | Surface 唯一标识 |
 |  | `type` | Surface 类型 |
@@ -523,6 +524,26 @@ runtime.registerObjectType('file-item', {
 的列位置，那些属于业务组件自身的布局。
 
 如果没有配置 `proxyLayout`，代理行为保持原有的本体尺寸抓取方式。
+
+### 画布缩放下的代理内容
+
+画布卡片通常位于带 `transform: scale(...)` 的世界层中。Runtime 创建抓取/landing
+代理后，代理已经脱离这个祖先，业务应在对象注册时传入当前画布比例：
+
+```ts
+runtime.objects.register({
+  id: 'mind:note-1',
+  type: 'mind-canvas-object',
+  surfaceId: 'mind:canvas',
+  element,
+  abilities: ['move'],
+  contentScale: () => camera.scale,
+})
+```
+
+Runtime 会保留未缩放的布局尺寸，并在内部缩放代理内容层，因此文字、内边距、图标
+和卡片外框保持同一比例。传函数时，拖拽期间继续缩放画布也会同步到代理；业务不需要
+自行创建 proxy、复制 `scaleShell` 或在每帧重写内容尺寸。
 
 对象类型也可以选择是否使用 Runtime 内置的 MotionController，并覆盖该对象的运动参数。
 未填写 `enabled` 时默认启用；未填写的参数继续回退到全局配置和 Runtime 默认值：

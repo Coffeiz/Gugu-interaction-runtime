@@ -16,6 +16,7 @@ import {
   isDefaultDraggingGlassEnabled,
   revealElement,
   clampLandingRectToBounds,
+  updateDragProxyContentScale,
   type LandingRect,
   type DragProxyLayoutConfig,
 } from './Visual'
@@ -59,6 +60,8 @@ export interface VisualLifecycleContext {
   readonly landingBounds?: () => DOMRect | null
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
   readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
+  /** 代理脱离缩放祖先后需要复现的当前视觉缩放。 */
+  readonly contentScale?: number | (() => number)
   /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
   readonly proxyLayout?: DragProxyLayoutConfig
   /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
@@ -146,7 +149,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (!context.sourceElement || !context.sourceRect || !context.beforeContent) {
       throw new Error('visual proxy requires source snapshot')
     }
-    const proxy = createDragProxy(context.beforeContent, context.sourceRect, { layout: context.proxyLayout })
+    const proxy = createDragProxy(context.beforeContent, context.sourceRect, {
+      layout: context.proxyLayout,
+      contentScale: context.contentScale,
+    })
     const content = getProxyContent(proxy)
     const compact = Boolean(context.proxyLayout?.compact)
     preserveProxyVisualContext(context.sourceElement, content)
@@ -173,6 +179,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
       }
     })
     return { element: proxy }
+  }
+
+  updateProxy(proxy: VisualProxy, context: VisualLifecycleContext): void {
+    updateDragProxyContentScale(proxy.element, context.contentScale)
   }
 
   land(proxy: VisualProxy, target: HTMLElement | LandingRect, context: VisualLifecycleContext): Promise<{ completed: boolean; reason?: string }> {

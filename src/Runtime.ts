@@ -114,6 +114,11 @@ export interface ObjectTypeRegistration {
   groupVisual?: GroupVisualOption
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
   motion?: { enabled?: boolean; profile?: MotionProfile }
+  /**
+   * 脱离画布缩放祖先后，代理内容需要复现的当前视觉缩放。
+   * 传函数可以让拖拽过程中相机继续缩放时，代理每帧跟随最新比例。
+   */
+  contentScale?: number | (() => number)
   /** landing 的终态表现；default 普通回位，target 到达语义目标后缩小淡出，free 使用连续矩形。 */
   landingMode?: 'default' | 'target' | 'free'
   /** 释放后的落地策略；physical 继承释放速度，normal 不继承释放速度。默认 physical。 */
@@ -624,6 +629,7 @@ setMotionProfiles(this.registry.motionProfile)
         ? registration?.landingMode === 'target' ? 'target' : registration?.landingMode === 'free' ? 'free' : 'default'
         : 'default',
       releaseMode: registration?.releaseMode ?? 'physical',
+      contentScale: object?.contentScale ?? registration?.contentScale,
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
         const surfaceId = this.getDestinationSurfaceId(destination)

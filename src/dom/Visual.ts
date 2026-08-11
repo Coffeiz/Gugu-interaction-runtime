@@ -134,7 +134,7 @@ export function restoreProxyVisualState(
 export function createDragProxy(
   source: HTMLElement,
   rect: DOMRect = source.getBoundingClientRect(),
-  options: { glass?: boolean; layout?: DragProxyLayoutConfig } = {},
+  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number) } = {},
 ): HTMLElement {
   const compact = options.layout?.compact
   const pickupScale = compact ? 1 : 1.03
@@ -146,7 +146,7 @@ export function createDragProxy(
   scaleShell.dataset.runtimeProxyScaleShell = 'true'
   content.dataset.runtimeProxyContent = 'true'
   Object.assign(scaleShell.style, {
-    position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
+    position: 'absolute', left: '0', top: '0',
     transformOrigin: '0 0', pointerEvents: 'none',
   })
   Object.assign(content.style, {
@@ -172,6 +172,7 @@ export function createDragProxy(
   proxy.style.boxSizing = 'border-box'
   proxy.style.width = `${rect.width}px`
   proxy.style.height = `${rect.height}px`
+  updateDragProxyContentScale(proxy, options.contentScale)
   proxy.style.margin = '0'
   // 之前经一个 data-runtime-overlay 中间容器（fixed + z-index 2147483647）来
   // 统一压 z-index，代理自己只需要 z-index:1。现在代理直接挂到 <html> 下，
@@ -225,6 +226,30 @@ export function createDragProxy(
   })
   activeDragProxies.add(proxy)
   return proxy
+}
+
+function resolveContentScale(value: number | (() => number) | undefined): number {
+  const scale = typeof value === 'function' ? value() : value
+  return typeof scale === 'number' && Number.isFinite(scale) && scale > 0 ? scale : 1
+}
+
+/**
+ * 代理挂到 documentElement 后不再继承画布的 transform: scale()。
+ * 用未缩放的布局尺寸承载内容，再在 scaleShell 上恢复当前视觉比例，避免
+ * 外框按屏幕 rect 缩放而文字/内边距仍按 100% 渲染。
+ */
+export function updateDragProxyContentScale(
+  proxy: HTMLElement,
+  value: number | (() => number) | undefined,
+): void {
+  const scale = resolveContentScale(value)
+  const rectWidth = parseFloat(proxy.style.width) || proxy.getBoundingClientRect().width
+  const rectHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
+  const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
+  if (!shell) return
+  shell.style.width = `${rectWidth / scale}px`
+  shell.style.height = `${rectHeight / scale}px`
+  shell.style.transform = `scale(${scale})`
 }
 
 
