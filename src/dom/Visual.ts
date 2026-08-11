@@ -887,6 +887,46 @@ export function landDragProxyWithMotion(
     && cameraOrigin.width > 0
     && cameraOrigin.height > 0,
   )
+  let camGlue: HTMLElement | null = null
+  let cameraTrackRaf: number | null = null
+  if (hasCameraAnchor && cameraOrigin) {
+    // 代理已经挂到 html 下，不能把相机 transform 直接写到代理自身：那会和
+    // free landing 的位移、旋转、scale 共用同一个 transform，缩放过程中会
+    // 改变 landing 的坐标系。单独的全屏 fixed 外壳只承接相机变化，代理自身
+    // 继续运行从释放位置到落点的原始动画。
+    camGlue = document.createElement('div')
+    camGlue.dataset.runtimeCameraGlue = 'true'
+    Object.assign(camGlue.style, {
+      position: 'fixed',
+      left: '0',
+      top: '0',
+      right: '0',
+      bottom: '0',
+      transition: 'none',
+      transform: 'translate3d(0, 0, 0)',
+      transformOrigin: `${cameraOrigin.left}px ${cameraOrigin.top}px`,
+      pointerEvents: 'none',
+      zIndex: proxy.style.zIndex,
+      willChange: 'transform',
+    })
+    const proxyParent = proxy.parentElement
+    proxyParent?.appendChild(camGlue)
+    camGlue.appendChild(proxy)
+
+    const trackCamera = () => {
+      if (!camGlue?.isConnected) return
+      const liveOrigin = options.cameraSource?.getBoundingClientRect()
+      if (liveOrigin && liveOrigin.width > 0 && liveOrigin.height > 0) {
+        const scaleRatio = cameraOrigin.width > 0.01
+          ? liveOrigin.width / cameraOrigin.width
+          : 1
+        camGlue.style.transform =
+          `translate3d(${(liveOrigin.left - cameraOrigin.left).toFixed(2)}px, ${(liveOrigin.top - cameraOrigin.top).toFixed(2)}px, 0) scale(${scaleRatio.toFixed(4)})`
+      }
+      cameraTrackRaf = window.requestAnimationFrame(trackCamera)
+    }
+    cameraTrackRaf = window.requestAnimationFrame(trackCamera)
+  }
   // 宽高过渡不能把左上角当作唯一锚点：源卡与目标卡尺寸不同时，左边会先
   // 对齐而右边在收缩期间继续漂移。让控制器追踪中心点，帧内再换算回左上角，
   // 最终仍精确落到目标 rect。
@@ -918,6 +958,10 @@ export function landDragProxyWithMotion(
     if (dismissTimeoutId !== null) window.clearTimeout(dismissTimeoutId)
     timeoutId = null
     dismissTimeoutId = null
+    if (cameraTrackRaf !== null) window.cancelAnimationFrame(cameraTrackRaf)
+    cameraTrackRaf = null
+    camGlue?.remove()
+    camGlue = null
     resolveFinished()
   }
 
@@ -932,31 +976,17 @@ export function landDragProxyWithMotion(
   }
 
   const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
-      let left = frame.x
-      let top = frame.y
-      let cameraRatio = 1
-      // 画布代理挂在 viewport 下，脱离了 .canvas-world 的 camera transform。
-      // landing 期间如果画布被缩放/平移，不能继续沿用旧屏幕坐标；以最终
-      // 本体作为世界锚点，把当前动画帧相对锚点的距离和尺寸一起变换，等价
-      // 于旧画布的 camera glue。
-      if (hasCameraAnchor && cameraOrigin) {
-        const liveOrigin = options.cameraSource?.getBoundingClientRect()
-        if (liveOrigin && liveOrigin.width > 0 && liveOrigin.height > 0) {
-          const ratio = liveOrigin.width / cameraOrigin.width
-          left = liveOrigin.left + (left - cameraOrigin.left) * ratio
-          top = liveOrigin.top + (top - cameraOrigin.top) * ratio
-          cameraRatio = ratio
-        }
-      }
+      const left = frame.x
+      const top = frame.y
       proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
       if (options.landingMode === 'free' && landingShell) {
-        // 自由画布脱离 camera 祖先后，scaleShell 承担相机比例和 free landing
-        // 的视觉缩放；这里不能改 holder 的布局尺寸，否则世界坐标会被重新解释。
+        // 相机缩放由外层 camGlue 承担；scaleShell 这里只保留 landing 自身
+        // 的尺寸动画和抓取时的初始 contentScale，避免相机比例被重复计算。
         applyLandingScale(
           landingShell,
           startWidth,
           startHeight,
-          cameraRatio * frame.scaleX * initialContentScale,
+          frame.scaleX * initialContentScale,
         )
       } else {
         // 普通列表/看板的列宽差是布局变化，不是整体视觉缩放。尤其是有无滚动条
@@ -1176,7 +1206,11 @@ export function landDragProxyWithMotion(
 export function destroyDragProxy(proxy: HTMLElement) {
   if (!activeDragProxies.has(proxy)) return
   activeDragProxies.delete(proxy)
-  proxy.remove()
+  const cameraGlue = proxy.parentElement?.dataset.runtimeCameraGlue === 'true'
+    ? proxy.parentElement
+    : null
+  cameraGlue?.remove()
+  if (!cameraGlue) proxy.remove()
 }
 
 /** 清理 demo 中上一次异常中断留下的代理节点。 */
@@ -1184,6 +1218,7 @@ export function destroyAllDragProxies(): void {
   for (const proxy of activeDragProxies) proxy.remove()
   activeDragProxies.clear()
   document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]').forEach(proxy => proxy.remove())
+  document.querySelectorAll<HTMLElement>('[data-runtime-camera-glue="true"]').forEach(glue => glue.remove())
 }
 
 export function destroyDragProxiesByCardId(cardId: string): void {

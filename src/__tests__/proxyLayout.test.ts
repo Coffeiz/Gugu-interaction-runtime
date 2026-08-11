@@ -286,7 +286,7 @@ describe('代理布局', () => {
     source.remove()
   })
 
-  it('landing 中相机变化会按新的世界比例更新代理尺寸', async () => {
+  it('landing 中相机变化由 camGlue 更新，不重复写入代理自身 scale', async () => {
     const source = document.createElement('article')
     const camera = document.createElement('div')
     document.body.append(source, camera)
@@ -332,10 +332,14 @@ describe('代理布局', () => {
     cameraWidth = 200
     vi.advanceTimersByTime(16)
 
-    // camera 放大一倍后，holder 尺寸保持稳定，视觉尺寸由 scaleShell 承担。
+    // camera 放大一倍后，代理布局尺寸和自身 landing scale 保持稳定，视觉比例由
+    // 独立的 camGlue 外壳承担，避免和 landing transform 叠加。
     expect(parseFloat(proxy.style.width)).toBeCloseTo(200, 0)
     const scaleShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
-    expect(scaleShell?.style.transform).toBe('scale(2)')
+    expect(scaleShell?.style.transform).toBe('scale(1)')
+    const camGlue = proxy.parentElement
+    expect(camGlue?.dataset.runtimeCameraGlue).toBe('true')
+    expect(camGlue?.style.transform).toContain('scale(2.0000)')
 
     vi.advanceTimersByTime(6000)
     await landing.finished
