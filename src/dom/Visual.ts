@@ -794,11 +794,6 @@ export function landDragProxyWithMotion(
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
   const content = getProxyContent(proxy)
-  logLandingShadowProbe('land-start', proxy, {
-    targetShadow,
-    sourceShadow: getComputedStyle(content).boxShadow,
-    landingMode: options.landingMode ?? 'default',
-  })
   const scaleShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
   const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
   if (contentLayers) {
@@ -1009,7 +1004,6 @@ export function landDragProxyWithMotion(
   }
   requestAnimationFrame(() => {
     if (settled) return
-    logLandingShadowProbe('land-frame-before-target-shadow', proxy, { targetShadow })
     // 列表代理在抓取阶段是紧凑宽度；回到本体行时让内容层先平滑恢复
     // 全宽布局，再由 landing 生命周期揭示本体，避免最后一帧突然切换。
     if (options.landingMode !== 'target') {
@@ -1036,30 +1030,6 @@ export function landDragProxyWithMotion(
       void content.offsetWidth
       content.style.boxShadow = targetShadow
     }
-    logLandingShadowProbe('land-frame-after-target-shadow', proxy, { targetShadow })
-    // 临时确认浏览器是否真的为 canvas 文件卡建立了 box-shadow transition。
-    // 只采样两帧，避免把探针变成持续日志。
-    let shadowSample = 0
-    const sampleLandingShadow = () => {
-      if (!proxy.isConnected || shadowSample >= 2) return
-      shadowSample += 1
-      const animations = typeof content.getAnimations === 'function'
-        ? content.getAnimations().map(animation => ({
-        playState: animation.playState,
-        currentTime: typeof animation.currentTime === 'number' ? animation.currentTime : null,
-        property: animation.effect instanceof KeyframeEffect
-          ? (animation.effect.getKeyframes()[0] as Record<string, unknown>).boxShadow ?? null
-          : null,
-          }))
-        : []
-      logLandingShadowProbe('land-frame-sample', proxy, {
-        sample: shadowSample,
-        computedShadow: getComputedStyle(content).boxShadow,
-        animations,
-      })
-      requestAnimationFrame(sampleLandingShadow)
-    }
-    requestAnimationFrame(sampleLandingShadow)
     if (targetRadius != null) content.style.borderRadius = targetRadius
     // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
     // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
@@ -1194,7 +1164,6 @@ export function applyFloatingStyle(
     layout?: DragProxyLayoutConfig
     keepSourceVisible?: boolean
     contentScale?: number | (() => number)
-    probe?: { objectId: string; sessionId: string }
   } = {},
 ) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
@@ -1206,10 +1175,6 @@ export function applyFloatingStyle(
   // 后再依赖下一帧补样式：快速松手/交接时那一帧可能被 landing 接管，代理就会
   // 直接以普通阴影开始，表现为文件卡和活动卡没有 grabbing 毛玻璃。
   const proxy = createDragProxy(el, rect, { glass: true, layout: options.layout, contentScale: options.contentScale })
-  if (options.probe) {
-    proxy.dataset.runtimeProbeObjectId = options.probe.objectId
-    proxy.dataset.runtimeProbeSessionId = options.probe.sessionId
-  }
   const content = getProxyContent(proxy)
   const compact = Boolean(options.layout?.compact)
   proxy.style.zIndex = '1000'
@@ -1219,21 +1184,17 @@ export function applyFloatingStyle(
   pickupHandoffPending.add(proxy)
   floatingProxies.set(el, proxy)
   if (!options.keepSourceVisible) el.style.visibility = 'hidden'
-  logLandingShadowProbe('pickup-created', proxy)
   requestAnimationFrame(() => {
     // landing 可能在首次抓取帧绘制前就接管代理（静止松手时尤其容易发生）。
     // 一旦 takeFloatingProxy() 清掉了 handoff 标记，抓取态玻璃样式就不能再
     // 写回，否则会覆盖 landing 已经提交的阴影/背景，表现为画布文件卡落地
     // 时阴影瞬间消失或在下一帧又被抓取态覆盖。
     if (!proxy.isConnected || !pickupHandoffPending.has(proxy)) {
-      logLandingShadowProbe('pickup-frame-skipped', proxy)
       return
     }
-    logLandingShadowProbe('pickup-frame-before-glass', proxy)
     if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
     else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
     proxy.style.transform = `scale(${compact ? 1 : 1.03})`
-    logLandingShadowProbe('pickup-frame-after-glass', proxy)
   })
 }
 
@@ -1245,12 +1206,10 @@ export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
 export function takeFloatingProxy(el: HTMLElement): HTMLElement | undefined {
   const proxy = floatingProxies.get(el)
   if (!proxy) return undefined
-  logLandingShadowProbe('handoff-before', proxy)
   pickupHandoffPending.delete(proxy)
   floatingProxies.delete(el)
   floatingSnapshots.delete(el)
   proxy.style.zIndex = '2147483647'
-  logLandingShadowProbe('handoff-after', proxy)
   return proxy
 }
 
@@ -1310,25 +1269,6 @@ export function settleFloatingLayout(el: HTMLElement): void {
 }
 const activeDragProxies = new Set<HTMLElement>()
 let defaultDraggingGlassEnabled = false
-
-// 临时定位画布文件卡的 landing 阴影交接问题；验证后删除。
-function logLandingShadowProbe(event: string, proxy: HTMLElement, extra: Record<string, unknown> = {}): void {
-  const content = getProxyContent(proxy)
-  const style = getComputedStyle(content)
-  console.log('[landing-shadow-probe]', JSON.stringify({
-    event,
-    objectId: proxy.dataset.runtimeProbeObjectId ?? null,
-    sessionId: proxy.dataset.runtimeProbeSessionId ?? null,
-    connected: proxy.isConnected,
-    handoffPending: pickupHandoffPending.has(proxy),
-    className: content.className,
-    inlineShadow: content.style.boxShadow,
-    computedShadow: style.boxShadow,
-    inlineTransition: content.style.transition,
-    computedTransition: style.transition,
-    ...extra,
-  }))
-}
 
 export function setDefaultDraggingGlassEnabled(enabled: boolean): void {
   defaultDraggingGlassEnabled = enabled
