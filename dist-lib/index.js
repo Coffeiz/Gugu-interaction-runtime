@@ -1,6 +1,6 @@
-import { c as Q, g as _, a as ee, b as te, l as se, d as re, D, e as N, r as ie, f as ne, h as oe, i as ae, j as ce, k as le, m as ue, n as de, s as U, F as he, o as pe, p as ge, q as fe, t as me, u as ve, v as ye, w as be, x as Ce } from "./MoveAdapter-Cup7Lq34.js";
-import { L as dt, y as ht, z as pt, A as gt, B as ft, C as mt, E as vt, G as yt, H as bt, I as Ct } from "./MoveAdapter-Cup7Lq34.js";
-class V {
+import { c as se, g as W, a as re, b as ie, l as ne, d as oe, D as $, e as X, r as ae, f as ce, h as le, i as ue, j as de, k as he, m as pe, n as ge, s as Y, F as fe, o as me, p as ve, q as ye, t as be, u as Ce, v as Se, w as we, x as je } from "./MoveAdapter-DmKjAVq3.js";
+import { L as ft, y as mt, z as vt, A as yt, B as bt, C as Ct, E as St, G as wt, H as jt, I as Mt } from "./MoveAdapter-DmKjAVq3.js";
+class G {
   constructor() {
     this.listeners = /* @__PURE__ */ new Set();
   }
@@ -18,9 +18,9 @@ class V {
     await Promise.all([...this.listeners].map((t) => Promise.resolve(t(e))));
   }
 }
-class Se {
+class Me {
   constructor() {
-    this.controlled = /* @__PURE__ */ new Map(), this.channelOwners = /* @__PURE__ */ new Map(), this.events = new V();
+    this.controlled = /* @__PURE__ */ new Map(), this.channelOwners = /* @__PURE__ */ new Map(), this.events = new G();
   }
   subscribe(e) {
     return this.events.subscribe(e);
@@ -65,7 +65,7 @@ class Se {
     return ((r = this.channelOwners.get(e)) == null ? void 0 : r.get(t)) === s;
   }
 }
-class we {
+class xe {
   constructor() {
     this.disposers = [], this.disposed = !1;
   }
@@ -122,7 +122,7 @@ class we {
     t.length > 0 && console.error("Cleanup disposal failed", t);
   }
 }
-const je = {
+const Re = {
   prepare: ["active", "interrupt", "cancelled"],
   active: ["release", "landing", "interrupt", "cancelled"],
   release: ["landing", "saving", "interrupt", "cancelled"],
@@ -135,14 +135,14 @@ const je = {
   cancelled: ["disposed"],
   disposed: []
 };
-let Me = 1;
-class Y {
+let Le = 1;
+class J {
   constructor(e, t, s) {
-    this.type = e, this.objectId = t, this.owner = s, this.state = "prepare", this.endReason = "finish", this.cleanup = new we(), this.leases = [], this.id = `session-${Me++}`;
+    this.type = e, this.objectId = t, this.owner = s, this.state = "prepare", this.endReason = "finish", this.cleanup = new xe(), this.leases = [], this.id = `session-${Le++}`;
   }
   transition(e) {
     if (this.state !== e) {
-      if (!je[this.state].includes(e))
+      if (!Re[this.state].includes(e))
         throw new Error(`Invalid session transition: ${this.state} -> ${e}`);
       this.state = e;
     }
@@ -179,7 +179,7 @@ class Y {
     (this.state === "prepare" || this.state === "active" || this.state === "release" || this.state === "landing" || this.state === "saving") && this.transition("interrupt"), this.dispose();
   }
 }
-class H extends Y {
+class q extends J {
   constructor(e, t, s, r = {}) {
     const i = [...new Set(e)];
     if (i.length === 0) throw new Error("GroupDragSession requires at least one object");
@@ -206,9 +206,9 @@ class H extends Y {
     return this.objectIds.map((e) => this.takeObject(e));
   }
 }
-class Re {
+class Ie {
   constructor() {
-    this.items = /* @__PURE__ */ new Map(), this.events = new V(), this.generations = /* @__PURE__ */ new Map();
+    this.items = /* @__PURE__ */ new Map(), this.events = new G(), this.generations = /* @__PURE__ */ new Map();
   }
   register(e) {
     const t = (this.generations.get(e.id) ?? 0) + 1;
@@ -251,9 +251,9 @@ class Re {
     return s ? (Object.entries(t).some(([i, n]) => s[i] !== n) && (Object.assign(s, t), this.events.emit({ type: "object-changed", id: e })), !0) : !1;
   }
 }
-class xe {
+class Oe {
   constructor() {
-    this.items = /* @__PURE__ */ new Map(), this.generations = /* @__PURE__ */ new Map(), this.events = new V();
+    this.items = /* @__PURE__ */ new Map(), this.generations = /* @__PURE__ */ new Map(), this.events = new G();
   }
   register(e) {
     const t = (this.generations.get(e.id) ?? 0) + 1;
@@ -294,9 +294,9 @@ class xe {
     return s ? s.accepts.length === 0 || s.accepts.includes(t) : !1;
   }
 }
-class Le {
+class Te {
   constructor() {
-    this.items = /* @__PURE__ */ new Map(), this.generations = /* @__PURE__ */ new Map(), this.events = new V();
+    this.items = /* @__PURE__ */ new Map(), this.generations = /* @__PURE__ */ new Map(), this.events = new G();
   }
   register(e) {
     const t = (this.generations.get(e.id) ?? 0) + 1;
@@ -335,7 +335,7 @@ class Le {
     return this.events.subscribe(e);
   }
 }
-class Ie {
+class Ae {
   constructor() {
     this.items = /* @__PURE__ */ new Map();
   }
@@ -350,7 +350,7 @@ class Ie {
     return this.items.has(e);
   }
 }
-class Oe {
+class ke {
   constructor() {
     this.phase = "prepare", this.source = null, this.destination = null, this.target = null, this.actionEmitted = !1, this.tokenValue = 0;
   }
@@ -367,10 +367,10 @@ class Oe {
     return e === this.tokenValue && this.phase !== "cancelled" && this.phase !== "disposed";
   }
 }
-function Te(u) {
+function Ee(u) {
   return !!(u && typeof u.then == "function");
 }
-class E {
+class B {
   constructor(e = {}) {
     this.driver = e, this.type = "move", this.sessionDrivers = /* @__PURE__ */ new Map(), this.sessionLifecycles = /* @__PURE__ */ new Map(), this.contexts = /* @__PURE__ */ new Map(), this.landingRegrabs = /* @__PURE__ */ new Map();
   }
@@ -420,7 +420,7 @@ class E {
   getContext(e) {
     let t = this.contexts.get(e);
     return t || (t = {
-      transaction: new Oe(),
+      transaction: new ke(),
       sourceElement: null,
       dragOffset: { x: 0, y: 0 }
     }, this.contexts.set(e, t)), t;
@@ -461,7 +461,7 @@ class E {
     const s = this.getContext(e.session.id);
     s.transaction.setPhase("release");
     const r = this.driverFor(e.session.id), i = (n = r.resolveDestination) == null ? void 0 : n.call(r, e, t);
-    return Te(i) ? i.then((o) => (o && o.accepted && o.destination !== void 0 && (s.destination = o.destination, s.transaction.destination = o.destination), o)) : (i && i.accepted && i.destination !== void 0 && (s.destination = i.destination, s.transaction.destination = i.destination), i);
+    return Ee(i) ? i.then((o) => (o && o.accepted && o.destination !== void 0 && (s.destination = o.destination, s.transaction.destination = o.destination), o)) : (i && i.accepted && i.destination !== void 0 && (s.destination = i.destination, s.transaction.destination = i.destination), i);
   }
   commit(e, t) {
     this.getContext(e.session.id).transaction.setPhase("landing");
@@ -500,7 +500,7 @@ class E {
       return s.revealCommitted = !0, s.transaction.setPhase("handoff"), (i = (r = this.sessionLifecycles.get(e.session.id)) == null ? void 0 : r.reveal) == null ? void 0 : i.call(r, e, t);
   }
 }
-const Ae = [
+const Pe = [
   "fontFamily",
   "fontSize",
   "fontWeight",
@@ -513,17 +513,17 @@ const Ae = [
   "direction",
   "writingMode"
 ];
-function ke(u) {
+function Be(u) {
   const e = getComputedStyle(u);
   return Object.fromEntries(
-    Ae.map((t) => [t, e[t]])
+    Pe.map((t) => [t, e[t]])
   );
 }
-function Ee(u, e) {
+function Ve(u, e) {
   Object.assign(u.style, e);
 }
-function Pe(u, e) {
-  Ee(e, ke(u));
+function Fe(u, e) {
+  Ve(e, Be(u));
 }
 class F {
   constructor(e) {
@@ -565,35 +565,35 @@ class F {
     var n;
     if (!e.sourceElement || !e.sourceRect || !e.beforeContent)
       throw new Error("visual proxy requires source snapshot");
-    const t = Q(e.beforeContent, e.sourceRect, { layout: e.proxyLayout }), s = _(t), r = !!((n = e.proxyLayout) != null && n.compact);
-    Pe(e.sourceElement, s);
+    const t = se(e.beforeContent, e.sourceRect, { layout: e.proxyLayout }), s = W(t), r = !!((n = e.proxyLayout) != null && n.compact);
+    Fe(e.sourceElement, s);
     const i = e.visualSnapshot;
-    return i && (s.style.boxShadow = i.boxShadow, s.style.borderRadius = i.borderRadius, s.style.backgroundColor = i.background, i.backgroundImage && i.backgroundImage !== "none" && (s.style.backgroundImage = i.backgroundImage), s.style.opacity = i.opacity, ee(t).style.transform = `scale(${r ? 1 : 1.03})`), ce() && le(s), s.querySelectorAll("[class]").forEach((o) => {
+    return i && (s.style.boxShadow = i.boxShadow, s.style.borderRadius = i.borderRadius, s.style.backgroundColor = i.background, i.backgroundImage && i.backgroundImage !== "none" && (s.style.backgroundImage = i.backgroundImage), s.style.opacity = i.opacity, re(t).style.transform = `scale(${r ? 1 : 1.03})`), de() && he(s), s.querySelectorAll("[class]").forEach((o) => {
       const c = getComputedStyle(o);
       c.opacity === "0" && c.pointerEvents === "none" && (o.style.opacity = "1");
     }), { element: t };
   }
   land(e, t, s) {
-    var y, w, j, C, I, x, O, S, T, $, z;
+    var v, j, C, L, S, I, T, w, R, z, H;
     const r = e.element;
-    if (!((y = s.targetSnapshot) != null && y.rect) && !t.isConnected)
+    if (!((v = s.targetSnapshot) != null && v.rect) && !t.isConnected)
       return Promise.resolve({ completed: !1, reason: "target-disconnected" });
-    const i = ((w = s.targetSnapshot) == null ? void 0 : w.rect) ?? t.getBoundingClientRect(), n = {
+    const i = ((j = s.targetSnapshot) == null ? void 0 : j.rect) ?? t.getBoundingClientRect(), n = {
       left: i.left ?? i.x,
       top: i.top ?? i.y,
       width: i.width,
       height: i.height
-    }, o = (L) => {
-      var f;
-      const B = (f = s.landingBounds) == null ? void 0 : f.call(s);
-      return B ? ue(L, B) : L;
+    }, o = (O) => {
+      var A;
+      const V = (A = s.landingBounds) == null ? void 0 : A.call(s);
+      return V ? pe(O, V) : O;
     }, c = o(n);
-    s.preserveTarget || te(t, s.sessionId), r.style.transition = "none";
-    const d = s.landingMode === "target", a = _(r).dataset.runtimeCompact === "true", l = s.targetSnapshot, h = !!(l && (l.background && l.background !== "transparent" && l.background !== "rgba(0, 0, 0, 0)" || l.backgroundImage && l.backgroundImage !== "none" || l.boxShadow && l.boxShadow !== "none")), p = d ? !s.disableTargetVisualMorph && h : !!l, g = s.landingMode === "target" ? ((C = (j = s.motion) == null ? void 0 : j.target) == null ? void 0 : C.landing) ?? ((I = s.motion) == null ? void 0 : I.landing) : (x = s.motion) == null ? void 0 : x.landing;
+    s.preserveTarget || ie(t, s.sessionId), r.style.transition = "none";
+    const d = s.landingMode === "target", a = W(r).dataset.runtimeCompact === "true", l = s.targetSnapshot, h = !!(l && (l.background && l.background !== "transparent" && l.background !== "rgba(0, 0, 0, 0)" || l.backgroundImage && l.backgroundImage !== "none" || l.boxShadow && l.boxShadow !== "none")), p = d ? !s.disableTargetVisualMorph && h : !!l, g = s.landingMode === "target" ? ((L = (C = s.motion) == null ? void 0 : C.target) == null ? void 0 : L.landing) ?? ((S = s.motion) == null ? void 0 : S.landing) : (I = s.motion) == null ? void 0 : I.landing;
     d || (r.style.width = `${c.width}px`, r.style.height = `${c.height}px`);
-    const m = s.motionEnabled === !1 ? se : re, { finished: b, retarget: v } = m(r, c, {
-      duration: (g == null ? void 0 : g.duration) ?? N.landing.duration,
-      easing: (g == null ? void 0 : g.easing) ?? N.landing.easing,
+    const f = s.motionEnabled === !1 ? ne : oe, { finished: b, retarget: y } = f(r, c, {
+      duration: (g == null ? void 0 : g.duration) ?? X.landing.duration,
+      easing: (g == null ? void 0 : g.easing) ?? X.landing.easing,
       // 面包屑是透明文本节点，只提供位置和消失时机，不能把它的透明表面
       // 样式覆盖到代理卡片；有可见表面的文件夹卡仍完整执行视觉 morph。
       targetShadow: p ? l == null ? void 0 : l.boxShadow : void 0,
@@ -610,46 +610,46 @@ class F {
       // 只有真正有背景/阴影且不是 compact 列表的目标才复用结构级 content morph。
       targetContent: h && !a ? t : void 0,
       landingMode: s.landingMode,
-      targetMotion: d ? (S = (O = s.motion) == null ? void 0 : O.target) == null ? void 0 : S.motion : void 0,
-      dismiss: d ? ($ = (T = s.motion) == null ? void 0 : T.target) == null ? void 0 : $.dismiss : void 0,
+      targetMotion: d ? (w = (T = s.motion) == null ? void 0 : T.target) == null ? void 0 : w.motion : void 0,
+      dismiss: d ? (z = (R = s.motion) == null ? void 0 : R.target) == null ? void 0 : z.dismiss : void 0,
       readTarget: () => o(t.getBoundingClientRect()),
       motionState: s.motionState,
       coast: {
-        duration: D.coastSeconds,
-        friction: de,
-        maxDistance: D.maxCoast,
-        minVelocity: D.minVelocity
+        duration: $.coastSeconds,
+        friction: ge,
+        maxDistance: $.maxCoast,
+        minVelocity: $.minVelocity
       },
-      releaseDamping: D.dampingRatio
+      releaseDamping: $.dampingRatio
     });
     if (this.runtime) {
-      const L = (z = s.targetSnapshot) == null ? void 0 : z.rect, B = () => {
-        const f = t.getBoundingClientRect();
-        return f.width > 0 && f.height > 0 ? o(f) : L && L.width > 0 && L.height > 0 ? o({
-          left: L.x,
-          top: L.y,
-          width: L.width,
-          height: L.height
-        }) : o(f);
+      const O = (H = s.targetSnapshot) == null ? void 0 : H.rect, V = () => {
+        const A = t.getBoundingClientRect();
+        return A.width > 0 && A.height > 0 ? o(A) : O && O.width > 0 && O.height > 0 ? o({
+          left: O.x,
+          top: O.y,
+          width: O.width,
+          height: O.height
+        }) : o(A);
       };
       this.runtime.trackLandingTarget(s.sessionId, t, () => {
-        v(B());
+        y(V());
       });
     }
     return b.then(() => ({ completed: !0 }));
   }
   reveal(e, t, s) {
-    t.style.transition = "", ie(t, s.sessionId);
+    t.style.transition = "", ae(t, s.sessionId);
   }
   dispose(e, t) {
     var r;
     const s = e.element;
-    (r = e.dispose) == null || r.call(e), ne(s);
+    (r = e.dispose) == null || r.call(e), ce(s);
   }
   /** 创建 detach 拖拽 move，从 Runtime 注册表自动获取 surface 信息 */
   createMove(e) {
     const t = this.runtime;
-    return !t || !t.objects.hasAbility(e.objectId, "move") ? {} : (e.event.preventDefault(), (e.mode === "clone" ? oe : ae)({
+    return !t || !t.objects.hasAbility(e.objectId, "move") ? {} : (e.event.preventDefault(), (e.mode === "clone" ? le : ue)({
       runtime: t,
       objectId: e.objectId,
       element: e.element,
@@ -659,7 +659,7 @@ class F {
     }));
   }
 }
-class Be {
+class Ge {
   constructor() {
     this.adapters = /* @__PURE__ */ new Map();
   }
@@ -673,10 +673,10 @@ class Be {
     this.adapters.delete(e);
   }
 }
-function q(u, e) {
+function _(u, e) {
   return e.x >= u.left && e.x <= u.right && e.y >= u.top && e.y <= u.bottom;
 }
-function Fe(u, e, t, s) {
+function De(u, e, t, s) {
   const r = u.get(s), i = () => e.snapshot().filter((n) => {
     var o;
     return (o = n.element) == null ? void 0 : o.isConnected;
@@ -687,19 +687,19 @@ function Fe(u, e, t, s) {
       const o = t.snapshot().filter((a) => {
         var l;
         return (l = a.element) == null ? void 0 : l.isConnected;
-      }).filter((a) => a.accepts.length === 0 || a.accepts.includes((r == null ? void 0 : r.type) ?? "")).filter((a) => q(a.element.getBoundingClientRect(), n)).sort((a, l) => (l.priority ?? 0) - (a.priority ?? 0)).map((a) => e.get(a.surfaceId)).find((a) => !!(a && e.accepts(a.id, (r == null ? void 0 : r.type) ?? "")));
+      }).filter((a) => a.accepts.length === 0 || a.accepts.includes((r == null ? void 0 : r.type) ?? "")).filter((a) => _(a.element.getBoundingClientRect(), n)).sort((a, l) => (l.priority ?? 0) - (a.priority ?? 0)).map((a) => e.get(a.surfaceId)).find((a) => !!(a && e.accepts(a.id, (r == null ? void 0 : r.type) ?? "")));
       return o || (((d = i().map((a) => ({
         surface: a,
         rect: a.element.getBoundingClientRect()
-      })).filter(({ rect: a }) => q(a, n)).sort((a, l) => a.rect.width * a.rect.height - l.rect.width * l.rect.height)[0]) == null ? void 0 : d.surface) ?? null);
+      })).filter(({ rect: a }) => _(a, n)).sort((a, l) => a.rect.width * a.rect.height - l.rect.width * l.rect.height)[0]) == null ? void 0 : d.surface) ?? null);
     },
     findTarget(n, o, c) {
       var l;
       const d = (l = u.get(s)) == null ? void 0 : l.type, a = t.snapshot().filter((h) => h.surfaceId === n.id && h.id !== `object-target:${c}`).filter((h) => h.accepts.length === 0 || h.accepts.includes(d ?? "")).filter((h) => {
         var p;
         return (p = h.element) == null ? void 0 : p.isConnected;
-      }).sort((h, p) => (p.priority ?? 0) - (h.priority ?? 0)).find((h) => q(h.element.getBoundingClientRect(), o));
-      return a != null && a.element ? a.element : [...u.values()].filter((h) => h.id !== c && h.surfaceId === n.id).map((h) => h.element).filter((h) => !!(h != null && h.isConnected)).find((h) => q(h.getBoundingClientRect(), o)) ?? null;
+      }).sort((h, p) => (p.priority ?? 0) - (h.priority ?? 0)).find((h) => _(h.element.getBoundingClientRect(), o));
+      return a != null && a.element ? a.element : [...u.values()].filter((h) => h.id !== c && h.surfaceId === n.id).map((h) => h.element).filter((h) => !!(h != null && h.isConnected)).find((h) => _(h.getBoundingClientRect(), o)) ?? null;
     },
     findIndex(n, o, c) {
       const d = [...u.values()].filter((a) => a.id !== c && a.surfaceId === n.id).map((a) => a.element).filter((a) => !!(a != null && a.isConnected)).map((a) => ({ element: a, rect: a.getBoundingClientRect() })).sort((a, l) => a.rect.top - l.rect.top || a.rect.left - l.rect.left);
@@ -711,9 +711,9 @@ function Fe(u, e, t, s) {
     }
   };
 }
-class Ve {
+class $e {
   constructor() {
-    this.visuals = new Be(), this.objectTypes = /* @__PURE__ */ new Map(), this.visualStrategies = /* @__PURE__ */ new Map(), this.motionProfile = null, this.motionController = {};
+    this.visuals = new Ge(), this.objectTypes = /* @__PURE__ */ new Map(), this.visualStrategies = /* @__PURE__ */ new Map(), this.motionProfile = null, this.motionController = {};
   }
   registerVisualAdapter(e, t) {
     this.visuals.register(e, t);
@@ -731,12 +731,12 @@ class Ve {
     this.motionController = e;
   }
 }
-class Ge {
+class ze {
   constructor() {
     this.sessions = /* @__PURE__ */ new Map(), this.completionGates = /* @__PURE__ */ new Map();
   }
   create(e, t, s) {
-    const r = new Y(e, t, s);
+    const r = new J(e, t, s);
     return this.sessions.set(r.id, r), r;
   }
   get(e) {
@@ -796,7 +796,7 @@ class Ge {
       return s == null || s(r), r.interrupt(t), this.sessions.delete(e), r;
   }
 }
-class De {
+class He {
   constructor(e) {
     this.sessions = e;
   }
@@ -821,17 +821,17 @@ class De {
     }
   }
 }
-function $e(u) {
+function qe(u) {
   return !!(u && typeof u.then == "function");
 }
-class W {
+class N {
   constructor(e, t, s, r) {
     this.updateCoordinator = e, this.releaseCoordinator = t, this.commitCoordinator = s, this.landingCoordinator = r;
   }
   static fromPorts(e, t, s) {
-    return new W(
-      new ze(e),
-      new He(),
+    return new N(
+      new _e(e),
+      new We(),
       t,
       s
     );
@@ -855,14 +855,14 @@ class W {
     if (i.kind === "cancel")
       return r && s.cancel(r.id, i.reason), Promise.resolve();
     const n = i.session, o = s.getBehavior(n.type);
-    o instanceof E && s.captureLayout(n.id);
+    o instanceof B && s.captureLayout(n.id);
     let c;
     try {
       c = (d = o == null ? void 0 : o.release) == null ? void 0 : d.call(o, s.createContext(n), t);
     } catch (a) {
       return s.cancel(n.id, a instanceof Error ? a.message : "release-failed"), Promise.resolve();
     }
-    return $e(c) ? Promise.resolve(c).then((a) => this.finishRelease(n, o, a, s), (a) => {
+    return qe(c) ? Promise.resolve(c).then((a) => this.finishRelease(n, o, a, s), (a) => {
       s.cancel(n.id, a instanceof Error ? a.message : "release-failed");
     }) : this.finishRelease(n, o, c, s);
   }
@@ -873,7 +873,7 @@ class W {
       r.cancel(e.id, "no-valid-drop");
       return;
     }
-    if (e.state === "release" && e.transition("landing"), !(t instanceof E)) {
+    if (e.state === "release" && e.transition("landing"), !(t instanceof B)) {
       r.end(e);
       return;
     }
@@ -915,7 +915,7 @@ class W {
     };
   }
 }
-class ze {
+class _e {
   constructor(e) {
     this.port = e;
   }
@@ -925,12 +925,12 @@ class ze {
     !s || s.state !== "active" || (i = (r = this.port.getBehavior(s.type)) == null ? void 0 : r.update) == null || i.call(r, this.port.createContext(e), t);
   }
 }
-class He {
+class We {
   prepare(e, t) {
     return e ? t.kind === "pointercancel" || t.kind === "blur" || t.kind === "lostpointercapture" ? { kind: "cancel", reason: t.kind } : e.state === "prepare" ? { kind: "cancel", reason: "interaction-not-ready" } : (e.state === "active" && e.transition("release"), e.state === "release" ? { kind: "continue", session: e } : { kind: "ignore" }) : { kind: "ignore" };
   }
 }
-class qe {
+class Ne {
   constructor(e, t) {
     this.port = e, this.actions = t;
   }
@@ -952,7 +952,7 @@ class qe {
     o && await ((a = (d = n == null ? void 0 : n.surface) == null ? void 0 : d.leave) == null ? void 0 : a.call(d, i, o.fromSurfaceId)), await this.actions.emit(e.objectId, t.getContext(e.id).destination, t.getContext(e.id).transaction), o && await ((h = (l = n == null ? void 0 : n.surface) == null ? void 0 : l.enter) == null ? void 0 : h.call(l, i, o.toSurfaceId)), this.resolveIsAppend(e.objectId, o) ? this.port.playLayout(e.id, !0) : this.port.playLayout(e.id);
   }
 }
-class _e {
+class Ue {
   constructor(e) {
     this.port = e;
   }
@@ -967,7 +967,7 @@ class _e {
     }
   }
 }
-class We {
+class Xe {
   constructor(e) {
     this.port = e;
   }
@@ -1003,7 +1003,7 @@ class We {
     return typeof t.fromSurfaceId == "string" && typeof t.toSurfaceId == "string";
   }
 }
-function Ne(u) {
+function Ye(u) {
   let e = null, t = null, s = !1;
   const r = Math.max(0, u.stableFrameLimit ?? 2), i = Math.max(1, u.idlePollInterval ?? 4);
   let n = 0, o = 0, c = null;
@@ -1033,7 +1033,7 @@ function Ne(u) {
   };
   return t = requestAnimationFrame(l), u.cleanup.track(d), d;
 }
-class Ue {
+class Ze {
   constructor(e) {
     this.port = e;
   }
@@ -1049,10 +1049,10 @@ class Ue {
     return (this.port.getAdapter(e).captureVisualState ?? new F().captureVisualState)(t);
   }
   trackTarget(e, t, s, r = {}) {
-    return Ne({ ...r, cleanup: e, target: t, retarget: s });
+    return Ye({ ...r, cleanup: e, target: t, retarget: s });
   }
 }
-class Xe {
+class Je {
   constructor() {
     this.proxies = /* @__PURE__ */ new Map();
   }
@@ -1067,7 +1067,7 @@ class Xe {
     return this.proxies.delete(e), t;
   }
 }
-class Ye {
+class Ke {
   constructor(e, t) {
     this.port = e, this.proxies = t;
   }
@@ -1105,14 +1105,14 @@ class Ye {
     await ((c = (o = this.getAdapter(r, n)).reveal) == null ? void 0 : c.call(o, i, t, n));
   }
 }
-function Ze(u, e, t = {}) {
+function Qe(u, e, t = {}) {
   const s = t.target ?? window, r = t.captureTarget;
   let i = !1, n = null, o = null;
   const c = (g) => {
     n = g, o === null && (o = s.requestAnimationFrame(() => {
       o = null;
-      const m = n;
-      n = null, !(i || !m) && u.update(e.id, { kind: "pointermove", event: m });
+      const f = n;
+      n = null, !(i || !f) && u.update(e.id, { kind: "pointermove", event: f });
     }));
   }, d = (g) => {
     p(), u.release(e.id, { kind: "pointerup", event: g });
@@ -1128,7 +1128,7 @@ function Ze(u, e, t = {}) {
   }
   return s.addEventListener("pointermove", c), s.addEventListener("pointerup", d), s.addEventListener("pointercancel", a), s.addEventListener("blur", l), r == null || r.addEventListener("lostpointercapture", h), e.cleanup.track(p), p;
 }
-class Je {
+class et {
   constructor(e) {
     this.port = e, this.bindings = /* @__PURE__ */ new WeakMap(), this.disposers = /* @__PURE__ */ new Map();
   }
@@ -1145,10 +1145,10 @@ class Je {
         return;
       }
       i();
-      const l = a.clientX, h = a.clientY, p = (m) => {
-        if (!(m instanceof PointerEvent)) return;
+      const l = a.clientX, h = a.clientY, p = (f) => {
+        if (!(f instanceof PointerEvent)) return;
         const b = Math.max(0, s.dragThreshold ?? 5);
-        Math.hypot(m.clientX - l, m.clientY - h) < b || (i(), m.preventDefault(), this.port.startObjectPointer(e, t, a));
+        Math.hypot(f.clientX - l, f.clientY - h) < b || (i(), f.preventDefault(), this.port.startObjectPointer(e, t, a));
       }, g = () => i();
       r = { down: a, move: p, up: g }, window.addEventListener("pointermove", p), window.addEventListener("pointerup", g), window.addEventListener("pointercancel", g);
     };
@@ -1177,13 +1177,13 @@ class Je {
     s.addEventListener("pointerdown", i), e.cleanup.trackTargetListener(s, "pointerdown", i);
   }
   bindSession(e, t = {}) {
-    return Ze({
+    return Qe({
       update: (s, r) => this.port.update(s, r),
       release: (s, r) => this.port.release(s, r)
     }, e, t);
   }
 }
-class Ke {
+class tt {
   constructor(e) {
     this.handlers = e;
   }
@@ -1203,7 +1203,7 @@ class Ke {
     this.handlers.interrupt(e, t);
   }
 }
-const G = {
+const D = {
   maxModifiers: 2,
   foldDuration: 300,
   modifierFadeDuration: 180,
@@ -1216,42 +1216,45 @@ const G = {
     { x: 13, y: 12, rotate: 8, scale: 0.94 }
   ]
 };
-function Qe(u) {
+function st(u) {
   return {
-    maxModifiers: Math.max(0, (u == null ? void 0 : u.maxModifiers) ?? G.maxModifiers),
-    foldDuration: Math.max(0, (u == null ? void 0 : u.foldDuration) ?? G.foldDuration),
-    modifierFadeDuration: Math.max(0, (u == null ? void 0 : u.modifierFadeDuration) ?? G.modifierFadeDuration),
-    spread: (u == null ? void 0 : u.spread) ?? G.spread,
-    tight: (u == null ? void 0 : u.tight) ?? G.tight
+    maxModifiers: Math.max(0, (u == null ? void 0 : u.maxModifiers) ?? D.maxModifiers),
+    foldDuration: Math.max(0, (u == null ? void 0 : u.foldDuration) ?? D.foldDuration),
+    modifierFadeDuration: Math.max(0, (u == null ? void 0 : u.modifierFadeDuration) ?? D.modifierFadeDuration),
+    spread: (u == null ? void 0 : u.spread) ?? D.spread,
+    tight: (u == null ? void 0 : u.tight) ?? D.tight
   };
 }
-function et(u, e = new F(u)) {
+function rt(u, e) {
+  e && (u.dataset.runtimeProxyContent = "true", u.dataset.runtimeCompact = "true", u.style.boxSizing = "border-box", u.style.left = e.left ?? "50%", u.style.width = e.width, e.gridTemplateColumns && (u.style.gridTemplateColumns = e.gridTemplateColumns));
+}
+function it(u, e = new F(u)) {
   var r, i, n, o;
   const t = /* @__PURE__ */ new WeakMap();
   function s(c, d) {
-    var L, B;
+    var V, A, U;
     const a = d.group;
     if (!a || a.primaryObjectId !== d.objectId || t.has(c.element)) return;
-    const l = _(c.element), h = c.element.querySelector('[data-runtime-proxy-scale-shell="true"]') ?? c.element;
-    if (h.style.overflow = "visible", l.style.zIndex = "2", !(d.sourceRect ?? ((L = d.sourceElement) == null ? void 0 : L.getBoundingClientRect()))) return;
-    const g = Qe(d.groupDrag), m = [], b = [], v = [], y = a.objectIds.map((f) => {
-      var R;
-      return (R = u.objects.get(f)) == null ? void 0 : R.element;
-    }).filter((f) => !!(f != null && f.isConnected));
-    for (const f of y)
-      m.push({
-        element: f,
-        cssText: f.style.cssText,
-        marker: f.dataset.runtimeGroupGhost,
-        opacity: getComputedStyle(f).opacity
-      }), f.dataset.runtimeGroupGhost = "true", f.style.visibility = "visible", f.style.opacity = "0.35", f.style.pointerEvents = "none", f.style.transition = "none";
-    const w = g.spread.map((f, R) => ({ spread: f, tight: g.tight[R] })).filter((f) => !!f.tight), j = a.objectIds.filter((f) => f !== a.primaryObjectId).slice(0, Math.min(g.maxModifiers, w.length));
-    for (const [f, R] of j.entries()) {
-      const A = (B = u.objects.get(R)) == null ? void 0 : B.element;
-      if (!A || !A.isConnected) continue;
-      const M = A.getBoundingClientRect(), k = w[f];
-      if (!k) continue;
-      const P = A.cloneNode(!0);
+    const l = W(c.element), h = c.element.querySelector('[data-runtime-proxy-scale-shell="true"]') ?? c.element;
+    if (h.style.overflow = "visible", l.style.zIndex = "2", !(d.sourceRect ?? ((V = d.sourceElement) == null ? void 0 : V.getBoundingClientRect()))) return;
+    const g = st(d.groupDrag), f = (A = d.proxyLayout) == null ? void 0 : A.compact, b = [], y = [], v = [], j = a.objectIds.map((m) => {
+      var x;
+      return (x = u.objects.get(m)) == null ? void 0 : x.element;
+    }).filter((m) => !!(m != null && m.isConnected));
+    for (const m of j)
+      b.push({
+        element: m,
+        cssText: m.style.cssText,
+        marker: m.dataset.runtimeGroupGhost,
+        opacity: getComputedStyle(m).opacity
+      }), m.dataset.runtimeGroupGhost = "true", m.style.visibility = "visible", m.style.opacity = "0.35", m.style.pointerEvents = "none", m.style.transition = "none";
+    const C = g.spread.map((m, x) => ({ spread: m, tight: g.tight[x] })).filter((m) => !!m.tight), L = a.objectIds.filter((m) => m !== a.primaryObjectId).slice(0, Math.min(g.maxModifiers, C.length));
+    for (const [m, x] of L.entries()) {
+      const k = (U = u.objects.get(x)) == null ? void 0 : U.element;
+      if (!k || !k.isConnected) continue;
+      const M = k.getBoundingClientRect(), E = C[m];
+      if (!E) continue;
+      const P = k.cloneNode(!0);
       Object.assign(P.style, {
         position: "absolute",
         left: "0px",
@@ -1261,46 +1264,46 @@ function et(u, e = new F(u)) {
         margin: "0",
         boxSizing: "border-box",
         pointerEvents: "none",
-        zIndex: String(1 - f),
+        zIndex: String(1 - m),
         opacity: "1",
         willChange: "transform, opacity",
-        backdropFilter: f === 0 ? "blur(6px) saturate(1.15)" : "none",
-        WebkitBackdropFilter: f === 0 ? "blur(6px) saturate(1.15)" : "none",
-        transform: `translate3d(${k.spread.x}px, ${k.spread.y}px, 0) rotateZ(${k.spread.rotate}deg) scale(${k.spread.scale})`,
+        backdropFilter: m === 0 ? "blur(6px) saturate(1.15)" : "none",
+        WebkitBackdropFilter: m === 0 ? "blur(6px) saturate(1.15)" : "none",
+        transform: `${(f == null ? void 0 : f.transform) ?? (f ? "translateX(-50%)" : "")}${f ? " " : ""}translate3d(${E.spread.x}px, ${E.spread.y}px, 0) rotateZ(${E.spread.rotate}deg) scale(${E.spread.scale})`,
         transformOrigin: "center center"
-      }), P.dataset.runtimeGroupModifier = "true", delete P.dataset.runtimeGroupGhost, h.insertBefore(P, l), v.push(P), b.push({ element: P, spread: k.spread, tight: k.tight });
+      }), rt(P, f), P.dataset.runtimeGroupModifier = "true", delete P.dataset.runtimeGroupGhost, h.insertBefore(P, l), v.push(P), y.push({ element: P, spread: E.spread, tight: E.tight });
     }
-    let C = null;
-    const I = performance.now(), x = (f) => {
-      const R = Math.min(1, (f - I) / g.foldDuration), A = 1 - Math.pow(1 - R, 2);
-      for (const M of b) {
-        const k = M.spread.x + (M.tight.x - M.spread.x) * A, P = M.spread.y + (M.tight.y - M.spread.y) * A, J = M.spread.rotate + (M.tight.rotate - M.spread.rotate) * A, K = M.spread.scale + (M.tight.scale - M.spread.scale) * A;
-        M.element.style.transform = `translate3d(${k.toFixed(2)}px, ${P.toFixed(2)}px, 0) rotateZ(${J.toFixed(2)}deg) scale(${K.toFixed(4)})`;
+    let S = null;
+    const I = performance.now(), T = (m) => {
+      const x = Math.min(1, (m - I) / g.foldDuration), k = 1 - Math.pow(1 - x, 2);
+      for (const M of y) {
+        const E = M.spread.x + (M.tight.x - M.spread.x) * k, P = M.spread.y + (M.tight.y - M.spread.y) * k, Q = M.spread.rotate + (M.tight.rotate - M.spread.rotate) * k, ee = M.spread.scale + (M.tight.scale - M.spread.scale) * k, te = f ? f.transform ?? "translateX(-50%)" : "";
+        M.element.style.transform = `${te} translate3d(${E.toFixed(2)}px, ${P.toFixed(2)}px, 0) rotateZ(${Q.toFixed(2)}deg) scale(${ee.toFixed(4)})`;
       }
-      R < 1 ? C = requestAnimationFrame(x) : C = null;
+      x < 1 ? S = requestAnimationFrame(T) : S = null;
     };
-    b.length && (C = requestAnimationFrame(x));
-    let O = !1, S = null;
-    const T = () => {
-      if (!O) {
-        O = !0, C !== null && (cancelAnimationFrame(C), C = null);
-        for (const f of v)
-          f.style.transition = `opacity ${g.modifierFadeDuration}ms ease`, f.style.opacity = "0";
-        S = window.setTimeout(() => {
-          for (const f of v) f.remove();
-          S = null;
+    y.length && (S = requestAnimationFrame(T));
+    let w = !1, R = null;
+    const z = () => {
+      if (!w) {
+        w = !0, S !== null && (cancelAnimationFrame(S), S = null);
+        for (const m of v)
+          m.style.transition = `opacity ${g.modifierFadeDuration}ms ease`, m.style.opacity = "0";
+        R = window.setTimeout(() => {
+          for (const m of v) m.remove();
+          R = null;
         }, g.modifierFadeDuration + 20);
       }
-    }, $ = (f) => {
-      for (const R of m)
-        R.element.isConnected && (R.element.style.transition = `opacity ${f}ms cubic-bezier(.22,1,.36,1)`, R.element.style.opacity = R.opacity);
-    }, z = () => {
-      C !== null && cancelAnimationFrame(C), S !== null && window.clearTimeout(S);
-      for (const f of v) f.remove();
-      for (const f of m)
-        f.element.isConnected && (f.element.style.cssText = f.cssText, f.marker === void 0 ? delete f.element.dataset.runtimeGroupGhost : f.element.dataset.runtimeGroupGhost = f.marker);
+    }, H = (m) => {
+      for (const x of b)
+        x.element.isConnected && (x.element.style.transition = `opacity ${m}ms cubic-bezier(.22,1,.36,1)`, x.element.style.opacity = x.opacity);
+    }, O = () => {
+      S !== null && cancelAnimationFrame(S), R !== null && window.clearTimeout(R);
+      for (const m of v) m.remove();
+      for (const m of b)
+        m.element.isConnected && (m.element.style.cssText = m.cssText, m.marker === void 0 ? delete m.element.dataset.runtimeGroupGhost : m.element.dataset.runtimeGroupGhost = m.marker);
     };
-    t.set(c.element, { modifiers: v, dismissModifiers: T, restoreGhosts: $, cleanup: z });
+    t.set(c.element, { modifiers: v, dismissModifiers: z, restoreGhosts: H, cleanup: O });
   }
   return {
     resolveSource: (r = e.resolveSource) == null ? void 0 : r.bind(e),
@@ -1318,14 +1321,14 @@ function et(u, e = new F(u)) {
       (a = e.updateProxy) == null || a.call(e, c, d), s(c, d);
     },
     land: (c, d, a) => {
-      var h, p, g, m, b;
+      var h, p, g, f, b;
       const l = t.get(c.element);
       if (!a.group || !l) return (h = e.land) == null ? void 0 : h.call(e, c, d, a);
       if (l.dismissModifiers(), a.landingMode !== "target") {
-        const v = ((g = (p = a.motion) == null ? void 0 : p.landing) == null ? void 0 : g.duration) ?? 420;
-        l.restoreGhosts(v);
-        const y = a.targetSnapshot ? { ...a.targetSnapshot, opacity: "0" } : void 0;
-        return (m = e.land) == null ? void 0 : m.call(e, c, d, { ...a, targetSnapshot: y });
+        const y = ((g = (p = a.motion) == null ? void 0 : p.landing) == null ? void 0 : g.duration) ?? 420;
+        l.restoreGhosts(y);
+        const v = a.targetSnapshot ? { ...a.targetSnapshot, opacity: "0" } : void 0;
+        return (f = e.land) == null ? void 0 : f.call(e, c, d, { ...a, targetSnapshot: v });
       }
       return (b = e.land) == null ? void 0 : b.call(e, c, d, a);
     },
@@ -1339,7 +1342,7 @@ function et(u, e = new F(u)) {
     }
   };
 }
-function tt(u, e = {}) {
+function nt(u, e = {}) {
   const t = e.edgeSize ?? 48, s = e.maxSpeed ?? 16;
   let r = null, i = null, n = null, o = !1, c = null, d = 0, a = null, l = null, h = null;
   const p = () => {
@@ -1348,47 +1351,47 @@ function tt(u, e = {}) {
       return;
     }
     c = r.getBoundingClientRect(), d = 0;
-  }, g = (y) => {
-    if (a !== y) {
-      if (l == null || l.disconnect(), a = y, !y || typeof ResizeObserver > "u") {
+  }, g = (v) => {
+    if (a !== v) {
+      if (l == null || l.disconnect(), a = v, !v || typeof ResizeObserver > "u") {
         l = null;
         return;
       }
-      l = new ResizeObserver(p), l.observe(y);
+      l = new ResizeObserver(p), l.observe(v);
     }
-  }, m = (y, w) => {
-    const j = (t - y) / t;
-    return Math.ceil(s * j * (w * 60));
-  }, b = (y) => {
-    var x, O;
+  }, f = (v, j) => {
+    const C = (t - v) / t;
+    return Math.ceil(s * C * (j * 60));
+  }, b = (v) => {
+    var I, T;
     if (o) return;
     n = requestAnimationFrame(b);
-    const w = Math.min(0.05, Math.max(0, (y - (h ?? y)) / 1e3));
-    if (h = y, !r || !i || !r.isConnected) return;
+    const j = Math.min(0.05, Math.max(0, (v - (h ?? v)) / 1e3));
+    if (h = v, !r || !i || !r.isConnected) return;
     (!c || d++ >= 8) && p();
-    const j = c;
-    if (!j || i.x < j.left || i.x > j.right) return;
-    const C = i.y - j.top, I = j.bottom - i.y;
-    if (C < t) {
-      const S = r.scrollTop;
-      r.scrollTop -= m(C, w), r.scrollTop !== S && ((x = e.onScroll) == null || x.call(e, i));
-    } else if (I < t) {
-      const S = r.scrollTop;
-      r.scrollTop += m(I, w), r.scrollTop !== S && ((O = e.onScroll) == null || O.call(e, i));
+    const C = c;
+    if (!C || i.x < C.left || i.x > C.right) return;
+    const L = i.y - C.top, S = C.bottom - i.y;
+    if (L < t) {
+      const w = r.scrollTop;
+      r.scrollTop -= f(L, j), r.scrollTop !== w && ((I = e.onScroll) == null || I.call(e, i));
+    } else if (S < t) {
+      const w = r.scrollTop;
+      r.scrollTop += f(S, j), r.scrollTop !== w && ((T = e.onScroll) == null || T.call(e, i));
     }
-  }, v = () => {
+  }, y = () => {
     o || (o = !0, n !== null && cancelAnimationFrame(n), n = null, l == null || l.disconnect(), l = null, a = null, c = null);
   };
-  return n = requestAnimationFrame(b), u.track(v), {
-    update(y, w) {
-      o || (r !== y && (c = null, d = 0, g(y)), r = y, i = w, c === null && p());
+  return n = requestAnimationFrame(b), u.track(y), {
+    update(v, j) {
+      o || (r !== v && (c = null, d = 0, g(v)), r = v, i = j, c === null && p());
     },
-    stop: v
+    stop: y
   };
 }
-class st {
+class ot {
   constructor() {
-    this.owner = new Se(), this.objects = new Re(), this.surfaces = new xe(), this.targets = new Le(), this.behaviors = new Ie(), this.registry = new Ve(), this.hitResolver = null, this.sessionCoordinator = new Ge(), this.runtimeSession = new De(this.sessionCoordinator), this.events = new V(), this.actions = new V(), this.visualProxyCoordinator = new Xe(), this.groupVisualAdapters = /* @__PURE__ */ new Map(), this.surfaceScrollFrames = /* @__PURE__ */ new WeakMap(), this.defaultVisualAdapter = new F(this), this.moveBehavior = new E(), this.inputCoordinator = new Je({
+    this.owner = new Me(), this.objects = new Ie(), this.surfaces = new Oe(), this.targets = new Te(), this.behaviors = new Ae(), this.registry = new $e(), this.hitResolver = null, this.sessionCoordinator = new ze(), this.runtimeSession = new He(this.sessionCoordinator), this.events = new G(), this.actions = new G(), this.visualProxyCoordinator = new Je(), this.groupVisualAdapters = /* @__PURE__ */ new Map(), this.surfaceScrollFrames = /* @__PURE__ */ new WeakMap(), this.defaultVisualAdapter = new F(this), this.moveBehavior = new B(), this.inputCoordinator = new et({
       objects: this.objects,
       registry: this.registry,
       startObjectPointer: (e, t, s) => this.startObjectPointer(e, t, s),
@@ -1396,18 +1399,18 @@ class st {
       regrab: (e, t) => this.regrab(e, t),
       update: (e, t) => this.update(e, t),
       release: (e, t) => this.release(e, t)
-    }), this.moveActions = new We({
+    }), this.moveActions = new Xe({
       getObjectSurface: (e) => {
         var t;
         return (t = this.objects.get(e)) == null ? void 0 : t.surfaceId;
       },
       getGroup: (e) => {
         const t = this.sessionCoordinator.snapshot().find((s) => s.hasObject(e));
-        if (t instanceof H)
+        if (t instanceof q)
           return { primaryObjectId: t.primaryObjectId, objectIds: t.objectIds };
       },
       emit: (e) => this.actions.emitAsync(e)
-    }), this.moveCommit = new qe({
+    }), this.moveCommit = new Ne({
       createContext: (e) => this.createBehaviorContext(e),
       getLifecycle: (e) => this.moveBehavior.getLifecycle(e),
       playLayout: (e, t) => this.playMoveLayout(e, t),
@@ -1418,27 +1421,27 @@ class st {
         return ((s = (t = this.surfaces.get(e)) == null ? void 0 : t.element) == null ? void 0 : s.querySelector("[data-flip-target]")) !== null;
       },
       getObjectIndex: (e, t) => this.getObjectSurfaceIndex(e, t)
-    }, this.moveActions), this.moveLanding = new _e({
+    }, this.moveActions), this.moveLanding = new Ue({
       createContext: (e) => this.createBehaviorContext(e),
       getSession: (e) => this.sessionCoordinator.get(e),
       cancel: (e, t) => this.cancel(e, t),
       end: (e) => this.endSession(e)
-    }), this.runtimeMove = W.fromPorts({
+    }), this.runtimeMove = N.fromPorts({
       getSession: (e) => this.sessionCoordinator.get(e),
       getBehavior: (e) => this.behaviors.get(e),
       createContext: (e) => this.createBehaviorContext(this.sessionCoordinator.get(e))
-    }, this.moveCommit, this.moveLanding), this.visualState = new Ue({ getAdapter: (e) => this.getObjectVisualAdapter(e) }), this.visualMotion = new Ye({
+    }, this.moveCommit, this.moveLanding), this.visualState = new Ze({ getAdapter: (e) => this.getObjectVisualAdapter(e) }), this.visualMotion = new Ke({
       getSession: (e) => this.sessionCoordinator.get(e),
       getAdapter: (e) => this.getObjectVisualAdapter(e),
       getGroupAdapter: (e) => this.getObjectGroupVisualAdapter(e),
       createContext: (e, t, s) => this.createVisualLifecycleContext(e, t, s)
-    }, this.visualProxyCoordinator), this.dispatcher = new Ke({
+    }, this.visualProxyCoordinator), this.dispatcher = new tt({
       start: (e) => this.startInternal(e),
       update: (e, t) => this.updateInternal(e, t),
       release: (e, t) => this.releaseInternal(e, t),
       cancel: (e, t) => this.cancelInternal(e, t),
       interrupt: (e, t) => this.interruptInternal(e, t)
-    }), this.behaviors.register(this.moveBehavior), U(this.registry.motionProfile), this.objects.subscribe((e) => {
+    }), this.behaviors.register(this.moveBehavior), Y(this.registry.motionProfile), this.objects.subscribe((e) => {
       this.events.emit(e), (e.type === "object-added" || e.type === "object-changed") && (this.syncObjectPointerBinding(e.id), this.syncObjectTarget(e.id)), e.type === "object-removed" && (this.inputCoordinator.remove(e.id), this.targets.unregister(`object-target:${e.id}`));
     }), this.surfaces.subscribe((e) => this.events.emit(e)), this.targets.subscribe((e) => this.events.emit(e)), this.owner.subscribe((e) => this.events.emit({ type: "ownership-changed", id: e }));
   }
@@ -1480,11 +1483,11 @@ class st {
   }
   configureMotion(e) {
     const { profile: t, controller: s, ...r } = e, i = t ?? (Object.keys(r).length ? r : void 0);
-    i && this.registry.setMotionProfile(i), s && (this.registry.setMotionController(s), s.follow && Object.assign(he.position, s.follow), s.rotation && Object.assign(pe, s.rotation), s.release && Object.assign(D, s.release)), U(this.registry.motionProfile);
+    i && this.registry.setMotionProfile(i), s && (this.registry.setMotionController(s), s.follow && Object.assign(fe.position, s.follow), s.rotation && Object.assign(me, s.rotation), s.release && Object.assign($, s.release)), Y(this.registry.motionProfile);
   }
   /** 配置 Runtime 默认代理视觉；业务也可以完全关闭并由 VisualAdapter 自行绘制。 */
   configureVisual(e) {
-    e.dragGlass !== void 0 && ge(e.dragGlass), e.layoutPresence !== void 0 && fe(e.layoutPresence);
+    e.dragGlass !== void 0 && ve(e.dragGlass), e.layoutPresence !== void 0 && ye(e.layoutPresence);
   }
   getMotionProfile() {
     return this.registry.motionProfile;
@@ -1529,8 +1532,8 @@ class st {
     for (const p of o) {
       const g = (h = this.objects.get(p)) == null ? void 0 : h.element;
       if (!g) continue;
-      const m = g.getBoundingClientRect();
-      d.set(p, { x: m.left - c.left, y: m.top - c.top });
+      const f = g.getBoundingClientRect();
+      d.set(p, { x: f.left - c.left, y: f.top - c.top });
     }
     const a = this.startGroupSession(o, t, { offsets: d });
     a.takeObjects();
@@ -1556,17 +1559,17 @@ class st {
       returnRect: i
     }, p = ((g = d.visual) == null ? void 0 : g.createMove) ?? d.createMove ?? (() => this.defaultVisualAdapter.createMove(a));
     if (p) {
-      const m = p(a);
-      return !m.driver && !m.lifecycle || this.orchestrateMoveSession(
-        m.request ?? {
+      const f = p(a);
+      return !f.driver && !f.lifecycle || this.orchestrateMoveSession(
+        f.request ?? {
           type: "move",
           objectId: e,
           input: { kind: "pointerdown", event: s }
         },
         {
-          driver: m.driver,
-          lifecycle: m.lifecycle,
-          pointerInput: m.pointerInput,
+          driver: f.driver,
+          lifecycle: f.lifecycle,
+          pointerInput: f.pointerInput,
           // 默认 detach driver 已由 MotionController 接管跟手；这里再把业务
           // 本体设为 followElement 会在同一 pointermove 写两次 left/top。
           // 跟手节点应由 Runtime visual driver 自行指定，业务 DOM 不参与。
@@ -1592,6 +1595,12 @@ class st {
     const t = this.objects.get(e), s = t ? this.registry.objectTypes.get(t.visual ?? t.type) : void 0;
     return s == null ? void 0 : s.grabAlign;
   }
+  /** 按对象类型读取运动策略；未显式关闭（`motion.enabled !== false`）时默认使用 MotionController。 */
+  getObjectMotionEnabled(e) {
+    var r;
+    const t = this.objects.get(e), s = t ? this.registry.objectTypes.get(t.visual ?? t.type) : void 0;
+    return ((r = s == null ? void 0 : s.motion) == null ? void 0 : r.enabled) !== !1;
+  }
   /** 按对象注册解析抓取代理布局，供 detach 浮动入口与生命周期入口共用。 */
   getObjectProxyLayout(e, t) {
     var o;
@@ -1609,12 +1618,12 @@ class st {
     if (!s) return;
     const n = this.groupVisualAdapters.get(s);
     if (n) return n;
-    const o = et(this, this.getObjectVisualAdapter(e));
+    const o = it(this, this.getObjectVisualAdapter(e));
     return this.groupVisualAdapters.set(s, o), o;
   }
   createVisualLifecycleContext(e, t, s, r) {
-    var v, y, w, j, C, I, x, O;
-    const i = this.sessionCoordinator.get(e), n = i ? this.objects.get(i.objectId) : void 0, o = (n == null ? void 0 : n.element) ?? void 0, c = i ? this.getObjectVisualAdapter(i.objectId) : this.defaultVisualAdapter, d = new F(), a = n ? this.registry.objectTypes.get(n.visual ?? n.type) : void 0, l = (v = a == null ? void 0 : a.motion) == null ? void 0 : v.profile, h = this.registry.motionProfile, p = l || h ? {
+    var y, v, j, C, L, S, I, T;
+    const i = this.sessionCoordinator.get(e), n = i ? this.objects.get(i.objectId) : void 0, o = (n == null ? void 0 : n.element) ?? void 0, c = i ? this.getObjectVisualAdapter(i.objectId) : this.defaultVisualAdapter, d = new F(), a = n ? this.registry.objectTypes.get(n.visual ?? n.type) : void 0, l = (y = a == null ? void 0 : a.motion) == null ? void 0 : y.profile, h = this.registry.motionProfile, p = l || h ? {
       ...h,
       ...l,
       flip: { ...h == null ? void 0 : h.flip, ...l == null ? void 0 : l.flip },
@@ -1623,12 +1632,12 @@ class st {
       target: {
         ...h == null ? void 0 : h.target,
         ...l == null ? void 0 : l.target,
-        motion: { ...(y = h == null ? void 0 : h.target) == null ? void 0 : y.motion, ...(w = l == null ? void 0 : l.target) == null ? void 0 : w.motion },
-        landing: { ...(j = h == null ? void 0 : h.target) == null ? void 0 : j.landing, ...(C = l == null ? void 0 : l.target) == null ? void 0 : C.landing },
-        dismiss: { ...(I = h == null ? void 0 : h.target) == null ? void 0 : I.dismiss, ...(x = l == null ? void 0 : l.target) == null ? void 0 : x.dismiss }
+        motion: { ...(v = h == null ? void 0 : h.target) == null ? void 0 : v.motion, ...(j = l == null ? void 0 : l.target) == null ? void 0 : j.motion },
+        landing: { ...(C = h == null ? void 0 : h.target) == null ? void 0 : C.landing, ...(L = l == null ? void 0 : l.target) == null ? void 0 : L.landing },
+        dismiss: { ...(S = h == null ? void 0 : h.target) == null ? void 0 : S.dismiss, ...(I = l == null ? void 0 : l.target) == null ? void 0 : I.dismiss }
       },
       group: { ...h == null ? void 0 : h.group, ...l == null ? void 0 : l.group }
-    } : void 0, g = typeof t == "object" && t !== null && t.invalidReturn === !0, m = !!(s && o && s === o), b = this.getObjectProxyLayout((i == null ? void 0 : i.objectId) ?? "", o);
+    } : void 0, g = typeof t == "object" && t !== null && t.invalidReturn === !0, f = !!(s && o && s === o), b = this.getObjectProxyLayout((i == null ? void 0 : i.objectId) ?? "", o);
     return {
       objectId: (i == null ? void 0 : i.objectId) ?? "",
       sessionId: e,
@@ -1643,20 +1652,20 @@ class st {
       preserveTarget: (a == null ? void 0 : a.preserveMoveTarget) ?? !1,
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。
-      landingMode: !g && !m && (a == null ? void 0 : a.landingMode) === "target" ? "target" : "default",
+      landingMode: !g && !f && (a == null ? void 0 : a.landingMode) === "target" ? "target" : "default",
       disableTargetVisualMorph: (a == null ? void 0 : a.disableTargetVisualMorph) ?? !1,
       landingBounds: () => {
-        const S = this.getDestinationSurfaceId(t), T = S ? this.resolveMoveSurfaceViewport(S) : null;
-        return T && s && !T.contains(s) ? null : (T == null ? void 0 : T.getBoundingClientRect()) ?? null;
+        const w = this.getDestinationSurfaceId(t), R = w ? this.resolveMoveSurfaceViewport(w) : null;
+        return R && s && !R.contains(s) ? null : (R == null ? void 0 : R.getBoundingClientRect()) ?? null;
       },
       motion: p,
-      motionEnabled: (O = a == null ? void 0 : a.motion) == null ? void 0 : O.enabled,
+      motionEnabled: (T = a == null ? void 0 : a.motion) == null ? void 0 : T.enabled,
       proxyLayout: b,
       groupDrag: a == null ? void 0 : a.groupDrag,
-      group: i instanceof H ? {
+      group: i instanceof q ? {
         primaryObjectId: i.primaryObjectId,
         objectIds: i.objectIds,
-        offsets: new Map(i.objectIds.map((S) => [S, i.offsetFor(S)]).filter((S) => !!S[1]))
+        offsets: new Map(i.objectIds.map((w) => [w, i.offsetFor(w)]).filter((w) => !!w[1]))
       } : void 0
     };
   }
@@ -1702,7 +1711,7 @@ class st {
     const s = this.sessionCoordinator.get(e);
     let r = !1;
     if (s) {
-      const n = this.createVisualLifecycleContext(e), o = this.getObjectVisualAdapter(s.objectId);
+      const n = this.createVisualLifecycleContext(e), o = n.group ? this.getObjectGroupVisualAdapter(s.objectId) ?? this.getObjectVisualAdapter(s.objectId) : this.getObjectVisualAdapter(s.objectId);
       o.dispose && (o.dispose(t, n), r = !0);
     }
     r || (i = t.dispose) == null || i.call(t), this.visualProxyCoordinator.remove(e);
@@ -1730,7 +1739,7 @@ class st {
   }
   /** 默认命中由已注册 Object/Surface 推导；特殊几何才需 setHitResolver()。 */
   createRegisteredHitResolver(e) {
-    return Fe(this.objects, this.surfaces, this.targets, e);
+    return De(this.objects, this.surfaces, this.targets, e);
   }
   /** 将自定义或注册表默认命中统一归一成业务无关的 Surface id 与插入索引。 */
   resolveMoveHit(e, t, s) {
@@ -1763,7 +1772,7 @@ class st {
   /** 创建绑定当前 Session 的自动滚动控制器；滚动资源随 Session 自动清理。 */
   createAutoScroller(e, t = {}) {
     const s = this.sessionCoordinator.get(e);
-    return s ? tt(s.cleanup, t) : null;
+    return s ? nt(s.cleanup, t) : null;
   }
   /**
    * 将落地目标滚动到注册 Surface 的可视范围内。
@@ -1779,8 +1788,8 @@ class st {
     const r = this.surfaceScrollFrames.get(s);
     r !== void 0 && (cancelAnimationFrame(r), this.surfaceScrollFrames.delete(s));
     const i = () => {
-      const g = s.getBoundingClientRect(), m = t.getBoundingClientRect(), b = m.top < g.top ? s.scrollTop - (g.top - m.top) : m.bottom > g.bottom ? s.scrollTop + (m.bottom - g.bottom) : s.scrollTop, v = Math.max(0, s.scrollHeight - s.clientHeight);
-      return Math.max(0, Math.min(b, v));
+      const g = s.getBoundingClientRect(), f = t.getBoundingClientRect(), b = f.top < g.top ? s.scrollTop - (g.top - f.top) : f.bottom > g.bottom ? s.scrollTop + (f.bottom - g.bottom) : s.scrollTop, y = Math.max(0, s.scrollHeight - s.clientHeight);
+      return Math.max(0, Math.min(b, y));
     };
     let n = i();
     if (Math.abs(n - s.scrollTop) < 0.5) return;
@@ -1790,13 +1799,13 @@ class st {
       return;
     }
     const d = performance.now(), a = (g) => {
-      const m = Math.min(1, (g - d) / c), b = 1 - (1 - m) ** 3;
-      if (n = i(), s.scrollTop = o + (n - o) * b, m >= 1 && (s.scrollTop = n), m >= 1) {
+      const f = Math.min(1, (g - d) / c), b = 1 - (1 - f) ** 3;
+      if (n = i(), s.scrollTop = o + (n - o) * b, f >= 1 && (s.scrollTop = n), f >= 1) {
         this.surfaceScrollFrames.delete(s);
         return;
       }
-      const v = requestAnimationFrame(a);
-      this.surfaceScrollFrames.set(s, v);
+      const y = requestAnimationFrame(a);
+      this.surfaceScrollFrames.set(s, y);
     }, l = requestAnimationFrame(a);
     this.surfaceScrollFrames.set(s, l);
   }
@@ -1842,34 +1851,34 @@ class st {
   /** 由 Runtime 统一捕获当前移动事务的布局快照。 */
   captureMoveLayout(e) {
     const t = this.sessionCoordinator.get(e), s = t ? this.behaviors.get(t.type) : void 0;
-    !(s instanceof E) || !t || s.captureLayout(this.createBehaviorContext(t));
+    !(s instanceof B) || !t || s.captureLayout(this.createBehaviorContext(t));
   }
   /** 由 Runtime 统一播放移动事务的布局 FLIP。 */
   playMoveLayout(e, t = !1) {
     const s = this.sessionCoordinator.get(e), r = s ? this.behaviors.get(s.type) : void 0;
-    !(r instanceof E) || !s || r.playLayout(this.createBehaviorContext(s), t);
+    !(r instanceof B) || !s || r.playLayout(this.createBehaviorContext(s), t);
   }
   /** 捕获 Runtime 管理的 Surface / group / collection 布局快照。 */
   captureLayout(e, t = document, s = !0, r) {
-    return me(e, t, s, r);
+    return be(e, t, s, r);
   }
   /** 按统一时序播放布局快照；列尾追加可选择等待 Vue patch 的下一帧。 */
   scheduleLayout(e, t = !1) {
-    t ? ve(e) : ye(e);
+    t ? Ce(e) : Se(e);
   }
   /** 统一编排组展开/收起、容器 resize、兄弟 FLIP 与可选 presence。 */
   runGroupToggle(e) {
-    return be(e);
+    return we(e);
   }
   /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */
   cancelLayoutAnimations(e) {
-    Ce(e);
+    je(e);
   }
   resolveMoveTarget(e, t, s) {
-    var g, m, b, v;
+    var g, f, b, y;
     const r = this.sessionCoordinator.get(e);
     if (!r) return null;
-    const i = this.createBehaviorContext(r), n = this.objects.get(r.objectId), o = n ? this.registry.objectTypes.get(n.visual ?? n.type) : void 0, c = (g = o == null ? void 0 : o.resolveMoveTarget) == null ? void 0 : g.call(o, { objectId: r.objectId, destination: t }), d = (b = (m = i.visual) == null ? void 0 : m.resolveTarget) == null ? void 0 : b.call(m, r.objectId, t), a = s == null ? void 0 : s(), l = (v = this.objects.get(r.objectId)) == null ? void 0 : v.element, h = this.targets.findForSurface(this.getDestinationSurfaceId(t) ?? "", n == null ? void 0 : n.type), p = c ?? d ?? a ?? (h == null ? void 0 : h.element) ?? l ?? null;
+    const i = this.createBehaviorContext(r), n = this.objects.get(r.objectId), o = n ? this.registry.objectTypes.get(n.visual ?? n.type) : void 0, c = (g = o == null ? void 0 : o.resolveMoveTarget) == null ? void 0 : g.call(o, { objectId: r.objectId, destination: t }), d = (b = (f = i.visual) == null ? void 0 : f.resolveTarget) == null ? void 0 : b.call(f, r.objectId, t), a = s == null ? void 0 : s(), l = (y = this.objects.get(r.objectId)) == null ? void 0 : y.element, h = this.targets.findForSurface(this.getDestinationSurfaceId(t) ?? "", n == null ? void 0 : n.type), p = c ?? d ?? a ?? (h == null ? void 0 : h.element) ?? l ?? null;
     return !p || !p.isConnected ? null : (this.moveBehavior.getContext(e).transaction.target = p, p);
   }
   resolveMoveLandingTarget(e, t, s) {
@@ -1907,12 +1916,12 @@ class st {
     const i = this.moveBehavior.getContext(e);
     i.sourceElement;
     const n = this.getDestinationSurfaceId(t), o = this.objects.get(r.objectId), c = o ? this.registry.objectTypes.get(o.visual ?? o.type) : void 0, d = !!(c != null && c.resolveMoveLandingTarget), a = i.transaction.destination, l = typeof (a == null ? void 0 : a.fromSurfaceId) == "string" ? a.fromSurfaceId : null, h = !!n && n !== l;
-    for (let m = 0; m < s; m += 1) {
+    for (let f = 0; f < s; f += 1) {
       const b = this.sessionCoordinator.get(e);
       if (b !== r || b.state === "disposed" || b.state === "interrupt") return null;
-      const v = this.resolveMoveLandingTarget(e, t), y = v == null ? void 0 : v.getBoundingClientRect(), w = !!(y && y.width > 0 && y.height > 0), j = d || !n || (o == null ? void 0 : o.surfaceId) === n, C = d || (n && v ? ((g = (p = this.surfaces.get(n)) == null ? void 0 : p.element) == null ? void 0 : g.contains(v)) ?? !1 : !1);
-      if (v && w && j && (d || (h ? C : !0))) return v;
-      await new Promise((x) => requestAnimationFrame(() => x()));
+      const y = this.resolveMoveLandingTarget(e, t), v = y == null ? void 0 : y.getBoundingClientRect(), j = !!(v && v.width > 0 && v.height > 0), C = d || !n || (o == null ? void 0 : o.surfaceId) === n, L = d || (n && y ? ((g = (p = this.surfaces.get(n)) == null ? void 0 : p.element) == null ? void 0 : g.contains(y)) ?? !1 : !1);
+      if (y && j && C && (d || (h ? L : !0))) return y;
+      await new Promise((I) => requestAnimationFrame(() => I()));
     }
     return null;
   }
@@ -2022,7 +2031,7 @@ class st {
     const r = this.getMoveContext(s.id);
     if (t.followElement !== void 0 && (r.followElement = t.followElement), t.driver && this.bindMoveSession(s.id, t.driver), t.lifecycle ? this.bindMoveLifecycle(s.id, t.lifecycle) : t.visualStrategy && this.bindMoveLifecycle(s.id, t.visualStrategy), t.sessionId && t.prepareExisting) {
       const n = this.behaviors.get(s.type);
-      if (n instanceof E)
+      if (n instanceof B)
         try {
           n.prepare(this.createBehaviorContext(s), e), s.state === "prepare" && s.transition("active");
         } catch (o) {
@@ -2081,7 +2090,7 @@ class st {
       "cancel",
       (n, o, c) => {
         var d;
-        n instanceof E && n.cancelLayout(o, c), (d = n == null ? void 0 : n.cancel) == null || d.call(n, o, c);
+        n instanceof B && n.cancelLayout(o, c), (d = n == null ? void 0 : n.cancel) == null || d.call(n, o, c);
       },
       (n) => this.failCompletionGates(n.id),
       (n, o) => this.disposeBehavior(n, o)
@@ -2102,7 +2111,7 @@ class st {
       "interrupt",
       (n, o, c) => {
         var d;
-        n instanceof E && n.cancelLayout(o, c), (d = n == null ? void 0 : n.interrupt) == null || d.call(n, o, c);
+        n instanceof B && n.cancelLayout(o, c), (d = n == null ? void 0 : n.interrupt) == null || d.call(n, o, c);
       },
       (n) => this.failCompletionGates(n.id),
       (n, o) => this.disposeBehavior(n, o)
@@ -2112,7 +2121,7 @@ class st {
     return this.sessionCoordinator.create(e, t, this.owner);
   }
   startGroupSession(e, t, s = {}) {
-    const r = new H(e, t, this.owner, s);
+    const r = new q(e, t, this.owner, s);
     return this.sessionCoordinator.set(r), r;
   }
   getSession(e) {
@@ -2121,7 +2130,7 @@ class st {
   /** 返回多对象会话的公开元数据，供视觉层决定源节点占位策略。 */
   getGroup(e) {
     const t = this.sessionCoordinator.get(e);
-    if (t instanceof H)
+    if (t instanceof q)
       return { primaryObjectId: t.primaryObjectId, objectIds: t.objectIds };
   }
   takeSurface(e, t) {
@@ -2166,7 +2175,7 @@ class st {
   disposeBehavior(e, t) {
     var s, r, i, n;
     try {
-      e instanceof E && ((i = (r = (s = e.getLifecycle(t.session.id)) == null ? void 0 : s.surface) == null ? void 0 : r.dispose) == null || i.call(r, t)), (n = e == null ? void 0 : e.dispose) == null || n.call(e, t);
+      e instanceof B && ((i = (r = (s = e.getLifecycle(t.session.id)) == null ? void 0 : s.surface) == null ? void 0 : r.dispose) == null || i.call(r, t)), (n = e == null ? void 0 : e.dispose) == null || n.call(e, t);
     } catch (o) {
       console.error("Behavior dispose failed", o);
     }
@@ -2184,8 +2193,8 @@ class st {
     };
   }
 }
-const it = new st();
-function Z(u) {
+const ct = new ot();
+function K(u) {
   const e = /* @__PURE__ */ new Map(), t = /* @__PURE__ */ new Map(), s = /* @__PURE__ */ new Map(), r = /* @__PURE__ */ new Map();
   return {
     bindObject(i, n) {
@@ -2237,23 +2246,23 @@ function Z(u) {
     }
   };
 }
-function nt(u) {
-  return Z(u);
+function lt(u) {
+  return K(u);
 }
-function ot(u) {
-  return Z(u);
+function ut(u) {
+  return K(u);
 }
-function X(u, e) {
+function Z(u, e) {
   const t = u.getBoundingClientRect();
   return e.x >= t.left && e.x <= t.right && e.y >= t.top && e.y <= t.bottom;
 }
-function at(u) {
+function dt(u) {
   return {
     findSurface(e) {
-      return Array.from(document.querySelectorAll(u.surfaceSelector)).find((t) => X(t, e)) ?? null;
+      return Array.from(document.querySelectorAll(u.surfaceSelector)).find((t) => Z(t, e)) ?? null;
     },
     findTarget(e, t, s) {
-      return Array.from(e.querySelectorAll(u.targetSelector)).filter((r) => r.dataset.card !== s).find((r) => X(r, t)) ?? null;
+      return Array.from(e.querySelectorAll(u.targetSelector)).filter((r) => r.dataset.card !== s).find((r) => Z(r, t)) ?? null;
     },
     findIndex(e, t, s) {
       const r = Array.from(e.querySelectorAll(u.targetSelector)).filter((i) => i.dataset.card !== s);
@@ -2265,7 +2274,7 @@ function at(u) {
     }
   };
 }
-function ct(u, e, t, s) {
+function ht(u, e, t, s) {
   const r = u.findSurface({ x: e, y: t });
   if (!r) return null;
   const i = r.dataset.column;
@@ -2274,57 +2283,57 @@ function ct(u, e, t, s) {
   return { columnId: i, index: n };
 }
 export {
-  G as DEFAULT_GROUP_DRAG_CONFIG,
-  D as DEFAULT_RELEASE_PROFILE,
+  D as DEFAULT_GROUP_DRAG_CONFIG,
+  $ as DEFAULT_RELEASE_PROFILE,
   F as DefaultVisualAdapter,
-  he as FOLLOW_PROFILE,
-  pe as FOLLOW_ROTATION,
-  H as GroupDragSession,
-  dt as LANDING_PROFILE,
-  We as MoveActionCoordinator,
-  E as MoveBehavior,
-  qe as MoveCommitCoordinator,
-  _e as MoveLandingCoordinator,
-  He as MoveReleaseCoordinator,
-  Oe as MoveTransaction,
-  ze as MoveUpdateCoordinator,
-  Re as ObjectStore,
-  st as Runtime,
-  Ke as RuntimeDispatcher,
-  Je as RuntimeInputCoordinator,
-  W as RuntimeMoveCoordinator,
-  Ve as RuntimeRegistry,
-  De as RuntimeSessionCoordinator,
-  Y as Session,
-  Ge as SessionCoordinator,
-  xe as SurfaceStore,
-  Le as TargetStore,
-  Be as VisualAdapters,
-  Ye as VisualMotionCoordinator,
-  Xe as VisualProxyCoordinator,
-  Ue as VisualStateCoordinator,
-  ht as acquireSourceVisualLease,
-  Ze as bindPointerSessionInput,
-  Ce as cancelLayoutAnimations,
-  pt as captureCollectionPresence,
-  me as captureLayoutFlip,
-  gt as coastOffset,
-  ft as createCardMotionController,
-  ae as createDetachMoveFromAdapter,
-  at as createDomHitResolver,
-  et as createGroupVisualAdapter,
-  ot as createReactRuntimeAdapter,
-  Fe as createRegisteredHitResolver,
-  nt as createVueRuntimeAdapter,
-  ct as hitWithResolver,
-  mt as integrateSpring,
-  vt as playCollectionPresence,
-  yt as playLayoutFlip,
-  Qe as resolveGroupDragConfig,
-  be as runGroupToggle,
-  it as runtime,
-  fe as setLayoutPresenceEnabled,
-  bt as shapeReleaseVelocity,
-  Ne as trackLandingTarget,
-  Ct as transitionGroupHeight
+  fe as FOLLOW_PROFILE,
+  me as FOLLOW_ROTATION,
+  q as GroupDragSession,
+  ft as LANDING_PROFILE,
+  Xe as MoveActionCoordinator,
+  B as MoveBehavior,
+  Ne as MoveCommitCoordinator,
+  Ue as MoveLandingCoordinator,
+  We as MoveReleaseCoordinator,
+  ke as MoveTransaction,
+  _e as MoveUpdateCoordinator,
+  Ie as ObjectStore,
+  ot as Runtime,
+  tt as RuntimeDispatcher,
+  et as RuntimeInputCoordinator,
+  N as RuntimeMoveCoordinator,
+  $e as RuntimeRegistry,
+  He as RuntimeSessionCoordinator,
+  J as Session,
+  ze as SessionCoordinator,
+  Oe as SurfaceStore,
+  Te as TargetStore,
+  Ge as VisualAdapters,
+  Ke as VisualMotionCoordinator,
+  Je as VisualProxyCoordinator,
+  Ze as VisualStateCoordinator,
+  mt as acquireSourceVisualLease,
+  Qe as bindPointerSessionInput,
+  je as cancelLayoutAnimations,
+  vt as captureCollectionPresence,
+  be as captureLayoutFlip,
+  yt as coastOffset,
+  bt as createCardMotionController,
+  ue as createDetachMoveFromAdapter,
+  dt as createDomHitResolver,
+  it as createGroupVisualAdapter,
+  ut as createReactRuntimeAdapter,
+  De as createRegisteredHitResolver,
+  lt as createVueRuntimeAdapter,
+  ht as hitWithResolver,
+  Ct as integrateSpring,
+  St as playCollectionPresence,
+  wt as playLayoutFlip,
+  st as resolveGroupDragConfig,
+  we as runGroupToggle,
+  ct as runtime,
+  ye as setLayoutPresenceEnabled,
+  jt as shapeReleaseVelocity,
+  Ye as trackLandingTarget,
+  Mt as transitionGroupHeight
 };

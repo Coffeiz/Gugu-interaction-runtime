@@ -1,6 +1,6 @@
 # Interaction Runtime · 分层结构与执行计划
 
-> 当前稳定版本：2.0.0。Runtime 2.0.0 已以 Gugu-web 的真实看板作为回归场景，
+> 当前稳定版本：2.0.1。Runtime 2.0.1 已以 Gugu-web 的真实看板和文件系统接入作为回归场景，
 > 验证“只注册 Object、Surface、Target 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
 > 直接编译本仓库 `src/`，不经 npm 包或构建产物。
 
@@ -83,7 +83,7 @@ pointerup
   → 恢复 Vue Transition，Cleanup 清理
 ```
 
-## 四、目录结构（2.0.0）
+## 四、目录结构（2.0.1）
 
 ```
 src/
@@ -119,7 +119,7 @@ src/
 
 ### 当前稳定基线
 
-Runtime 2.0.0 当前基线为提交 `4fde68e`（`完善抓取代理紧凑布局配置`）。
+Runtime 2.0.1 当前基线为提交 `952ac10`（文件系统接入与拖拽滚动回归完成）。
 Session、MoveBehavior、Action、MotionController、landing/reveal、regrab、FLIP、
 Vue/React DOM 适配器、文件系统 Demo 和 `proxyLayout` API 均已进入稳定实现。
 后续新增能力继续从独立分支开始，并通过 Demo 与浏览器回归验证；Gugu-web 文件页、
@@ -500,7 +500,7 @@ grabbing
 
 首个真实接入目标是看板项目卡。看板已有 clone/detach 两种视觉策略和
 完整的跨列、同列、落地中断回归场景，适合先验证 Runtime 纯 API 是否能收回
-业务侧的事务编排。这也是 2.0.0 的真实业务回归门槛，不再把 Demo 通过视为业务接入通过。
+业务侧的事务编排。这也是 2.0.1 的真实业务回归门槛，不再把 Demo 通过视为业务接入通过。
 目标调用方只有三类代码：
 
 ```text
@@ -565,13 +565,13 @@ grabbing
 - [x] 每个交互只输出一次 Action；任意时刻每张卡最多一个视觉 proxy；结束后无受控样式、
       listener、RAF、lease 或残留 overlay 节点；
 - [x] Gugu-web 项目页不再 import 旧项目拖拽/完成列 FLIP 编排模块；
-- [x] Runtime 单测、真实浏览器集成回归、Gugu-web typecheck/build 全部通过后发布 2.0.0。
+- [x] Runtime 单测、真实浏览器集成回归、Gugu-web typecheck/build 全部通过后发布 2.0.1。
 
 **完成定义（已满足）**：Gugu-web 只保留对象/Surface 注册、对象与容器样式、Action 到 Store/API 的映射，
 不再为普通卡片移动写 adapter 或生命周期闭包。回归记录用例细节（1-1 最后一项）留待后续按需补充，
 不阻塞阶段完成。
 
-### 阶段 2：文件系统 Runtime 接入（Demo → Gugu-web）
+### 阶段 2：文件系统 Runtime 接入（Demo → Gugu-web，已完成）
 
 文件系统采用“先冻结 Demo 契约，再做一条真实业务链路，并将通用问题回补 Runtime”的
 垂直迁移方式。Demo 不是完整文件库，而是验证 Object、Surface、Action、视觉策略和
@@ -622,7 +622,7 @@ Runtime Demo 冻结契约 → Gugu-web 迁移一条链路 → 对照现有行为
 → 回补通用问题 → Demo + Gugu-web 双侧验收 → 进入下一条链路
 ```
 
-#### 2-2：Gugu-web 文件卡迁移（待实施）
+#### 2-2：Gugu-web 文件卡迁移（已完成，2026-08-11）
 
 2-1 Demo 契约验收通过并稳定运行后，复用同一套 Runtime API 接入文件卡视觉策略。
 执行节奏采用“Demo 契约 → Gugu-web 一条真实链路 → 双侧回补”的垂直迁移，
@@ -680,7 +680,7 @@ Core API 直接覆盖 Vue、React 和其他框架；其边界固定如下：
 当前进度：看板和文件 Demo 都直接使用 Core API 注册 Object/Surface/Target，并通过 `runtime.onAction()`
 提交移动；Demo 仅保留 mock 文件树、目录导航、循环拦截与内存 `moveFile()`。集合专用
 绑定层已删除，Vue/React DOM 适配器已补齐，用于同步 DOM ref、清理 Target 和等待框架 patch；
-下一步是用同一契约验证 Gugu-web 文件页。
+Gugu-web 文件库与项目文件面板已用同一契约完成真实接入和回归。
 
 正式接入契约是 `runtime.objects.register()`、`runtime.surfaces.register()`、
 `runtime.targets.register()` 和 `runtime.onAction()`；Vue、React 共享这套 Core API。
@@ -730,11 +730,11 @@ Object/Surface/Target 与 DOM 对齐；文件树、目录导航、权限、optim
 rollback 仍由 Gugu-web 负责：
 
 ```text
-Gugu-web/frontend/src/views/Files/runtime/
-├── fileRuntimeAdapter.ts
-├── fileTargetResolver.ts
-├── fileRuntimeTypes.ts
-└── README.md
+Gugu-web/frontend/src/interaction/runtime/adapters/file/
+└── fileRuntimeAdapter.ts       # ID 与 Surface 纯函数
+
+Gugu-web/frontend/src/composables/files/
+└── useFileRuntimeMove.ts        # Action 到文件业务移动的共享适配
 ```
 
 业务接入层只能使用以下公共能力：
@@ -796,22 +796,21 @@ project-files:19:file:123
 
 ##### 2-2.6：收敛规则
 
-单对象接入和项目文件面板复用验收通过后，Gugu-web 再把稳定的业务接入层从
-`views/Files/runtime/` 收敛到文件页自己的交互模块。Runtime 仓库只有在通用性得到验证
-后才新增 `src/file/`；多对象基础能力则单独进入 `src/group/` 评审。Vue/React DOM
-适配器留在 Runtime 公共层，不复制到文件业务目录。
+单对象接入和项目文件面板复用验收已经通过。Gugu-web 的稳定业务接入层现位于
+`frontend/src/interaction/runtime/adapters/file/` 与 `frontend/src/composables/files/`；
+Runtime 仓库不新增 `src/file/` 文件专属模块，多对象基础能力由通用 Group API 提供。
+Vue/React DOM 适配器继续留在 Runtime 公共层，不复制到文件业务目录。
 
 ##### 2-2.7：阶段验收与扩展顺序
 
-- [ ] detach 拖入普通文件夹时，原目录剩余文件有一次且仅一次 FLIP。
-- [ ] clone 拖入普通文件夹时，代理、本体和兄弟节点不重复控制 `transform`。
-- [ ] 取消、二次抓取、快速连续拖拽不会留下幽灵文件或旧动画。
-- [ ] 每次移动只产生一次 `MoveAction`，Store/API 与页面目录一致。
-- [ ] 面包屑、网格/列表和多级目录不因 Runtime 接管而重置。
+- [x] detach 拖入普通文件夹时，原目录剩余文件有一次且仅一次 FLIP。
+- [x] clone 拖入普通文件夹时，代理、本体和兄弟节点不重复控制 `transform`。
+- [x] 取消、二次抓取、快速连续拖拽不会留下幽灵文件或旧动画。
+- [x] 每次移动只产生一次 `MoveAction`，Store/API 与页面目录一致。
+- [x] 面包屑、网格/列表和多级目录不因 Runtime 接管而重置。
 
-普通文件夹单链路稳定后，再按风险扩展：文件夹拖入文件夹及循环拦截、两种布局的
-兄弟 FLIP、批量选择/多对象 Session、面包屑目标、回收站和跨空间移动。每一项都先
-在 Demo 冻结协议，再迁移一条 Gugu-web 真实链路并回补通用能力。
+以上链路已经扩展到文件夹、面包屑、网格/列表、多选、回收站边界和跨空间业务回滚；
+Runtime 继续保持通用，不新增文件专属模块。后续只做回归和新文件视图的业务接入。
 
 #### 2-3：多组布局与折叠
 

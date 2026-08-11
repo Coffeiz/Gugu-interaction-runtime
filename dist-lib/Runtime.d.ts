@@ -232,6 +232,8 @@ export declare class Runtime {
     getVisualAdapter(type: string): VisualAdapter;
     /** 按对象类型读取抓取对齐配置；未注册的类型返回 undefined，调用方按纯居中兜底。 */
     getObjectGrabAlign(objectId: string): GrabAlignConfig | undefined;
+    /** 按对象类型读取运动策略；未显式关闭（`motion.enabled !== false`）时默认使用 MotionController。 */
+    getObjectMotionEnabled(objectId: string): boolean;
     /** 按对象注册解析抓取代理布局，供 detach 浮动入口与生命周期入口共用。 */
     getObjectProxyLayout(objectId: string, sourceElement?: HTMLElement): DragProxyLayoutConfig | undefined;
     getObjectVisualAdapter(objectId: string): VisualAdapter;

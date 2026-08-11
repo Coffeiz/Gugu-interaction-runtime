@@ -1,5 +1,8 @@
 import { VisualAdapter } from './VisualAdapter';
 import { Runtime } from '../Runtime';
+import { DragProxyLayoutConfig } from './Visual';
+/** 将主代理的 compact 布局契约复用到多选 modifier。 */
+export declare function applyGroupModifierLayout(element: HTMLElement, compact: DragProxyLayoutConfig['compact'] | undefined): void;
 /**
  * Runtime 默认的多对象叠卡视觉。
  *

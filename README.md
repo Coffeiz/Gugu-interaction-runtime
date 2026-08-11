@@ -12,7 +12,7 @@ Vue 的响应式更新循环中分离出来，验证一套独立的 Runtime 是�
 - **视觉连续性设计**：proxy/source 切换、Visual State 和运动交接原则见
   [docs/DESIGN.md](docs/DESIGN.md)。
 
-当前稳定版本：2.0.0。Runtime 已在 Demo 和 Gugu-web 看板回归场景中接入 Session、移动事务、
+当前稳定版本：2.0.1。Runtime 已在 Demo 和 Gugu-web 看板回归场景中接入 Session、移动事务、
 landing/reveal、MotionController、Surface FLIP、regrab、语义目标和可选的 Collection Presence。
 文件系统 Demo 还覆盖了多级目录、面包屑、文件夹目标及网格/列表视图。
 

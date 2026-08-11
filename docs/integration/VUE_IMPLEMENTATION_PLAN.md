@@ -1,6 +1,6 @@
 # Vue 适配层实施计划
 
-> 状态：Phase 6 已完成，后续进入适配层维护与业务接入
+> 状态：Phase 6 已完成，文件系统 Demo 与 Gugu-web 文件业务接入已完成，后续进入适配层维护与业务接入
 >
 > 本文是 Vue 适配层的执行计划。Vue API 的设计基线见
 > [VUE.md](./VUE.md)，框架无关的 Core API 仍以
@@ -54,7 +54,8 @@ const { elementRef } = useObject({
 - 不改变 Demo 的 CSS、卡片尺寸、Teleport 拓扑和视觉样式；
 - 不为 Vue 重新实现拖拽、命中或 landing 语义；
 - 不引入 `v-runtime-object` 等指令语法；
-- 不处理 Group Session、多选拖拽和业务级批量操作；
+- 不在 Vue 适配层重新实现 Group Session、多选拖拽和业务级批量操作；Group Session 已由 Core
+  提供，业务侧只消费标准 `move-group` Action。
 - 不把 Vue 类型或生命周期引入 Core 模块。
 
 ## 目标目录

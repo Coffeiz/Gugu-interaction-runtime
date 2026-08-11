@@ -2,11 +2,12 @@
 
 ## 接入状态
 
-本文描述的是 2.0.0 的稳定接入 API。Gugu-web 项目看板已完成 Runtime 回归，联调直接
-使用 Runtime 源码而非 npm 包；文件、画布和抽屉仍按各自 adapter 接入，尚未承诺零配置。
+本文描述的是 2.0.1 的稳定接入 API。Gugu-web 项目看板、文件库和项目文件面板均已完成
+Runtime 回归，联调直接使用 Runtime 源码而非 npm 包；文件业务仍由 Gugu-web 自己管理，
+Runtime 不持有文件树、权限或 API。
 
 本文只作为框架无关 Core API 的完整说明书。Vue 的简化接入方案单独记录在
-[Vue 接入指南](integration/VUE.md)，目前仍处于设计阶段，不改变本文的 Core 契约。
+[Vue 接入指南](integration/VUE.md)，该指南已完成并作为 Vue 业务接入的推荐入口，不改变本文的 Core 契约。
 
 本文的唯一业务语义契约是 Runtime Core API。Vue、React 或其他框架都可以直接调用同一套
 `runtime.objects`、`runtime.surfaces`、`runtime.targets` 和 `runtime.onAction()`；框架
@@ -20,8 +21,8 @@
 
 ### 文件系统接入约束
 
-文件系统第一版不要求 Runtime 提供文件专属 API。Gugu-web 可以在迁移期间暂存文件 adapter，
-但 adapter 只能使用本文公开的 Core API，不能自行
+文件系统不要求 Runtime 提供文件专属 API。Gugu-web 的文件 adapter 已完成迁移，仍只能使用本文公开的
+Core API，不能自行
 编排 Session、proxy、landing、FLIP 或清理。
 
 文件对象类型可以注册为 `file-item`、`folder-item`，对象 ID 必须包含业务 scope，例如：
@@ -33,10 +34,10 @@ project-files:19:file:123
 
 文件夹卡既是 Object 又是 Target：通过 `runtime.objects.register({ target })` 一次注册，Runtime
 自动同步两个注册表。面包屑没有可拖动身份，使用 `runtime.targets.register()` 单独注册。
-Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽不属于单对象接入契约，
-在通用 Group Session 设计完成前由业务 adapter 保留。
+Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽使用通用 Group Session 和
+`move-group` Action，文件业务侧只负责把对象 ID 列表分流到已有的移动、权限和回滚逻辑。
 
-## 五分钟接入（2.0.0）
+## 五分钟接入（2.0.1）
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
 默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器

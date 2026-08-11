@@ -1,8 +1,8 @@
-# Vue 接入指南（设计基线）
+# Vue 接入指南
 
-> 状态：Vue 适配层已作为 `gugu-interaction-runtime/vue` 正式导出。
+> 状态：Vue 适配层已完成并作为 `gugu-interaction-runtime/vue` 正式导出（2026-08-11）。
 >
-> 本文记录下一版 Vue 适配层的目标形状。Core API 的完整契约仍以
+> 本文记录稳定的 Vue 适配层 API。Core API 的完整契约仍以
 > [../INTEGRATION.md](../INTEGRATION.md) 为准。
 >
 > 分阶段执行计划见 [VUE_IMPLEMENTATION_PLAN.md](./VUE_IMPLEMENTATION_PLAN.md)。
@@ -29,14 +29,15 @@ proxy、landing、reveal、FLIP 或业务 Store。
 
 - `useObject(options)`：返回 `elementRef`，监听 Object 所在 Surface，并在卸载时注销；
 - `useSurface(options)`：返回 `elementRef`，监听 Surface DOM，并在卸载时注销；
-- `useRuntimeTransition(surfaceId)`：把 Runtime ownership 状态提供给 Vue Transition。
+- `useTarget(options)`：返回 `elementRef`，管理语义 Target 的响应式字段和生命周期；
+- `useRuntimeAction(handler)` / `useRuntimeTransition(surfaceId)`：管理 Action 与 ownership 订阅。
 
 新实现应尽量保留这三个 API 的认知形状。旧版 `useObject` 已经包含 generation
 和旧节点解绑保护，新实现必须保留并继续扩展这套保护，而不是重新发明一套更弱的
 注销逻辑。
 
-其中 `useObject`、`useSurface` 和 `useRuntimeTransition` 可以直接以历史实现作为
-兼容基线；`useTarget` 需要等待 Core 的 TargetStore 先补齐生命周期能力后再实现。
+其中 `useObject`、`useSurface`、`useTarget` 和 `useRuntimeTransition` 已完成 generation
+保护、响应式更新和卸载清理；历史实现仅作为兼容行为基线。
 
 ## 目标 API
 
@@ -82,7 +83,7 @@ const { elementRef } = useTarget({
 })
 ```
 
-`useTarget` 的实现前置条件：
+`useTarget` 已满足以下实现条件：
 
 - `TargetStore.register()` 返回 generation；
 - `TargetItem` 能记录当前 generation，或 Store 能提供等价的代次查询；
@@ -128,9 +129,8 @@ Action 订阅由适配层自动在组件卸载时解除。Transition composable 
 provider 注入实例。旧版已经用 Core 返回的 generation 防止旧组件注销新组件，
 新实现必须保留这条语义，并继续覆盖 element 解绑和 Surface/Target 更新场景。
 
-旧版没有 `useTarget`，Target 仍需作为独立资源处理，不能隐式塞入 Object 配置。
-实现顺序固定为：先恢复历史 `useObject/useSurface/useRuntimeTransition` 的可用形状，
-再补 TargetStore 的 generation/update，最后实现 `useTarget`。
+Target 仍作为独立资源处理，不能隐式塞入 Object 配置。文件 Demo 已用该 API 接入面包屑
+和文件夹目标，Gugu-web 文件库与项目文件面板也按同一生命周期约束接入。
 
 ## 列表组件约束
 
@@ -146,9 +146,9 @@ provider 注入实例。旧版已经用 Core 返回的 generation 防止旧组�
 ## 暂不冻结的内容
 
 - 是否提供 `v-runtime-object` / `v-runtime-surface` 指令；
-- 是否通过 `provide/inject` 注入 Runtime；
+- 是否进一步简化 `provide/inject` 的业务封装；
 - 列表行组件的最终拆分粒度；
-- Group Session、多选拖拽和业务级布局 mutation 的 Vue 封装。
+- Group Session、多选拖拽的业务级封装；通用 Group API 本身已经稳定，不再属于 Vue 适配层阻塞项。
 
 这些内容等 Gugu-web 接入侧的视觉和拖拽效果稳定后再定稿。
 
@@ -170,10 +170,13 @@ import { provideRuntime, useObject, useSurface, useTarget } from 'gugu-interacti
 Core 主入口仍保留低层 `createVueRuntimeAdapter()` 兼容入口，用于布局事务和旧接入迁移；
 新 Vue 业务组件优先使用本入口的 composable，不直接依赖 `src/` 路径。
 
-## 实施顺序
+## 实施结果
 
-1. 恢复历史 Vue composable 的 API 形状，但接收 Runtime 实例并保留 generation 安全；
-2. 为 TargetStore 增加 generation、`update()` 和对应 Core 单测；
-3. 实现 `useTarget`，覆盖 DOM 绑定、响应式字段更新和卸载保护；
-4. 将看板、网格文件卡、列表行和面包屑按组件生命周期逐步迁移；
-5. 等 Gugu-web 的视觉、拖拽和 regrab 效果稳定后，再冻结 Vue 指南和正式导出路径。
+- [x] 恢复历史 Vue composable 的 API 形状，并保留 generation 安全；
+- [x] 为 TargetStore 增加 generation、`update()` 和对应 Core 单测；
+- [x] 实现 `useTarget`，覆盖 DOM 绑定、响应式字段更新和卸载保护；
+- [x] 将看板、网格文件卡、列表行和面包屑按组件生命周期迁移；
+- [x] 完成 Demo 与 Gugu-web 的视觉、拖拽和 regrab 回归，冻结当前 Vue API。
+
+后续新增 Vue 业务只应复用 `gugu-interaction-runtime/vue` 的 composable；
+`createVueRuntimeAdapter()` 仅保留给低层布局事务和兼容迁移，不作为新的业务注册协议。
