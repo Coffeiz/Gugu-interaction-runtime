@@ -1,6 +1,6 @@
 # 画布 Runtime 接入方案
 
-> 状态：Stage 1 A-B 已完成，C 的 Object/Surface/Group 接入和抽屉无 Target 目标解析已完成；D 的 Core Node/Port、Vue 声明和连接生命周期已完成，Gugu 侧手势/RelationLayer 预览桥接与最终回归待收口。
+> 状态：Stage 1 A-D 的 Runtime 接入已完成。C 的画布/抽屉 Object、Surface、Group、自由落点和 RelationLayer 临时几何桥接已接通；D 的 Node/Port、Vue 声明和连接生命周期已接通。剩余工作是人工回归与验收记录，不再新增画布拖拽引擎。
 >
 > 本文是画布接入的执行基线，不把实验性 Demo、相机适配和连线 Runtime 混入 Stage 1。
 > Stage 1 先让咕咕画布使用现有 Runtime Core API，完成抽屉、画布卡片、自由落点和两种
@@ -301,10 +301,10 @@ runtime.configureMotion({
       `normal` 配置能力。
 - [x] 将画布内部自由落点接到 `screenToWorld -> 当前屏幕 LandingRect`，不改 camera 实现。
 - [x] 将画布到抽屉的业务提交接到 Runtime Action；抽屉的 Surface 变化、Group 布局捕获和卡片进入路径已接通。
-- [ ] 验证抽屉展开/收起、卡片让位、卡片进入/退出、regrab、快速连续拖拽。
+- [ ] 人工验证抽屉展开/收起、卡片让位、卡片进入/退出、regrab、快速连续拖拽，并记录验收结果。
 - [x] 连接手势的端口命中和连接生命周期接入 Runtime；RelationLayer 仍只负责 SVG 和预览样式。
-- [ ] 补齐 RelationLayer 对 Runtime landing 临时位置的逐帧回归，确认不迁移旧拖拽动画。
-- [ ] 清理画布专属旧拖拽代码和无调用的兼容导出，保留看板/文件仍在使用的公共代码。
+- [x] 接入 Runtime move-visual update/end 事件，让 RelationLayer 在跟手和 landing 阶段读取代理盒；不迁移旧拖拽动画。
+- [x] 清理 MindCanvas 已失效的旧 landing/dragging 回调；共享拖拽引擎继续保留，不能误删。
 
 ### D. Node / Connection Runtime
 
@@ -349,9 +349,9 @@ useObject({
 - [x] 在 Core 中增加 Node/Port 描述和对象类型配置。
 - [x] 增加 Vue 层 Node 声明与 DOM 生命周期适配，不新增独立业务拖拽编排。
 - [x] 实现左右连接点的位置计算和命中检测；位置每次从实时 DOMRect 读取。
-- [x] 实现连接创建、取消和重复连接校验；通过 `connection-*` Action 输出生命周期。
+- [x] 实现连接创建、取消和重复连接校验；通过 `connection-*` Action 输出生命周期，并提供持久连接预注册/移除 API。
 - [x] 提供连接会话的实时端点解析和当前预览状态 Core API；Gugu 手势已接线，RelationLayer 仍只渲染。
-- [ ] 补充卡片移动、FLIP、landing、regrab、尺寸变化和相机变化的端点回归测试。
+- [ ] 补充卡片移动、FLIP、landing、regrab、尺寸变化和相机变化的端点回归测试；当前已覆盖实时 DOMRect 端口计算，仍需浏览器级回归。
 - [x] 对齐咕咕当前连接点样式、连接方向和连接线几何算法；Runtime 只替换命中/生命周期，不替换视觉。
 
 ### E. Stage 1 验收
@@ -361,7 +361,7 @@ useObject({
 - [ ] 切换 normal 后只改变释放策略，不改变抓取、命中、FLIP、regrab 和清理。
 - [ ] 画布移动不再由旧 `usePhysicsDrag` 直接编排；业务只接收 Action 并更新数据。
 - [ ] 不依赖 Runtime Camera，不出现 world/screen 坐标混用。
-- [ ] 通过 Runtime 与 Gugu-web typecheck、单测和人工回归；当前仍需人工走完抽屉连续拖拽、连接重抓和 landing 中关系线回归。
+- [ ] 通过 Runtime 与 Gugu-web typecheck、单测和人工回归；自动化与类型检查已通过，仍需人工走完抽屉连续拖拽、连接重抓和 landing 中关系线回归。
 
 ## 六、Stage 2：相机适配与 Runtime Demo
 

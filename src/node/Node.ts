@@ -26,3 +26,11 @@ export interface NodeConnectionState {
   source: NodePortSnapshot
   currentPoint: { x: number; y: number }
 }
+
+/** 已持久化或由宿主预先加载的连接端点，用于让 Runtime 参与重复连接校验。 */
+export interface NodeConnectionEndpoint {
+  sourceObjectId: string
+  sourcePortId: string
+  targetObjectId: string
+  targetPortId: string
+}

@@ -84,7 +84,7 @@ export type {
   ConnectionDeleteAction,
   ConnectionCancelAction,
 } from './action/Action'
-export type { NodeConfig, NodePortConfig, NodePortSide, NodePortSnapshot, NodeConnectionState } from './node/Node'
+export type { NodeConfig, NodePortConfig, NodePortSide, NodePortSnapshot, NodeConnectionEndpoint, NodeConnectionState } from './node/Node'
 export type { RuntimeInput, StartRequest, SessionHandle } from './core/Interaction'
 export {
   createCardMotionController,

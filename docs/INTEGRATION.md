@@ -80,6 +80,10 @@ const stop = runtime.onAction(action => {
 `connection-cancel`、`connection-delete` Action 通知业务。Runtime 只负责几何和连接生命周期，
 关系数据、SVG 绘制和后端持久化仍属于业务层。
 
+宿主加载已有关系后，可用 `registerNodeConnection()` 预注册端点组合，删除或同步失效关系时
+调用 `unregisterNodeConnection()`；`hasNodeConnection()` 可用于读取当前去重状态。预注册只
+影响 Runtime 的连接校验，不会替业务写入或删除后端关系。
+
 Vue、React 和其他框架都使用同一组 Runtime Core API。Vue 项目如果希望减少 ref、generation
 和卸载样板，优先从 `gugu-interaction-runtime/vue` 导入 composable；低层 DOM adapter
 仍保留给迁移期和布局事务使用。适配器不替代 Core 注册，也不形成第二套拖拽语义。

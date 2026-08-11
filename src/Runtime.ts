@@ -25,7 +25,7 @@ import type { Surface } from './surface/Surface'
 import type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
 import type { PointerSessionInputOptions } from './input/PointerSessionInput'
 import type { Action } from './action/Action'
-import type { NodeConnectionState, NodePortSnapshot } from './node/Node'
+import type { NodeConnectionEndpoint, NodeConnectionState, NodePortSnapshot } from './node/Node'
 import { RuntimeRegistry } from './runtime/RuntimeRegistry'
 import { SessionCoordinator, type SessionCompletionGate } from './runtime/RuntimeSession'
 import { MoveActionCoordinator } from './runtime/RuntimeMove'
@@ -52,6 +52,8 @@ export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
   | { type: 'surface-added' | 'surface-removed' | 'surface-changed'; id: string }
   | { type: 'target-added' | 'target-removed' | 'target-changed'; id: string }
+  | { type: 'move-visual-update'; sessionId: string; objectId: string; phase: 'active' | 'landing'; rect: { x: number; y: number; width: number; height: number } }
+  | { type: 'move-visual-end'; sessionId: string; objectId: string }
   | { type: 'ownership-changed'; id: string }
 
 export type RuntimeLandingTargetOptions = Omit<
@@ -226,6 +228,8 @@ export class Runtime {
   private readonly surfaceScrollFrames = new WeakMap<HTMLElement, number>()
   private activeNodeConnection: NodeConnectionState | null = null
   private readonly nodeConnections = new Set<string>()
+  private readonly moveVisualFrames = new Map<string, number>()
+  private readonly moveVisualPhases = new Map<string, 'active' | 'landing'>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
@@ -1032,6 +1036,39 @@ setMotionProfiles(this.registry.motionProfile)
     return this.activeNodeConnection
   }
 
+  /** 注册宿主已经持久化的连接，避免首次连接时只校验当前 Runtime 会话。 */
+  registerNodeConnection(connection: NodeConnectionEndpoint): string {
+    const connectionId = this.nodeConnectionId(
+      connection.sourceObjectId,
+      connection.sourcePortId,
+      connection.targetObjectId,
+      connection.targetPortId,
+    )
+    this.nodeConnections.add(connectionId)
+    return connectionId
+  }
+
+  unregisterNodeConnection(connection: NodeConnectionEndpoint | string): boolean {
+    const connectionId = typeof connection === 'string'
+      ? connection
+      : this.nodeConnectionId(
+          connection.sourceObjectId,
+          connection.sourcePortId,
+          connection.targetObjectId,
+          connection.targetPortId,
+        )
+    return this.nodeConnections.delete(connectionId)
+  }
+
+  hasNodeConnection(connection: NodeConnectionEndpoint): boolean {
+    return this.nodeConnections.has(this.nodeConnectionId(
+      connection.sourceObjectId,
+      connection.sourcePortId,
+      connection.targetObjectId,
+      connection.targetPortId,
+    ))
+  }
+
   private nodeConnectionId(sourceObjectId: string, sourcePortId: string, targetObjectId: string, targetPortId: string): string {
     return `${sourceObjectId}:${sourcePortId}->${targetObjectId}:${targetPortId}`
   }
@@ -1353,7 +1390,7 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   private startInternal(request: StartRequest): SessionHandle {
-    return this.runtimeMove.start(request, {
+    const handle = this.runtimeMove.start(request, {
       getBehavior: type => this.behaviors.get(type),
       createSession: (type, objectId) => this.startSession(type, objectId),
       getVisualStrategy: objectId => {
@@ -1366,6 +1403,49 @@ setMotionProfiles(this.registry.motionProfile)
       cancel: (sessionId, reason) => this.cancel(sessionId, reason),
       interrupt: (sessionId, reason) => this.interrupt(sessionId, reason),
     })
+    this.startMoveVisualTracking(handle.id, 'active')
+    return handle
+  }
+
+  private startMoveVisualTracking(sessionId: string, phase: 'active' | 'landing'): void {
+    if (typeof requestAnimationFrame !== 'function') return
+    this.moveVisualPhases.set(sessionId, phase)
+    if (this.moveVisualFrames.has(sessionId)) return
+    const tick = () => {
+      const session = this.sessionCoordinator.get(sessionId)
+      if (!session) {
+        this.moveVisualFrames.delete(sessionId)
+        this.moveVisualPhases.delete(sessionId)
+        return
+      }
+      const proxy = this.visualProxyCoordinator.get(sessionId)?.element
+      const element = proxy?.isConnected ? proxy : this.objects.get(session.objectId)?.element
+      const rect = element?.getBoundingClientRect()
+      if (rect && rect.width > 0 && rect.height > 0) {
+        this.events.emit({
+          type: 'move-visual-update',
+          sessionId,
+          objectId: session.objectId,
+          phase: this.moveVisualPhases.get(sessionId) ?? phase,
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        })
+      }
+      this.moveVisualFrames.set(sessionId, requestAnimationFrame(tick))
+    }
+    this.moveVisualFrames.set(sessionId, requestAnimationFrame(tick))
+  }
+
+  private setMoveVisualPhase(sessionId: string, phase: 'active' | 'landing'): void {
+    if (this.moveVisualPhases.has(sessionId)) this.moveVisualPhases.set(sessionId, phase)
+  }
+
+  private stopMoveVisualTracking(session: Session): void {
+    const tracked = this.moveVisualFrames.has(session.id) || this.moveVisualPhases.has(session.id)
+    const frame = this.moveVisualFrames.get(session.id)
+    if (frame !== undefined && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
+    this.moveVisualFrames.delete(session.id)
+    this.moveVisualPhases.delete(session.id)
+    if (tracked) this.events.emit({ type: 'move-visual-end', sessionId: session.id, objectId: session.objectId })
   }
 
   /**
@@ -1447,6 +1527,7 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   private async releaseInternal(sessionId: string, input: RuntimeInput): Promise<void> {
+    this.setMoveVisualPhase(sessionId, 'landing')
     const port: MoveReleasePort = {
       getSession: id => this.sessionCoordinator.get(id),
       getBehavior: type => this.behaviors.get(type),
@@ -1468,6 +1549,7 @@ setMotionProfiles(this.registry.motionProfile)
     if (!session) return
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
+    this.stopMoveVisualTracking(session)
 
     this.runtimeSession.terminate(
         session,
@@ -1493,6 +1575,7 @@ setMotionProfiles(this.registry.motionProfile)
     if (!session) return
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
+    this.stopMoveVisualTracking(session)
 
     this.runtimeSession.terminate(
         session,
@@ -1568,6 +1651,7 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   endSession(session: Session): void {
+    this.stopMoveVisualTracking(session)
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
     this.runtimeSession.finalize(

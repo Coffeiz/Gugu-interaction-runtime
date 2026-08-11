@@ -133,6 +133,9 @@ Runtime 提供 `getNodePorts()`、`hitNodePort()`、`beginNodeConnection()`、
 通过 `connection-create`、`connection-cancel`、`connection-delete` Action 输出，Vue 侧只需
 用 `useRuntimeAction()` 接收并持久化；SVG 线条仍由业务 RelationLayer 绘制。
 
+已有关系可在初始化或数据同步时调用 `registerNodeConnection()`，关系删除时调用
+`unregisterNodeConnection()`，避免只依赖当前连接会话做重复校验。
+
 ## 生命周期要求
 
 每个使用 `useObject` 或 `useSurface` 的资源必须属于自己的 Vue 组件实例。对于父组件

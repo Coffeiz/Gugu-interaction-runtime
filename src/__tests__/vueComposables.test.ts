@@ -146,6 +146,19 @@ describe('Vue Runtime composables', () => {
     mounted.host.remove()
   })
 
+  it('可以预注册持久连接，并在删除后允许重新创建', () => {
+    const runtime = new Runtime()
+    const connection = {
+      sourceObjectId: 'node:left', sourcePortId: 'out',
+      targetObjectId: 'node:right', targetPortId: 'in',
+    }
+
+    const id = runtime.registerNodeConnection(connection)
+    expect(runtime.hasNodeConnection(connection)).toBe(true)
+    expect(runtime.unregisterNodeConnection(id)).toBe(true)
+    expect(runtime.hasNodeConnection(connection)).toBe(false)
+  })
+
   it('useSurface 保留 viewport 回调，不把回调提前执行成 DOM 节点', async () => {
     const runtime = new Runtime()
     const viewport = document.createElement('div')
