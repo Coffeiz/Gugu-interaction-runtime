@@ -302,7 +302,8 @@ runtime.configureMotion({
 - [x] 将画布内部自由落点接到 `screenToWorld -> 当前屏幕 LandingRect`，不改 camera 实现。
 - [x] 将画布到抽屉的业务提交接到 Runtime Action；抽屉的 Surface 变化、Group 布局捕获和卡片进入路径已接通。
 - [ ] 验证抽屉展开/收起、卡片让位、卡片进入/退出、regrab、快速连续拖拽。
-- [ ] 确认 RelationLayer 仍能读取 Runtime 提供的拖动/landing 临时位置；不迁移连接手势。
+- [x] 连接手势的端口命中和连接生命周期接入 Runtime；RelationLayer 仍只负责 SVG 和预览样式。
+- [ ] 补齐 RelationLayer 对 Runtime landing 临时位置的逐帧回归，确认不迁移旧拖拽动画。
 - [ ] 清理画布专属旧拖拽代码和无调用的兼容导出，保留看板/文件仍在使用的公共代码。
 
 ### D. Node / Connection Runtime
@@ -322,7 +323,6 @@ useObject({
   type: 'canvas-card',
   surface: () => 'canvas:main',
   node: {
-    enabled: true,
     ports: [
       { id: 'left', side: 'left', position: 0.5 },
       { id: 'right', side: 'right', position: 0.5 },
@@ -350,18 +350,18 @@ useObject({
 - [x] 增加 Vue 层 Node 声明与 DOM 生命周期适配，不新增独立业务拖拽编排。
 - [x] 实现左右连接点的位置计算和命中检测；位置每次从实时 DOMRect 读取。
 - [x] 实现连接创建、取消和重复连接校验；通过 `connection-*` Action 输出生命周期。
-- [x] 提供连接会话的实时端点解析和当前预览状态 Core API；Gugu RelationLayer 接线仍待收口。
+- [x] 提供连接会话的实时端点解析和当前预览状态 Core API；Gugu 手势已接线，RelationLayer 仍只渲染。
 - [ ] 补充卡片移动、FLIP、landing、regrab、尺寸变化和相机变化的端点回归测试。
-- [ ] 对齐咕咕当前连接点样式、连接方向和连接线几何算法。
+- [x] 对齐咕咕当前连接点样式、连接方向和连接线几何算法；Runtime 只替换命中/生命周期，不替换视觉。
 
 ### E. Stage 1 验收
 
-- [ ] 画布卡片和抽屉卡片均只通过 Object/Surface/Group 注册接入；只有外部语义落点使用 Target。
+- [x] 画布卡片和抽屉卡片均只通过 Object/Surface/Group 注册接入；抽屉 Surface 直接作为落点，只有外部语义落点使用 Target。
 - [ ] 默认 physical 的抓取、释放、旋转、速度和落点观感与咕咕当前画布一致。
 - [ ] 切换 normal 后只改变释放策略，不改变抓取、命中、FLIP、regrab 和清理。
 - [ ] 画布移动不再由旧 `usePhysicsDrag` 直接编排；业务只接收 Action 并更新数据。
 - [ ] 不依赖 Runtime Camera，不出现 world/screen 坐标混用。
-- [ ] 通过 Runtime 与 Gugu-web typecheck、单测和人工回归；记录剩余视觉差异后才进入 Stage 2。
+- [ ] 通过 Runtime 与 Gugu-web typecheck、单测和人工回归；当前仍需人工走完抽屉连续拖拽、连接重抓和 landing 中关系线回归。
 
 ## 六、Stage 2：相机适配与 Runtime Demo
 
