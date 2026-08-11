@@ -2,9 +2,9 @@
 
 > 状态：Stage 1 A-B 已完成，S1-C 已完成基础 Object/Surface 接入，正在收尾关系临时位置与完整回归。
 >
-> 本文是画布接入的执行基线，不把实验性 Demo、相机适配和连线 Runtime 混入第一阶段。
+> 本文是画布接入的执行基线，不把实验性 Demo、相机适配和连线 Runtime 混入 Stage 1。
 > Stage 1 先让咕咕画布使用现有 Runtime Core API，完成抽屉、画布卡片、自由落点和两种
-> 降落模式；Stage 2 再做相机适配与独立 Demo。
+> 降落模式；D 阶段再增加 Node/Connection Runtime；Stage 2 最后做相机适配与独立 Demo。
 
 关联文档：
 
@@ -16,8 +16,8 @@
 
 ### 目标
 
-1. 画布卡片和画布抽屉都通过 `runtime.objects.register()`、
-   `runtime.surfaces.register()` 和必要的 Target 注册接入。
+1. 画布卡片通过 `runtime.objects.register()` 接入，画布和抽屉分别通过
+   `runtime.surfaces.register()` 接入；抽屉内容通过 Runtime Group 接入。
 2. 业务侧只负责注册语义对象、Surface、目标和提交 `Action`；不再在画布入口自行编排
    pointer listener、代理、MotionController、landing 或清理生命周期。
 3. 提供两种释放后的降落模式：
@@ -99,7 +99,34 @@ Note/Entity/Project/File/Drawer Card
 ### 3.1 对象与 Surface
 
 画布和抽屉各自注册为 Surface。卡片只注册一次 Object，并通过 `surfaceId` 表示当前所在
-Surface；可接收拖入的抽屉/语义区域注册 Target，不能把一个临时代理注册成业务 Object。
+Surface；抽屉内容注册为 Group，由 Surface 变化触发展开/收起、容器高度和卡片 FLIP。
+抽屉本身不注册 Target。只有没有 Object 身份的面包屑、吸入按钮等语义落点才注册 Target，
+不能把一个临时代理注册成业务 Object。
+
+Gugu-web 是 Vue 业务，实际接入必须优先使用 `gugu-interaction-runtime/vue` 的 Vue API；
+Vue composable 内部再调用下面的 Core 注册表。业务组件不直接维护 generation、DOM ref
+同步和卸载保护。Group 没有独立的 `useGroup` 或 `runtime.groups.register()`，通过
+`data-layout-group`、`data-layout-surface` 标记由 Runtime 自动捕获。
+
+```ts
+// Vue 业务接入示意
+provideRuntime(runtime)
+
+const drawer = useSurface({
+  id: 'canvas:drawer',
+  type: 'canvas-drawer',
+  accepts: ['canvas-card'],
+})
+
+const card = useObject({
+  id: `canvas:card:${cardId}`,
+  type: 'canvas-card',
+  surface: () => inDrawer.value ? 'canvas:drawer' : 'canvas:main',
+  abilities: ['move'],
+})
+```
+
+Vue composable 的内部 Core 描述等价于：
 
 ```ts
 runtime.registerObjectType('canvas-card', {
@@ -122,6 +149,14 @@ runtime.surfaces.register({
   element: drawerElement,
   accepts: ['canvas-card'],
 })
+
+// Group 不通过独立注册表注册，由 Runtime 从布局标记自动捕获。
+// 抽屉容器负责 Surface 高度，内容分组负责组级 FLIP 和展开/收起。
+// <section data-layout-surface data-surface-type="canvas-drawer">
+//   <section data-layout-group data-drawer-group="canvas:drawer-content">
+//     ...drawer cards...
+//   </section>
+// </section>
 
 runtime.objects.register({
   id: `canvas:card:${card.id}`,
@@ -248,7 +283,7 @@ runtime.configureMotion({
 
 - [x] `free + normal`：有效自由坐标、无效落点回原位、目标没有 DOM。
 - [x] `free + physical`：释放状态继承与 MotionController 路径回归。
-- [x] target landing 回归：folder/drawer 仍使用原有目标动画，不能被 free 分支影响。
+- [x] target landing 回归：既有 folder 等语义目标仍使用原有目标动画，不能被 free 分支影响。
 - [x] 抓取、regrab、取消、pointercancel 后源节点、代理和 ownership 都恢复。
 - [x] 卡片 A landing 未完成时抓取卡片 B，A 能跟随兄弟 FLIP 的新位置 retarget。
 - [x] 抽屉展开/收起期间卡片进入和退出，Surface 高度与卡片 FLIP 不重复执行。
@@ -259,20 +294,69 @@ runtime.configureMotion({
 
 - [x] 在咕咕画布入口注册 `canvas` 与 `drawer` Surface。
 - [x] 为 Note、Entity、Project、File 卡片建立稳定 Object ID 和统一 Object 类型；Drawer 作为语义 Surface 接收项目回退。
-- [ ] 为抽屉语义落点注册 Target；不把 landing proxy 注册成 Object。
+- [ ] 为抽屉内容注册 Group，并接入展开/收起、容器高度和卡片 FLIP；抽屉本身不注册 Target。
 - [x] 将 `.canvas-world` 和抽屉 DOM 接到 Core API，保留现有卡片视觉组件。
 - [x] 首先迁移 Note 卡，并复用同一 Runtime 对象绑定入口。
 - [x] 迁移 Entity、Project、File 卡片，统一使用 `releaseMode: 'physical'`；Runtime 类型保留
       `normal` 配置能力。
 - [x] 将画布内部自由落点接到 `screenToWorld -> 当前屏幕 LandingRect`，不改 camera 实现。
-- [x] 将画布到抽屉的业务提交接到 Runtime Action；抽屉完整 Target 语义和反向卡片进入动画待下一小步收尾。
+- [x] 将画布到抽屉的业务提交接到 Runtime Action；抽屉的 Surface 变化和基础卡片进入路径已接通，Group FLIP 与反向进入动画待下一小步收尾。
 - [ ] 验证抽屉展开/收起、卡片让位、卡片进入/退出、regrab、快速连续拖拽。
 - [ ] 确认 RelationLayer 仍能读取 Runtime 提供的拖动/landing 临时位置；不迁移连接手势。
 - [ ] 清理画布专属旧拖拽代码和无调用的兼容导出，保留看板/文件仍在使用的公共代码。
 
-### D. Stage 1 验收
+### D. Node / Connection Runtime
 
-- [ ] 画布卡片和抽屉卡片均只通过 Object/Surface/Target 注册接入。
+D 阶段在 Stage 1 的卡片、抽屉和 Group 接入稳定后开始。目标是让画布卡片可以声明
+Node 模式，并复用咕咕当前的左右连接点和连接线交互。
+
+#### D.1 Node 模式
+
+- 卡片通过 `useObject({ node })` 声明是否启用 Node 模式；普通卡片不显示连接点。
+- Node 连接点由 Runtime 根据卡片实时尺寸计算，不由业务侧手动维护屏幕坐标。
+- 首版支持左右两侧连接点，连接点位置用 `0 ~ 1` 的边缘比例配置：
+
+```ts
+useObject({
+  id: `canvas:card:${card.id}`,
+  type: 'canvas-card',
+  surface: () => 'canvas:main',
+  node: {
+    enabled: true,
+    ports: [
+      { id: 'left', side: 'left', position: 0.5 },
+      { id: 'right', side: 'right', position: 0.5 },
+    ],
+  },
+})
+```
+
+- 连接点视觉沿用咕咕当前样式；连接点不改变卡片 Object 的布局尺寸和拖拽命中区域。
+- 卡片移动、FLIP、landing、regrab、尺寸变化后，连接点位置必须自动跟随。
+
+#### D.2 Connection 交互
+
+- 点击连接点进入连接创建状态，再点击另一个合法连接点完成连接。
+- Runtime 负责连接点命中、连接方向、取消、重复连接校验和连接生命周期。
+- Runtime 发出 `connection-create`、`connection-delete`、`connection-cancel` Action，业务侧
+  只负责持久化关系数据。
+- 连接端点始终从 Node 的实时 DOMRect 和端口配置计算，不缓存旧屏幕坐标。
+- 首版保留 Gugu-web 的 `RelationLayer` 负责 SVG 绘制；Runtime 提供端点几何、临时预览
+  状态和 Action，稳定后再评估是否收敛 Renderer。
+
+#### D.3 D 阶段 TODO
+
+- [ ] 在 Core 中增加 Node/Port 描述和对象类型配置。
+- [ ] 增加 Vue 层 Node 声明与 DOM 生命周期适配，不新增独立业务拖拽编排。
+- [ ] 实现左右连接点的位置计算、视觉状态和命中检测。
+- [ ] 实现点击连接点创建连接、取消和重复连接校验。
+- [ ] 提供连接端点实时解析和 RelationLayer 所需的预览状态。
+- [ ] 补充卡片移动、FLIP、landing、regrab、尺寸变化和相机变化的端点回归测试。
+- [ ] 对齐咕咕当前连接点样式、连接方向和连接线几何算法。
+
+### E. Stage 1 验收
+
+- [ ] 画布卡片和抽屉卡片均只通过 Object/Surface/Group 注册接入；只有外部语义落点使用 Target。
 - [ ] 默认 physical 的抓取、释放、旋转、速度和落点观感与咕咕当前画布一致。
 - [ ] 切换 normal 后只改变释放策略，不改变抓取、命中、FLIP、regrab 和清理。
 - [ ] 画布移动不再由旧 `usePhysicsDrag` 直接编排；业务只接收 Action 并更新数据。
@@ -296,7 +380,7 @@ Stage 2 只有在 Stage 1 稳定后开始。
 - Demo 只展示 Core API 注册和 Action 接入，不复制 Gugu-web 业务编排；
 - 提供 normal/physical 开关，默认 physical；
 - 复现 pan/zoom、抽屉 FLIP、自由落点、目标吸入、regrab/retarget；
-- 后续再评估 ConnectionRuntime 和 RelationLayer 的通用化。
+- D 阶段完成后，再评估 ConnectionRuntime 和 RelationLayer Renderer 的通用化。
 
 ## 七、验证矩阵与风险
 
@@ -309,7 +393,7 @@ Stage 2 只有在 Stage 1 稳定后开始。
 | target 抽屉吸入 | 必须 | 回归 |
 | pan/zoom 中拖拽 | 只保证业务现有行为不被破坏 | Runtime 正式支持 |
 | landing 中 pan/zoom | 不纳入 | 必须 |
-| 连线 Runtime | 不纳入 | 单独评估 |
+| 连线 Runtime | D 阶段实现 Node/Connection Core，RelationLayer 暂留业务侧 | 回归并适配相机 |
 | 多选 | 不纳入 | 单独评估 |
 
 主要风险：
