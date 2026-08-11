@@ -265,6 +265,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
       targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
       dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,
       readTarget: targetElement ? () => clampTarget(targetElement.getBoundingClientRect()) : undefined,
+      cameraSource: context.landingMode === 'free' && context.contentScale
+        ? context.sourceElement
+        : undefined,
+      contentScale: context.landingMode === 'free' ? context.contentScale : undefined,
       motionState: context.releaseMode === 'normal' ? undefined : context.motionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,

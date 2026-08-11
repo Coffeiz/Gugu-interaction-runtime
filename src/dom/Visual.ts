@@ -245,6 +245,27 @@ export function updateDragProxyContentScale(
   const scale = resolveContentScale(value)
   const rectWidth = parseFloat(proxy.style.width) || proxy.getBoundingClientRect().width
   const rectHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
+  const baseWidth = Number(proxy.dataset.runtimeProxyBaseWidth) || rectWidth / scale
+  const baseHeight = Number(proxy.dataset.runtimeProxyBaseHeight) || rectHeight / scale
+  proxy.dataset.runtimeProxyBaseWidth = String(baseWidth)
+  proxy.dataset.runtimeProxyBaseHeight = String(baseHeight)
+  proxy.style.width = `${(baseWidth * scale).toFixed(2)}px`
+  proxy.style.height = `${(baseHeight * scale).toFixed(2)}px`
+  const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
+  if (!shell) return
+  shell.style.width = `${baseWidth}px`
+  shell.style.height = `${baseHeight}px`
+  shell.style.transform = `scale(${scale})`
+}
+
+/** landing 已经由 MotionController 写入当前外框尺寸时，只同步相机 shell，不重置外框。 */
+export function updateDragProxyScaleShell(
+  proxy: HTMLElement,
+  value: number | (() => number) | undefined,
+): void {
+  const scale = resolveContentScale(value)
+  const rectWidth = parseFloat(proxy.style.width) || proxy.getBoundingClientRect().width
+  const rectHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
   const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
   if (!shell) return
   shell.style.width = `${rectWidth / scale}px`
@@ -303,6 +324,10 @@ export interface LandingVisualOptions {
   }
   /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
   readTarget?: () => LandingRect
+  /** free 画布 landing 的世界坐标锚点；用于相机移动/缩放时变换整段代理动画。 */
+  cameraSource?: HTMLElement
+  /** free 画布 landing 的实时相机比例。 */
+  contentScale?: number | (() => number)
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
   coast?: { duration: number; friction: number; maxDistance: number; minVelocity: number }
   /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
@@ -722,6 +747,13 @@ export function landDragProxyWithMotion(
   const startRect = proxy.getBoundingClientRect()
   const startWidth = startRect.width || target.width
   const startHeight = startRect.height || target.height
+  const cameraOrigin = options.cameraSource?.getBoundingClientRect()
+  const hasCameraAnchor = Boolean(
+    options.landingMode === 'free'
+    && cameraOrigin
+    && cameraOrigin.width > 0
+    && cameraOrigin.height > 0,
+  )
   // 宽高过渡不能把左上角当作唯一锚点：源卡与目标卡尺寸不同时，左边会先
   // 对齐而右边在收缩期间继续漂移。让控制器追踪中心点，帧内再换算回左上角，
   // 最终仍精确落到目标 rect。
@@ -769,13 +801,28 @@ export function landDragProxyWithMotion(
   const motion = createCardMotionController({
     mode: 'settle',
     onFrame: frame => {
-      const width = startWidth * frame.scaleX
-      const height = startHeight * frame.scaleY
-      const left = frame.x + (startWidth - width) / 2
-      const top = frame.y + (startHeight - height) / 2
+      let width = startWidth * frame.scaleX
+      let height = startHeight * frame.scaleY
+      let left = frame.x + (startWidth - width) / 2
+      let top = frame.y + (startHeight - height) / 2
+      // 画布代理挂在 viewport 下，脱离了 .canvas-world 的 camera transform。
+      // landing 期间如果画布被缩放/平移，不能继续沿用旧屏幕坐标；以最终
+      // 本体作为世界锚点，把当前动画帧相对锚点的距离和尺寸一起变换，等价
+      // 于旧画布的 camera glue。
+      if (hasCameraAnchor && cameraOrigin) {
+        const liveOrigin = options.cameraSource?.getBoundingClientRect()
+        if (liveOrigin && liveOrigin.width > 0 && liveOrigin.height > 0) {
+          const ratio = liveOrigin.width / cameraOrigin.width
+          left = liveOrigin.left + (left - cameraOrigin.left) * ratio
+          top = liveOrigin.top + (top - cameraOrigin.top) * ratio
+          width *= ratio
+          height *= ratio
+        }
+      }
       proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
       proxy.style.width = `${width.toFixed(2)}px`
       proxy.style.height = `${height.toFixed(2)}px`
+      if (hasCameraAnchor) updateDragProxyScaleShell(proxy, options.contentScale)
     },
     onArrived: settle,
   })
@@ -996,14 +1043,14 @@ const pickupHandoffPending = new WeakSet<HTMLElement>()
 export function applyFloatingStyle(
   el: HTMLElement,
   rect: DOMRect,
-  options: { layout?: DragProxyLayoutConfig; keepSourceVisible?: boolean } = {},
+  options: { layout?: DragProxyLayoutConfig; keepSourceVisible?: boolean; contentScale?: number | (() => number) } = {},
 ) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
   // 抓取阶段的视觉交给独立 proxy：挂在 <html> 下，containing block 是 viewport，
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
-  const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout })
+  const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout, contentScale: options.contentScale })
   const content = getProxyContent(proxy)
   const compact = Boolean(options.layout?.compact)
   proxy.style.zIndex = '1000'

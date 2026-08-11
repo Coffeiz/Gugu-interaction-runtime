@@ -409,6 +409,7 @@ export function createDetachMoveFromAdapter(config: {
       const sourceScrollHeight = sourceViewport?.scrollHeight ?? 0
       applyFloatingStyle(element, rect, {
         layout: proxyLayout,
+        contentScale: objectItem?.contentScale,
         // 多选时源卡是布局幽灵，不能像单卡 detach 一样整张隐藏；主代理
         // 负责跟手，源节点保留在原位并由 group visual 降低透明度。
         keepSourceVisible: Boolean(group && group.objectIds.length > 1),
@@ -450,8 +451,14 @@ export function createDetachMoveFromAdapter(config: {
       const onDragFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
         if (!floatingProxy.isConnected) return
         runtime.updateVisualProxy(sessionId!)
-        const dx = frame.x - anchorLeft
-        const dy = frame.y - anchorTop
+        const liveWidth = parseFloat(floatingProxy.style.width) || rect.width
+        const liveHeight = parseFloat(floatingProxy.style.height) || rect.height
+        // frame.x/y 仍表示初始视觉尺寸的左上角；相机缩放改变代理宽高时，
+        // 以中心为锚点修正位移，避免卡片一边放大一边从指针中心漂走。
+        const liveLeft = frame.x + (rect.width - liveWidth) / 2
+        const liveTop = frame.y + (rect.height - liveHeight) / 2
+        const dx = liveLeft - anchorLeft
+        const dy = liveTop - anchorTop
         floatingProxy.style.transform = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
       }
       // motion.enabled === false：跳过 MotionController 的弹簧/tilt/sway，退化为
