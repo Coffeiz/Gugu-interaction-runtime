@@ -1176,11 +1176,13 @@ export function applyFloatingStyle(
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
-  // 与 VisualAdapter.createProxy() 使用同一套创建期抓取视觉。不能关闭 glass
-  // 后再依赖下一帧补样式：快速松手/交接时那一帧可能被 landing 接管，代理就会
-  // 直接以普通阴影开始，表现为文件卡和活动卡没有 grabbing 毛玻璃。
-  const proxy = createDragProxy(el, rect, { glass: true, layout: options.layout, contentScale: options.contentScale })
+  // 抓取态阴影不能在代理创建时直接写入，否则代理的高度/姿态还没开始过渡，
+  // 阴影已经瞬间变成最终值。先以源卡片当前阴影作为起点，在抓取首帧统一
+  // 提交玻璃态样式，让阴影和卡片的浮起变换同时进入过渡。
+  const sourceShadow = getComputedStyle(el).boxShadow
+  const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout, contentScale: options.contentScale })
   const content = getProxyContent(proxy)
+  content.style.boxShadow = sourceShadow
   const compact = Boolean(options.layout?.compact)
   proxy.style.zIndex = '1000'
   // 首帧保留源卡片样式；下一帧才进入 grabbing 视觉，形成从原位被拎起的过渡。
@@ -1197,10 +1199,17 @@ export function applyFloatingStyle(
     if (!proxy.isConnected || !pickupHandoffPending.has(proxy)) {
       return
     }
-    if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
-    else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-    proxy.style.transform = `scale(${compact ? 1 : 1.03})`
+    beginFloatingPickup(proxy, compact)
   })
+}
+
+/** 在抓取动画首帧提交抓取态视觉；快速 pointermove 会复用同一入口。 */
+function beginFloatingPickup(proxy: HTMLElement, compact = false, applyScale = true): void {
+  if (!proxy.isConnected) return
+  const content = getProxyContent(proxy)
+  if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
+  else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  if (applyScale) proxy.style.transform = `scale(${compact ? 1 : 1.03})`
 }
 
 export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
@@ -1211,6 +1220,13 @@ export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
 export function takeFloatingProxy(el: HTMLElement): HTMLElement | undefined {
   const proxy = floatingProxies.get(el)
   if (!proxy) return undefined
+  // MoveAdapter 会在创建代理后立即接管它。不能在这里同步写入最终阴影，
+  // 否则浏览器还没绘制起点就会直接显示终点；延后一帧让阴影与控制器的
+  // 1 -> 1.03 缩放拥有同一个视觉起点。
+  requestAnimationFrame(() => {
+    if (!proxy.isConnected || getProxyContent(proxy).dataset.runtimePhase === 'landing') return
+    beginFloatingPickup(proxy, getProxyContent(proxy).dataset.runtimeCompact === 'true', false)
+  })
   pickupHandoffPending.delete(proxy)
   floatingProxies.delete(el)
   floatingSnapshots.delete(el)
@@ -1224,6 +1240,7 @@ export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: num
   const top = `${y - offsetY}px`
   if (pickupHandoffPending.has(target)) {
     pickupHandoffPending.delete(target)
+    beginFloatingPickup(target, getProxyContent(target).dataset.runtimeCompact === 'true')
     target.style.transition = 'left 120ms cubic-bezier(.22,1,.36,1), top 120ms cubic-bezier(.22,1,.36,1), transform 120ms cubic-bezier(.22,1,.36,1), box-shadow 120ms ease'
     requestAnimationFrame(() => {
       target.style.left = left

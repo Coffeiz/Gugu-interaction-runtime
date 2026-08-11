@@ -487,8 +487,13 @@ export function createDetachMoveFromAdapter(config: {
           onFrame: onDragFrame,
         })
         controller.setProfile(FOLLOW_PROFILE)
-        controller.seed({ x: rect.left, y: rect.top, scaleX: compactProxy ? 1 : 1.03, scaleY: compactProxy ? 1 : 1.03, rotateX: FOLLOW_ROTATION.tilt, rotateZ: 0 })
-        controller.setTarget({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y })
+        controller.seed({ x: rect.left, y: rect.top, scaleX: 1, scaleY: 1, rotateX: FOLLOW_ROTATION.tilt, rotateZ: 0 })
+        controller.setTarget({
+          x: event.clientX - dragOffset.x,
+          y: event.clientY - dragOffset.y,
+          scaleX: compactProxy ? 1 : 1.03,
+          scaleY: compactProxy ? 1 : 1.03,
+        })
         controller.start()
         dragMotion = controller
       } else {
