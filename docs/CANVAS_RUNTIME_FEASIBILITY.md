@@ -301,7 +301,8 @@ runtime.configureMotion({
       `normal` 配置能力。
 - [x] 将画布内部自由落点接到 `screenToWorld -> 当前屏幕 LandingRect`，不改 camera 实现。
 - [x] 将画布到抽屉的业务提交接到 Runtime Action；抽屉的 Surface 变化、Group 布局捕获和卡片进入路径已接通。
-- [ ] 人工验证抽屉展开/收起、卡片让位、卡片进入/退出、regrab、快速连续拖拽，并记录验收结果。
+- [x] 在 devserver 用临时项目卡验证抽屉展开、卡片进入画布、卡片回到抽屉；测试数据已清理。
+- [ ] 人工专项验证落地未完成时 regrab、快速连续拖拽和抽屉让位。
 - [x] 连接手势的端口命中和连接生命周期接入 Runtime；RelationLayer 仍只负责 SVG 和预览样式。
 - [x] 接入 Runtime move-visual update/end 事件，让 RelationLayer 在跟手和 landing 阶段读取代理盒；不迁移旧拖拽动画。
 - [x] 清理 MindCanvas 已失效的旧 landing/dragging 回调；共享拖拽引擎继续保留，不能误删。
@@ -351,7 +352,8 @@ useObject({
 - [x] 实现左右连接点的位置计算和命中检测；位置每次从实时 DOMRect 读取。
 - [x] 实现连接创建、取消和重复连接校验；通过 `connection-*` Action 输出生命周期，并提供持久连接预注册/移除 API。
 - [x] 提供连接会话的实时端点解析和当前预览状态 Core API；Gugu 手势已接线，RelationLayer 仍只渲染。
-- [ ] 补充卡片移动、FLIP、landing、regrab、尺寸变化和相机变化的端点回归测试；当前已覆盖实时 DOMRect 端口计算，仍需浏览器级回归。
+- [x] 补充实时 DOMRect 端点回归，并在 devserver 用两张临时项目卡验证连接创建和移除后的关系清理。
+- [ ] 补充/执行卡片移动、FLIP、landing、regrab、尺寸变化和相机变化的浏览器级端点回归。
 - [x] 对齐咕咕当前连接点样式、连接方向和连接线几何算法；Runtime 只替换命中/生命周期，不替换视觉。
 
 ### E. Stage 1 验收
@@ -362,6 +364,11 @@ useObject({
 - [ ] 画布移动不再由旧 `usePhysicsDrag` 直接编排；业务只接收 Action 并更新数据。
 - [ ] 不依赖 Runtime Camera，不出现 world/screen 坐标混用。
 - [ ] 通过 Runtime 与 Gugu-web typecheck、单测和人工回归；自动化与类型检查已通过，仍需人工走完抽屉连续拖拽、连接重抓和 landing 中关系线回归。
+
+本轮验证记录：Runtime `npm test` 通过（121 tests），Runtime 与 Gugu-web frontend typecheck
+通过；devserver smoke E2E 通过（2 tests）。真实画布页已验证抽屉进出、连接创建和清理，未
+修改卡片 DnD 动画。由于 regrab/连续拖拽需要在 landing 代理上抓取，仍保留人工专项验收，
+不能用隐藏本体的脚本命中结果替代。
 
 ## 六、Stage 2：相机适配与 Runtime Demo
 
