@@ -62,6 +62,34 @@ export function createDetachMoveFromAdapter(config: {
   let pickupIndex: number | null = null
   let pointerMoved = false
   let isGroupSession = false
+  let scrollCompensation: HTMLElement | null = null
+
+  /**
+   * detach 会把源节点暂时移出布局。若抓取前正好贴在滚动容器底部，
+   * 源节点的高度减少会让浏览器同步 clamp scrollTop，表现为抓起瞬间
+   * 内容向上跳一大截。只补回被移除的高度，不保留源卡占位，因此兄弟
+   * 卡仍然可以正常让位；落地/取消收尾时由同一 session 清理。
+   */
+  function preserveBottomScrollAfterDetach(beforeHeight: number, viewport: HTMLElement | null): void {
+    if (!viewport || scrollCompensation || viewport.scrollHeight >= beforeHeight) return
+    const lostHeight = beforeHeight - viewport.scrollHeight
+    if (lostHeight <= 0.5) return
+    const spacer = document.createElement('div')
+    spacer.dataset.runtimeScrollCompensation = 'true'
+    spacer.style.width = '1px'
+    spacer.style.height = `${lostHeight}px`
+    spacer.style.flex = '0 0 auto'
+    spacer.style.pointerEvents = 'none'
+    spacer.style.visibility = 'hidden'
+    viewport.appendChild(spacer)
+    scrollCompensation = spacer
+    viewport.scrollTop = Math.min(viewport.scrollTop, viewport.scrollHeight - viewport.clientHeight)
+  }
+
+  function clearScrollCompensation(): void {
+    scrollCompensation?.remove()
+    scrollCompensation = null
+  }
 
   // 布局 FLIP 只需要比较当前源 Surface 与最后命中的目标 Surface。
   // 这样已完成列之外的大量项目不会参与每次拖拽的分组、Surface 和
@@ -351,6 +379,13 @@ export function createDetachMoveFromAdapter(config: {
       // 的姿态、过渡和 release 动量一致；唯一差别是 detach 立即移除源占位。
       const proxyLayout = runtime.getObjectProxyLayout(objectId, element)
       const compactProxy = Boolean(proxyLayout?.compact)
+      const sourceViewport = initialSurfaceId
+        ? runtime.resolveMoveSurfaceViewport(initialSurfaceId)
+        : null
+      const sourceWasAtBottom = Boolean(sourceViewport
+        && sourceViewport.scrollHeight > sourceViewport.clientHeight
+        && sourceViewport.scrollTop >= sourceViewport.scrollHeight - sourceViewport.clientHeight - 1)
+      const sourceScrollHeight = sourceViewport?.scrollHeight ?? 0
       applyFloatingStyle(element, rect, {
         layout: proxyLayout,
         // 多选时源卡是布局幽灵，不能像单卡 detach 一样整张隐藏；主代理
@@ -371,6 +406,7 @@ export function createDetachMoveFromAdapter(config: {
         // 让兄弟卡片立即看到源节点已离开布局流，随后复用同一份 beforePickup
         // 快照播放收位 FLIP；可见主体仍由 floating proxy 承担。
         sourceLease.detachFromLayout()
+        if (sourceWasAtBottom) preserveBottomScrollAfterDetach(sourceScrollHeight, sourceViewport)
       }
       // grabbing 期间 transform 由 MotionController 每帧写入，不能再让 CSS transition
       // 对每次物理更新做线性插值，否则角度回正会覆盖弹簧的非线性轨迹（0.9.6 原有的坑）。
@@ -472,6 +508,7 @@ export function createDetachMoveFromAdapter(config: {
       clearFloatingStyle(element)
       sourceLease?.restore()
       sourceLease = null
+      clearScrollCompensation()
     },
   }
 
@@ -498,6 +535,7 @@ export function createDetachMoveFromAdapter(config: {
         clearFloatingStyle(element)
         sourceLease?.restore()
         sourceLease = null
+        clearScrollCompensation()
       },
     }),
   }
