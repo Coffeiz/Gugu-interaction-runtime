@@ -4,147 +4,38 @@
       Motion 调参 <span>{{ open ? '收起' : '展开' }}</span>
     </button>
     <div v-if="open" class="motion-debug-body">
-      <label>
-        <span>落地刚度
-          <output v-if="editing !== 'stiffness'" class="editable-value" @click="editing = 'stiffness'">{{ draft.stiffness }}</output>
-          <input v-else v-model.number="draft.stiffness" class="inline-number" type="number" min="1" step="1" autofocus @blur="editing = null" @input="changeStiffness" />
-        </span>
-        <input v-model.number="draft.stiffness" type="range" min="80" max="1200" step="1" @input="changeStiffness" />
-      </label>
-      <label>
-        <span>落地阻尼
-          <output v-if="editing !== 'damping'" class="editable-value" @click="editing = 'damping'">{{ draft.damping }}</output>
-          <input v-else v-model.number="draft.damping" class="inline-number" type="number" min="0" step="0.1" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.damping" type="range" min="1" max="100" step="1" @input="applyPreview" />
-      </label>
-      <label>
-        <span>落地时长
-          <output v-if="editing !== 'duration'" class="editable-value" @click="editing = 'duration'">{{ draft.duration }}ms</output>
-          <input v-else v-model.number="draft.duration" class="inline-number" type="number" min="100" step="10" autofocus @blur="editing = null" @input="changeDuration" />
-        </span>
-        <input v-model.number="draft.duration" type="range" min="100" max="1200" step="10" @input="changeDuration" />
-      </label>
-      <div class="motion-debug-section">目标飞入</div>
-      <label>
-        <span>目标速度（刚度）
-          <output v-if="editing !== 'targetStiffness'" class="editable-value" @click="editing = 'targetStiffness'">{{ draft.targetStiffness }}</output>
-          <input v-else v-model.number="draft.targetStiffness" class="inline-number" type="number" min="1" step="1" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.targetStiffness" type="range" min="20" max="1200" step="1" @input="applyPreview" />
-      </label>
-      <label>
-        <span>目标阻尼
-          <output v-if="editing !== 'targetDamping'" class="editable-value" @click="editing = 'targetDamping'">{{ draft.targetDamping }}</output>
-          <input v-else v-model.number="draft.targetDamping" class="inline-number" type="number" min="0" step="0.1" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.targetDamping" type="range" min="1" max="120" step="0.1" @input="applyPreview" />
-      </label>
-      <label>
-        <span>目标飞入时长
-          <output v-if="editing !== 'targetLandingDuration'" class="editable-value" @click="editing = 'targetLandingDuration'">{{ draft.targetLandingDuration }}ms</output>
-          <input v-else v-model.number="draft.targetLandingDuration" class="inline-number" type="number" min="100" step="10" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.targetLandingDuration" type="range" min="100" max="1600" step="10" @input="applyPreview" />
-      </label>
-      <label>
-        <span>目标飞入缓动</span>
-        <select v-model="draft.targetLandingEasing" @change="applyPreview">
-          <option value="linear">匀速</option>
-          <option value="ease-in">缓入</option>
-          <option value="ease-out">缓出</option>
-          <option value="ease-in-out">缓入缓出</option>
-          <option value="cubic-bezier(.22,1,.36,1)">快速缓出</option>
-        </select>
-      </label>
-      <div class="motion-debug-section">目标消失</div>
-      <label>
-        <span>消失时长
-          <output v-if="editing !== 'targetDismissDuration'" class="editable-value" @click="editing = 'targetDismissDuration'">{{ draft.targetDismissDuration }}ms</output>
-          <input v-else v-model.number="draft.targetDismissDuration" class="inline-number" type="number" min="100" step="10" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.targetDismissDuration" type="range" min="100" max="1600" step="10" @input="applyPreview" />
-      </label>
-      <label>
-        <span>消失缓动</span>
-        <select v-model="draft.targetDismissEasing" @change="applyPreview">
-          <option value="linear">匀速</option>
-          <option value="ease-in">缓入</option>
-          <option value="ease-out">缓出</option>
-          <option value="ease-in-out">缓入缓出</option>
-          <option value="cubic-bezier(.22,1,.36,1)">快速缓出</option>
-        </select>
-      </label>
-      <label>
-        <span>消失缩放
-          <output v-if="editing !== 'targetDismissScale'" class="editable-value" @click="editing = 'targetDismissScale'">{{ draft.targetDismissScale.toFixed(2) }}</output>
-          <input v-else v-model.number="draft.targetDismissScale" class="inline-number" type="number" min="0.1" max="1" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.targetDismissScale" type="range" min="0.1" max="1" step="0.01" @input="applyPreview" />
-      </label>
-      <label>
-        <span>跟手刚度
-          <output v-if="editing !== 'followStiffness'" class="editable-value" @click="editing = 'followStiffness'">{{ draft.followStiffness }}</output>
-          <input v-else v-model.number="draft.followStiffness" class="inline-number" type="number" min="1" step="1" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.followStiffness" type="range" min="80" max="1200" step="1" @input="applyPreview" />
-      </label>
-      <label>
-        <span>跟手阻尼
-          <output v-if="editing !== 'followDamping'" class="editable-value" @click="editing = 'followDamping'">{{ draft.followDamping.toFixed(1) }}</output>
-          <input v-else v-model.number="draft.followDamping" class="inline-number" type="number" min="0" step="0.1" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.followDamping" type="range" min="1" max="100" step="0.1" @input="applyPreview" />
-      </label>
-      <label>
-        <span>抬升角度
-          <output v-if="editing !== 'tilt'" class="editable-value" @click="editing = 'tilt'">{{ draft.tilt }}°</output>
-          <input v-else v-model.number="draft.tilt" class="inline-number" type="number" min="0" step="0.5" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.tilt" type="range" min="0" max="15" step="0.5" @input="applyPreview" />
-      </label>
-      <label>
-        <span>横向摆动
-          <output v-if="editing !== 'sway'" class="editable-value" @click="editing = 'sway'">{{ draft.sway.toFixed(2) }}</output>
-          <input v-else v-model.number="draft.sway" class="inline-number" type="number" min="0" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.sway" type="range" min="0" max="1" step="0.01" @input="applyPreview" />
-      </label>
-      <label>
-        <span>回正速度
-          <output v-if="editing !== 'smoothing'" class="editable-value" @click="editing = 'smoothing'">{{ draft.smoothing.toFixed(2) }}</output>
-          <input v-else v-model.number="draft.smoothing" class="inline-number" type="number" min="0.02" max="0.8" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.smoothing" type="range" min="0.02" max="0.8" step="0.01" @input="applyPreview" />
-      </label>
-      <label>
-        <span>抛出速度倍率
-          <output v-if="editing !== 'velocityScale'" class="editable-value" @click="editing = 'velocityScale'">{{ draft.velocityScale.toFixed(2) }}</output>
-          <input v-else v-model.number="draft.velocityScale" class="inline-number" type="number" min="0" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.velocityScale" type="range" min="0" max="2" step="0.01" @input="applyPreview" />
-      </label>
-      <label>
-        <span>抛出最低速度
-          <output v-if="editing !== 'minVelocity'" class="editable-value" @click="editing = 'minVelocity'">{{ draft.minVelocity }}</output>
-          <input v-else v-model.number="draft.minVelocity" class="inline-number" type="number" min="0" step="1" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.minVelocity" type="range" min="0" max="300" step="1" @input="applyPreview" />
-      </label>
-      <label>
-        <span>抛出最高速度
-          <output v-if="editing !== 'maxVelocity'" class="editable-value" @click="editing = 'maxVelocity'">{{ draft.maxVelocity }}</output>
-          <input v-else v-model.number="draft.maxVelocity" class="inline-number" type="number" min="0" step="50" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.maxVelocity" type="range" min="0" max="5000" step="50" @input="applyPreview" />
-      </label>
-      <label>
-        <span>抛出阻尼比例
-          <output v-if="editing !== 'dampingRatio'" class="editable-value" @click="editing = 'dampingRatio'">{{ draft.dampingRatio.toFixed(2) }}</output>
-          <input v-else v-model.number="draft.dampingRatio" class="inline-number" type="number" min="0.4" max="1" step="0.01" autofocus @blur="editing = null" @input="applyPreview" />
-        </span>
-        <input v-model.number="draft.dampingRatio" type="range" min="0.4" max="1" step="0.01" @input="applyPreview" />
-      </label>
+      <RuntimeMotionGroup title="基础落地">
+        <label><span>落地刚度 <output v-if="editing !== 'stiffness'" class="editable-value" @click="editing = 'stiffness'">{{ draft.stiffness }}</output><input v-else v-model.number="draft.stiffness" class="inline-number" type="number" min="1" step="1" autofocus @blur="editing = null" @input="changeStiffness" /></span><input v-model.number="draft.stiffness" type="range" min="80" max="1200" step="1" @input="changeStiffness" /></label>
+        <label><span>落地阻尼 <output v-if="editing !== 'damping'" class="editable-value" @click="editing = 'damping'">{{ draft.damping }}</output><input v-else v-model.number="draft.damping" class="inline-number" type="number" min="0" step="0.1" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.damping" type="range" min="1" max="100" step="1" @input="applyPreview" /></label>
+        <label><span>落地时长 <output v-if="editing !== 'duration'" class="editable-value" @click="editing = 'duration'">{{ draft.duration }}ms</output><input v-else v-model.number="draft.duration" class="inline-number" type="number" min="100" step="10" autofocus @blur="editing = null" @input="changeDuration" /></span><input v-model.number="draft.duration" type="range" min="100" max="1200" step="10" @input="changeDuration" /></label>
+      </RuntimeMotionGroup>
+      <RuntimeMotionGroup title="目标飞入与消失">
+        <label><span>目标速度（刚度） <output v-if="editing !== 'targetStiffness'" class="editable-value" @click="editing = 'targetStiffness'">{{ draft.targetStiffness }}</output><input v-else v-model.number="draft.targetStiffness" class="inline-number" type="number" min="1" step="1" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.targetStiffness" type="range" min="20" max="1200" step="1" @input="applyPreview" /></label>
+        <label><span>目标阻尼 <output v-if="editing !== 'targetDamping'" class="editable-value" @click="editing = 'targetDamping'">{{ draft.targetDamping }}</output><input v-else v-model.number="draft.targetDamping" class="inline-number" type="number" min="0" step="0.1" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.targetDamping" type="range" min="1" max="120" step="0.1" @input="applyPreview" /></label>
+        <label><span>目标飞入时长 <output v-if="editing !== 'targetLandingDuration'" class="editable-value" @click="editing = 'targetLandingDuration'">{{ draft.targetLandingDuration }}ms</output><input v-else v-model.number="draft.targetLandingDuration" class="inline-number" type="number" min="100" step="10" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.targetLandingDuration" type="range" min="100" max="1600" step="10" @input="applyPreview" /></label>
+        <label><span>目标飞入缓动</span><select v-model="draft.targetLandingEasing" @change="applyPreview"><option value="linear">匀速</option><option value="ease-in">缓入</option><option value="ease-out">缓出</option><option value="ease-in-out">缓入缓出</option><option value="cubic-bezier(.22,1,.36,1)">快速缓出</option></select></label>
+        <label><span>消失时长 <output v-if="editing !== 'targetDismissDuration'" class="editable-value" @click="editing = 'targetDismissDuration'">{{ draft.targetDismissDuration }}ms</output><input v-else v-model.number="draft.targetDismissDuration" class="inline-number" type="number" min="100" step="10" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.targetDismissDuration" type="range" min="100" max="1600" step="10" @input="applyPreview" /></label>
+        <label><span>消失缓动</span><select v-model="draft.targetDismissEasing" @change="applyPreview"><option value="linear">匀速</option><option value="ease-in">缓入</option><option value="ease-out">缓出</option><option value="ease-in-out">缓入缓出</option><option value="cubic-bezier(.22,1,.36,1)">快速缓出</option></select></label>
+        <label><span>消失缩放 <output v-if="editing !== 'targetDismissScale'" class="editable-value" @click="editing = 'targetDismissScale'">{{ draft.targetDismissScale.toFixed(2) }}</output><input v-else v-model.number="draft.targetDismissScale" class="inline-number" type="number" min="0.1" max="1" step="0.01" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.targetDismissScale" type="range" min="0.1" max="1" step="0.01" @input="applyPreview" /></label>
+      </RuntimeMotionGroup>
+      <RuntimeMotionGroup title="跟手与释放">
+        <label><span>跟手刚度 <output v-if="editing !== 'followStiffness'" class="editable-value" @click="editing = 'followStiffness'">{{ draft.followStiffness }}</output><input v-else v-model.number="draft.followStiffness" class="inline-number" type="number" min="1" step="1" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.followStiffness" type="range" min="80" max="1200" step="1" @input="applyPreview" /></label>
+        <label><span>跟手阻尼 <output v-if="editing !== 'followDamping'" class="editable-value" @click="editing = 'followDamping'">{{ draft.followDamping.toFixed(1) }}</output><input v-else v-model.number="draft.followDamping" class="inline-number" type="number" min="0" step="0.1" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.followDamping" type="range" min="1" max="100" step="0.1" @input="applyPreview" /></label>
+        <label><span>抬升角度 <output v-if="editing !== 'tilt'" class="editable-value" @click="editing = 'tilt'">{{ draft.tilt }}°</output><input v-else v-model.number="draft.tilt" class="inline-number" type="number" min="0" step="0.5" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.tilt" type="range" min="0" max="15" step="0.5" @input="applyPreview" /></label>
+        <label><span>横向摆动 <output v-if="editing !== 'sway'" class="editable-value" @click="editing = 'sway'">{{ draft.sway.toFixed(2) }}</output><input v-else v-model.number="draft.sway" class="inline-number" type="number" min="0" step="0.01" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.sway" type="range" min="0" max="1" step="0.01" @input="applyPreview" /></label>
+        <label><span>回正速度 <output v-if="editing !== 'smoothing'" class="editable-value" @click="editing = 'smoothing'">{{ draft.smoothing.toFixed(2) }}</output><input v-else v-model.number="draft.smoothing" class="inline-number" type="number" min="0.02" max="0.8" step="0.01" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.smoothing" type="range" min="0.02" max="0.8" step="0.01" @input="applyPreview" /></label>
+        <label><span>抛出速度倍率 <output v-if="editing !== 'velocityScale'" class="editable-value" @click="editing = 'velocityScale'">{{ draft.velocityScale.toFixed(2) }}</output><input v-else v-model.number="draft.velocityScale" class="inline-number" type="number" min="0" step="0.01" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.velocityScale" type="range" min="0" max="2" step="0.01" @input="applyPreview" /></label>
+        <label><span>抛出最低速度 <output v-if="editing !== 'minVelocity'" class="editable-value" @click="editing = 'minVelocity'">{{ draft.minVelocity }}</output><input v-else v-model.number="draft.minVelocity" class="inline-number" type="number" min="0" step="1" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.minVelocity" type="range" min="0" max="300" step="1" @input="applyPreview" /></label>
+        <label><span>抛出最高速度 <output v-if="editing !== 'maxVelocity'" class="editable-value" @click="editing = 'maxVelocity'">{{ draft.maxVelocity }}</output><input v-else v-model.number="draft.maxVelocity" class="inline-number" type="number" min="0" step="50" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.maxVelocity" type="range" min="0" max="5000" step="50" @input="applyPreview" /></label>
+        <label><span>抛出阻尼比例 <output v-if="editing !== 'dampingRatio'" class="editable-value" @click="editing = 'dampingRatio'">{{ draft.dampingRatio.toFixed(2) }}</output><input v-else v-model.number="draft.dampingRatio" class="inline-number" type="number" min="0.4" max="1" step="0.01" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.dampingRatio" type="range" min="0.4" max="1" step="0.01" @input="applyPreview" /></label>
+      </RuntimeMotionGroup>
+      <RuntimeMotionGroup title="自由画布物理" :default-open="false">
+        <label><span>画布落地时长 <output v-if="editing !== 'freeDuration'" class="editable-value" @click="editing = 'freeDuration'">{{ draft.freeDuration }}ms</output><input v-else v-model.number="draft.freeDuration" class="inline-number" type="number" min="100" max="1600" step="10" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.freeDuration" type="range" min="100" max="1600" step="10" @input="applyPreview" /></label>
+        <label><span>画布落地缓动</span><select v-model="draft.freeEasing" @change="applyPreview"><option value="linear">匀速</option><option value="ease-in">缓入</option><option value="ease-out">缓出</option><option value="ease-in-out">缓入缓出</option><option value="cubic-bezier(.22,1,.36,1)">快速缓出</option></select></label>
+        <label><span>惯性外推时间 <output v-if="editing !== 'freeCoastSeconds'" class="editable-value" @click="editing = 'freeCoastSeconds'">{{ draft.freeCoastSeconds.toFixed(2) }}s</output><input v-else v-model.number="draft.freeCoastSeconds" class="inline-number" type="number" min="0" max="1" step="0.01" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.freeCoastSeconds" type="range" min="0" max="1" step="0.01" @input="applyPreview" /></label>
+        <label><span>最大惯性距离 <output v-if="editing !== 'freeMaxCoast'" class="editable-value" @click="editing = 'freeMaxCoast'">{{ draft.freeMaxCoast }}px</output><input v-else v-model.number="draft.freeMaxCoast" class="inline-number" type="number" min="0" max="600" step="10" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.freeMaxCoast" type="range" min="0" max="600" step="10" @input="applyPreview" /></label>
+        <label><span>惯性最低速度 <output v-if="editing !== 'freeMinVelocity'" class="editable-value" @click="editing = 'freeMinVelocity'">{{ draft.freeMinVelocity }}px/s</output><input v-else v-model.number="draft.freeMinVelocity" class="inline-number" type="number" min="0" max="500" step="5" autofocus @blur="editing = null" @input="applyPreview" /></span><input v-model.number="draft.freeMinVelocity" type="range" min="0" max="500" step="5" @input="applyPreview" /></label>
+      </RuntimeMotionGroup>
       <div class="motion-debug-actions">
         <button @click="resetToSaved">重置</button>
         <button class="primary" @click="save">保存参数</button>
@@ -159,6 +50,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { FOLLOW_PROFILE, FOLLOW_ROTATION, LANDING_PROFILE } from '../motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from '../motion/ReleaseMotion'
 import { runtime } from '../Runtime'
+import RuntimeMotionGroup from './RuntimeMotionGroup.vue'
 
 interface SavedMotionConfig {
   stiffness: number
@@ -180,6 +72,11 @@ interface SavedMotionConfig {
   targetDismissDuration: number
   targetDismissEasing: string
   targetDismissScale: number
+  freeDuration: number
+  freeEasing: string
+  freeCoastSeconds: number
+  freeMaxCoast: number
+  freeMinVelocity: number
 }
 
 const STORAGE_KEY = 'gugu-runtime-motion-profile'
@@ -256,6 +153,11 @@ const saved = reactive<SavedMotionConfig>({
   targetDismissDuration: 300,
   targetDismissEasing: 'ease-in-out',
   targetDismissScale: 0.72,
+  freeDuration: runtime.getMotionProfile()?.freeLanding?.duration ?? 550,
+  freeEasing: runtime.getMotionProfile()?.freeLanding?.easing ?? 'cubic-bezier(.22,1,.36,1)',
+  freeCoastSeconds: runtime.getMotionProfile()?.freeLanding?.coastSeconds ?? 0.12,
+  freeMaxCoast: runtime.getMotionProfile()?.freeLanding?.maxCoast ?? 260,
+  freeMinVelocity: runtime.getMotionProfile()?.freeLanding?.minVelocity ?? 30,
 })
 const draft = reactive<SavedMotionConfig>({ ...saved })
 
@@ -289,6 +191,13 @@ function applyPreview(): void {
           easing: draft.targetDismissEasing,
           scale: draft.targetDismissScale,
         },
+      },
+      freeLanding: {
+        duration: draft.freeDuration,
+        easing: draft.freeEasing,
+        coastSeconds: draft.freeCoastSeconds,
+        maxCoast: draft.freeMaxCoast,
+        minVelocity: draft.freeMinVelocity,
       },
     },
     controller: {
@@ -361,6 +270,11 @@ onMounted(() => {
     if (typeof value.targetDismissDuration === 'number') saved.targetDismissDuration = value.targetDismissDuration
     if (typeof value.targetDismissEasing === 'string') saved.targetDismissEasing = value.targetDismissEasing
     if (typeof value.targetDismissScale === 'number') saved.targetDismissScale = value.targetDismissScale
+    if (typeof value.freeDuration === 'number') saved.freeDuration = value.freeDuration
+    if (typeof value.freeEasing === 'string') saved.freeEasing = value.freeEasing
+    if (typeof value.freeCoastSeconds === 'number') saved.freeCoastSeconds = value.freeCoastSeconds
+    if (typeof value.freeMaxCoast === 'number') saved.freeMaxCoast = value.freeMaxCoast
+    if (typeof value.freeMinVelocity === 'number') saved.freeMinVelocity = value.freeMinVelocity
     Object.assign(draft, saved)
     applyPreview()
   } catch {

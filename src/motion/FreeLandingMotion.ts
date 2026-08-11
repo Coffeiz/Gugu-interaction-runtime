@@ -1,5 +1,38 @@
 import type { MotionFrame, MotionState, MotionTarget } from './CardMotionController'
 
+export interface FreeLandingPoint {
+  x: number
+  y: number
+}
+
+export interface FreeLandingCoastConfig {
+  coastSeconds: number
+  maxCoast: number
+  minVelocity: number
+}
+
+export const DEFAULT_FREE_LANDING_COAST: FreeLandingCoastConfig = {
+  coastSeconds: 0.12,
+  maxCoast: 260,
+  minVelocity: 30,
+}
+
+/** 计算自由画布的最终落点，视觉目标与业务提交必须共用这一结果。 */
+export function resolveFreeLandingPoint(
+  point: FreeLandingPoint,
+  velocity: FreeLandingPoint | undefined,
+  releaseMode: 'normal' | 'physical',
+  config: FreeLandingCoastConfig = DEFAULT_FREE_LANDING_COAST,
+): FreeLandingPoint {
+  if (releaseMode !== 'physical' || !velocity) return { ...point }
+  const speed = Math.hypot(velocity.x, velocity.y)
+  if (speed < config.minVelocity || config.coastSeconds <= 0 || config.maxCoast <= 0) {
+    return { ...point }
+  }
+  const factor = Math.min(config.maxCoast, speed * config.coastSeconds) / speed
+  return { x: point.x + velocity.x * factor, y: point.y + velocity.y * factor }
+}
+
 export interface FreeLandingMotionOptions {
   onFrame: (frame: MotionFrame) => void
   onArrived?: () => void

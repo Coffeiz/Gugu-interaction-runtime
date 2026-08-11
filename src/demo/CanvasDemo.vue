@@ -43,6 +43,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { runtime } from '../Runtime'
 import { useObject, useRuntimeAction, useSurface, useTarget } from '../vue'
+import { resolveFreeLandingPoint } from '../motion/FreeLandingMotion'
 import CanvasCard, { type CanvasNodeModel } from './CanvasCard.vue'
 import CanvasDrawer from './CanvasDrawer.vue'
 
@@ -91,9 +92,14 @@ function registerCanvasType(): void {
     },
     resolveFreeLandingRect: ({ destination }) => {
       const point = (destination as { point?: { x: number; y: number } }).point
+      const releaseVelocity = (destination as { releaseVelocity?: { x: number; y: number } }).releaseVelocity
+      const columnId = (destination as { columnId?: string }).columnId
       const viewport = viewportRef.value?.getBoundingClientRect()
       if (!point || !viewport) return null
-      return { left: point.x - 92, top: point.y - 43, width: 184, height: 86 }
+      const landingPoint = columnId === 'canvas:main'
+        ? resolveFreeLandingPoint(point, releaseVelocity, motionMode.value, runtime.getMotionProfile()?.freeLanding)
+        : point
+      return { left: landingPoint.x - 92, top: landingPoint.y - 43, width: 184, height: 86 }
     },
   })
 }
@@ -120,7 +126,13 @@ useRuntimeAction(action => {
     drawerNodes.value = drawerNodes.value.filter(node => node.id !== source.id)
     if (!nodes.value.some(node => node.id === source.id)) nodes.value.push(source)
     const rect = viewportRef.value?.getBoundingClientRect()
-    if (action.point && rect) { source.x = action.point.x - rect.left - 92; source.y = action.point.y - rect.top - 43 }
+    if (action.point && rect) {
+      const landingPoint = action.toSurfaceId === 'canvas:main'
+        ? resolveFreeLandingPoint(action.point, action.releaseVelocity, motionMode.value, runtime.getMotionProfile()?.freeLanding)
+        : action.point
+      source.x = landingPoint.x - rect.left - 92
+      source.y = landingPoint.y - rect.top - 43
+    }
   }
 })
 

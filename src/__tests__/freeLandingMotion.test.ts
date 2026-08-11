@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCubicBezierEasing, createFreeLandingMotion, resolveFreeLandingEasing } from '../motion/FreeLandingMotion'
+import { createCubicBezierEasing, createFreeLandingMotion, resolveFreeLandingEasing, resolveFreeLandingPoint } from '../motion/FreeLandingMotion'
 
 describe('FreeLandingMotion', () => {
+  it('physical 释放会把最终落点沿速度方向外推', () => {
+    expect(resolveFreeLandingPoint({ x: 100, y: 80 }, { x: 500, y: 0 }, 'physical'))
+      .toEqual({ x: 160, y: 80 })
+  })
+
+  it('normal 释放保持鼠标落点，不使用惯性外推', () => {
+    expect(resolveFreeLandingPoint({ x: 100, y: 80 }, { x: 500, y: 0 }, 'normal'))
+      .toEqual({ x: 100, y: 80 })
+  })
+
   it('使用与 CSS 相同的 cubic-bezier 时间进度，并保持单调', () => {
     const easing = createCubicBezierEasing(0.22, 1, 0.36, 1)
     expect(easing(0)).toBeCloseTo(0, 6)

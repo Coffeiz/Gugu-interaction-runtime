@@ -24,6 +24,12 @@ export interface MotionProfile {
     duration: number
     /** 画布 landing 的缓动曲线。 */
     easing: string
+    /** 物理释放时的惯性外推时间，秒。 */
+    coastSeconds: number
+    /** 物理释放时的最大惯性距离，像素。 */
+    maxCoast: number
+    /** 低于该速度时不产生惯性外推。 */
+    minVelocity: number
   }
   target?: {
     /** 语义目标飞入使用的独立弹簧参数，不继承全局 landing。 */
@@ -59,6 +65,9 @@ export const DEFAULT_MOTION_PROFILE: Required<MotionProfile> = {
   freeLanding: {
     duration: 550,
     easing: 'cubic-bezier(.22,1,.36,1)',
+    coastSeconds: 0.12,
+    maxCoast: 260,
+    minVelocity: 30,
   },
   target: {
     motion: {
