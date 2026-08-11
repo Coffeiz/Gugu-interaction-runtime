@@ -368,6 +368,25 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   /**
+   * 返回对象释放时使用的速度档案。
+   * free landing 可以按对象类型覆写速度倍率和上限；其它落地模式始终使用
+   * 全局档案，避免列表/网格卡片被画布调参影响。
+   */
+  getObjectReleaseMotionProfile(objectId: string) {
+    const object = this.objects.get(objectId)
+    const registration = object
+      ? this.registry.objectTypes.get(object.visual ?? object.type)
+      : undefined
+    const release = registration?.landingMode === 'free'
+      ? registration.motion?.profile?.freeLanding?.release
+        ?? this.registry.motionProfile?.freeLanding?.release
+      : undefined
+    return release
+      ? { ...DEFAULT_RELEASE_PROFILE, ...release }
+      : DEFAULT_RELEASE_PROFILE
+  }
+
+  /**
    * 返回与矩形相交的已注册对象。
    * Runtime 只负责对象命中计算，选择状态仍由业务保存；代理节点、断开节点和
    * 不可见节点不会进入结果，避免框选把落地代理或隐藏列表项带进来。
@@ -588,6 +607,14 @@ setMotionProfiles(this.registry.motionProfile)
           flip: { ...globalProfile?.flip, ...registeredProfile?.flip },
           resize: { ...globalProfile?.resize, ...registeredProfile?.resize },
           landing: { ...globalProfile?.landing, ...registeredProfile?.landing },
+          freeLanding: {
+            ...globalProfile?.freeLanding,
+            ...registeredProfile?.freeLanding,
+            release: {
+              ...globalProfile?.freeLanding?.release,
+              ...registeredProfile?.freeLanding?.release,
+            },
+          },
           target: {
             ...globalProfile?.target,
             ...registeredProfile?.target,

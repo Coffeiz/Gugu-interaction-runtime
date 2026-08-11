@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Runtime } from '../Runtime'
 import type { MoveBehaviorDriver, MoveVisualLifecycle } from '../behavior/MoveBehavior'
+import { shapeReleaseVelocity } from '../motion/ReleaseMotion'
 
 function createRuntime() {
   const runtime = new Runtime()
@@ -40,6 +41,50 @@ function createRequest() {
 }
 
 describe('Runtime move orchestration', () => {
+  it('只对 free landing 使用对象级释放速度上限', () => {
+    const runtime = new Runtime()
+    runtime.registerObjectType('canvas-card', {
+      defaultVisualMode: 'detach',
+      landingMode: 'free',
+      motion: {
+        profile: {
+          freeLanding: {
+            duration: 550,
+            easing: 'ease-out',
+            coastSeconds: 0.12,
+            maxCoast: 260,
+            minVelocity: 30,
+            release: { velocityScale: 1, maxVelocity: 2500 },
+          },
+        },
+      },
+    })
+    runtime.registerObjectType('grid-card', {
+      defaultVisualMode: 'detach',
+      landingMode: 'target',
+      motion: {
+        profile: {
+          freeLanding: {
+            duration: 550,
+            easing: 'ease-out',
+            coastSeconds: 0.12,
+            maxCoast: 260,
+            minVelocity: 30,
+            release: { velocityScale: 0.2, maxVelocity: 100 },
+          },
+        },
+      },
+    })
+
+    runtime.objects.register({ id: 'canvas:1', type: 'canvas-card', surfaceId: 'canvas', element: null, abilities: ['move'] })
+    runtime.objects.register({ id: 'grid:1', type: 'grid-card', surfaceId: 'grid', element: null, abilities: ['move'] })
+
+    expect(runtime.getObjectReleaseMotionProfile('canvas:1')).toMatchObject({ velocityScale: 1, maxVelocity: 2500 })
+    expect(runtime.getObjectReleaseMotionProfile('grid:1')).toMatchObject({ velocityScale: 1, maxVelocity: 5000 })
+    expect(shapeReleaseVelocity({ x: 5000, y: 0 }, runtime.getObjectReleaseMotionProfile('canvas:1'))).toEqual({ x: 2500, y: 0 })
+    expect(shapeReleaseVelocity({ x: 5000, y: 0 }, runtime.getObjectReleaseMotionProfile('grid:1'))).toEqual({ x: 5000, y: 0 })
+  })
+
   it('free landing 通过纯矩形解析，不要求目标 DOM', () => {
     const runtime = new Runtime()
     const element = document.createElement('article')

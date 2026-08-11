@@ -138,7 +138,10 @@ export function createDetachMoveFromAdapter(config: {
     released = true
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
     if (releaseMotionState) {
-      const releaseVelocity = shapeReleaseVelocity({ x: releaseMotionState.vx, y: releaseMotionState.vy })
+      const releaseVelocity = shapeReleaseVelocity(
+        { x: releaseMotionState.vx, y: releaseMotionState.vy },
+        runtime.getObjectReleaseMotionProfile(objectId),
+      )
       releaseMotionState.vx = releaseVelocity.x
       releaseMotionState.vy = releaseVelocity.y
     }

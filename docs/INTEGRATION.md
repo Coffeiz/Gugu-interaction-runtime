@@ -198,6 +198,7 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
 |  | `releaseMode` | 释放后的降落策略：`physical` 继承释放速度（默认），`normal` 使用普通过渡 |
 |  | `landingMode` | `default` 普通回位、`target` 语义目标吸入、`free` 自由矩形落点 |
+|  | `motion.profile.freeLanding.release` | 仅 `landingMode: 'free'` 使用的释放速度整形，可配置 `velocityScale` 与 `maxVelocity`；列表/网格对象忽略该字段 |
 |  | `resolveFreeLandingRect` | `free` 模式解析视口坐标 `LandingRect`，不要求目标 DOM |
 | `runtime.configureMotion(config)` | `freeLanding.duration` | 画布 free landing 的非回弹飞行时长，默认 550ms |
 |  | `freeLanding.easing` | 画布 landing 缓动曲线，默认 `cubic-bezier(.22,1,.36,1)` |
@@ -249,6 +250,30 @@ runtime.configureMotion({
   group:   { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
 })
 ```
+
+如果只有某一种 free 对象需要限制抛出速度，优先写在该对象类型上，不要修改全局释放档案：
+
+```ts
+runtime.registerObjectType('canvas-card', {
+  defaultVisualMode: 'detach',
+  landingMode: 'free',
+  motion: {
+    profile: {
+      freeLanding: {
+        duration: 550,
+        easing: 'cubic-bezier(.22,1,.36,1)',
+        coastSeconds: 0.12,
+        maxCoast: 260,
+        minVelocity: 30,
+        release: { velocityScale: 1, maxVelocity: 2500 },
+      },
+    },
+  },
+})
+```
+
+`freeLanding.release` 只在该对象最终走 free landing 时参与释放速度裁剪；`target`、`default`
+以及列表/网格对象仍使用全局 `DEFAULT_RELEASE_PROFILE`，因此不会被画布参数联动修改。
 
 跟手和释放物理参数通过同一个入口配置：`follow.stiffness/damping` 控制跟手弹簧，
 `rotation.tilt/sway/smoothing` 控制抓取姿态，`release.velocityScale` 控制释放速度，

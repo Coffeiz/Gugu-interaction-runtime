@@ -198,8 +198,8 @@ runtime.configureMotion({
 `freeLanding` 不影响项目列、文件网格或语义目标吸入。free landing 不使用欠阻尼弹簧，
 因此不应出现目标点附近的回弹。释放后的最终世界坐标仍由业务通过
 `resolveFreeLandingRect` 提供，Runtime 不在视觉层偷偷追加偏移，避免代理终点与真实本体
-坐标不一致。释放惯性落点的计算若要下沉到 Runtime，需要另行扩展带 release state 的
-解析契约，不属于本次改动。
+坐标不一致。释放速度的倍率和上限可以通过对象类型的
+`motion.profile.freeLanding.release` 配置；该配置只影响 free 对象，不会改变列表/网格卡片。
 
 ## 四、职责边界
 
