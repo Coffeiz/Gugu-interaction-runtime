@@ -8,6 +8,7 @@
       <nav class="demo-tabs" aria-label="演示页面">
         <button :class="{ active: page === 'kanban' }" @click="page = 'kanban'">看板</button>
         <button :class="{ active: page === 'files' }" @click="page = 'files'">文件系统</button>
+        <button :class="{ active: page === 'canvas' }" @click="page = 'canvas'">自由画布</button>
       </nav>
     </header>
 
@@ -26,9 +27,10 @@
       <KanbanBoard :strategy="strategy" />
     </section>
 
-    <section v-else class="demo-page">
+    <section v-else-if="page === 'files'" class="demo-page">
       <FileSystemDemo :strategy="strategy" />
     </section>
+    <section v-else class="demo-page canvas-page"><CanvasDemo /></section>
   </main>
 </template>
 
@@ -36,8 +38,9 @@
 import { ref } from 'vue'
 import KanbanBoard from './KanbanBoard.vue'
 import FileSystemDemo from './FileSystemDemo.vue'
+import CanvasDemo from './CanvasDemo.vue'
 
-const page = ref<'kanban' | 'files'>('kanban')
+const page = ref<'kanban' | 'files' | 'canvas'>('kanban')
 const strategy = ref<'detach' | 'clone'>('detach')
 </script>
 
@@ -51,6 +54,7 @@ h1 { font-size: 22px; letter-spacing: 0; }
 .demo-tabs button, .mode-switch button { border: 1px solid #dce1ec; border-radius: 8px; background: #fff; color: #65708a; padding: 8px 13px; cursor: pointer; }
 .demo-tabs button.active, .mode-switch button.active { border-color: #7781d6; background: #707aca; color: #fff; }
 .demo-page { min-height: 0; padding: 0 28px 28px; }
+.canvas-page { display: flex; flex: 1; }
 .kanban-page { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .page-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 0 4px; }
 .page-toolbar h2 { font-size: 18px; }
