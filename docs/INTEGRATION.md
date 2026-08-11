@@ -196,6 +196,9 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `visual` | 可选的对象级 `VisualAdapter` |
 |  | `motion.enabled` | 是否使用内置 MotionController，默认 `true` |
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
+|  | `releaseMode` | 释放后的降落策略：`physical` 继承释放速度（默认），`normal` 使用普通过渡 |
+|  | `landingMode` | `default` 普通回位、`target` 语义目标吸入、`free` 自由矩形落点 |
+|  | `resolveFreeLandingRect` | `free` 模式解析视口坐标 `LandingRect`，不要求目标 DOM |
 |  | `grabAlign.align` | 抓取基准对齐方式：`'center'`（默认，卡片中心对指针）或 `'pointer'`（点哪抓哪） |
 |  | `grabAlign.offsetX` / `offsetY` | 在基准对齐结果上叠加的固定像素偏移，正值往右/往下 |
 | `runtime.objects.register(options)` | `id` | 对象唯一标识 |
@@ -541,6 +544,24 @@ landing 的终态表现通过 `landingMode` 区分，默认值为 `default`。�
 继续使用 `default`；文件夹卡、面包屑这类语义目标可以使用 `target`：代理从松手
 后的第一帧就开始缩小淡出，同时继承原有 landing 的释放速度、旋转和位置运动。
 `target` 不改变位置运动，也不会影响看板的 landing。
+
+自由画布可以使用 `landingMode: 'free'`。此模式的解析器返回与
+`getBoundingClientRect()` 相同视口坐标系的矩形，不需要真实目标元素；Runtime 会跳过
+目标 DOM 等待和目标隐藏，但仍复用同一套代理、释放、retarget、淡出和清理流程。默认
+`releaseMode: 'physical'` 会继承释放时的速度、旋转和缩放状态；需要无惯性普通落地时
+设置 `releaseMode: 'normal'`。Stage 1 的画布接入由业务负责把世界坐标转换为当前视口
+矩形，Camera API 留到后续阶段。
+
+```ts
+runtime.registerObjectType('canvas-card', {
+  defaultVisualMode: 'detach',
+  landingMode: 'free',
+  releaseMode: 'physical',
+  resolveFreeLandingRect: ({ destination }) => destination as {
+    left: number; top: number; width: number; height: number
+  },
+})
+```
 
 `target` 的飞入和缩小淡出可以分别调参。`target.motion` 控制飞入弹簧速度，
 `target.landing` 控制飞入段的时长与视觉缓动，`target.dismiss` 控制同步开始的缩小淡出；

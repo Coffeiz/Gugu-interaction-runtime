@@ -40,6 +40,45 @@ function createRequest() {
 }
 
 describe('Runtime move orchestration', () => {
+  it('free landing 通过纯矩形解析，不要求目标 DOM', () => {
+    const runtime = new Runtime()
+    const element = document.createElement('article')
+    runtime.registerObjectType('canvas-card', {
+      defaultVisualMode: 'detach',
+      landingMode: 'free',
+      resolveFreeLandingRect: () => ({ left: 320, top: 180, width: 120, height: 80 }),
+    })
+    runtime.objects.register({
+      id: 'canvas:card:1',
+      type: 'canvas-card',
+      surfaceId: 'canvas:main',
+      element,
+      abilities: ['move'],
+    })
+    runtime.surfaces.register({ id: 'canvas:main', type: 'canvas', element: null, accepts: ['canvas-card'] })
+
+    const session = runtime.startSession('move', 'canvas:card:1')
+    expect(runtime.resolveMoveLandingResolution(session.id, { toSurfaceId: 'canvas:main' })).toEqual({
+      kind: 'rect',
+      rect: { left: 320, top: 180, width: 120, height: 80 },
+    })
+  })
+
+  it('free landing 的 invalidReturn 不调用自由落点解析器', () => {
+    const runtime = new Runtime()
+    const resolveFreeLandingRect = vi.fn(() => ({ left: 320, top: 180, width: 120, height: 80 }))
+    runtime.registerObjectType('canvas-card', {
+      defaultVisualMode: 'detach',
+      landingMode: 'free',
+      resolveFreeLandingRect,
+    })
+    runtime.objects.register({ id: 'canvas:card:2', type: 'canvas-card', surfaceId: 'canvas:main', element: null, abilities: ['move'] })
+    const session = runtime.startSession('move', 'canvas:card:2')
+
+    expect(runtime.resolveMoveLandingResolution(session.id, { invalidReturn: true })).toBeNull()
+    expect(resolveFreeLandingRect).not.toHaveBeenCalled()
+  })
+
   it('Object 的嵌套 Target 会随对象登记、换绑和注销同步', () => {
     const runtime = new Runtime()
     const folder = document.createElement('article')

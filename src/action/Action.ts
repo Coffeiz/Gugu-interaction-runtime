@@ -9,6 +9,10 @@ export interface MoveAction extends BaseAction {
   readonly toSurfaceId: string
   /** 目标 Surface 内的插入位置；不是所有业务都有"顺序"概念，可选。 */
   readonly toIndex?: number
+  /** 释放时的屏幕坐标，free Surface 可据此换算业务坐标。 */
+  readonly point?: { x: number; y: number }
+  /** physical 释放策略在松手瞬间的屏幕速度。 */
+  readonly releaseVelocity?: { x: number; y: number }
 }
 
 export interface MoveGroupAction extends BaseAction {

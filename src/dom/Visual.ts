@@ -268,7 +268,7 @@ export interface LandingVisualOptions {
    */
   targetContent?: HTMLElement
   /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
-  landingMode?: 'default' | 'target'
+  landingMode?: 'default' | 'target' | 'free'
   /** target 模式的末段缩小淡出参数；默认沿用 landing 时长与缓动。 */
   dismiss?: { duration: number; easing: string; scale: number }
   /** target 模式独立的物理速度；不读取全局 landing 的弹簧。 */

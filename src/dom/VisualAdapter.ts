@@ -39,10 +39,13 @@ export interface VisualLifecycleContext {
   /** 抓取开始时冻结的内容快照；仅供视觉代理使用，不承载业务状态。 */
   readonly beforeContent?: HTMLElement
   readonly targetElement?: HTMLElement
+  readonly targetRect?: LandingRect
   /** 目标节点作为语义落点时保留其可见性，避免与源代理发生双重交接。 */
   readonly preserveTarget?: boolean
-  /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
-  readonly landingMode?: 'default' | 'target'
+  /** default 保持普通 landing；target 到达语义目标后追加缩小淡出；free 使用纯矩形。 */
+  readonly landingMode?: 'default' | 'target' | 'free'
+  /** 释放后的落地策略；physical 继承释放状态，normal 不继承释放速度。 */
+  readonly releaseMode?: 'normal' | 'physical'
   /** target landing 时跳过代理套上目标背景/圆角/内容的视觉 morph，只保留位置和缩小淡出。 */
   readonly disableTargetVisualMorph?: boolean
   readonly sourceRect?: DOMRect
@@ -77,7 +80,7 @@ export interface VisualAdapter {
   applyState?(element: HTMLElement, state: VisualState): void
   createProxy?(context: VisualLifecycleContext): VisualProxy
   updateProxy?(proxy: VisualProxy, context: VisualLifecycleContext): void
-  land?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<{ completed: boolean; reason?: string }>
+  land?(proxy: VisualProxy, target: HTMLElement | LandingRect, context: VisualLifecycleContext): void | Promise<{ completed: boolean; reason?: string }>
   reveal?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<void>
   /** 完整销毁代理；实现该回调后由 adapter 负责调用 proxy.dispose（如有）。 */
   dispose?(proxy: VisualProxy, context: VisualLifecycleContext): void
@@ -172,15 +175,17 @@ export class DefaultVisualAdapter implements VisualAdapter {
     return { element: proxy }
   }
 
-  land(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): Promise<{ completed: boolean; reason?: string }> {
+  land(proxy: VisualProxy, target: HTMLElement | LandingRect, context: VisualLifecycleContext): Promise<{ completed: boolean; reason?: string }> {
     const el = proxy.element
-    if (!context.targetSnapshot?.rect && !target.isConnected) {
+    const targetElement = 'getBoundingClientRect' in target ? target : undefined
+    const directTargetRect: LandingRect | undefined = targetElement ? undefined : target as LandingRect
+    if (!context.targetRect && !context.targetSnapshot?.rect && !directTargetRect && (!targetElement || !targetElement.isConnected)) {
       return Promise.resolve({ completed: false, reason: 'target-disconnected' })
     }
-    const rawTargetRect = context.targetSnapshot?.rect ?? target.getBoundingClientRect()
+    const rawTargetRect = context.targetRect ?? context.targetSnapshot?.rect ?? directTargetRect ?? targetElement!.getBoundingClientRect()
     const rawLandingRect = {
-      left: rawTargetRect.left ?? rawTargetRect.x,
-      top: rawTargetRect.top ?? rawTargetRect.y,
+      left: rawTargetRect.left,
+      top: rawTargetRect.top,
       width: rawTargetRect.width,
       height: rawTargetRect.height,
     }
@@ -189,7 +194,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       return bounds ? clampLandingRectToBounds(rect, bounds) : rect
     }
     const targetRect = clampTarget(rawLandingRect)
-    if (!context.preserveTarget) concealElement(target, context.sessionId)
+    if (targetElement && !context.preserveTarget) concealElement(targetElement, context.sessionId)
     el.style.transition = 'none'
     const isTargetLanding = context.landingMode === 'target'
     const isCompactProxy = getProxyContent(el).dataset.runtimeCompact === 'true'
@@ -225,7 +230,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
       el.style.width = `${targetRect.width}px`
       el.style.height = `${targetRect.height}px`
     }
-    const land = context.motionEnabled === false ? landDragProxyLegacy : landDragProxyWithMotion
+    const land = context.motionEnabled === false || context.releaseMode === 'normal'
+      ? landDragProxyLegacy
+      : landDragProxyWithMotion
     const { finished, retarget } = land(el, targetRect, {
       duration: landingProfile?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
       easing: landingProfile?.easing ?? DEFAULT_MOTION_PROFILE.landing.easing,
@@ -243,12 +250,12 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // compact 列表代理与目标卡结构相同，只需要让同一份内容跟随宽度恢复；如果再挂一层
       // 目标 Grid，右侧文件大小会因为 justify-self:end 在 landing 第一帧瞬间回到完整宽度。
       // 只有真正有背景/阴影且不是 compact 列表的目标才复用结构级 content morph。
-      targetContent: targetHasVisibleSurface && !isCompactProxy ? target : undefined,
+      targetContent: targetHasVisibleSurface && !isCompactProxy ? targetElement : undefined,
       landingMode: context.landingMode,
       targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
       dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,
-      readTarget: () => clampTarget(target.getBoundingClientRect()),
-      motionState: context.motionState,
+      readTarget: targetElement ? () => clampTarget(targetElement.getBoundingClientRect()) : undefined,
+      motionState: context.releaseMode === 'normal' ? undefined : context.motionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
         friction: DEFAULT_COAST_FRICTION,
@@ -257,14 +264,14 @@ export class DefaultVisualAdapter implements VisualAdapter {
       },
       releaseDamping: DEFAULT_RELEASE_PROFILE.dampingRatio,
     })
-    if (this.runtime) {
+    if (this.runtime && targetElement) {
       // targetSnapshot 只用于代理的首帧样式和初始几何，不能作为后续
       // retarget 的位置来源。目标卡可能在另一个 landing 期间被兄弟
       // FLIP 移动，即使它不在 data-layout-surface 下，也必须跟随当前
       // 视觉 rect；否则代理会回到落地开始时的旧位置。
       const snapshotRect = context.targetSnapshot?.rect
       const readRetargetRect = (): LandingRect => {
-        const liveRect = target.getBoundingClientRect()
+        const liveRect = targetElement!.getBoundingClientRect()
         if (liveRect.width > 0 && liveRect.height > 0) return clampTarget(liveRect)
         // 目标节点短暂被框架隐藏或重挂载时，不要把代理 retarget 到
         // [0, 0, 0, 0]；沿用最后一个有效快照，等待下一帧恢复实时位置。
@@ -278,7 +285,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
         }
         return clampTarget(liveRect)
       }
-      this.runtime.trackLandingTarget(context.sessionId, target, () => {
+      this.runtime.trackLandingTarget(context.sessionId, targetElement, () => {
         retarget(readRetargetRect())
       })
     }

@@ -15,7 +15,7 @@ import { DefaultVisualAdapter, type GroupVisualAdapter, type VisualAdapter, type
 import type { VisualState } from './dom/VisualAdapterTypes'
 import type { MotionProfile } from './dom/MotionProfile'
 import type { GroupDragConfig } from './dom/GroupDragProfile'
-import type { DragProxyLayoutConfig } from './dom/Visual'
+import type { DragProxyLayoutConfig, LandingRect } from './dom/Visual'
 import type { MotionControllerConfig } from './motion/MotionProfile'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
@@ -102,6 +102,10 @@ export interface GrabAlignConfig {
   offsetY?: number
 }
 
+export type MoveLandingResolution =
+  | { kind: 'element'; element: HTMLElement }
+  | { kind: 'rect'; rect: LandingRect }
+
 export interface ObjectTypeRegistration {
   defaultVisualMode: string
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
@@ -110,8 +114,10 @@ export interface ObjectTypeRegistration {
   groupVisual?: GroupVisualOption
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
   motion?: { enabled?: boolean; profile?: MotionProfile }
-  /** landing 的终态表现；default 保持看板行为，target 到达语义目标后缩小淡出。 */
-  landingMode?: 'default' | 'target'
+  /** landing 的终态表现；default 普通回位，target 到达语义目标后缩小淡出，free 使用连续矩形。 */
+  landingMode?: 'default' | 'target' | 'free'
+  /** 释放后的落地策略；physical 继承释放速度，normal 不继承释放速度。默认 physical。 */
+  releaseMode?: 'normal' | 'physical'
   /** target landing 时是否跳过"代理套上目标背景/圆角/内容"的视觉 morph，只保留位置和
    * 缩小淡出。目标和源对象内部结构差异较大（不同组件、不同子节点布局）时，内容 morph 会
    * 插值出不对齐的中间态，看起来像"代理直接变成了目标"而不是"飞向目标后消失"；只有源和
@@ -132,6 +138,8 @@ export interface ObjectTypeRegistration {
   resolveMoveTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
   /** 可选视觉落点解析；目标可以是文件夹卡、面包屑等语义接收节点。 */
   resolveMoveLandingTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
+  /** free landing 的视口矩形解析器；不要求存在对应 DOM 节点。 */
+  resolveFreeLandingRect?(context: { objectId: string; destination: unknown }): LandingRect | null
   /** 落地代理飞向业务目标时是否保留目标节点可见。 */
   preserveMoveTarget?: boolean
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
@@ -557,7 +565,7 @@ setMotionProfiles(this.registry.motionProfile)
   createVisualLifecycleContext(
     sessionId: string,
     destination?: unknown,
-    targetElement?: HTMLElement,
+    target?: HTMLElement | LandingRect,
     beforeContent?: HTMLElement,
   ): VisualLifecycleContext {
     const session = this.sessionCoordinator.get(sessionId)
@@ -588,6 +596,8 @@ setMotionProfiles(this.registry.motionProfile)
     const invalidReturn = typeof destination === 'object'
       && destination !== null
       && (destination as { invalidReturn?: unknown }).invalidReturn === true
+    const targetElement = target && 'getBoundingClientRect' in target ? target : undefined
+    const targetRect = target && !targetElement ? target as LandingRect : undefined
     const targetIsSource = Boolean(targetElement && sourceElement && targetElement === sourceElement)
 
     const proxyLayout = this.getObjectProxyLayout(session?.objectId ?? '', sourceElement)
@@ -599,6 +609,7 @@ setMotionProfiles(this.registry.motionProfile)
       sourceElement,
       beforeContent,
       targetElement,
+      targetRect,
       sourceRect: sourceElement?.getBoundingClientRect(),
       visualSnapshot: sourceElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(sourceElement)
@@ -609,7 +620,10 @@ setMotionProfiles(this.registry.motionProfile)
       preserveTarget: registration?.preserveMoveTarget ?? false,
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。
-      landingMode: !invalidReturn && !targetIsSource && registration?.landingMode === 'target' ? 'target' : 'default',
+      landingMode: !invalidReturn && !targetIsSource
+        ? registration?.landingMode === 'target' ? 'target' : registration?.landingMode === 'free' ? 'free' : 'default'
+        : 'default',
+      releaseMode: registration?.releaseMode ?? 'physical',
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
         const surfaceId = this.getDestinationSurfaceId(destination)
@@ -647,7 +661,7 @@ setMotionProfiles(this.registry.motionProfile)
   /** 调用当前对象适配器的 landing，并保证无代理时也有确定结果。 */
   async landVisualProxy(
     sessionId: string,
-    target: HTMLElement,
+    target: HTMLElement | LandingRect,
     context?: VisualLifecycleContext,
   ): Promise<{ completed: boolean; reason?: string }> {
     return this.visualMotion.land(sessionId, target, context)
@@ -996,15 +1010,41 @@ setMotionProfiles(this.registry.motionProfile)
     sessionId: string,
     destination: unknown,
     maxFrames = 6,
-  ): Promise<HTMLElement | null> {
-    const immediate = this.resolveMoveLandingTarget(sessionId, destination)
-    if (immediate) {
-      const rect = immediate.getBoundingClientRect()
+  ): Promise<MoveLandingResolution | null> {
+    const immediate = this.resolveMoveLandingResolution(sessionId, destination)
+    if (immediate?.kind === 'rect') return immediate
+    if (immediate?.kind === 'element') {
+      const rect = immediate.element.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
         return immediate
       }
     }
-    return this.waitForMoveTarget(sessionId, destination, maxFrames)
+    const waited = await this.waitForMoveTarget(sessionId, destination, maxFrames)
+    return waited ? { kind: 'element', element: waited } : null
+  }
+
+  /**
+   * 解析最终落地形态。保留 resolveMoveLandingTarget 的 HTMLElement 旧契约，
+   * 仅由新入口增加 free 的纯矩形分支，避免影响项目/文件现有接入。
+   */
+  resolveMoveLandingResolution(
+    sessionId: string,
+    destination: unknown,
+    fallback?: () => HTMLElement | null,
+  ): MoveLandingResolution | null {
+    const session = this.sessionCoordinator.get(sessionId)
+    if (!session) return null
+    const object = this.objects.get(session.objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const invalidReturn = typeof destination === 'object'
+      && destination !== null
+      && (destination as { invalidReturn?: unknown }).invalidReturn === true
+    if (!invalidReturn && registration?.landingMode === 'free') {
+      const rect = registration.resolveFreeLandingRect?.({ objectId: session.objectId, destination })
+      if (rect && rect.width > 0 && rect.height > 0) return { kind: 'rect', rect }
+    }
+    const target = this.resolveMoveLandingTarget(sessionId, destination, fallback)
+    return target ? { kind: 'element', element: target } : null
   }
 
   /**

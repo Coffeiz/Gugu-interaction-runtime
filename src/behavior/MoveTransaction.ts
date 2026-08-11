@@ -12,6 +12,8 @@ export interface MoveActionDestination {
   readonly fromSurfaceId: string
   readonly toSurfaceId: string
   readonly toIndex?: number
+  readonly point?: { x: number; y: number }
+  readonly releaseVelocity?: { x: number; y: number }
 }
 
 /**

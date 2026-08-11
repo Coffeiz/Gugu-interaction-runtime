@@ -149,6 +149,37 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     legacySpy.mockRestore()
     destroyDragProxy(proxy)
   })
+
+  it('releaseMode=normal：只切换落地策略，不继承释放运动状态', async () => {
+    const legacySpy = vi.spyOn(VisualModule, 'landDragProxyLegacy')
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'o', sessionId: 's', mode: 'detach', releaseMode: 'normal',
+      motionState: { x: 0, y: 0, vx: 800, vy: -300, scaleX: 1.03, scaleY: 1.03, rotateX: 5, rotateZ: 2 },
+    } as never)
+
+    expect(legacySpy).toHaveBeenCalledOnce()
+    legacySpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('free landing：接受没有 DOM 目标的纯矩形', async () => {
+    const { source, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+
+    const result = await adapter.land({ element: proxy }, {
+      left: 420, top: 260, width: 60, height: 40,
+    }, {
+      objectId: 'o', sessionId: 's', mode: 'detach', landingMode: 'free',
+      targetRect: { left: 420, top: 260, width: 60, height: 40 },
+    } as never)
+
+    expect(result.completed).toBe(true)
+    expect(source.isConnected).toBe(true)
+    destroyDragProxy(proxy)
+  })
 })
 
 describe('Runtime.getObjectMotionEnabled', () => {

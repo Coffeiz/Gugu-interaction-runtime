@@ -47,7 +47,7 @@ export {
   type GroupDragStackTransform,
   type ResolvedGroupDragConfig,
 } from './dom/GroupDragProfile'
-export type { DragProxyLayoutConfig } from './dom/Visual'
+export type { DragProxyLayoutConfig, LandingRect } from './dom/Visual'
 export { DefaultVisualAdapter, VisualAdapters } from './dom/VisualAdapter'
 export type { VisualPhase, VisualState, VisualSnapshot } from './dom/VisualAdapterTypes'
 export { createGroupVisualAdapter } from './dom/GroupVisual'

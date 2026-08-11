@@ -46,8 +46,8 @@ export function createDetachMoveFromAdapter(config: {
   }
   let beforeContent: HTMLElement | undefined
   let draggingSnapshot: ReturnType<typeof captureDetachDraggingSnapshot> | undefined
-  let dropState: ReturnType<typeof createDetachDropState<{ columnId: string; index: number }>> | undefined
-  let pendingDrop: { columnId: string; index: number; invalidReturn?: boolean } | null = null
+  let dropState: ReturnType<typeof createDetachDropState<{ columnId: string; index: number; point?: { x: number; y: number }; releaseVelocity?: { x: number; y: number } }>> | undefined
+  let pendingDrop: { columnId: string; index: number; invalidReturn?: boolean; point?: { x: number; y: number }; releaseVelocity?: { x: number; y: number } } | null = null
   let landingPlan: (() => void) | null = null
   let landingGate: RuntimeCompletionGate<LandingResult> | null = null
   let landingProxy: HTMLElement | null = null
@@ -117,7 +117,7 @@ export function createDetachMoveFromAdapter(config: {
       getSurface: (drop: { columnId: string; index: number }) => drop.columnId,
     })
     if (!hit) return
-    pendingDrop = hit
+    pendingDrop = { ...hit, point: { x, y } }
   }
 
   function onMove(moveEvent: PointerEvent) {
@@ -147,7 +147,18 @@ export function createDetachMoveFromAdapter(config: {
     autoScroller?.stop()
     if (!dropState || !sessionId) return { accepted: false as const }
     if (releaseEvent) updateDropFromPoint(releaseEvent.clientX, releaseEvent.clientY)
-    pendingDrop = dropState.release()
+    const releasedDrop = dropState.release()
+    pendingDrop = releasedDrop
+      ? {
+          ...releasedDrop,
+          point: releaseEvent
+            ? { x: releaseEvent.clientX, y: releaseEvent.clientY }
+            : releasedDrop.point,
+          ...(releaseMotionState
+            ? { releaseVelocity: { x: releaseMotionState.vx, y: releaseMotionState.vy } }
+            : {}),
+        }
+      : null
     // 原地按下后立即松手没有 pointermove，命中器会排除 source 自身，
     // 因而 pendingDrop 为空；这应视为回到原位置并走完整 landing 生命周期，
     // 而不是走没有 regrab 的 invalid-return 快路径。
@@ -201,19 +212,29 @@ export function createDetachMoveFromAdapter(config: {
       if (!isGroupSession) sourceLease?.restoreLayoutHidden()
       objectLease?.release()
     }
-    const proceedWithTarget = (sid: string, target: HTMLElement | null) => {
+    const proceedWithTarget = (sid: string, target: import('../../Runtime').MoveLandingResolution | null) => {
       if (getSessionState() !== 'landing') return
+      const landingElement = target?.kind === 'element' ? target.element : null
+      const revealTarget = landingElement
+        ?? runtime.resolveVisualTarget(sessionId!, destination)
+        ?? runtime.objects.get(objectId)?.element
+        ?? null
       const landedEl = resolveDetachLandingTarget({
-        resolve: () => target,
+        resolve: () => revealTarget,
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
       if (!landedEl) {
         landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
       }
-      runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
+      if (landingElement) runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
       const targetSnapshot = captureDetachTargetSnapshot((el: HTMLElement) => runtime.captureVisualState(objectId, el), landedEl)
       const visualContext = createDetachVisualContext({
-        createContext: () => runtime.createVisualLifecycleContext(sid, destination, landedEl, beforeContent!),
+        createContext: () => runtime.createVisualLifecycleContext(
+          sid,
+          destination,
+          target?.kind === 'rect' ? target.rect : target?.element ?? landedEl,
+          beforeContent!,
+        ),
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,
         motionState: releaseMotionState,
       })
@@ -237,7 +258,7 @@ export function createDetachMoveFromAdapter(config: {
             }
           }
         },
-        land: () => runtime.landVisualProxy(sid, landedEl, visualContext),
+        land: () => runtime.landVisualProxy(sid, target?.kind === 'rect' ? target.rect : landedEl, visualContext),
         onMissing: () => { landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' }); landingGate = null },
         onComplete: (landingResult: LandingResult) => {
           completeDetachLanding({
