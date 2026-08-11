@@ -394,6 +394,27 @@ function normalizeBoxShadowTransition(source: string, target: string): string {
   }).join(', ')
 }
 
+/**
+ * 统一提交 landing 的阴影起点。旧版 Gugu 的 landing clone 会先继承完整的
+ * grabbing 阴影，强制布局后才写入目标阴影；单代理 Runtime 也必须保持这个
+ * 顺序，否则浏览器会把起点和终点合并到同一帧，表现为阴影瞬间消失。
+ */
+function prepareBoxShadowMorph(
+  content: HTMLElement,
+  targetShadow: string | undefined,
+  transition: string,
+): void {
+  if (targetShadow == null) {
+    content.style.transition = transition
+    return
+  }
+  const sourceShadow = content.style.boxShadow || getComputedStyle(content).boxShadow
+  content.style.transition = 'none'
+  content.style.boxShadow = normalizeBoxShadowTransition(sourceShadow, targetShadow)
+  void content.offsetWidth
+  content.style.transition = transition
+}
+
 /** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
  * 徽章、按钮这类会增减的子元素文字内容本身就是区分度最高的信息，不需要真的做
  * 一整套 DOM diff。 */
@@ -675,16 +696,7 @@ export function landDragProxyLegacy(
       `translate3d(${(nextTarget.left - layoutLeft).toFixed(2)}px, ${(nextTarget.top - layoutTop).toFixed(2)}px, 0)`
 
     proxy.style.transition = `transform ${animDuration}ms ${easing}, width ${animDuration}ms ${easing}, height ${animDuration}ms ${easing}`
-    const sourceShadow = content.style.boxShadow || getComputedStyle(content).boxShadow
-    if (targetShadow != null) {
-      // 文件卡静止态有 inset + 外阴影两层，抓取态通常只有一层外阴影。
-      // 先把起点补成同样的层数，否则 box-shadow 会被浏览器离散切换。
-      const normalizedSourceShadow = normalizeBoxShadowTransition(sourceShadow, targetShadow)
-      content.style.transition = 'none'
-      content.style.boxShadow = normalizedSourceShadow
-      void content.offsetWidth
-    }
-    content.style.transition = [
+    const visualTransition = [
       `box-shadow ${animDuration}ms ease`,
       `border-radius ${animDuration}ms ease`,
       `border-color ${animDuration}ms ease`,
@@ -694,6 +706,7 @@ export function landDragProxyLegacy(
       `background-image ${animDuration}ms ease`,
       `opacity ${animDuration}ms ease`,
     ].join(', ')
+    prepareBoxShadowMorph(content, targetShadow, visualTransition)
     // box-shadow/border-radius/background/opacity 起点值（dragSnapshot）是调用方在这个
     // proxy 刚创建、还没被浏览器画过一帧的时候同步写上去的——如果在这里（设置 transition
     // 的同一个同步块里）就把它们改成目标值，浏览器压根没机会先画一帧"起点样子"，只会在
@@ -993,15 +1006,7 @@ export function landDragProxyWithMotion(
     `background-image ${duration}ms ${easing}`,
     `opacity ${duration}ms ${easing}`,
   ].join(', ')
-  content.style.transition = visualTransition
-  if (targetShadow != null) {
-    const sourceShadow = content.style.boxShadow || getComputedStyle(content).boxShadow
-    const normalizedSourceShadow = normalizeBoxShadowTransition(sourceShadow, targetShadow)
-    content.style.transition = 'none'
-    content.style.boxShadow = normalizedSourceShadow
-    void content.offsetWidth
-    content.style.transition = visualTransition
-  }
+  prepareBoxShadowMorph(content, targetShadow, visualTransition)
   requestAnimationFrame(() => {
     if (settled) return
     // 列表代理在抓取阶段是紧凑宽度；回到本体行时让内容层先平滑恢复
