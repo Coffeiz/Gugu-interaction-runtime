@@ -36,6 +36,8 @@ describe('Surface 自然尺寸 FLIP', () => {
     )
 
     expect(viewport.dataset.runtimeLayoutTransaction).toBe('true')
+    expect(viewport.style.height).toBe('240px')
+    expect(viewport.style.overflow).toBe('hidden')
     playSurfaceResize(snapshot, 20, 'linear')
     expect(measure).toHaveBeenCalled()
     vi.advanceTimersByTime(32)
@@ -45,6 +47,7 @@ describe('Surface 自然尺寸 FLIP', () => {
 
     vi.advanceTimersByTime(1000)
     expect(viewport.style.height).toBe('120px')
+    expect(viewport.style.overflow).toBe('')
     expect(viewport.dataset.runtimeLayoutTransaction).toBeUndefined()
     expect(viewport.dataset.runtimeSurfaceResize).toBeUndefined()
 

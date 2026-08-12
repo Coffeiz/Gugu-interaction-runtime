@@ -384,7 +384,11 @@ export function transitionGroupHeight(
   easing = FLIP_EASING,
   fromHeight?: number,
   retainTargetHeight = false,
-): void {
+): boolean {
+  // Surface resize 已由 Runtime 接管时，业务层的响应式高度更新只能提供
+  // 下一次自然尺寸，不能再启动第二条高度动画或覆盖当前播放帧。
+  if (element.dataset.runtimeLayoutTransaction === 'true'
+    || element.dataset.runtimeSurfaceResize === 'true') return false
   cancelGroupAnimation(element)
   const currentHeight = fromHeight ?? element.getBoundingClientRect().height
   const heightToken = String(Number(element.dataset.runtimeGroupToken ?? '0') + 1)
@@ -425,6 +429,7 @@ export function transitionGroupHeight(
     delete element.dataset.runtimeGroupAnimating
     groupAnimationStates.delete(element)
   }, effectiveDuration + 40)
+  return true
 }
 
 function cancelGroupAnimation(element: HTMLElement): void {
@@ -571,13 +576,23 @@ export function captureSurfaceLayout(
 ): SurfaceLayoutSnapshot[] {
   return elements.map(element => {
     element.dataset.runtimeLayoutTransaction = 'true'
+    const rect = readRect(element, measurement)
+    const measure = surfaceMeasures?.get(element)
+    const inlineStyle = surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element)
+    // 在 Vue/React 等业务侧提交自然尺寸之前先冻结当前边框盒，
+    // 避免事务中间的响应式 height 更新把 Surface 提前撑到最终高度。
+    // playSurfaceResize 会沿用这份 inlineStyle，并在事务结束时恢复它。
+    if (measure && !surfaceResizeStates.has(element)) {
+      element.style.height = `${toCssHeight(element, rect.height)}px`
+      element.style.overflow = 'hidden'
+    }
     return {
       element,
-      rect: readRect(element, measurement),
-      measure: surfaceMeasures?.get(element),
+      rect,
+      measure,
     // 事务被打断时，当前 inline height 是 Runtime 上一笔动画写入的临时值，
     // 不能把它错当成业务样式保存，否则取消落点后会永久留下旧高度。
-      inlineStyle: surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element),
+      inlineStyle,
     }
   })
 }
@@ -612,13 +627,20 @@ export function playSurfaceResize(
     .filter(({ item, next }) => Math.abs(item.rect.height - next.height) >= 0.5)
 
   if (plans.length === 0) {
-    before.forEach(({ element }) => { delete element.dataset.runtimeLayoutTransaction })
+    before.forEach(({ element, inlineStyle }) => {
+      restoreSurfaceInlineStyle(element, inlineStyle)
+      delete element.dataset.runtimeLayoutTransaction
+    })
     return
   }
 
   const plannedElements = new Set(plans.map(({ item }) => item.element))
   before.forEach(({ element }) => {
-    if (!plannedElements.has(element)) delete element.dataset.runtimeLayoutTransaction
+    if (!plannedElements.has(element)) {
+      const item = before.find(entry => entry.element === element)
+      if (item) restoreSurfaceInlineStyle(element, item.inlineStyle)
+      delete element.dataset.runtimeLayoutTransaction
+    }
   })
 
   for (const { item, fromHeight } of plans) {
