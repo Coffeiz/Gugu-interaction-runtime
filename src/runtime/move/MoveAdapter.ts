@@ -416,7 +416,7 @@ export function createDetachMoveFromAdapter(config: {
       const sourceScrollHeight = sourceViewport?.scrollHeight ?? 0
       applyFloatingStyle(element, rect, {
         layout: proxyLayout,
-        contentScale: runtime.getSurfaceCameraScale(initialSurfaceId),
+        contentScale: runtime.getSurfaceCameraPickupScale(initialSurfaceId, sessionId!),
         // 多选时源卡是布局幽灵，不能像单卡 detach 一样整张隐藏；主代理
         // 负责跟手，源节点保留在原位并由 group visual 降低透明度。
         keepSourceVisible: Boolean(group && group.objectIds.length > 1),

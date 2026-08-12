@@ -223,6 +223,8 @@ export class Runtime {
   private readonly nodeConnections = new Set<string>()
   private readonly moveVisualFrames = new Map<string, number>()
   private readonly moveVisualPhases = new Map<string, 'active' | 'landing'>()
+  /** 每个移动 session 复用同一条相机抓取倍率曲线，避免更新帧/落地重新起算。 */
+  private readonly moveContentScales = new Map<string, number | (() => number)>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
@@ -390,6 +392,40 @@ setMotionProfiles(this.registry.motionProfile)
   getSurfaceCameraScale(surfaceId?: string): number | (() => number) | undefined {
     const camera = surfaceId ? this.surfaces.get(surfaceId)?.camera : undefined
     return camera?.scale
+  }
+
+  /** Surface 可选择让抓取代理从 1x 平滑过渡到当前相机倍率。 */
+  getSurfaceCameraPickupScale(surfaceId?: string, sessionId?: string): number | (() => number) | undefined {
+    if (sessionId) {
+      const existing = this.moveContentScales.get(sessionId)
+      if (existing !== undefined) return existing
+    }
+    const camera = surfaceId ? this.surfaces.get(surfaceId)?.camera : undefined
+    if (!camera) return undefined
+    const duration = camera.pickupDuration
+    if (!duration || duration <= 0) {
+      return camera.scale
+    }
+    const startedAt = performance.now()
+    const readScale = () => {
+      const value = typeof camera.scale === 'function' ? camera.scale() : camera.scale
+      return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 1
+    }
+    const pickupScale = () => {
+      const progress = Math.min(1, Math.max(0, (performance.now() - startedAt) / duration))
+      const eased = 1 - (1 - progress) ** 3
+      return 1 + (readScale() - 1) * eased
+    }
+    if (sessionId) this.moveContentScales.set(sessionId, pickupScale)
+    return pickupScale
+  }
+
+  private getSessionContentScale(sessionId: string, surfaceId?: string): number | (() => number) | undefined {
+    return this.moveContentScales.get(sessionId) ?? this.getSurfaceCameraScale(surfaceId)
+  }
+
+  private clearSessionContentScale(sessionId: string): void {
+    this.moveContentScales.delete(sessionId)
   }
 
   getSurfaceCameraOrigin(surfaceId?: string): (() => { left: number; top: number }) | undefined {
@@ -683,7 +719,7 @@ setMotionProfiles(this.registry.motionProfile)
       // target landing，也必须保留普通 landing 的完整回位表现。
       landingMode: effectiveLandingMode,
       releaseMode: registration?.releaseMode ?? 'physical',
-      contentScale: this.getSurfaceCameraScale(object?.surfaceId),
+      contentScale: this.getSessionContentScale(sessionId, object?.surfaceId ?? undefined),
       cameraOrigin: this.getSurfaceCameraOrigin(object?.surfaceId),
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
@@ -1605,6 +1641,7 @@ setMotionProfiles(this.registry.motionProfile)
         current => this.failCompletionGates(current.id),
         (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
     )
+    this.clearSessionContentScale(sessionId)
   }
 
   interrupt(sessionId: string, reason: string = 'cancel'): void {
@@ -1631,6 +1668,7 @@ setMotionProfiles(this.registry.motionProfile)
         current => this.failCompletionGates(current.id),
         (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
     )
+    this.clearSessionContentScale(sessionId)
   }
 
   startSession(type: string, objectId = ''): Session {
@@ -1702,6 +1740,7 @@ setMotionProfiles(this.registry.motionProfile)
       sessionId => this.disposeVisualProxy(sessionId),
       (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
     )
+    this.clearSessionContentScale(session.id)
   }
 
   private failCompletionGates(sessionId: string): void {

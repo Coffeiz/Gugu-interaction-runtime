@@ -107,6 +107,30 @@ describe('Runtime move orchestration', () => {
     source.remove()
   })
 
+  it('同一移动 session 复用 Surface 的抓取倍率曲线', () => {
+    const runtime = new Runtime()
+    let scale = 0.5
+    runtime.surfaces.register({
+      id: 'drawer',
+      type: 'drawer',
+      layout: 'grid',
+      element: null,
+      accepts: ['project-card'],
+      camera: { scale: () => scale, pickupDuration: 160 },
+    })
+
+    const first = runtime.getSurfaceCameraPickupScale('drawer', 'session-1')
+    const second = runtime.getSurfaceCameraPickupScale('drawer', 'session-1')
+
+    expect(first).toBe(second)
+    expect(first).toBeTypeOf('function')
+    const readScale = () => typeof first === 'function' ? first() : first
+    expect(readScale()).toBeCloseTo(1, 1)
+    scale = 0.25
+    expect(readScale()).toBeGreaterThanOrEqual(0.25)
+    expect(readScale()).toBeLessThanOrEqual(1)
+  })
+
   it('free landing 通过纯矩形解析，不要求目标 DOM', () => {
     const runtime = new Runtime()
     const element = document.createElement('article')

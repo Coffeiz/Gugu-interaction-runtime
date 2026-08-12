@@ -25,6 +25,8 @@ export interface SurfaceCamera {
   scale: number | (() => number)
   /** 相机变换原点在视口坐标中的实时位置。 */
   origin?: () => { left: number; top: number }
+  /** 抓取代理从 Surface 自身尺寸过渡到相机尺寸的时长；不传则立即使用当前倍率。 */
+  pickupDuration?: number
 }
 
 export type SurfaceUpdate = Partial<Pick<Surface, 'type' | 'viewport' | 'accepts' | 'layout' | 'camera' | 'motion'>>

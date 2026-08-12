@@ -346,4 +346,102 @@ describe('代理布局', () => {
     destroyDragProxy(proxy)
     source.remove()
   })
+
+  it('free landing retarget 按抓取后的视觉尺寸计算，不重复叠加相机倍率', async () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+
+    const proxy = createDragProxy(source, rect(200, 100), { contentScale: 0.5 })
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 300,
+      top: 200,
+      width: 200,
+      height: 100,
+    }, {
+      landingMode: 'free',
+      contentScale: 0.5,
+      motionState: {
+        x: 0, y: 0, vx: 0, vy: 0,
+        scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0,
+      },
+    })
+
+    // 目标重算时，100px 是 200px 世界尺寸在 50% 相机下的完整视觉宽度，
+    // 应保持 landing motion scale 为 1；旧逻辑会错误算成 0.5。
+    landing.retarget({ left: 300, top: 200, width: 200, height: 100 })
+    vi.advanceTimersByTime(1200)
+
+    const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
+    // scaleShell 仍由相机倍率 0.5 承担；motion 自身目标倍率应为 1，
+    // 旧逻辑会把两者相乘成 0.25。
+    expect(parseFloat(shell.style.transform.match(/scale\(([^)]+)/)?.[1] ?? '0')).toBeCloseTo(0.5, 2)
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
+  it('普通 grid landing 回抽屉时内容倍率平滑回到目标尺寸', async () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+
+    // 代理创建时仍是抽屉的 1x 尺寸；抓取后相机把内容缩到 50%。
+    const proxy = createDragProxy(source, rect(200, 100), { contentScale: 1 })
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 300,
+      top: 200,
+      width: 200,
+      height: 100,
+    }, {
+      landingMode: 'default',
+      contentScale: 0.5,
+      motionState: {
+        x: 0, y: 0, vx: 0, vy: 0,
+        scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0,
+      },
+    })
+
+    vi.advanceTimersByTime(1200)
+    const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
+    expect(shell?.style.transform).toBe('scale(1)')
+    expect(parseFloat(proxy.style.width)).toBeCloseTo(200, 0)
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
 })

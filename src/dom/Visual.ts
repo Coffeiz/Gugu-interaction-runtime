@@ -142,7 +142,7 @@ export function restoreProxyVisualState(
 export function createDragProxy(
   source: HTMLElement,
   rect: DOMRect = source.getBoundingClientRect(),
-  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number) } = {},
+  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number) } = {},
 ): HTMLElement {
   const compact = options.layout?.compact
   // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
@@ -389,6 +389,8 @@ export interface LandingVisualOptions {
   cameraOrigin?: () => { left: number; top: number }
   /** free 画布 landing 的实时相机比例。 */
   contentScale?: number | (() => number)
+  /** grid/list 目标的最终内容倍率；未提供时按目标视觉宽度与代理基准宽度推导。 */
+  landingContentScale?: number | (() => number)
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
   coast?: { duration: number; friction: number; maxDistance: number; minVelocity: number }
   /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
@@ -880,6 +882,9 @@ export function landDragProxyWithMotion(
   const startHeight = parseFloat(proxy.style.height) || startRect.height || target.height
   const initialContentScale = resolveContentScale(options.contentScale)
   const landingShell = prepareLandingScaleShell(proxy, initialContentScale)
+  let landingTargetContentScale = landingShell && options.landingContentScale !== undefined
+    ? resolveContentScale(options.landingContentScale)
+    : 0
   const cameraOrigin = options.cameraOrigin?.()
   const hasCameraAnchor = Boolean(
     options.landingMode === 'free'
@@ -999,7 +1004,20 @@ export function landDragProxyWithMotion(
         proxy.style.width = `${width.toFixed(2)}px`
         proxy.style.height = `${height.toFixed(2)}px`
         proxy.style.transform = `perspective(760px) translate3d(${(layoutLeftForSize - layoutLeft).toFixed(2)}px, ${(layoutTopForSize - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
-        if (landingShell) updateDragProxyScaleShell(proxy, undefined)
+        // 抓起阶段已经把相机倍率写入 scaleShell；落地的尺寸收敛不能把它
+        // 重置为 1，否则松手时会再播放一遍相机缩放。
+        if (landingShell && landingTargetContentScale > 0) {
+          // 普通 grid/list 回到另一倍率的 Surface 时，缩放壳必须围绕中心
+          // 过渡。若继续按左上角重算 left/top，内容会在外框平滑飞行时
+          // 先垂直吸附一段距离，表现成“先对齐高度再进入”。
+          landingShell.shell.style.left = `${((width - landingShell.baseWidth) / 2).toFixed(2)}px`
+          landingShell.shell.style.top = `${((height - landingShell.baseHeight) / 2).toFixed(2)}px`
+          landingShell.shell.style.transform = `scale(${landingTargetContentScale})`
+        } else if (landingShell) {
+          // 外框尺寸和相机内容倍率是两条独立动画。抽屉回收时外框可能
+          // 完全不变，但内容仍需从画布倍率平滑回到抽屉的 1x。
+          updateDragProxyScaleShell(proxy, () => frame.scaleX * initialContentScale)
+        }
       }
   }
   const motion = options.landingMode === 'free'
@@ -1055,6 +1073,20 @@ export function landDragProxyWithMotion(
   // 次目标尺寸缩放、再发生一次 dismiss 缩放，导致面包屑动画明显快于文件夹卡。
   const landingBaseWidth = landingShell?.baseWidth ?? startWidth
   const landingBaseHeight = landingShell?.baseHeight ?? startHeight
+  if (landingShell && options.landingMode !== 'free' && options.landingMode !== 'target') {
+    if (!(landingTargetContentScale > 0)) {
+      landingTargetContentScale = landingBaseWidth > 0
+        ? initialTarget.width / landingBaseWidth
+        : 1
+    }
+    // 抽屉回收和普通 grid 落地都需要把抓取时的相机倍率平滑还原到目标
+    // Surface 的视觉倍率；不能把它混进 Motion 的外框 scale，否则会二次放大。
+    landingShell.shell.style.transformOrigin = '50% 50%'
+    landingShell.shell.style.left = `${((startWidth - landingBaseWidth) / 2).toFixed(2)}px`
+    landingShell.shell.style.top = `${((startHeight - landingBaseHeight) / 2).toFixed(2)}px`
+    landingShell.shell.style.transform = `scale(${initialContentScale})`
+    landingShell.shell.style.transition = `transform ${duration}ms ${easing}`
+  }
   // Motion 的 scale 是相对于 landing shell 基准尺寸的。相机缩放已经由
   // initialContentScale 应用到 shell，因此目标比例必须以松手瞬间的视觉尺寸
   // 为分母，不能再直接用 holder 的固定宽高，否则 camera scale 会被计算两次。
@@ -1062,10 +1094,17 @@ export function landDragProxyWithMotion(
   const visualStartHeight = landingBaseHeight * initialContentScale
   const targetScale = options.landingMode === 'target'
     ? { scaleX: 1, scaleY: 1 }
-    : {
-        scaleX: visualStartWidth > 0 ? initialTarget.width / visualStartWidth : 1,
-        scaleY: visualStartHeight > 0 ? initialTarget.height / visualStartHeight : 1,
-      }
+    : options.landingMode === 'free'
+      ? {
+          scaleX: visualStartWidth > 0 ? initialTarget.width / visualStartWidth : 1,
+          scaleY: visualStartHeight > 0 ? initialTarget.height / visualStartHeight : 1,
+        }
+      : {
+          // grid/list 的目标矩形已经是屏幕视觉尺寸；相机倍率只用于
+          // scaleShell 的内容继承，不能再次进入外框的几何比例。
+          scaleX: startWidth > 0 ? initialTarget.width / startWidth : 1,
+          scaleY: startHeight > 0 ? initialTarget.height / startHeight : 1,
+        }
   motion.setTarget({
     x: initialTarget.left,
     y: initialTarget.top,
@@ -1192,11 +1231,22 @@ export function landDragProxyWithMotion(
       // 到期后提前 reveal，造成“移动到一半瞬间到目标”的假跳变。
       scheduleMotionTimeout(1000)
       const next = centeredTarget(currentTarget)
+      const nextScaleX = options.landingMode === 'target' ? 1 : options.landingMode === 'free'
+        ? next.width / visualStartWidth
+        : next.width / startWidth
+      const nextScaleY = options.landingMode === 'target' ? 1 : options.landingMode === 'free'
+        ? next.height / visualStartHeight
+        : next.height / startHeight
+      if (landingShell && options.landingMode !== 'free' && options.landingMode !== 'target') {
+        landingTargetContentScale = landingBaseWidth > 0
+          ? next.width / landingBaseWidth
+          : landingTargetContentScale
+      }
       motion.setTarget({
         x: next.left,
         y: next.top,
-        scaleX: options.landingMode === 'target' ? 1 : next.width / startWidth,
-        scaleY: options.landingMode === 'target' ? 1 : next.height / startHeight,
+        scaleX: nextScaleX,
+        scaleY: nextScaleY,
       })
     },
   }
