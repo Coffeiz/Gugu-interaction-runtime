@@ -293,27 +293,6 @@ describe('Runtime move orchestration', () => {
     expect(proxyDispose).toHaveBeenCalledOnce()
   })
 
-  it('regrab 接管 landing 代理时转交给新 Session，不销毁代理', () => {
-    const runtime = createRuntime()
-    const handle = runtime.start(createRequest())
-    const session = runtime.getSession(handle.id)
-    session?.transition('active')
-    session?.transition('landing')
-    const proxy = document.createElement('div')
-    const proxyDispose = vi.fn()
-    runtime.registerVisualProxy(handle.id, { element: proxy, dispose: proxyDispose })
-
-    const transferred = runtime.takeoverRegrab(handle.id, { transferProxy: true })
-
-    expect(transferred).toEqual(expect.objectContaining({ element: proxy }))
-    expect(proxyDispose).not.toHaveBeenCalled()
-    expect(runtime.getVisualProxy(handle.id)).toBeUndefined()
-
-    const nextSession = runtime.start(createRequest())
-    runtime.registerVisualProxy(nextSession.id, transferred as { element: HTMLElement; dispose: () => void })
-    expect(runtime.getVisualProxy(nextSession.id)?.element).toBe(proxy)
-  })
-
   it('Surface 目标滚动由 Runtime 统一保持在视口内', () => {
     const runtime = createRuntime()
     const viewport = document.createElement('div')

@@ -51,7 +51,6 @@ export function createDetachMoveFromAdapter(config: {
   let landingPlan: (() => void) | null = null
   let landingGate: RuntimeCompletionGate<LandingResult> | null = null
   let landingProxy: HTMLElement | null = null
-  let transferredProxy: import('../../dom/VisualAdapter').VisualProxy | undefined
   let released = false
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
@@ -326,10 +325,7 @@ export function createDetachMoveFromAdapter(config: {
     if (!regrabContext) return
     interruptDetachRegrab({
       event: regrabContext.event, sessionId: sessionId!, proxy, source: liveEl,
-      interrupt: () => {
-        const takeover = runtime.takeoverRegrab(sessionId!, { transferProxy: true })
-        if (typeof takeover !== 'boolean') transferredProxy = takeover
-      },
+      interrupt: () => runtime.takeoverRegrab(sessionId!),
       clearRegrab: () => clearGroupRegrabs(group),
     })
     const targetRect = liveEl.getBoundingClientRect()
@@ -442,8 +438,7 @@ export function createDetachMoveFromAdapter(config: {
       // 的 ownership 已被释放，preserveTarget 的 reveal 将无法恢复它。此时在
       // 新 Session 上登记 ownership，保持隐藏状态不变，等 reveal 统一交接。
       claimVisibilityOwnership(element, sessionId!)
-      const adoptedProxy = transferredProxy?.element ?? takeFloatingProxy(element)
-      transferredProxy = undefined
+      const adoptedProxy = takeFloatingProxy(element)
       if (adoptedProxy) runtime.registerVisualProxy(sessionId!, { element: adoptedProxy })
       // 抓取阶段的默认 proxy 也要交给 VisualAdapter 装饰；多选适配器在这里
       // 添加修饰卡和源节点幽灵，不能等到 landing 才第一次创建视觉。

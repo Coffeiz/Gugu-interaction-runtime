@@ -1453,21 +1453,10 @@ setMotionProfiles(this.registry.motionProfile)
    * source 可见性和监听器，旧 Session、completion gate 与 landing proxy
    * 的失效由 Runtime 保证。
    */
-  takeoverRegrab(sessionId: string, options: { transferProxy?: boolean } = {}): VisualProxy | boolean {
+  takeoverRegrab(sessionId: string): boolean {
     const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return false
-    const proxy = options.transferProxy ? this.visualProxyCoordinator.get(sessionId) : undefined
-    // 必须在 interrupt 前摘下代理。interrupt 会失败 completion gates，而 gate
-    // 的清理路径会调用 disposeVisualProxy；如果晚到 interrupt 之后再 remove，
-    // landing 代理已经被清掉，新 Session 就无法接管。
-    if (proxy) this.visualProxyCoordinator.remove(sessionId)
     this.interrupt(sessionId, 'regrab')
-    if (proxy) {
-      // regrab 的新 Session 还要继续使用 landing 代理。先从旧 Session 的
-      // 索引中移除，但不要调用 dispose；新 Session 会在创建后重新登记它。
-      // 普通 takeover 仍沿用原来的销毁语义，避免把无接管方的代理泄漏到 DOM。
-      return proxy
-    }
     this.disposeVisualProxy(sessionId)
     return true
   }
