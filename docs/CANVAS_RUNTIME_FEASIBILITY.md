@@ -58,7 +58,7 @@
 | normal/physical 公共策略 | 内部已有 direct-follow / MotionController 两条路径，但没有画布级明确策略名和默认值 | 必须形成稳定注册配置，默认 physical |
 | target 与 free 的目标生命周期 | target 需要真实目标节点，free 不应等待节点或隐藏目标 | 必须拆开 resolve/wait/land 分支 |
 | Surface FLIP | 已有 | 直接复用，不在画布业务侧重写 |
-| camera | 当前没有 Runtime 语义 | 延后到 Stage 2 |
+| camera | 由 free Surface.camera 提供 scale/origin，Runtime 统一驱动 camGlue | 已接入 Stage 1 |
 | connection | 当前不是 Core 必选模块 | 延后，不阻塞卡片迁移 |
 
 ### 2.3 Gugu-web 当前画布链路
@@ -88,9 +88,9 @@ Note/Entity/Project/File/Drawer Card
    `LandingRect` 为基础，缺口主要在 Runtime 解析类型、VisualAdapter 分支和测试。
 3. **normal 与 physical 不应通过业务侧复制两套拖拽代码实现。** 物理释放状态应该从同一
    Move Session 传给 Runtime，由 landing profile 选择执行策略。
-4. **camera 不能在 Stage 1 偷渡。** 当前画布的 `screenToWorld`、`camera.x/y/scale` 和
-   `.canvas-world` CSS transform 属于 Gugu-web 业务；在没有明确 Camera API 前，free
-   landing 只接受屏幕坐标快照。
+4. 画布的 `screenToWorld`、世界坐标和 `.canvas-world` CSS transform 仍属于 Gugu-web
+   业务；相机视觉上下文由 free Surface 的 `camera.scale/origin` 提供，Runtime 统一驱动
+   代理缩放与 camGlue 跟随。
 5. **连线不是卡片迁移前置条件。** RelationLayer 可以继续消费业务临时位置；连线 Runtime
    另行设计，避免在 Stage 1 同时改变卡片、相机和连接三套坐标语义。
 
@@ -131,7 +131,6 @@ Vue composable 的内部 Core 描述等价于：
 ```ts
 runtime.registerObjectType('canvas-card', {
   defaultVisualMode: 'detach',
-  landingMode: 'free',
   releaseMode: 'physical',
   resolveFreeLandingRect: resolveCanvasLandingRect,
 })
@@ -139,6 +138,7 @@ runtime.registerObjectType('canvas-card', {
 runtime.surfaces.register({
   id: 'canvas:main',
   type: 'canvas',
+  layout: 'free',
   element: canvasElement,
   accepts: ['canvas-card'],
 })
@@ -146,6 +146,7 @@ runtime.surfaces.register({
 runtime.surfaces.register({
   id: 'canvas:drawer',
   type: 'canvas-drawer',
+  layout: 'grid',
   element: drawerElement,
   accepts: ['canvas-card'],
 })
@@ -167,7 +168,7 @@ runtime.objects.register({
 })
 ```
 
-`releaseMode`、`landingMode: 'free'` 和 `resolveFreeLandingRect` 已进入 Runtime Core；
+`releaseMode`、`Surface.layout: 'free'` 和 `resolveFreeLandingRect` 已进入 Runtime Core；
 业务不允许自行读取 pointer 速度后再创建第二个 landing 引擎。
 
 ### 3.2 normal / physical
@@ -195,7 +196,6 @@ type MoveLandingResolution =
   | { kind: 'rect'; rect: LandingRect }
 
 runtime.registerObjectType('canvas-card', {
-  landingMode: 'free',
   resolveFreeLandingRect: ({ destination }) => {
     const point = destination as { left: number; top: number; width: number; height: number }
     return point
@@ -211,8 +211,9 @@ runtime.registerObjectType('canvas-card', {
 - 仍然使用同一个 `landDragProxyWithMotion()`、同一个 retarget 和完成/取消清理；
 - 新事务开始时重新读取当前视觉 rect，不能飞回旧的固定位置。
 
-Stage 1 不把 `camera` 放进该接口。咕咕业务在计算 free rect 前，把世界坐标转换为当前
-屏幕坐标；Stage 2 再把这个转换下沉为 Camera API。
+咕咕业务仍在计算 free rect 前把世界坐标转换为当前屏幕坐标；Runtime 不接管世界坐标数学，
+但会消费 free Surface 的 `camera.scale/origin`，保证抓取、landing 和相机变化期间代理
+视觉比例与位置一致。
 
 ### 3.4 free landing 运动参数
 
@@ -250,7 +251,7 @@ runtime.configureMotion({
 ### Gugu-web 负责
 
 - 卡片和抽屉内容、类型、权限、数据保存和 API 请求；
-- `item.x/y`、当前 camera 状态和 `screenToWorld/worldToScreen`；
+- `item.x/y`、世界坐标和 `screenToWorld/worldToScreen`；
 - 注册 Object/Surface/Target 并同步 DOM 生命周期；
 - `RelationLayer` 的 SVG path、关系样式、关系持久化和离场快照；
 - 在 Stage 1 提供当前屏幕坐标下的 free landing rect。
@@ -266,7 +267,8 @@ runtime.configureMotion({
 
 ### A. Runtime Core
 
-- [x] 在 `Runtime.ts` 增加 `landingMode: 'free'` 的类型与对象类型解析。
+- [x] 在 `Surface` 增加 `layout: 'free'`，由目标 Surface 决定自由落点解析。
+- [x] 在 free Surface 增加 `camera.scale/origin`，由 Runtime 统一接入 camGlue 和缩放补偿。
 - [x] 增加 `MoveLandingResolution` 判别联合，优先以兼容方式扩展现有解析接口，避免破坏
       file/project 的 `HTMLElement` 调用者。
 - [x] 在 `VisualAdapter` 中接受 `HTMLElement | LandingRect`，实现 `element` 与 `rect`
@@ -294,7 +296,7 @@ runtime.configureMotion({
 
 - [x] 在咕咕画布入口注册 `canvas` 与 `drawer` Surface。
 - [x] 为 Note、Entity、Project、File 卡片建立稳定 Object ID 和统一 Object 类型；Drawer 作为语义 Surface 接收项目回退。
-- [x] 为抽屉内容注册 Group 标记，并接入 Runtime 的布局捕获；抽屉本身不注册 Target，Surface 元素作为默认落地目标。
+- [x] 为抽屉内容注册 Group 标记，并接入 Runtime 的布局捕获；抽屉本身不注册 Target，按 `grid` Surface 普通落位。
 - [x] 将 `.canvas-world` 和抽屉 DOM 接到 Core API，保留现有卡片视觉组件。
 - [x] 首先迁移 Note 卡，并复用同一 Runtime 对象绑定入口。
 - [x] 迁移 Entity、Project、File 卡片，统一使用 `releaseMode: 'physical'`；Runtime 类型保留

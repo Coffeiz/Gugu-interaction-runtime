@@ -61,6 +61,7 @@ runtime.objects.register({
 runtime.surfaces.register({
   id: `column:${status}`,
   type: 'project-column',
+  layout: 'grid',
   element: columnElement,
   accepts: ['project-card'],
 })
@@ -102,7 +103,7 @@ const generation = runtime.objects.register({
   element: null,
   abilities: ['move', 'sort'],
 })
-runtime.surfaces.register({ id: `column:${project.status}`, type: 'project-column', element: null, accepts: ['project-card'] })
+runtime.surfaces.register({ id: `column:${project.status}`, type: 'project-column', layout: 'grid', element: null, accepts: ['project-card'] })
 
 // Vue ref 只负责同步 DOM；null 回调会被适配器安全处理。
 const bindCard = (element: HTMLElement | null) => dom.bindObject(`project:${project.id}`, element)
@@ -177,6 +178,7 @@ if (runtime.objects.get(`project:${project.id}`)?.generation === generation) {
 runtime.surfaces.register({
   id: `column:${status}`,
   type: 'list',
+  layout: 'grid',
   element: null,
   accepts: ['project-card'],  // 空数组表示不限制类型
 })
@@ -209,8 +211,7 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `motion.enabled` | 是否使用内置 MotionController，默认 `true` |
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
 |  | `releaseMode` | 释放后的降落策略：`physical` 继承释放速度（默认），`normal` 使用普通过渡 |
-|  | `landingMode` | `default` 普通回位、`target` 语义目标吸入、`free` 自由矩形落点 |
-|  | `motion.profile.freeLanding.release` | 仅 `landingMode: 'free'` 使用的释放速度整形，可配置 `velocityScale` 与 `maxVelocity`；列表/网格对象忽略该字段 |
+|  | `motion.profile.freeLanding.release` | 仅落到 `layout: 'free'` 的 Surface 时使用的释放速度整形，可配置 `velocityScale` 与 `maxVelocity`；列表/网格对象忽略该字段 |
 |  | `resolveFreeLandingRect` | `free` 模式解析视口坐标 `LandingRect`，不要求目标 DOM |
 | `runtime.configureMotion(config)` | `freeLanding.duration` | 画布 free landing 的非回弹飞行时长，默认 550ms |
 |  | `freeLanding.easing` | 画布 landing 缓动曲线，默认 `cubic-bezier(.22,1,.36,1)` |
@@ -222,12 +223,13 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `element` | 对象真实 DOM 元素 |
 |  | `abilities` | 能力列表，包含 `move` 才允许拖动 |
 |  | `selected` | 当前是否参与多选；抓取已选对象时 Runtime 自动创建 Group Session |
-|  | `contentScale` | 对象脱离画布缩放祖先后代理需要复现的视觉比例；可传数字或返回当前比例的函数 |
 | `runtime.getObjectsInRect(surfaceId, rect)` | `rect` | 查询与矩形相交的已注册对象 ID，用于框选 |
 | `runtime.surfaces.register(options)` | `id` | Surface 唯一标识 |
 |  | `type` | Surface 类型 |
 |  | `element` | Surface 真实 DOM 元素 |
 |  | `accepts` | 接受的对象类型，空数组表示不限 |
+|  | `layout` | Surface 布局：`grid` 卡片容器或 `free` 自由坐标画布 |
+|  | `camera` | free Surface 的视觉上下文：`scale` 提供实时缩放，`origin` 提供相机原点；grid 通常不设置 |
 | `runtime.onAction(handler)` | `action` | 业务保存移动结果的语义化事件 |
 | `runtime.targets.register(target)` | `id` / `surfaceId` / `element` | 注册没有 Object 身份的面包屑等语义落点 |
 
@@ -268,7 +270,6 @@ runtime.configureMotion({
 ```ts
 runtime.registerObjectType('canvas-card', {
   defaultVisualMode: 'detach',
-  landingMode: 'free',
   motion: {
     profile: {
       freeLanding: {
@@ -576,7 +577,6 @@ runtime.objects.register({
   surfaceId: 'mind:canvas',
   element,
   abilities: ['move'],
-  contentScale: () => camera.scale,
 })
 ```
 
@@ -600,12 +600,12 @@ runtime.registerObjectType('kanban', {
 })
 ```
 
-landing 的终态表现通过 `landingMode` 区分，默认值为 `default`。看板和普通卡片
-继续使用 `default`；文件夹卡、面包屑这类语义目标可以使用 `target`：代理从松手
-后的第一帧就开始缩小淡出，同时继承原有 landing 的释放速度、旋转和位置运动。
-`target` 不改变位置运动，也不会影响看板的 landing。
+landing 的终态由目标类型决定：命中 Object/Target 注册的语义目标时使用 `target`，
+目标 Surface 为 `grid` 时使用普通网格落位，目标 Surface 为 `free` 时使用自由坐标落点。
+文件夹卡、面包屑这类语义目标必须通过 Object/Target 注册；普通 Surface 外壳不会自动
+成为 target。
 
-自由画布可以使用 `landingMode: 'free'`。此模式的解析器返回与
+自由画布应注册为 `layout: 'free'`。此模式的解析器返回与
 `getBoundingClientRect()` 相同视口坐标系的矩形，不需要真实目标元素；Runtime 会跳过
 目标 DOM 等待和目标隐藏，但仍复用同一套代理、释放、retarget、淡出和清理流程。默认
 `releaseMode: 'physical'` 会继承释放时的速度、旋转和缩放状态；需要无惯性普通落地时
@@ -615,13 +615,40 @@ landing 的终态表现通过 `landingMode` 区分，默认值为 `default`。�
 ```ts
 runtime.registerObjectType('canvas-card', {
   defaultVisualMode: 'detach',
-  landingMode: 'free',
   releaseMode: 'physical',
   resolveFreeLandingRect: ({ destination }) => destination as {
     left: number; top: number; width: number; height: number
   },
 })
+
+runtime.surfaces.register({
+  id: 'canvas:main',
+  type: 'canvas',
+  layout: 'free',
+  camera: {
+    scale: () => camera.scale,
+    origin: () => ({ left: camera.x, top: camera.y }),
+  },
+  element: canvasElement,
+  accepts: ['canvas-card'],
+})
 ```
+
+如果自由画布里的对象也可以被拖入网格抽屉，抽屉只需要注册为 `grid` Surface：
+
+```ts
+runtime.surfaces.register({
+  id: 'canvas:drawer',
+  type: 'grid',
+  layout: 'grid',
+  element: drawerElement,
+  accepts: ['canvas-card'],
+})
+```
+
+同一个对象可以在 `free` 画布内使用连续坐标，进入 `grid` 抽屉后按卡片容器落位。
+抽屉外壳本身不会参与 target landing；只有文件夹、面包屑等显式注册的语义 Target
+才会触发缩小淡出。
 
 `target` 的飞入和缩小淡出可以分别调参。`target.motion` 控制飞入弹簧速度，
 `target.landing` 控制飞入段的时长与视觉缓动，`target.dismiss` 控制同步开始的缩小淡出；
@@ -631,7 +658,6 @@ runtime.registerObjectType('canvas-card', {
 ```ts
 runtime.registerObjectType('file-item', {
   defaultVisualMode: 'detach',
-  landingMode: 'target',
   motion: {
     profile: {
       target: {

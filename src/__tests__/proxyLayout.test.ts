@@ -288,8 +288,7 @@ describe('代理布局', () => {
 
   it('landing 中相机变化由 camGlue 更新，不重复写入代理自身 scale', async () => {
     const source = document.createElement('article')
-    const camera = document.createElement('div')
-    document.body.append(source, camera)
+    document.body.append(source)
 
     const proxy = createDragProxy(source, rect(200, 100), { contentScale: 1 })
     proxy.getBoundingClientRect = () => {
@@ -299,8 +298,7 @@ describe('代理布局', () => {
       const height = parseFloat(proxy.style.height) || 0
       return new DOMRect(left, top, width, height)
     }
-    let cameraWidth = 100
-    camera.getBoundingClientRect = () => new DOMRect(0, 0, cameraWidth, 100)
+    let cameraScale = 1
 
     vi.useFakeTimers()
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
@@ -315,8 +313,8 @@ describe('代理布局', () => {
       height: 100,
     }, {
       landingMode: 'free',
-      cameraSource: camera,
-      contentScale: 1,
+      cameraOrigin: () => ({ left: 0, top: 0 }),
+      contentScale: () => cameraScale,
       motionState: {
         x: 0,
         y: 0,
@@ -329,7 +327,7 @@ describe('代理布局', () => {
       },
     })
 
-    cameraWidth = 200
+    cameraScale = 2
     vi.advanceTimersByTime(16)
 
     // camera 放大一倍后，代理布局尺寸和自身 landing scale 保持稳定，视觉比例由
@@ -347,6 +345,5 @@ describe('代理布局', () => {
     vi.restoreAllMocks()
     destroyDragProxy(proxy)
     source.remove()
-    camera.remove()
   })
 })

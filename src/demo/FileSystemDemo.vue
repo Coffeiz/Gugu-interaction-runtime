@@ -344,7 +344,6 @@ for (const type of ['file-item', 'file-item-clone', 'folder-item', 'folder-item-
   runtime.registerObjectType(type, {
     defaultVisualMode: type.endsWith('-clone') ? 'clone' : 'detach',
     groupVisual: 'default',
-    landingMode: 'target',
     motion: { enabled: true },
     preserveMoveTarget: true,
     proxyLayout: listProxyLayout,

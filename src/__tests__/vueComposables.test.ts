@@ -38,7 +38,7 @@ describe('Vue Runtime composables', () => {
           abilities: ['move'],
           target: { surfaceId: 'surface:1', accepts: ['card'], priority: 1 },
         })
-        const surface = useSurface({ id: 'surface:1', type: 'list', accepts: ['card'] })
+        const surface = useSurface({ id: 'surface:1', type: 'list', layout: 'grid', accepts: ['card'] })
         const target = useTarget({ id: 'target:1', surfaceId: 'surface:1', accepts: ['card'] })
         return () => h('section', { ref: surface.elementRef }, [
           h('article', { ref: object.elementRef }),
@@ -94,7 +94,7 @@ describe('Vue Runtime composables', () => {
     const targetSurfaceId = ref('surface:a')
     const child = defineComponent({
       setup() {
-        const surface = useSurface({ id: 'surface:dynamic', type: 'list', accepts: () => ['card'] })
+        const surface = useSurface({ id: 'surface:dynamic', type: 'list', layout: 'grid', accepts: () => ['card'] })
         const target = useTarget({ id: 'target:dynamic', surfaceId: targetSurfaceId, accepts: ['card'] })
         return () => h('section', { ref: surface.elementRef }, [h('button', { ref: target.elementRef })])
       },
@@ -197,6 +197,7 @@ describe('Vue Runtime composables', () => {
         const surface = useSurface({
           id: 'surface:viewport',
           type: 'list',
+          layout: 'grid',
           accepts: ['card'],
           viewport: () => viewport,
         })

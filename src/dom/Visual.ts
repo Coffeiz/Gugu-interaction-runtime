@@ -385,8 +385,8 @@ export interface LandingVisualOptions {
   }
   /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
   readTarget?: () => LandingRect
-  /** free 画布 landing 的世界坐标锚点；用于相机移动/缩放时变换整段代理动画。 */
-  cameraSource?: HTMLElement
+  /** free 画布 landing 的相机原点；用于相机移动/缩放时变换整段代理动画。 */
+  cameraOrigin?: () => { left: number; top: number }
   /** free 画布 landing 的实时相机比例。 */
   contentScale?: number | (() => number)
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
@@ -880,12 +880,12 @@ export function landDragProxyWithMotion(
   const startHeight = parseFloat(proxy.style.height) || startRect.height || target.height
   const initialContentScale = resolveContentScale(options.contentScale)
   const landingShell = prepareLandingScaleShell(proxy, initialContentScale)
-  const cameraOrigin = options.cameraSource?.getBoundingClientRect()
+  const cameraOrigin = options.cameraOrigin?.()
   const hasCameraAnchor = Boolean(
     options.landingMode === 'free'
     && cameraOrigin
-    && cameraOrigin.width > 0
-    && cameraOrigin.height > 0,
+    && Number.isFinite(cameraOrigin.left)
+    && Number.isFinite(cameraOrigin.top),
   )
   let camGlue: HTMLElement | null = null
   let cameraTrackRaf: number | null = null
@@ -915,11 +915,10 @@ export function landDragProxyWithMotion(
 
     const trackCamera = () => {
       if (!camGlue?.isConnected) return
-      const liveOrigin = options.cameraSource?.getBoundingClientRect()
-      if (liveOrigin && liveOrigin.width > 0 && liveOrigin.height > 0) {
-        const scaleRatio = cameraOrigin.width > 0.01
-          ? liveOrigin.width / cameraOrigin.width
-          : 1
+      const liveOrigin = options.cameraOrigin?.()
+      if (liveOrigin && Number.isFinite(liveOrigin.left) && Number.isFinite(liveOrigin.top)) {
+        const liveScale = resolveContentScale(options.contentScale)
+        const scaleRatio = initialContentScale > 0.01 ? liveScale / initialContentScale : 1
         camGlue.style.transform =
           `translate3d(${(liveOrigin.left - cameraOrigin.left).toFixed(2)}px, ${(liveOrigin.top - cameraOrigin.top).toFixed(2)}px, 0) scale(${scaleRatio.toFixed(4)})`
       }

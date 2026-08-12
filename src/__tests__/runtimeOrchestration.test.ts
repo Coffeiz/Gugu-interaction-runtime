@@ -13,8 +13,8 @@ function createRuntime() {
     abilities: ['move'],
   })
   runtime.registerVisualAdapter('project-card', { resolveSource: () => null })
-  runtime.surfaces.register({ id: 'column:todo', type: 'list', element: null, accepts: ['project-card'] })
-  runtime.surfaces.register({ id: 'column:done', type: 'list', element: null, accepts: ['project-card'] })
+  runtime.surfaces.register({ id: 'column:todo', type: 'list', layout: 'grid', element: null, accepts: ['project-card'] })
+  runtime.surfaces.register({ id: 'column:done', type: 'list', layout: 'grid', element: null, accepts: ['project-card'] })
   return runtime
 }
 
@@ -45,7 +45,6 @@ describe('Runtime move orchestration', () => {
     const runtime = new Runtime()
     runtime.registerObjectType('canvas-card', {
       defaultVisualMode: 'detach',
-      landingMode: 'free',
       motion: {
         profile: {
           freeLanding: {
@@ -61,7 +60,6 @@ describe('Runtime move orchestration', () => {
     })
     runtime.registerObjectType('grid-card', {
       defaultVisualMode: 'detach',
-      landingMode: 'target',
       motion: {
         profile: {
           freeLanding: {
@@ -78,11 +76,35 @@ describe('Runtime move orchestration', () => {
 
     runtime.objects.register({ id: 'canvas:1', type: 'canvas-card', surfaceId: 'canvas', element: null, abilities: ['move'] })
     runtime.objects.register({ id: 'grid:1', type: 'grid-card', surfaceId: 'grid', element: null, abilities: ['move'] })
+    runtime.surfaces.register({ id: 'canvas', type: 'canvas', layout: 'free', element: null, accepts: ['canvas-card'] })
+    runtime.surfaces.register({ id: 'grid', type: 'list', layout: 'grid', element: null, accepts: ['grid-card'] })
 
     expect(runtime.getObjectReleaseMotionProfile('canvas:1')).toMatchObject({ velocityScale: 1, maxVelocity: 2500 })
     expect(runtime.getObjectReleaseMotionProfile('grid:1')).toMatchObject({ velocityScale: 1, maxVelocity: 5000 })
+    expect(runtime.getObjectReleaseMotionProfile('grid:1', { columnId: 'canvas' })).toMatchObject({ velocityScale: 0.2, maxVelocity: 100 })
+    expect(runtime.getObjectReleaseMotionProfile('canvas:1', { columnId: 'grid' })).toMatchObject({ velocityScale: 1, maxVelocity: 5000 })
     expect(shapeReleaseVelocity({ x: 5000, y: 0 }, runtime.getObjectReleaseMotionProfile('canvas:1'))).toEqual({ x: 2500, y: 0 })
     expect(shapeReleaseVelocity({ x: 5000, y: 0 }, runtime.getObjectReleaseMotionProfile('grid:1'))).toEqual({ x: 5000, y: 0 })
+  })
+
+  it('从对象所在 Surface 读取相机缩放，不从 Object 配置读取', () => {
+    const runtime = new Runtime()
+    const scale = { value: 1 }
+    runtime.surfaces.register({
+      id: 'canvas', type: 'canvas', layout: 'free', element: null, accepts: ['canvas-card'],
+      camera: { scale: () => scale.value, origin: () => ({ left: 10, top: 20 }) },
+    })
+    runtime.registerObjectType('canvas-card', { defaultVisualMode: 'detach' })
+    const source = document.createElement('article')
+    document.body.append(source)
+    runtime.objects.register({ id: 'canvas:1', type: 'canvas-card', surfaceId: 'canvas', element: source, abilities: ['move'] })
+    const session = runtime.startSession('move', 'canvas:1')
+    const context = runtime.createVisualLifecycleContext(session.id, { toSurfaceId: 'canvas' }, source)
+    expect(typeof context.contentScale === 'function' ? context.contentScale() : context.contentScale).toBe(1)
+    expect(context.cameraOrigin?.()).toEqual({ left: 10, top: 20 })
+    scale.value = 1.5
+    expect(typeof context.contentScale === 'function' ? context.contentScale() : context.contentScale).toBe(1.5)
+    source.remove()
   })
 
   it('free landing 通过纯矩形解析，不要求目标 DOM', () => {
@@ -90,7 +112,6 @@ describe('Runtime move orchestration', () => {
     const element = document.createElement('article')
     runtime.registerObjectType('canvas-card', {
       defaultVisualMode: 'detach',
-      landingMode: 'free',
       resolveFreeLandingRect: () => ({ left: 320, top: 180, width: 120, height: 80 }),
     })
     runtime.objects.register({
@@ -100,7 +121,7 @@ describe('Runtime move orchestration', () => {
       element,
       abilities: ['move'],
     })
-    runtime.surfaces.register({ id: 'canvas:main', type: 'canvas', element: null, accepts: ['canvas-card'] })
+    runtime.surfaces.register({ id: 'canvas:main', type: 'canvas', layout: 'free', element: null, accepts: ['canvas-card'] })
 
     const session = runtime.startSession('move', 'canvas:card:1')
     expect(runtime.resolveMoveLandingResolution(session.id, { toSurfaceId: 'canvas:main' })).toEqual({
@@ -109,13 +130,44 @@ describe('Runtime move orchestration', () => {
     })
   })
 
-  it('Surface 默认不作为 landing 目标，显式开启后才允许使用', () => {
+  it('free Surface 优先使用对象的连续落点，不被默认视觉目标覆盖', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('article')
+    document.body.append(source)
+    runtime.registerObjectType('canvas-card', {
+      defaultVisualMode: 'detach',
+      resolveFreeLandingRect: () => ({ left: 320, top: 180, width: 120, height: 80 }),
+    })
+    runtime.objects.register({
+      id: 'canvas:card:3',
+      type: 'canvas-card',
+      surfaceId: 'canvas:main',
+      element: source,
+      abilities: ['move'],
+    })
+    runtime.surfaces.register({
+      id: 'canvas:main',
+      type: 'canvas',
+      layout: 'free',
+      element: null,
+      accepts: ['canvas-card'],
+    })
+
+    const session = runtime.startSession('move', 'canvas:card:3')
+    expect(runtime.resolveMoveLandingResolution(session.id, { toSurfaceId: 'canvas:main' })).toEqual({
+      kind: 'rect',
+      rect: { left: 320, top: 180, width: 120, height: 80 },
+    })
+    source.remove()
+  })
+
+  it('Surface 外壳不作为语义 landing 目标，grid 落点保持普通 landing', () => {
     const runtime = new Runtime()
     const source = document.createElement('article')
     const surface = document.createElement('section')
     document.body.append(source, surface)
     runtime.objects.register({ id: 'project:1', type: 'project-card', surfaceId: 'column:todo', element: source, abilities: ['move'] })
-    runtime.surfaces.register({ id: 'column:done', type: 'list', element: surface, accepts: ['project-card'] })
+    runtime.surfaces.register({ id: 'column:done', type: 'list', layout: 'grid', element: surface, accepts: ['project-card'] })
     const handle = runtime.start({
       type: 'move',
       objectId: 'project:1',
@@ -123,9 +175,13 @@ describe('Runtime move orchestration', () => {
     })
 
     expect(runtime.resolveMoveLandingTarget(handle.id, { toSurfaceId: 'column:done' })).toBe(source)
-    runtime.registerObjectType('canvas-card', {
-      defaultVisualMode: 'detach',
-      allowSurfaceLandingTarget: true,
+    runtime.registerObjectType('canvas-card', { defaultVisualMode: 'detach' })
+    runtime.surfaces.register({
+      id: 'canvas:drawer',
+      type: 'grid',
+      element: surface,
+      accepts: ['canvas-card'],
+      layout: 'grid',
     })
     runtime.objects.register({ id: 'canvas:1', type: 'canvas-card', surfaceId: 'canvas', element: source, abilities: ['move'] })
     const canvasHandle = runtime.start({
@@ -133,7 +189,12 @@ describe('Runtime move orchestration', () => {
       objectId: 'canvas:1',
       input: { kind: 'programmatic' },
     })
-    expect(runtime.resolveMoveLandingTarget(canvasHandle.id, { toSurfaceId: 'column:done' })).toBe(surface)
+    expect(runtime.resolveMoveLandingTarget(canvasHandle.id, { toSurfaceId: 'canvas:drawer' })).toBe(source)
+    expect(runtime.createVisualLifecycleContext(
+      canvasHandle.id,
+      { toSurfaceId: 'canvas:drawer' },
+      surface,
+    ).landingMode).toBe('default')
     runtime.cancel(handle.id)
     runtime.cancel(canvasHandle.id)
     source.remove()
@@ -145,7 +206,6 @@ describe('Runtime move orchestration', () => {
     const resolveFreeLandingRect = vi.fn(() => ({ left: 320, top: 180, width: 120, height: 80 }))
     runtime.registerObjectType('canvas-card', {
       defaultVisualMode: 'detach',
-      landingMode: 'free',
       resolveFreeLandingRect,
     })
     runtime.objects.register({ id: 'canvas:card:2', type: 'canvas-card', surfaceId: 'canvas:main', element: null, abilities: ['move'] })
@@ -235,7 +295,7 @@ describe('Runtime move orchestration', () => {
     })
     viewport.append(target)
     document.body.append(viewport)
-    runtime.surfaces.register({ id: 'surface:scroll', type: 'list', element: viewport, viewport: () => viewport, accepts: ['project-card'] })
+    runtime.surfaces.register({ id: 'surface:scroll', type: 'list', layout: 'grid', element: viewport, viewport: () => viewport, accepts: ['project-card'] })
 
     runtime.keepSurfaceTargetVisible('surface:scroll', target)
     expect(viewport.scrollTop).toBe(100)
@@ -313,10 +373,16 @@ describe('Runtime move orchestration', () => {
     const runtime = createRuntime()
     runtime.registerObjectType('project-card', {
       defaultVisualMode: 'detach',
-      landingMode: 'target',
     })
     const source = document.createElement('div')
     const semanticTarget = document.createElement('div')
+    document.body.append(source, semanticTarget)
+    runtime.targets.register({
+      id: 'done-target',
+      surfaceId: 'column:done',
+      element: semanticTarget,
+      accepts: ['project-card'],
+    })
     runtime.objects.setElement('card-1', source)
     const session = runtime.start(createRequest())
 
@@ -334,6 +400,8 @@ describe('Runtime move orchestration', () => {
     expect(targetContext.landingMode).toBe('target')
     expect(sameNodeContext.landingMode).toBe('default')
     expect(returnContext.landingMode).toBe('default')
+    source.remove()
+    semanticTarget.remove()
   })
 
   it('VisualProxy 替换与取消都经过 Runtime 的统一清理边界', () => {

@@ -20,8 +20,6 @@ export interface ObjectItem {
   visual?: string
   /** 未提供时默认使用 detach。 */
   visualMode?: string
-  /** 对象级视觉缩放；用于脱离画布缩放祖先后的拖拽代理。 */
-  contentScale?: number | (() => number)
   /** Object 同时作为接收目标时的声明；Runtime 会自动同步到 TargetStore。 */
   target?: Omit<TargetItem, 'id' | 'element' | 'generation'> & { id?: string; element?: HTMLElement | null }
   /** 可选的画布节点端口声明；端点位置由 Runtime 按实时 DOMRect 计算。 */
@@ -34,4 +32,4 @@ export interface ObjectItem {
   generation?: number
 }
 
-export type ObjectUpdate = Partial<Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities' | 'selected' | 'visual' | 'visualMode' | 'contentScale' | 'target' | 'node'>>
+export type ObjectUpdate = Partial<Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities' | 'selected' | 'visual' | 'visualMode' | 'target' | 'node'>>

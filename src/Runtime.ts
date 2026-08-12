@@ -117,13 +117,6 @@ export interface ObjectTypeRegistration {
   groupVisual?: GroupVisualOption
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
   motion?: { enabled?: boolean; profile?: MotionProfile }
-  /**
-   * 脱离画布缩放祖先后，代理内容需要复现的当前视觉缩放。
-   * 传函数可以让拖拽过程中相机继续缩放时，代理每帧跟随最新比例。
-   */
-  contentScale?: number | (() => number)
-  /** landing 的终态表现；default 普通回位，target 到达语义目标后缩小淡出，free 使用连续矩形。 */
-  landingMode?: 'default' | 'target' | 'free'
   /** 释放后的落地策略；physical 继承释放速度，normal 不继承释放速度。默认 physical。 */
   releaseMode?: 'normal' | 'physical'
   /** target landing 时是否跳过"代理套上目标背景/圆角/内容"的视觉 morph，只保留位置和
@@ -150,8 +143,6 @@ export interface ObjectTypeRegistration {
   resolveFreeLandingRect?(context: { objectId: string; destination: unknown }): LandingRect | null
   /** 落地代理飞向业务目标时是否保留目标节点可见。 */
   preserveMoveTarget?: boolean
-  /** 无语义目标时是否允许把目标 Surface 外壳作为 landing 几何目标。默认关闭。 */
-  allowSurfaceLandingTarget?: boolean
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
   createMove?(context: {
     objectId: string
@@ -381,18 +372,28 @@ setMotionProfiles(this.registry.motionProfile)
    * free landing 可以按对象类型覆写速度倍率和上限；其它落地模式始终使用
    * 全局档案，避免列表/网格卡片被画布调参影响。
    */
-  getObjectReleaseMotionProfile(objectId: string) {
+  getObjectReleaseMotionProfile(objectId: string, destination?: unknown) {
     const object = this.objects.get(objectId)
     const registration = object
       ? this.registry.objectTypes.get(object.visual ?? object.type)
       : undefined
-    const release = registration?.landingMode === 'free'
-      ? registration.motion?.profile?.freeLanding?.release
+    const surfaceId = this.getDestinationSurfaceId(destination) ?? object?.surfaceId
+    const release = surfaceId && this.surfaces.get(surfaceId)?.layout === 'free'
+      ? registration?.motion?.profile?.freeLanding?.release
         ?? this.registry.motionProfile?.freeLanding?.release
       : undefined
     return release
       ? { ...DEFAULT_RELEASE_PROFILE, ...release }
       : DEFAULT_RELEASE_PROFILE
+  }
+
+  getSurfaceCameraScale(surfaceId?: string): number | (() => number) | undefined {
+    const camera = surfaceId ? this.surfaces.get(surfaceId)?.camera : undefined
+    return camera?.scale
+  }
+
+  getSurfaceCameraOrigin(surfaceId?: string): (() => { left: number; top: number }) | undefined {
+    return surfaceId ? this.surfaces.get(surfaceId)?.camera?.origin : undefined
   }
 
   /**
@@ -607,6 +608,8 @@ setMotionProfiles(this.registry.motionProfile)
     const adapter = session ? this.getObjectVisualAdapter(session.objectId) : this.defaultVisualAdapter
     const fallback = new DefaultVisualAdapter()
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const destinationSurface = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId) : undefined
     const registeredProfile = registration?.motion?.profile
     const globalProfile = this.registry.motionProfile
     const motionProfile: MotionProfile | undefined = registeredProfile || globalProfile
@@ -640,14 +643,25 @@ setMotionProfiles(this.registry.motionProfile)
     const targetElement = target && 'getBoundingClientRect' in target ? target : undefined
     const targetRect = target && !targetElement ? target as LandingRect : undefined
     const targetIsSource = Boolean(targetElement && sourceElement && targetElement === sourceElement)
-    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
-    const surfaceTarget = Boolean(
-      targetElement
-      && destinationSurfaceId
-      && this.surfaces.get(destinationSurfaceId)?.element === targetElement,
-    )
-
+    const targetIsSurface = Boolean(targetElement && destinationSurface?.element === targetElement)
     const proxyLayout = this.getObjectProxyLayout(session?.objectId ?? '', sourceElement)
+    const customSemanticTarget = registration?.resolveMoveLandingTarget?.({ objectId: session?.objectId ?? '', destination })
+    const visualSemanticTarget = adapter.resolveTarget?.(session?.objectId ?? '', destination)
+    const registeredSemanticTarget = destinationSurfaceId
+      ? this.targets.findForSurface(destinationSurfaceId, object?.type)?.element
+      : null
+    const hasSemanticTarget = Boolean(targetElement && !targetIsSource && !targetIsSurface && (
+      targetElement === customSemanticTarget
+      || targetElement === visualSemanticTarget
+      || targetElement === registeredSemanticTarget
+    ))
+    const effectiveLandingMode = !invalidReturn && !targetIsSource
+      ? hasSemanticTarget
+        ? 'target'
+        : destinationSurface?.layout === 'free'
+          ? 'free'
+          : 'default'
+      : 'default'
     return {
       objectId: session?.objectId ?? '',
       sessionId,
@@ -657,7 +671,6 @@ setMotionProfiles(this.registry.motionProfile)
       beforeContent,
       targetElement,
       targetRect,
-      surfaceTarget,
       sourceRect: sourceElement?.getBoundingClientRect(),
       visualSnapshot: sourceElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(sourceElement)
@@ -668,11 +681,10 @@ setMotionProfiles(this.registry.motionProfile)
       preserveTarget: registration?.preserveMoveTarget ?? false,
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。
-      landingMode: !invalidReturn && !targetIsSource
-        ? registration?.landingMode === 'target' ? 'target' : registration?.landingMode === 'free' ? 'free' : 'default'
-        : 'default',
+      landingMode: effectiveLandingMode,
       releaseMode: registration?.releaseMode ?? 'physical',
-      contentScale: object?.contentScale ?? registration?.contentScale,
+      contentScale: this.getSurfaceCameraScale(object?.surfaceId),
+      cameraOrigin: this.getSurfaceCameraOrigin(object?.surfaceId),
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
         const surfaceId = this.getDestinationSurfaceId(destination)
@@ -1167,12 +1179,10 @@ setMotionProfiles(this.registry.motionProfile)
     const registeredElement = this.objects.get(session.objectId)?.element
     const destinationSurfaceId = this.getDestinationSurfaceId(destination)
     const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
-    const surfaceElement = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId)?.element : null
     const target = customTarget
       ?? resolveResult
-      ?? fallbackResult
       ?? semanticTarget?.element
-      ?? (registration?.allowSurfaceLandingTarget ? surfaceElement : null)
+      ?? fallbackResult
       ?? registeredElement
       ?? null
     if (!target || !target.isConnected) return null
@@ -1190,14 +1200,11 @@ setMotionProfiles(this.registry.motionProfile)
     const object = this.objects.get(session.objectId)
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
     const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
-    const fallbackTarget = fallback?.() ?? null
     const destinationSurfaceId = this.getDestinationSurfaceId(destination)
     const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
-    const surfaceElement = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId)?.element : null
     const target = customTarget
-      ?? fallbackTarget
       ?? semanticTarget?.element
-      ?? (registration?.allowSurfaceLandingTarget ? surfaceElement : null)
+      ?? fallback?.()
       ?? this.resolveMoveTarget(sessionId, destination)
     if (!target || !target.isConnected) return null
     return target
@@ -1241,10 +1248,25 @@ setMotionProfiles(this.registry.motionProfile)
     const invalidReturn = typeof destination === 'object'
       && destination !== null
       && (destination as { invalidReturn?: unknown }).invalidReturn === true
-    if (!invalidReturn && registration?.landingMode === 'free') {
-      const rect = registration.resolveFreeLandingRect?.({ objectId: session.objectId, destination })
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const surfaceLayout = destinationSurfaceId
+      ? this.surfaces.get(destinationSurfaceId)?.layout
+      : undefined
+    const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
+    const semanticTarget = destinationSurfaceId
+      ? this.targets.findForSurface(destinationSurfaceId, object?.type)?.element ?? null
+      : null
+    const explicitTarget = customTarget ?? semanticTarget
+    if (explicitTarget) {
+      return { kind: 'element', element: explicitTarget }
+    }
+    if (!invalidReturn && surfaceLayout === 'free') {
+      const rect = registration?.resolveFreeLandingRect?.({ objectId: session.objectId, destination })
       if (rect && rect.width > 0 && rect.height > 0) return { kind: 'rect', rect }
     }
+    const visualTarget = this.getObjectVisualAdapter(session.objectId)
+      .resolveTarget?.(session.objectId, destination) ?? null
+    if (visualTarget) return { kind: 'element', element: visualTarget }
     const target = this.resolveMoveLandingTarget(sessionId, destination, fallback)
     return target ? { kind: 'element', element: target } : null
   }

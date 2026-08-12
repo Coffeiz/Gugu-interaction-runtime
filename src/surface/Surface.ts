@@ -10,10 +10,21 @@ export interface Surface {
   viewport?: () => HTMLElement | null
   /** 接受哪些 object type，空数组表示不限制。 */
   accepts: string[]
+  /** Surface 的布局语义；free 使用连续坐标，grid 使用容器内的卡片落位。 */
+  layout: 'grid' | 'free'
+  /** 当前 Surface 的相机上下文；grid Surface 通常不提供。 */
+  camera?: SurfaceCamera
   /** Surface resize 运动参数。未设置时使用 DEFAULT_MOTION_PROFILE。 */
   motion?: { resize?: { duration: number; easing: string } }
   /** 注册代次，用于 Vue 组件卸载时保护新实例。 */
   generation?: number
 }
 
-export type SurfaceUpdate = Partial<Pick<Surface, 'type' | 'viewport' | 'accepts' | 'motion'>>
+export interface SurfaceCamera {
+  /** 世界内容相对于视口的实时视觉缩放比例。 */
+  scale: number | (() => number)
+  /** 相机变换原点在视口坐标中的实时位置。 */
+  origin?: () => { left: number; top: number }
+}
+
+export type SurfaceUpdate = Partial<Pick<Surface, 'type' | 'viewport' | 'accepts' | 'layout' | 'camera' | 'motion'>>

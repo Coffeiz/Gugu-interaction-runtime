@@ -10,6 +10,6 @@ import { useSurface } from '../vue'
 
 const props = defineProps<{ id: string; accepts: readonly string[] }>()
 const emit = defineEmits<{ element: [element: HTMLElement | null] }>()
-const { elementRef } = useSurface({ id: props.id, type: 'file-browser', accepts: props.accepts })
+const { elementRef } = useSurface({ id: props.id, type: 'file-browser', layout: 'grid', accepts: props.accepts })
 watch(elementRef, element => emit('element', element), { immediate: true })
 </script>

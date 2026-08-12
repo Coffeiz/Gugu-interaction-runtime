@@ -505,7 +505,7 @@ grabbing
 
 ```text
 对象组件：runtime.objects.register({ id, type, surfaceId, element, abilities })
-容器组件：runtime.surfaces.register({ id, type, element, accepts })
+容器组件：runtime.surfaces.register({ id, type, layout, element, accepts })
 页面 Store：runtime.onAction(action => store.apply(action))
 ```
 

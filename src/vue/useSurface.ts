@@ -6,6 +6,8 @@ export interface UseSurfaceOptions {
   id: string
   type: MaybeRefOrGetter<string>
   accepts: MaybeRefOrGetter<readonly string[]>
+  layout: MaybeRefOrGetter<Surface['layout']>
+  camera?: MaybeRefOrGetter<Surface['camera']>
   /** Surface 的滚动视口回调；它本身不能再作为 getter 被 toValue 解包。 */
   viewport?: (() => HTMLElement | null) | undefined
   motion?: MaybeRefOrGetter<Surface['motion'] | undefined>
@@ -16,10 +18,12 @@ export interface UseSurfaceResult {
   generation: number
 }
 
-function readSurface(options: UseSurfaceOptions): SurfaceUpdate & Pick<Surface, 'type' | 'accepts'> {
+function readSurface(options: UseSurfaceOptions): SurfaceUpdate & Pick<Surface, 'type' | 'accepts' | 'layout'> {
   return {
     type: toValue(options.type),
     accepts: [...toValue(options.accepts)],
+    layout: toValue(options.layout),
+    camera: options.camera === undefined ? undefined : toValue(options.camera),
     viewport: options.viewport,
     motion: options.motion === undefined ? undefined : toValue(options.motion),
   }

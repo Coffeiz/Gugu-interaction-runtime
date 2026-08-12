@@ -37,6 +37,7 @@ export type {
 export type { Behavior, BehaviorContext } from './behavior/Behavior'
 export { ObjectStore } from './object/ObjectStore'
 export { SurfaceStore } from './surface/SurfaceStore'
+export type { Surface, SurfaceCamera, SurfaceUpdate } from './surface/Surface'
 export { TargetStore } from './target/TargetStore'
 export type { TargetItem } from './target/Target'
 export type { VisualAdapter, GroupVisualAdapter, VisualAdapterRegistry } from './dom/VisualAdapter'

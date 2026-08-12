@@ -42,7 +42,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { runtime } from '../Runtime'
-import { useObject, useRuntimeAction, useSurface, useTarget } from '../vue'
+import { useObject, useRuntimeAction, useSurface } from '../vue'
 import { resolveFreeLandingPoint } from '../motion/FreeLandingMotion'
 import CanvasCard, { type CanvasNodeModel } from './CanvasCard.vue'
 import CanvasDrawer from './CanvasDrawer.vue'
@@ -68,14 +68,15 @@ const drawerNodes = ref<CanvasNodeModel[]>([
 const relations = ref([{ id: 'relation-1', from: 'canvas:idea', to: 'canvas:reference' }, { id: 'relation-2', from: 'canvas:reference', to: 'canvas:brief' }])
 const drawerGroups = computed(() => [{ id: 'projects', title: '项目' }, { id: 'files', title: '文件' }, { id: 'ideas', title: '灵感' }].map(group => ({ ...group, nodes: drawerNodes.value.filter(node => node.group === group.id) })).filter(group => group.nodes.length))
 
-const { elementRef: canvasSurfaceRef } = useSurface({ id: 'canvas:main', type: 'canvas', accepts: ['canvas-sticker'] })
-const { elementRef: drawerSurfaceRef } = useSurface({ id: 'canvas:drawer', type: 'drawer', accepts: ['canvas-sticker'] })
-const { elementRef: drawerTargetRef } = useTarget({ id: 'canvas:drawer-target', surfaceId: 'canvas:drawer', accepts: ['canvas-sticker'], priority: 10 })
+const { elementRef: canvasSurfaceRef } = useSurface({
+  id: 'canvas:main', type: 'canvas', layout: 'free', accepts: ['canvas-sticker'],
+  camera: { scale: 1, origin: () => ({ left: 0, top: 0 }) },
+})
+const { elementRef: drawerSurfaceRef } = useSurface({ id: 'canvas:drawer', type: 'drawer', layout: 'grid', accepts: ['canvas-sticker'] })
 
 function registerCanvasType(): void {
   runtime.registerObjectType('canvas-sticker', {
     defaultVisualMode: props.strategy ?? 'detach',
-    landingMode: 'free',
     releaseMode: motionMode.value,
     resolveMoveHit: ({ x, y }) => {
       const drawer = drawerRef.value?.element
@@ -110,7 +111,6 @@ onMounted(async () => {
   canvasSurfaceRef.value = viewportRef.value
   const drawerElement = drawerRef.value?.element ?? null
   drawerSurfaceRef.value = drawerElement
-  drawerTargetRef.value = drawerElement
 })
 
 useRuntimeAction(action => {

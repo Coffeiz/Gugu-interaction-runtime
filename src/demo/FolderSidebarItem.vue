@@ -25,7 +25,7 @@ const props = defineProps<{
 }>()
 defineEmits<{ open: [id: string] }>()
 
-const surface = useSurface({ id: `file:surface:${props.folder.id}`, type: 'file-folder', accepts: props.accepts })
+const surface = useSurface({ id: `file:surface:${props.folder.id}`, type: 'file-folder', layout: 'grid', accepts: props.accepts })
 const target = useTarget({ id: `sidebar:${props.folder.id}`, surfaceId: `file:surface:${props.folder.id}`, accepts: props.accepts, priority: 1 })
 const elementRef = ref<HTMLElement | null>(null)
 

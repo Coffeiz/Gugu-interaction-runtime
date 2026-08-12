@@ -137,14 +137,6 @@ export function createDetachMoveFromAdapter(config: {
     if (released) return { accepted: false as const }
     released = true
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
-    if (releaseMotionState) {
-      const releaseVelocity = shapeReleaseVelocity(
-        { x: releaseMotionState.vx, y: releaseMotionState.vy },
-        runtime.getObjectReleaseMotionProfile(objectId),
-      )
-      releaseMotionState.vx = releaseVelocity.x
-      releaseMotionState.vy = releaseVelocity.y
-    }
     dragMotion?.stop()
     dragMotion = null
     autoScroller?.stop()
@@ -184,6 +176,18 @@ export function createDetachMoveFromAdapter(config: {
       }
     }
     if (!pendingDrop) return { accepted: false as const }
+    // 释放速度的 free 档案由最终目标 Surface 决定，而不是由抓取前的
+    // source Surface 决定。对象类型仍然提供具体 free 物理参数；grid
+    // Surface 则继续使用默认释放参数，避免画布参数污染列表卡片。
+    if (releaseMotionState) {
+      const releaseVelocity = shapeReleaseVelocity(
+        { x: releaseMotionState.vx, y: releaseMotionState.vy },
+        runtime.getObjectReleaseMotionProfile(objectId, pendingDrop),
+      )
+      releaseMotionState.vx = releaseVelocity.x
+      releaseMotionState.vy = releaseVelocity.y
+      pendingDrop.releaseVelocity = { x: releaseMotionState.vx, y: releaseMotionState.vy }
+    }
     // 抓取阶段的浮动 proxy 在这里交给 landing proxy 接管；有效落点继续让源节点
     // 脱离布局，避免业务节点先恢复占位把兄弟卡片顶回去。
     // 即使落点仍是同列同 index，也不能清除 release 阶段捕获的布局快照：
@@ -412,7 +416,7 @@ export function createDetachMoveFromAdapter(config: {
       const sourceScrollHeight = sourceViewport?.scrollHeight ?? 0
       applyFloatingStyle(element, rect, {
         layout: proxyLayout,
-        contentScale: objectItem?.contentScale,
+        contentScale: runtime.getSurfaceCameraScale(initialSurfaceId),
         // 多选时源卡是布局幽灵，不能像单卡 detach 一样整张隐藏；主代理
         // 负责跟手，源节点保留在原位并由 group visual 降低透明度。
         keepSourceVisible: Boolean(group && group.objectIds.length > 1),

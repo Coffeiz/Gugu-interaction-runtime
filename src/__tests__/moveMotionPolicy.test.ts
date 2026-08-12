@@ -24,7 +24,7 @@ function setup(objectId: string, motion?: { enabled?: boolean }) {
   vi.spyOn(surfaceEl, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 800, 600))
 
   runtime.registerObjectType('card', { defaultVisualMode: 'detach', motion })
-  runtime.surfaces.register({ id: 'surface:a', type: 'list', element: surfaceEl, accepts: ['card'] })
+  runtime.surfaces.register({ id: 'surface:a', type: 'list', layout: 'grid', element: surfaceEl, accepts: ['card'] })
   runtime.objects.register({ id: objectId, type: 'card', surfaceId: 'surface:a', element, abilities: ['move'] })
 
   const session = runtime.startSession('move', objectId)
@@ -205,36 +205,6 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
       expect.objectContaining({ left: -420, top: 760, width: 60, height: 40 }),
       expect.anything(),
     )
-    motionSpy.mockRestore()
-    destroyDragProxy(proxy)
-  })
-
-  it('free landing 命中 Surface 外壳时不继承 Surface 视觉', async () => {
-    const { proxy, target } = landingFixture()
-    const adapter = new DefaultVisualAdapter()
-    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
-      finished: Promise.resolve(),
-      retarget: () => undefined,
-    })
-
-    await adapter.land({ element: proxy }, target, {
-      objectId: 'o', sessionId: 's', mode: 'detach', landingMode: 'free',
-      surfaceTarget: true,
-      targetSnapshot: {
-        rect: { x: 200, y: 200, width: 60, height: 40 },
-        background: 'rgb(248, 249, 255)',
-        boxShadow: 'rgba(0, 0, 0, 0.18) 0px 12px 24px 0px',
-        borderRadius: '24px',
-        opacity: '1',
-      },
-    } as never)
-
-    expect(motionSpy.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
-      targetShadow: undefined,
-      targetRadius: undefined,
-      targetBackground: undefined,
-      targetContent: undefined,
-    }))
     motionSpy.mockRestore()
     destroyDragProxy(proxy)
   })
