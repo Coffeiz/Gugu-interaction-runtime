@@ -222,6 +222,14 @@ export function createDetachMoveFromAdapter(config: {
     const proceedWithTarget = (sid: string, target: import('../../Runtime').MoveLandingResolution | null) => {
       if (getSessionState() !== 'landing') return
       const landingElement = target?.kind === 'element' ? target.element : null
+      console.info('[drawer-landing-probe]', JSON.stringify({
+        phase: 'proceed', objectId, sessionId: sid, destination: destination.columnId,
+        targetKind: target?.kind ?? null,
+        targetClass: landingElement?.className ?? null,
+        targetConnected: landingElement?.isConnected ?? false,
+        targetIsSource: landingElement === element,
+        targetRect: landingElement ? (() => { const rect = landingElement.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height } })() : null,
+      }))
       const revealTarget = landingElement
         ?? runtime.resolveVisualTarget(sessionId!, destination)
         ?? runtime.objects.get(objectId)?.element
@@ -286,6 +294,11 @@ export function createDetachMoveFromAdapter(config: {
     }
     landingPlan = scheduleDetachLandingFrame(() => undefined, () => {
       const sid = sessionId!
+      console.info('[drawer-landing-probe]', JSON.stringify({
+        phase: 'resolve-start', objectId, sessionId: sid, destination: destination.columnId,
+        sourceConnected: element.isConnected,
+        sourceRect: (() => { const rect = element.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height } })(),
+      }))
       void runtime.resolveLandingTarget(sid, destination).then(target => proceedWithTarget(sid, target))
     })
     return { accepted: true as const, destination: pendingDrop, ...(invalidReturn ? { emitAction: false } : {}) }

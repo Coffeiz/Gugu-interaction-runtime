@@ -698,9 +698,35 @@ setMotionProfiles(this.registry.motionProfile)
           ? 'free'
           : 'default'
       : 'default'
+    if (destinationSurfaceId === 'mind:drawer') {
+      console.info('[drawer-landing-classification-probe]', JSON.stringify({
+        phase: 'context',
+        sessionId,
+        objectId: session?.objectId ?? null,
+        objectType: object?.type ?? null,
+        sourceSurfaceId: object?.surfaceId ?? null,
+        destinationSurfaceId,
+        destinationLayout: destinationSurface?.layout ?? null,
+        invalidReturn,
+        targetIsSource,
+        targetIsSurface,
+        hasSemanticTarget,
+        targetClass: targetElement?.className ?? null,
+        targetConnected: targetElement?.isConnected ?? false,
+        targetRect: targetElement ? (() => {
+          const rect = targetElement.getBoundingClientRect()
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        })() : null,
+        preserveTarget: registration?.preserveMoveTarget ?? false,
+        effectiveLandingMode,
+        targetDismiss: motionProfile?.target?.dismiss ?? null,
+      }))
+    }
     return {
       objectId: session?.objectId ?? '',
       sessionId,
+      sourceSurfaceId: object?.surfaceId,
+      destinationSurfaceId: destinationSurfaceId ?? undefined,
       mode: object?.visualMode ?? 'detach',
       destination,
       sourceElement,

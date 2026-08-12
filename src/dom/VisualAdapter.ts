@@ -34,6 +34,8 @@ export interface VisualGroupContext {
 export interface VisualLifecycleContext {
   readonly objectId: string
   readonly sessionId: string
+  readonly sourceSurfaceId?: string
+  readonly destinationSurfaceId?: string
   readonly mode: string
   readonly destination?: unknown
   readonly sourceElement?: HTMLElement
@@ -213,6 +215,11 @@ export class DefaultVisualAdapter implements VisualAdapter {
     el.style.transition = 'none'
     const isTargetLanding = context.landingMode === 'target'
     const isCompactProxy = getProxyContent(el).dataset.runtimeCompact === 'true'
+    const isCrossSurfaceLanding = Boolean(
+      context.sourceSurfaceId
+      && context.destinationSurfaceId
+      && context.sourceSurfaceId !== context.destinationSurfaceId,
+    )
     const targetSnapshot = context.targetSnapshot
     // disableTargetVisualMorph 只关掉"飞向语义目标（文件夹/面包屑）时代理套上目标样式"这段——
     // 无效落点走的是 landingMode:'default' 飞回原位，这时候的目标样式 morph 是另一回事：把
@@ -231,9 +238,49 @@ export class DefaultVisualAdapter implements VisualAdapter {
     // 样式”这段；默认落地（飞回对象自己在列表/网格里的原位）跟这个开关无关，即使目标静止态
     // 没有背景/阴影（比如列表行本来就是透明的），也必须把抓起态的玻璃/深阴影 morph 回它的
     // 真实（可能就是透明/none）样子，否则代理会一直糊到销毁揭示那一刻才突然切换。
-    const targetHasSurfaceStyle = !isTargetLanding
-      ? Boolean(targetSnapshot)
-      : !context.disableTargetVisualMorph && targetHasVisibleSurface
+    const targetHasSurfaceStyle = !isCrossSurfaceLanding && (
+      !isTargetLanding
+        ? Boolean(targetSnapshot)
+        : !context.disableTargetVisualMorph && targetHasVisibleSurface
+    )
+    // 跨 Surface 时保留阴影这一项的过渡，但不恢复目标卡片的其它表面属性。
+    // 抓起态阴影是代理自身的悬浮反馈；完全关闭 target morph 会让它一直保持
+    // 到代理销毁，表现成没有落地/降落效果。
+    const landingTargetShadow = targetSnapshot?.boxShadow
+      ? targetSnapshot.boxShadow
+      : undefined
+    if (context.destination && typeof context.destination === 'object' && (
+      (context.destination as { toSurfaceId?: unknown }).toSurfaceId === 'mind:drawer'
+      || (context.destination as { columnId?: unknown }).columnId === 'mind:drawer'
+    )) {
+      console.info('[drawer-landing-visual-probe]', JSON.stringify({
+        phase: 'land-start',
+        sessionId: context.sessionId,
+        objectId: context.objectId,
+        landingMode: context.landingMode,
+        isTargetLanding,
+        preserveTarget: context.preserveTarget,
+        targetIsSource: targetElement === context.sourceElement,
+        sourceClass: context.sourceElement?.className ?? null,
+        proxyClass: getProxyContent(el).className,
+        targetClass: targetElement?.className ?? null,
+        targetConnected: targetElement?.isConnected ?? false,
+        sourceSurfaceId: context.sourceSurfaceId ?? null,
+        destinationSurfaceId: context.destinationSurfaceId ?? null,
+        isCrossSurfaceLanding,
+        targetRect: targetElement ? (() => {
+          const rect = targetElement.getBoundingClientRect()
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        })() : null,
+        targetContent: !isCrossSurfaceLanding
+          && !context.disableTargetVisualMorph
+          && targetHasVisibleSurface
+          && !isCompactProxy,
+        targetHasSurfaceStyle,
+        dismiss: isTargetLanding ? context.motion?.target?.dismiss ?? null : null,
+        contentScale: context.contentScale ?? null,
+      }))
+    }
     const landingProfile = context.landingMode === 'free'
       ? context.motion?.freeLanding ?? context.motion?.landing
       : context.landingMode === 'target'
@@ -261,7 +308,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
         : DEFAULT_MOTION_PROFILE.landing.easing),
       // 面包屑是透明文本节点，只提供位置和消失时机，不能把它的透明表面
       // 样式覆盖到代理卡片；有可见表面的文件夹卡仍完整执行视觉 morph。
-      targetShadow: targetHasSurfaceStyle ? targetSnapshot?.boxShadow : undefined,
+      targetShadow: targetHasSurfaceStyle || isCrossSurfaceLanding
+        ? landingTargetShadow
+        : undefined,
       targetRadius: targetHasSurfaceStyle ? targetSnapshot?.borderRadius : undefined,
       targetBorder: targetHasSurfaceStyle ? targetSnapshot?.border : undefined,
       targetBackdropFilter: targetHasSurfaceStyle ? targetSnapshot?.backdropFilter : undefined,
@@ -273,7 +322,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // compact 列表代理与目标卡结构相同，只需要让同一份内容跟随宽度恢复；如果再挂一层
       // 目标 Grid，右侧文件大小会因为 justify-self:end 在 landing 第一帧瞬间回到完整宽度。
       // 只有真正有背景/阴影且不是 compact 列表的目标才复用结构级 content morph。
-      targetContent: !context.disableTargetVisualMorph && targetHasVisibleSurface && !isCompactProxy
+      targetContent: !isCrossSurfaceLanding
+        && !context.disableTargetVisualMorph
+        && targetHasVisibleSurface
+        && !isCompactProxy
         ? targetElement
         : undefined,
       landingMode: context.landingMode,
