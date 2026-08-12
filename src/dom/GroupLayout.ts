@@ -93,8 +93,8 @@ export function captureLayoutFlip(
     readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
   } = {},
 ): LayoutFlipSnapshot {
-  // 新事务开始时先终止上一笔仍在运行的 Surface resize，避免旧 timeout
-  // 在本事务中恢复过期高度。
+  // 不在 capture 阶段恢复正在运行的 Surface resize。新事务需要继承当前
+  // 动画帧作为起点，否则抓起后立即松手会先回到旧高度，再播放第二次 resize。
   const inScope = (element: HTMLElement): boolean => {
     const surfaces = options.scopeSurfaces
     if (!surfaces || surfaces.length === 0) return true
@@ -112,9 +112,6 @@ export function captureLayoutFlip(
     ...Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')),
   ]
     .filter(inScope)
-  const activeSurfaces = inScopeSurfaceElements
-    .map(element => ({ element, rect: readRect(element), inlineStyle: readSurfaceInlineStyle(element) }))
-  resetActiveSurfaceResize(activeSurfaces)
   const measurement = createLayoutMeasurement()
   const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root, options.scopeSurfaces)
   const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement, options.surfaceMeasures)
