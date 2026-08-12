@@ -273,7 +273,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // compact 列表代理与目标卡结构相同，只需要让同一份内容跟随宽度恢复；如果再挂一层
       // 目标 Grid，右侧文件大小会因为 justify-self:end 在 landing 第一帧瞬间回到完整宽度。
       // 只有真正有背景/阴影且不是 compact 列表的目标才复用结构级 content morph。
-      targetContent: targetHasVisibleSurface && !isCompactProxy
+      targetContent: !context.disableTargetVisualMorph && targetHasVisibleSurface && !isCompactProxy
         ? targetElement
         : undefined,
       landingMode: context.landingMode,

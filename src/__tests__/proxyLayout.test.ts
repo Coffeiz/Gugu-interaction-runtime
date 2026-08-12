@@ -286,6 +286,56 @@ describe('代理布局', () => {
     source.remove()
   })
 
+  it('target landing 保留文件代理内容，并让 dismiss 缩小不被每帧相机同步覆盖', async () => {
+    const source = document.createElement('article')
+    source.className = 'file-item'
+    document.body.append(source)
+    const proxy = createDragProxy(source, rect(240, 96), { contentScale: 1 })
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 400,
+      top: 200,
+      width: 240,
+      height: 96,
+    }, {
+      landingMode: 'target',
+      dismiss: { duration: 300, easing: 'ease-out', scale: 0.72 },
+      motionState: {
+        x: 100, y: 100, vx: 0, vy: 0,
+        scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0,
+      },
+    })
+
+    const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
+    const content = getProxyContent(proxy)
+    expect(shell.style.transform).toBe('scale(1)')
+    expect(content.style.opacity).not.toBe('0')
+
+    vi.advanceTimersByTime(16)
+    expect(shell.style.transform).toBe('scale(0.72)')
+    expect(content.style.opacity).toBe('0')
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
   it('landing 中相机变化由 camGlue 更新，不重复写入代理自身 scale', async () => {
     const source = document.createElement('article')
     document.body.append(source)

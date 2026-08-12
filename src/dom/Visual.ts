@@ -1006,7 +1006,11 @@ export function landDragProxyWithMotion(
         proxy.style.transform = `perspective(760px) translate3d(${(layoutLeftForSize - layoutLeft).toFixed(2)}px, ${(layoutTopForSize - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
         // 抓起阶段已经把相机倍率写入 scaleShell；落地的尺寸收敛不能把它
         // 重置为 1，否则松手时会再播放一遍相机缩放。
-        if (landingShell && landingTargetContentScale > 0) {
+        if (options.landingMode === 'target' && hasTargetDismiss) {
+          // 语义目标的 scaleShell 由 target dismiss 独占。若在这里继续按
+          // 相机倍率同步，会把第一帧写入的缩小比例覆盖回 1，导致文件拖入
+          // 文件夹时只有淡出、没有旧版的缩小动画。
+        } else if (landingShell && landingTargetContentScale > 0) {
           // 普通 grid/list 回到另一倍率的 Surface 时，缩放壳必须围绕中心
           // 过渡。若继续按左上角重算 left/top，内容会在外框平滑飞行时
           // 先垂直吸附一段距离，表现成“先对齐高度再进入”。

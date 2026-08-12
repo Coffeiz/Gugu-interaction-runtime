@@ -231,6 +231,38 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     motionSpy.mockRestore()
     destroyDragProxy(proxy)
   })
+
+  it('文件拖入文件夹：代理保留文件内容并执行 target 缩小淡出，不复制文件夹结构', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'file:1', sessionId: 's', mode: 'detach', landingMode: 'target',
+      disableTargetVisualMorph: true,
+      targetRect: { left: 200, top: 200, width: 60, height: 40 },
+      motion: {
+        target: {
+          dismiss: { duration: 300, easing: 'ease-out', scale: 0.72 },
+        },
+      },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.objectContaining({ left: 200, top: 200, width: 60, height: 40 }),
+      expect.objectContaining({
+        landingMode: 'target',
+        targetContent: undefined,
+        dismiss: { duration: 300, easing: 'ease-out', scale: 0.72 },
+      }),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
 })
 
 describe('Runtime.getObjectMotionEnabled', () => {
