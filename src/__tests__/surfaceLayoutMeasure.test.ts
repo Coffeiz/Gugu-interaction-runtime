@@ -79,6 +79,7 @@ describe('Surface 自然尺寸 FLIP', () => {
     const second = captureSurfaceLayout([viewport], undefined, new Map([[viewport, measure]]))
     expect(second[0].rect.height).toBeCloseTo(currentHeight, 3)
     playSurfaceResize(second, 200, 'linear')
+    expect(Number.parseFloat(viewport.style.height)).toBeCloseTo(currentHeight, 3)
     vi.advanceTimersByTime(1000)
     expect(viewport.style.height).toBe('120px')
 

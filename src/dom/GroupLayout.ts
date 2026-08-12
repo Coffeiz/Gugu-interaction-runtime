@@ -578,7 +578,9 @@ export function captureSurfaceLayout(
     element.dataset.runtimeLayoutTransaction = 'true'
     const rect = readRect(element, measurement)
     const measure = surfaceMeasures?.get(element)
-    const inlineStyle = surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element)
+    // 正在播放 resize 时，快照必须保存当前动画帧，而不是第一笔事务的
+    // baseStyle。否则下一次 capture/play 会把抽屉先恢复到旧高度，再重新收回。
+    const inlineStyle = readSurfaceInlineStyle(element)
     // 在 Vue/React 等业务侧提交自然尺寸之前先冻结当前边框盒，
     // 避免事务中间的响应式 height 更新把 Surface 提前撑到最终高度。
     // playSurfaceResize 会沿用这份 inlineStyle，并在事务结束时恢复它。
@@ -643,7 +645,7 @@ export function playSurfaceResize(
     }
   })
 
-  for (const { item, fromHeight } of plans) {
+  for (const { item, fromHeight, toHeight } of plans) {
     const style = item.element.style
     const state = {
       baseStyle: surfaceResizeStates.get(item.element)?.baseStyle ?? item.inlineStyle,
@@ -687,9 +689,13 @@ function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): voi
   for (const { element } of active) {
     const state = surfaceResizeStates.get(element)
     if (!state) continue
-    // 先恢复自然高度再测量新布局；删 token 让旧 timeout 不能覆盖新事务。
+    // 取消旧 rAF 后保留它最后一帧的边框盒高度，作为新事务的起点。
+    // 不能恢复 state.baseStyle；那是第一笔事务的旧高度，会造成二次展开。
+    const currentHeight = readRect(element).height
     cancelRafHeight(element)
-    restoreSurfaceInlineStyle(element, state.baseStyle)
+    element.style.height = `${toCssHeight(element, currentHeight)}px`
+    element.style.overflow = 'hidden'
+    element.style.transition = 'none'
     surfaceResizeStates.delete(element)
     delete element.dataset.runtimeSurfaceResize
     delete element.dataset.runtimeSurfaceResizeToken
