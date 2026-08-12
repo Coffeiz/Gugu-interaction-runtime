@@ -109,6 +109,37 @@ describe('Runtime move orchestration', () => {
     })
   })
 
+  it('Surface 默认不作为 landing 目标，显式开启后才允许使用', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('article')
+    const surface = document.createElement('section')
+    document.body.append(source, surface)
+    runtime.objects.register({ id: 'project:1', type: 'project-card', surfaceId: 'column:todo', element: source, abilities: ['move'] })
+    runtime.surfaces.register({ id: 'column:done', type: 'list', element: surface, accepts: ['project-card'] })
+    const handle = runtime.start({
+      type: 'move',
+      objectId: 'project:1',
+      input: { kind: 'programmatic' },
+    })
+
+    expect(runtime.resolveMoveLandingTarget(handle.id, { toSurfaceId: 'column:done' })).toBe(source)
+    runtime.registerObjectType('canvas-card', {
+      defaultVisualMode: 'detach',
+      allowSurfaceLandingTarget: true,
+    })
+    runtime.objects.register({ id: 'canvas:1', type: 'canvas-card', surfaceId: 'canvas', element: source, abilities: ['move'] })
+    const canvasHandle = runtime.start({
+      type: 'move',
+      objectId: 'canvas:1',
+      input: { kind: 'programmatic' },
+    })
+    expect(runtime.resolveMoveLandingTarget(canvasHandle.id, { toSurfaceId: 'column:done' })).toBe(surface)
+    runtime.cancel(handle.id)
+    runtime.cancel(canvasHandle.id)
+    source.remove()
+    surface.remove()
+  })
+
   it('free landing 的 invalidReturn 不调用自由落点解析器', () => {
     const runtime = new Runtime()
     const resolveFreeLandingRect = vi.fn(() => ({ left: 320, top: 180, width: 120, height: 80 }))

@@ -150,6 +150,8 @@ export interface ObjectTypeRegistration {
   resolveFreeLandingRect?(context: { objectId: string; destination: unknown }): LandingRect | null
   /** 落地代理飞向业务目标时是否保留目标节点可见。 */
   preserveMoveTarget?: boolean
+  /** 无语义目标时是否允许把目标 Surface 外壳作为 landing 几何目标。默认关闭。 */
+  allowSurfaceLandingTarget?: boolean
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
   createMove?(context: {
     objectId: string
@@ -1166,7 +1168,13 @@ setMotionProfiles(this.registry.motionProfile)
     const destinationSurfaceId = this.getDestinationSurfaceId(destination)
     const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
     const surfaceElement = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId)?.element : null
-    const target = customTarget ?? resolveResult ?? fallbackResult ?? semanticTarget?.element ?? surfaceElement ?? registeredElement ?? null
+    const target = customTarget
+      ?? resolveResult
+      ?? fallbackResult
+      ?? semanticTarget?.element
+      ?? (registration?.allowSurfaceLandingTarget ? surfaceElement : null)
+      ?? registeredElement
+      ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
     return target
@@ -1186,7 +1194,11 @@ setMotionProfiles(this.registry.motionProfile)
     const destinationSurfaceId = this.getDestinationSurfaceId(destination)
     const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
     const surfaceElement = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId)?.element : null
-    const target = customTarget ?? fallbackTarget ?? semanticTarget?.element ?? surfaceElement ?? this.resolveMoveTarget(sessionId, destination)
+    const target = customTarget
+      ?? fallbackTarget
+      ?? semanticTarget?.element
+      ?? (registration?.allowSurfaceLandingTarget ? surfaceElement : null)
+      ?? this.resolveMoveTarget(sessionId, destination)
     if (!target || !target.isConnected) return null
     return target
   }
