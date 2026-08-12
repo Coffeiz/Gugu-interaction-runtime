@@ -8,6 +8,7 @@ import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasure
 let currentProfile: MotionProfile | null = null
 let layoutPresenceEnabled = false
 const groupToggleTokens = new WeakMap<HTMLElement, number>()
+
 export function setMotionProfiles(profile: MotionProfile | null): void {
   currentProfile = profile
 }
@@ -99,7 +100,13 @@ export function captureLayoutFlip(
   // 和 surfaces 各自现查一遍，同一批节点在一次 captureLayoutFlip 里被
   // querySelectorAll 两次——见 landing 卡顿排查，trace 里这个查询单次能到
   // 9ms 自身耗时。
-  const inScopeSurfaceElements = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]'))
+  const rootSurface = root instanceof HTMLElement && root.matches('[data-layout-surface]')
+    ? [root]
+    : []
+  const inScopeSurfaceElements = [
+    ...rootSurface,
+    ...Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')),
+  ]
     .filter(inScope)
   const activeSurfaces = inScopeSurfaceElements
     .map(element => ({ element, rect: readRect(element), inlineStyle: readSurfaceInlineStyle(element) }))
@@ -369,7 +376,14 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
   }
 }
 
-export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING, fromHeight?: number): void {
+export function transitionGroupHeight(
+  element: HTMLElement,
+  targetHeight: number,
+  duration = FLIP_DURATION,
+  easing = FLIP_EASING,
+  fromHeight?: number,
+  retainTargetHeight = false,
+): void {
   cancelGroupAnimation(element)
   const currentHeight = fromHeight ?? element.getBoundingClientRect().height
   const heightToken = String(Number(element.dataset.runtimeGroupToken ?? '0') + 1)
@@ -397,6 +411,11 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
     if (targetHeight <= 0) {
       element.style.height = '0px'
       element.style.overflow = 'hidden'
+    } else if (retainTargetHeight) {
+      // 外层 viewport 的最终高度由 Vue ref 持有。Vue 在事务结束后才会
+      // flush 绑定值，因此不能先清掉 inline height，否则会短暂回到旧高度。
+      element.style.height = `${targetHeight}px`
+      element.style.overflow = ''
     } else {
       element.style.height = ''
       element.style.overflow = ''
@@ -491,8 +510,8 @@ export interface GroupToggleOptions {
 export async function runGroupToggle(options: GroupToggleOptions): Promise<void> {
   const token = (groupToggleTokens.get(options.content) ?? 0) + 1
   groupToggleTokens.set(options.content, token)
-  const cardNodes = Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item'))
-  const cards = (cardNodes.length > 0 ? cardNodes : Array.from(options.root.querySelectorAll<HTMLElement>('[data-card]')))
+  const cardNodes = Array.from(options.root.querySelectorAll<HTMLElement>('[data-layout-role="card"]'))
+  const cards = (cardNodes.length > 0 ? cardNodes : Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item, [data-card]')))
     .filter(element => {
       const rect = element.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0
@@ -506,7 +525,8 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
   await options.waitForLayout()
   if (groupToggleTokens.get(options.content) !== token) return
   if (options.isCurrent && !options.isCurrent()) return
-  transitionGroupHeight(options.content, options.opening ? options.content.scrollHeight : 0, options.duration, options.easing, currentHeight)
+  const targetHeight = options.opening ? options.content.scrollHeight : 0
+  transitionGroupHeight(options.content, targetHeight, options.duration, options.easing, currentHeight)
   if (presenceState) playGroupPresence(presenceState, options.opening)
   playLayoutFlip(snapshot)
 }
@@ -514,7 +534,7 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
 interface GroupPresenceState { content: HTMLElement; elements: HTMLElement[]; token: string; duration: number }
 
 function prepareGroupPresence(content: HTMLElement, opening: boolean, duration = FLIP_DURATION, easing = FLIP_EASING): GroupPresenceState {
-  const elements = Array.from(content.querySelectorAll<HTMLElement>('.done-card-item'))
+  const elements = Array.from(content.querySelectorAll<HTMLElement>('[data-layout-role="card"], .done-card-item'))
   const token = String(Number(content.dataset.runtimePresenceToken ?? '0') + 1)
   content.dataset.runtimePresenceToken = token
   elements.forEach(element => {
