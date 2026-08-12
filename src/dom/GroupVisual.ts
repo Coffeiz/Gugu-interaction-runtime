@@ -205,8 +205,18 @@ export function createGroupVisualAdapter(
         state.restoreGhosts(duration)
         // 多卡回位时主代理负责展开和淡出，源卡幽灵同步恢复；两者交叉过渡，
         // 避免落地瞬间同时出现两张完整卡片。
+        // 同一 Surface 内多卡回位时，主代理负责淡出并交接给本体；
+        // 跨 Surface 时目标卡本来就是另一张已挂载的本体，必须保留它的
+        // 可见样式，否则代理会沿着 opacity:0 淡出，最后只剩目标本体瞬切。
+        const isCrossSurfaceLanding = Boolean(
+          context.sourceSurfaceId
+          && context.destinationSurfaceId
+          && context.sourceSurfaceId !== context.destinationSurfaceId,
+        )
         const targetSnapshot = context.targetSnapshot
-          ? { ...context.targetSnapshot, opacity: '0' }
+          ? isCrossSurfaceLanding
+            ? context.targetSnapshot
+            : { ...context.targetSnapshot, opacity: '0' }
           : undefined
         return base.land?.(proxy, target, { ...context, targetSnapshot })
       }

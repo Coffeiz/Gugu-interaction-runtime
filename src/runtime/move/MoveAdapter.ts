@@ -51,6 +51,7 @@ export function createDetachMoveFromAdapter(config: {
   let landingPlan: (() => void) | null = null
   let landingGate: RuntimeCompletionGate<LandingResult> | null = null
   let landingProxy: HTMLElement | null = null
+  let landingTargetElement: HTMLElement | null = null
   let released = false
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
@@ -222,14 +223,6 @@ export function createDetachMoveFromAdapter(config: {
     const proceedWithTarget = (sid: string, target: import('../../Runtime').MoveLandingResolution | null) => {
       if (getSessionState() !== 'landing') return
       const landingElement = target?.kind === 'element' ? target.element : null
-      console.info('[drawer-landing-probe]', JSON.stringify({
-        phase: 'proceed', objectId, sessionId: sid, destination: destination.columnId,
-        targetKind: target?.kind ?? null,
-        targetClass: landingElement?.className ?? null,
-        targetConnected: landingElement?.isConnected ?? false,
-        targetIsSource: landingElement === element,
-        targetRect: landingElement ? (() => { const rect = landingElement.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height } })() : null,
-      }))
       const revealTarget = landingElement
         ?? runtime.resolveVisualTarget(sessionId!, destination)
         ?? runtime.objects.get(objectId)?.element
@@ -241,8 +234,14 @@ export function createDetachMoveFromAdapter(config: {
       if (!landedEl) {
         landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
       }
+      landingTargetElement = landedEl
       if (landingElement) runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
-      const targetSnapshot = captureDetachTargetSnapshot((el: HTMLElement) => runtime.captureVisualState(objectId, el), landedEl)
+      const targetObjectId = runtime.findObjectIdByElement(landedEl, objectId) ?? objectId
+      const targetSnapshot = captureDetachTargetSnapshot(
+        (el: HTMLElement) => runtime.captureVisualState(targetObjectId, el),
+        landedEl,
+        { ignoreTemporaryOpacity: true },
+      )
       const visualContext = createDetachVisualContext({
         createContext: () => runtime.createVisualLifecycleContext(
           sid,
@@ -286,6 +285,7 @@ export function createDetachMoveFromAdapter(config: {
             // await，代理在本体已可见之后还会多留几帧甚至更久，表现为本体和代理短暂重叠。
             reveal: () => runtime.revealVisualProxy(sid, landedEl, visualContext).then(() => {
               if (landingProxy) { runtime.disposeVisualProxy(sid); landingProxy = null }
+              landingTargetElement = null
             }),
           })
           landingGate = null
@@ -294,11 +294,6 @@ export function createDetachMoveFromAdapter(config: {
     }
     landingPlan = scheduleDetachLandingFrame(() => undefined, () => {
       const sid = sessionId!
-      console.info('[drawer-landing-probe]', JSON.stringify({
-        phase: 'resolve-start', objectId, sessionId: sid, destination: destination.columnId,
-        sourceConnected: element.isConnected,
-        sourceRect: (() => { const rect = element.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height } })(),
-      }))
       void runtime.resolveLandingTarget(sid, destination).then(target => proceedWithTarget(sid, target))
     })
     return { accepted: true as const, destination: pendingDrop, ...(invalidReturn ? { emitAction: false } : {}) }
@@ -314,13 +309,16 @@ export function createDetachMoveFromAdapter(config: {
     if (!proxy || !sessionId) return
     const group = runtime.getGroup(sessionId)
     const groupVisual = group ? runtime.objects.get(group.primaryObjectId)?.visual : undefined
+    const visualTarget = runtime.resolveVisualTarget(sessionId!, pendingDrop)
+    const objectElement = runtime.objects.get(objectId)?.element ?? null
     const liveEl = group
       ? runtime.objects.get(group.primaryObjectId)?.element ?? null
       : resolveDetachRegrabTarget(
-        () => runtime.resolveVisualTarget(sessionId!, pendingDrop),
-        () => runtime.objects.get(objectId)?.element ?? null,
+        () => landingTargetElement ?? visualTarget,
+        () => objectElement,
       )
     if (!liveEl) return
+    const targetObjectId = runtime.findObjectIdByElement(liveEl, objectId) ?? objectId
     const regrabContext = runtime.createRegrabContext(sessionId!, regrabEvent, proxy, liveEl)
     if (!regrabContext) return
     interruptDetachRegrab({
@@ -347,7 +345,7 @@ export function createDetachMoveFromAdapter(config: {
         targetRect,
       )
     } else {
-      runtime.startObjectPointer(grabbedObjectId, liveEl, regrabEvent, regrabContext.regrabRect, targetRect)
+      runtime.startObjectPointer(targetObjectId, liveEl, regrabEvent, regrabContext.regrabRect, targetRect)
     }
   }
 

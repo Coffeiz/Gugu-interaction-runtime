@@ -698,30 +698,6 @@ setMotionProfiles(this.registry.motionProfile)
           ? 'free'
           : 'default'
       : 'default'
-    if (destinationSurfaceId === 'mind:drawer') {
-      console.info('[drawer-landing-classification-probe]', JSON.stringify({
-        phase: 'context',
-        sessionId,
-        objectId: session?.objectId ?? null,
-        objectType: object?.type ?? null,
-        sourceSurfaceId: object?.surfaceId ?? null,
-        destinationSurfaceId,
-        destinationLayout: destinationSurface?.layout ?? null,
-        invalidReturn,
-        targetIsSource,
-        targetIsSurface,
-        hasSemanticTarget,
-        targetClass: targetElement?.className ?? null,
-        targetConnected: targetElement?.isConnected ?? false,
-        targetRect: targetElement ? (() => {
-          const rect = targetElement.getBoundingClientRect()
-          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
-        })() : null,
-        preserveTarget: registration?.preserveMoveTarget ?? false,
-        effectiveLandingMode,
-        targetDismiss: motionProfile?.target?.dismiss ?? null,
-      }))
-    }
     return {
       objectId: session?.objectId ?? '',
       sessionId,
@@ -800,6 +776,14 @@ setMotionProfiles(this.registry.motionProfile)
     const session = this.sessionCoordinator.get(sessionId)
     if (!session) return null
     return this.visualState.resolveTarget(session.objectId, destination)
+  }
+
+  /** 跨 Surface 重抓时，将业务重挂载后的真实 DOM 反查回 Runtime Object。 */
+  findObjectIdByElement(element: HTMLElement, excludeId?: string): string | null {
+    for (const object of this.objects.values()) {
+      if (object.id !== excludeId && object.element === element) return object.id
+    }
+    return null
   }
 
   /** 将对象的生命周期视觉状态交给其适配器写入。 */
@@ -1456,6 +1440,7 @@ setMotionProfiles(this.registry.motionProfile)
   takeoverRegrab(sessionId: string): boolean {
     const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return false
+    const proxy = this.visualProxyCoordinator.get(sessionId)?.element
     this.interrupt(sessionId, 'regrab')
     this.disposeVisualProxy(sessionId)
     return true

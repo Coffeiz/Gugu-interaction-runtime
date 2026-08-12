@@ -238,15 +238,34 @@ export function resolveDetachLandingTarget<TDestination>(args: {
 export function captureDetachTargetSnapshot(
   capture: (element: HTMLElement) => VisualSnapshot,
   element: HTMLElement,
+  options: { ignoreTemporaryOpacity?: boolean } = {},
 ): VisualSnapshot {
   const transition = element.style.transition
+  const opacity = element.style.opacity
+  const computedOpacity = getComputedStyle(element).opacity
   element.dataset.runtimeLandingCapture = 'true'
   element.style.transition = 'none'
-  void element.offsetWidth
-  const snapshot = capture(element)
-  element.style.transition = transition
-  delete element.dataset.runtimeLandingCapture
-  return snapshot
+  // 跨 Surface 交接时，业务侧会先把目标本体设为 opacity:0，等待代理
+  // 落地完成后再 reveal。这个状态只属于交接过程，不能被当成目标的
+  // 静态视觉样式，否则代理会沿着 opacity:0 淡出。
+  if (options.ignoreTemporaryOpacity && (opacity === '0' || computedOpacity === '0')) {
+    element.style.opacity = '1'
+  }
+  try {
+    void element.offsetWidth
+    const snapshot = capture(element)
+    // CSS animation 或祖先交接状态可能继续让 computedStyle 返回 0，
+    // 即使上面的临时 inline 覆盖已经生效。这里仍要把这个明确的
+    // 交接态从目标静态快照中剔除，否则代理会按 opacity:0 淡出。
+    return options.ignoreTemporaryOpacity
+      && (opacity === '0' || computedOpacity === '0' || snapshot.opacity === '0')
+      ? { ...snapshot, opacity: '1' }
+      : snapshot
+  } finally {
+    element.style.opacity = opacity
+    element.style.transition = transition
+    delete element.dataset.runtimeLandingCapture
+  }
 }
 
 

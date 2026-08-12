@@ -275,6 +275,7 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     await adapter.land({ element: proxy }, target, {
       objectId: 'mind:109', sessionId: 's', mode: 'detach', landingMode: 'default',
       sourceSurfaceId: 'mind:canvas', destinationSurfaceId: 'mind:drawer',
+      disableTargetVisualMorph: true,
       targetRect: { left: 200, top: 200, width: 240, height: 96 },
       targetSnapshot: {
         rect: rect(200, 200, 240, 96),
@@ -296,6 +297,39 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
         targetBackdropFilter: undefined,
         targetBackground: undefined,
         targetOpacity: undefined,
+      }),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('项目卡跨 Surface landing 允许目标卡交叉淡化', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'project:cross', sessionId: 's', mode: 'detach', landingMode: 'default',
+      sourceSurfaceId: 'column:todo', destinationSurfaceId: 'column:done',
+      targetRect: { left: 200, top: 200, width: 240, height: 96 },
+      targetSnapshot: {
+        rect: rect(200, 200, 240, 96),
+        borderRadius: '16px', boxShadow: 'rgba(0,0,0,.12) 0 8px 20px',
+        border: '1px solid white', backdropFilter: 'blur(12px)',
+        background: 'rgba(255,255,255,.8)', opacity: '1', transform: 'none',
+      },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.anything(),
+      expect.objectContaining({
+        targetContent: target,
+        targetRadius: '16px',
+        targetBackground: 'rgba(255,255,255,.8)',
       }),
     )
     motionSpy.mockRestore()
