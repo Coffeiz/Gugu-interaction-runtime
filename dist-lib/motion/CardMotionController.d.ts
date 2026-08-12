@@ -28,6 +28,9 @@ export interface MotionFrame {
 export interface ArriveThreshold {
     position: number;
     velocity: number;
+    /** 缩放是无量纲值，不能复用像素位置阈值。 */
+    scalePosition?: number;
+    scaleVelocity?: number;
 }
 export interface FollowRotationConfig {
     tilt: number;

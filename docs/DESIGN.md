@@ -104,6 +104,11 @@ Surface 的运动所有权属于 Runtime：它负责 before/after 测量、位�
 当前 Surface resize 参数统一通过 `runtime.configureMotion({ resize })` 配置，
 不再使用单独的 `registerSurfaceLayout()` 入口。
 
+命中区域和布局元素不一致时，Surface 可以声明 `layoutElement` 与
+`measureLayout`：前者提供 Runtime 实际做 FLIP 的节点，后者提供固定 viewport
+背后的自然目标尺寸。两者属于 Surface 声明，不属于拖拽事件回调；这样 Runtime
+仍然拥有完整的 Surface resize 时序，业务不会与它竞争高度动画。
+
 业务模板只需标注：
 
 ```html

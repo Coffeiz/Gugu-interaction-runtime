@@ -12,13 +12,14 @@ import { GroupVisualAdapter, VisualAdapter, VisualLifecycleContext, VisualProxy 
 import { VisualState } from './dom/VisualAdapterTypes';
 import { MotionProfile } from './dom/MotionProfile';
 import { GroupDragConfig } from './dom/GroupDragProfile';
-import { DragProxyLayoutConfig } from './dom/Visual';
+import { DragProxyLayoutConfig, LandingRect } from './dom/Visual';
 import { MotionControllerConfig } from './motion/MotionProfile';
 import { HitResolver, HitResult } from './dom/Hit';
 import { Surface } from './surface/Surface';
 import { LandingTargetTrackerOptions } from './dom/LandingTargetTracker';
 import { PointerSessionInputOptions } from './input/PointerSessionInput';
 import { Action } from './action/Action';
+import { NodeConnectionEndpoint, NodeConnectionState, NodePortSnapshot } from './node/Node';
 import { RuntimeRegistry } from './runtime/RuntimeRegistry';
 import { LayoutFlipSnapshot } from './dom/GroupLayout';
 import { AutoScrollController, AutoScrollOptions } from './dom/AutoScroll';
@@ -31,6 +32,21 @@ export type RuntimeEvent = {
 } | {
     type: 'target-added' | 'target-removed' | 'target-changed';
     id: string;
+} | {
+    type: 'move-visual-update';
+    sessionId: string;
+    objectId: string;
+    phase: 'active' | 'landing';
+    rect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+} | {
+    type: 'move-visual-end';
+    sessionId: string;
+    objectId: string;
 } | {
     type: 'ownership-changed';
     id: string;
@@ -77,6 +93,13 @@ export interface GrabAlignConfig {
     /** 在基准对齐结果上再叠加的垂直偏移(px)，正值往下；默认 0。 */
     offsetY?: number;
 }
+export type MoveLandingResolution = {
+    kind: 'element';
+    element: HTMLElement;
+} | {
+    kind: 'rect';
+    rect: LandingRect;
+};
 export interface ObjectTypeRegistration {
     defaultVisualMode: string;
     /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
@@ -88,8 +111,8 @@ export interface ObjectTypeRegistration {
         enabled?: boolean;
         profile?: MotionProfile;
     };
-    /** landing 的终态表现；default 保持看板行为，target 到达语义目标后缩小淡出。 */
-    landingMode?: 'default' | 'target';
+    /** 释放后的落地策略；physical 继承释放速度，normal 不继承释放速度。默认 physical。 */
+    releaseMode?: 'normal' | 'physical';
     /** target landing 时是否跳过"代理套上目标背景/圆角/内容"的视觉 morph，只保留位置和
      * 缩小淡出。目标和源对象内部结构差异较大（不同组件、不同子节点布局）时，内容 morph 会
      * 插值出不对齐的中间态，看起来像"代理直接变成了目标"而不是"飞向目标后消失"；只有源和
@@ -120,6 +143,11 @@ export interface ObjectTypeRegistration {
         objectId: string;
         destination: unknown;
     }): HTMLElement | null;
+    /** free landing 的视口矩形解析器；不要求存在对应 DOM 节点。 */
+    resolveFreeLandingRect?(context: {
+        objectId: string;
+        destination: unknown;
+    }): LandingRect | null;
     /** 落地代理飞向业务目标时是否保留目标节点可见。 */
     preserveMoveTarget?: boolean;
     /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
@@ -193,6 +221,12 @@ export declare class Runtime {
     private readonly visualMotion;
     private readonly groupVisualAdapters;
     private readonly surfaceScrollFrames;
+    private activeNodeConnection;
+    private readonly nodeConnections;
+    private readonly moveVisualFrames;
+    private readonly moveVisualPhases;
+    /** 每个移动 session 复用同一条相机抓取倍率曲线，避免更新帧/落地重新起算。 */
+    private readonly moveContentScales;
     constructor();
     registerVisualAdapter(type: string, adapter: VisualAdapter): void;
     registerVisualStrategy(type: string, strategy: MoveVisualStrategy): void;
@@ -212,6 +246,21 @@ export declare class Runtime {
         layoutPresence?: boolean;
     }): void;
     getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null;
+    /**
+     * 返回对象释放时使用的速度档案。
+     * free landing 可以按对象类型覆写速度倍率和上限；其它落地模式始终使用
+     * 全局档案，避免列表/网格卡片被画布调参影响。
+     */
+    getObjectReleaseMotionProfile(objectId: string, destination?: unknown): import('.').ReleaseMotionProfile;
+    getSurfaceCameraScale(surfaceId?: string): number | (() => number) | undefined;
+    /** Surface 可选择让抓取代理从 1x 平滑过渡到当前相机倍率。 */
+    getSurfaceCameraPickupScale(surfaceId?: string, sessionId?: string): number | (() => number) | undefined;
+    private getSessionContentScale;
+    private clearSessionContentScale;
+    getSurfaceCameraOrigin(surfaceId?: string): (() => {
+        left: number;
+        top: number;
+    }) | undefined;
     /**
      * 返回与矩形相交的已注册对象。
      * Runtime 只负责对象命中计算，选择状态仍由业务保存；代理节点、断开节点和
@@ -238,11 +287,11 @@ export declare class Runtime {
     getObjectProxyLayout(objectId: string, sourceElement?: HTMLElement): DragProxyLayoutConfig | undefined;
     getObjectVisualAdapter(objectId: string): VisualAdapter;
     getObjectGroupVisualAdapter(objectId: string): VisualAdapter | undefined;
-    createVisualLifecycleContext(sessionId: string, destination?: unknown, targetElement?: HTMLElement, beforeContent?: HTMLElement): VisualLifecycleContext;
+    createVisualLifecycleContext(sessionId: string, destination?: unknown, target?: HTMLElement | LandingRect, beforeContent?: HTMLElement): VisualLifecycleContext;
     /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
     createVisualProxy(sessionId: string, context: VisualLifecycleContext): VisualProxy | undefined;
     /** 调用当前对象适配器的 landing，并保证无代理时也有确定结果。 */
-    landVisualProxy(sessionId: string, target: HTMLElement, context?: VisualLifecycleContext): Promise<{
+    landVisualProxy(sessionId: string, target: HTMLElement | LandingRect, context?: VisualLifecycleContext): Promise<{
         completed: boolean;
         reason?: string;
     }>;
@@ -250,6 +299,8 @@ export declare class Runtime {
     updateVisualProxy(sessionId: string, context?: VisualLifecycleContext): void;
     /** 通过对象 VisualAdapter 解析最终揭示目标，并过滤已断开的节点。 */
     resolveVisualTarget(sessionId: string, destination: unknown): HTMLElement | null;
+    /** 跨 Surface 重抓时，将业务重挂载后的真实 DOM 反查回 Runtime Object。 */
+    findObjectIdByElement(element: HTMLElement, excludeId?: string): string | null;
     /** 将对象的生命周期视觉状态交给其适配器写入。 */
     applyVisualState(objectId: string, element: HTMLElement, state: VisualState): void;
     /** 获取对象当前视觉快照；未覆盖时使用默认 DOM 样式快照。 */
@@ -285,6 +336,30 @@ export declare class Runtime {
     subscribe(listener: (event: RuntimeEvent) => void): () => void;
     onAction(listener: (action: Action) => void | Promise<void>): () => void;
     emitAction(action: Action): void;
+    /** 读取对象当前端口；位置始终来自当前 DOMRect，不缓存拖拽/相机变换后的坐标。 */
+    getNodePorts(objectId: string): NodePortSnapshot[];
+    /** 在实时端点附近命中一个端口；命中结果按距离和对象 DOM 顺序稳定返回。 */
+    hitNodePort(point: {
+        x: number;
+        y: number;
+    }, options?: {
+        objectId?: string;
+        objectType?: string;
+    }): NodePortSnapshot | null;
+    beginNodeConnection(objectId: string, portId: string): NodeConnectionState | null;
+    updateNodeConnection(point: {
+        x: number;
+        y: number;
+    }): NodeConnectionState | null;
+    finishNodeConnection(targetObjectId: string, targetPortId: string): boolean;
+    cancelNodeConnection(): void;
+    deleteNodeConnection(connectionId: string): boolean;
+    get activeConnection(): NodeConnectionState | null;
+    /** 注册宿主已经持久化的连接，避免首次连接时只校验当前 Runtime 会话。 */
+    registerNodeConnection(connection: NodeConnectionEndpoint): string;
+    unregisterNodeConnection(connection: NodeConnectionEndpoint | string): boolean;
+    hasNodeConnection(connection: NodeConnectionEndpoint): boolean;
+    private nodeConnectionId;
     snapshot(): {
         objects: import('./object/ObjectItem').ObjectItem[];
         surfaces: Surface[];
@@ -313,7 +388,12 @@ export declare class Runtime {
      * 触发的 DOM 重渲染。视觉 adapter 不需要再组合这两个阶段，也不会各自
      * 实现一套跨 Surface 的等待规则。
      */
-    resolveLandingTarget(sessionId: string, destination: unknown, maxFrames?: number): Promise<HTMLElement | null>;
+    resolveLandingTarget(sessionId: string, destination: unknown, maxFrames?: number): Promise<MoveLandingResolution | null>;
+    /**
+     * 解析最终落地形态。保留 resolveMoveLandingTarget 的 HTMLElement 旧契约，
+     * 仅由新入口增加 free 的纯矩形分支，避免影响项目/文件现有接入。
+     */
+    resolveMoveLandingResolution(sessionId: string, destination: unknown, fallback?: () => HTMLElement | null): MoveLandingResolution | null;
     /**
      * 等待 Action 引起的业务 DOM 重渲染并取得落地目标。
      *
@@ -347,6 +427,9 @@ export declare class Runtime {
     trackLandingTarget(sessionId: string, target: HTMLElement, retarget: (rect: DOMRect) => void, options?: RuntimeLandingTargetOptions): () => void;
     start(request: StartRequest): SessionHandle;
     private startInternal;
+    private startMoveVisualTracking;
+    private setMoveVisualPhase;
+    private stopMoveVisualTracking;
     /**
      * 编排一次完整的 move Session：start → bind driver → bind lifecycle →
      * bind pointer input，一步到位。

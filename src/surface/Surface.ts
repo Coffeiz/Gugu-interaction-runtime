@@ -6,6 +6,10 @@ export interface Surface {
   /** 'list' / 'canvas' / 'trash' ... */
   type: string
   element: HTMLElement | null
+  /** 可选的实际布局元素；element 仍用于命中，布局 FLIP 使用此元素。 */
+  layoutElement?: () => HTMLElement | null
+  /** 返回自然布局尺寸；用于 element 被固定高度包裹时的跨事务 resize。 */
+  measureLayout?: () => { width?: number; height: number } | null
   /** 可选滚动视口；命中仍使用 element，自动滚动/保持落点可见时使用它。 */
   viewport?: () => HTMLElement | null
   /** 接受哪些 object type，空数组表示不限制。 */
@@ -29,4 +33,4 @@ export interface SurfaceCamera {
   pickupDuration?: number
 }
 
-export type SurfaceUpdate = Partial<Pick<Surface, 'type' | 'viewport' | 'accepts' | 'layout' | 'camera' | 'motion'>>
+export type SurfaceUpdate = Partial<Pick<Surface, 'type' | 'viewport' | 'layoutElement' | 'measureLayout' | 'accepts' | 'layout' | 'camera' | 'motion'>>

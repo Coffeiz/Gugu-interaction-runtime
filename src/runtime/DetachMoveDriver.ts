@@ -96,6 +96,7 @@ export function prepareDetachPickup(
   sourceElement: HTMLElement,
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
+  surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
 ): DetachPickupPreparation {
   const beforeContent = sourceElement.cloneNode(true) as HTMLElement
   const cards = registeredElements()
@@ -104,6 +105,7 @@ export function prepareDetachPickup(
     beforeContent,
     beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement), {
       scopeSurfaces: scopeSurfaces?.(),
+      surfaceMeasures: surfaceMeasures?.(),
     }),
   }
 }
@@ -370,6 +372,7 @@ export function createDetachLayoutLifecycle(
   sourceEl: HTMLElement,
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
+  surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
 ) {
   let layoutToken = 0
   return {
@@ -381,7 +384,7 @@ export function createDetachLayoutLifecycle(
         document,
         true,
         ignoreDetachSource(sourceEl),
-        { scopeSurfaces: scopeSurfaces?.() },
+        { scopeSurfaces: scopeSurfaces?.(), surfaceMeasures: surfaceMeasures?.() },
       )
     },
     play: (_context: unknown, snapshot: unknown, useRaf = false) => {

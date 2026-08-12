@@ -69,6 +69,23 @@ const { elementRef } = useSurface({
 })
 ```
 
+当命中区域和实际需要做布局 FLIP 的元素不是同一个节点时，可以额外声明：
+
+```ts
+const { elementRef } = useSurface({
+  id: 'mind:drawer',
+  type: 'mind-drawer',
+  accepts: ['project-card'],
+  layoutElement: () => viewportRef.value,
+  measureLayout: () => ({ height: contentRef.value?.scrollHeight ?? 0 }),
+})
+```
+
+`elementRef` 仍是命中区域；`layoutElement` 是 Runtime 捕获和播放 Surface
+FLIP 的元素；`measureLayout` 返回内容变化后的自然高度。抽屉、固定高度 viewport
+等场景应使用这两个声明，不能再由业务在拖拽回调里重复驱动高度动画。Runtime 会在
+布局事务中读取自然尺寸、执行 resize，并在事务结束后保留目标高度、清理其余临时样式。
+
 ### Target
 
 新增与 `useSurface` 同形状的 `useTarget`，用于面包屑、文件夹等没有独立 Object

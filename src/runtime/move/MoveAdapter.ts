@@ -101,8 +101,21 @@ export function createDetachMoveFromAdapter(config: {
     if (pendingDrop?.columnId) ids.add(pendingDrop.columnId)
     return runtime.surfaces.snapshot()
       .filter(surface => ids.has(surface.id))
-      .map(surface => surface.element)
+      .map(surface => surface.layoutElement?.() ?? surface.element)
       .filter((surface): surface is HTMLElement => Boolean(surface?.isConnected))
+  }
+
+  const layoutSurfaceMeasures = () => {
+    const ids = new Set<string>()
+    if (initialSurfaceId) ids.add(initialSurfaceId)
+    if (pendingDrop?.columnId) ids.add(pendingDrop.columnId)
+    const measures = new Map<HTMLElement, (() => { width?: number; height: number } | null)>()
+    for (const surface of runtime.surfaces.snapshot()) {
+      if (!ids.has(surface.id) || !surface.measureLayout) continue
+      const element = surface.layoutElement?.() ?? surface.element
+      if (element?.isConnected) measures.set(element, surface.measureLayout)
+    }
+    return measures
   }
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
@@ -379,7 +392,7 @@ export function createDetachMoveFromAdapter(config: {
       runtime.takeSurfaces(sessionId!, surfaceIds)
       const group = runtime.getGroup(sessionId!)
       isGroupSession = Boolean(group)
-      const { beforePickup } = prepareDetachPickup(element, registeredElements, layoutScopeSurfaces)
+      const { beforePickup } = prepareDetachPickup(element, registeredElements, layoutScopeSurfaces, layoutSurfaceMeasures)
       pickupIndex = runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)
       beforeContent = element.cloneNode(true) as HTMLElement
       const moveContext = runtime.getMoveContext(sessionId!)
@@ -562,7 +575,7 @@ export function createDetachMoveFromAdapter(config: {
   }
 
   const lifecycle: MoveVisualLifecycle = {
-    layout: createDetachLayoutLifecycle(element, registeredElements, layoutScopeSurfaces),
+    layout: createDetachLayoutLifecycle(element, registeredElements, layoutScopeSurfaces, layoutSurfaceMeasures),
     surface: {
       // emit() 成功之后触发（见 RuntimeMove.ts MoveCommitCoordinator.commit），
       // 此时业务 store 已经落地在新 Surface，这里释放 ownership，业务

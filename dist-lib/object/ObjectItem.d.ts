@@ -1,4 +1,5 @@
 import { TargetItem } from '../target/Target';
+import { NodeConfig } from '../node/Node';
 export interface ObjectItem {
     id: string;
     /** 'project-card' / 'file-item' / 'mind-note' / 'kanban-card' ... */
@@ -19,6 +20,8 @@ export interface ObjectItem {
         id?: string;
         element?: HTMLElement | null;
     };
+    /** 可选的画布节点端口声明；端点位置由 Runtime 按实时 DOMRect 计算。 */
+    node?: NodeConfig;
     /**
      * 注册代次（register 时自增）。同一 id 被新实例重新 register 后，
      * 旧实例卸载时凭 generation 判断"当前 item 是否还是自己注册的"，
@@ -26,4 +29,4 @@ export interface ObjectItem {
      */
     generation?: number;
 }
-export type ObjectUpdate = Partial<Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities' | 'selected' | 'visual' | 'visualMode' | 'target'>>;
+export type ObjectUpdate = Partial<Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities' | 'selected' | 'visual' | 'visualMode' | 'target' | 'node'>>;

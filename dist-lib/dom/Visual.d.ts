@@ -50,7 +50,17 @@ export declare function restoreProxyVisualState(proxy: HTMLElement, state: Proxy
 export declare function createDragProxy(source: HTMLElement, rect?: DOMRect, options?: {
     glass?: boolean;
     layout?: DragProxyLayoutConfig;
+    contentScale?: number | (() => number);
+    landingContentScale?: number | (() => number);
 }): HTMLElement;
+/**
+ * 代理挂到 documentElement 后不再继承画布的 transform: scale()。
+ * 用未缩放的布局尺寸承载内容，再在 scaleShell 上恢复当前视觉比例，避免
+ * 外框按屏幕 rect 缩放而文字/内边距仍按 100% 渲染。
+ */
+export declare function updateDragProxyContentScale(proxy: HTMLElement, value: number | (() => number) | undefined): void;
+/** landing 已经由 MotionController 写入当前外框尺寸时，只同步相机 shell，不重置外框。 */
+export declare function updateDragProxyScaleShell(proxy: HTMLElement, value: number | (() => number) | undefined): void;
 export declare function getProxyAttitude(proxy: HTMLElement): HTMLElement;
 export declare function getProxyContent(proxy: HTMLElement): HTMLElement;
 export declare function moveDragProxy(proxy: HTMLElement, x: number, y: number, offsetX: number, offsetY: number): void;
@@ -77,7 +87,7 @@ export interface LandingVisualOptions {
      */
     targetContent?: HTMLElement;
     /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
-    landingMode?: 'default' | 'target';
+    landingMode?: 'default' | 'target' | 'free';
     /** target 模式的末段缩小淡出参数；默认沿用 landing 时长与缓动。 */
     dismiss?: {
         duration: number;
@@ -97,6 +107,15 @@ export interface LandingVisualOptions {
     };
     /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
     readTarget?: () => LandingRect;
+    /** free 画布 landing 的相机原点；用于相机移动/缩放时变换整段代理动画。 */
+    cameraOrigin?: () => {
+        left: number;
+        top: number;
+    };
+    /** free 画布 landing 的实时相机比例。 */
+    contentScale?: number | (() => number);
+    /** grid/list 目标的最终内容倍率；未提供时按目标视觉宽度与代理基准宽度推导。 */
+    landingContentScale?: number | (() => number);
     motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
     coast?: {
         duration: number;
@@ -145,6 +164,7 @@ export declare function destroyDragProxiesByCardId(cardId: string): void;
 export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect, options?: {
     layout?: DragProxyLayoutConfig;
     keepSourceVisible?: boolean;
+    contentScale?: number | (() => number);
 }): void;
 export declare function getFloatingProxy(el: HTMLElement): HTMLElement | undefined;
 /** 将抓取阶段的 proxy 转交给 Runtime 的统一 landing 生命周期，不移除节点。 */

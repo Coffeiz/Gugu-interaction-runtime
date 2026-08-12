@@ -34,6 +34,7 @@ export interface ScrollSnapshot { readonly top: number; readonly height: number;
 export interface SurfaceLayoutSnapshot {
   readonly element: HTMLElement
   readonly rect: GroupRect
+  readonly measure?: () => { width?: number; height: number } | null
   readonly inlineStyle: Pick<CSSStyleDeclaration, 'height' | 'overflow' | 'transition'>
 }
 export interface LayoutFlipSnapshot {
@@ -87,7 +88,10 @@ export function captureLayoutFlip(
    * 在抓取→落地全程都拿得到确定的源节点引用，直接传进来最可靠。
    */
   presenceIgnore?: (element: HTMLElement) => boolean,
-  options: { readonly scopeSurfaces?: readonly HTMLElement[] } = {},
+  options: {
+    readonly scopeSurfaces?: readonly HTMLElement[]
+    readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
+  } = {},
 ): LayoutFlipSnapshot {
   // 新事务开始时先终止上一笔仍在运行的 Surface resize，避免旧 timeout
   // 在本事务中恢复过期高度。
@@ -113,7 +117,7 @@ export function captureLayoutFlip(
   resetActiveSurfaceResize(activeSurfaces)
   const measurement = createLayoutMeasurement()
   const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root, options.scopeSurfaces)
-  const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement)
+  const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement, options.surfaceMeasures)
   // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
   // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
   // 显式开启。collection 通常标在列表容器上，卡片节点只标
@@ -456,7 +460,7 @@ export function cancelLayoutAnimations(root: ParentNode): void {
   if (root instanceof HTMLElement) elements.push(root)
   if (typeof root.querySelectorAll === 'function') {
     elements.push(...Array.from(root.querySelectorAll<HTMLElement>(
-      '[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-layout-content]',
+      '[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-runtime-layout-transaction], [data-layout-content]',
     )))
   }
   for (const element of elements) {
@@ -466,6 +470,7 @@ export function cancelLayoutAnimations(root: ParentNode): void {
       || element.dataset.runtimeFlip === 'true'
       || element.dataset.runtimeGroupAnimating === 'true'
       || element.dataset.runtimeSurfaceResize === 'true'
+      || element.dataset.runtimeLayoutTransaction === 'true'
     if (flipTimer !== undefined) {
       window.clearTimeout(flipTimer)
       flipCleanupTimers.delete(element)
@@ -491,6 +496,7 @@ export function cancelLayoutAnimations(root: ParentNode): void {
     if (element.dataset.runtimeFlip === 'true') delete element.dataset.runtimeFlip
     delete element.dataset.runtimeSurfaceResize
     delete element.dataset.runtimeSurfaceResizeToken
+    delete element.dataset.runtimeLayoutTransaction
     delete element.dataset.runtimeGroupAnimating
   }
 }
@@ -561,14 +567,22 @@ function playGroupPresence(state: GroupPresenceState, opening: boolean): void {
 }
 
 /** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
-export function captureSurfaceLayout(elements: readonly HTMLElement[], measurement?: LayoutMeasurement): SurfaceLayoutSnapshot[] {
-  return elements.map(element => ({
-    element,
-    rect: readRect(element, measurement),
+export function captureSurfaceLayout(
+  elements: readonly HTMLElement[],
+  measurement?: LayoutMeasurement,
+  surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
+): SurfaceLayoutSnapshot[] {
+  return elements.map(element => {
+    element.dataset.runtimeLayoutTransaction = 'true'
+    return {
+      element,
+      rect: readRect(element, measurement),
+      measure: surfaceMeasures?.get(element),
     // 事务被打断时，当前 inline height 是 Runtime 上一笔动画写入的临时值，
     // 不能把它错当成业务样式保存，否则取消落点后会永久留下旧高度。
-    inlineStyle: surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element),
-  }))
+      inlineStyle: surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element),
+    }
+  })
 }
 
 /**
@@ -585,7 +599,11 @@ export function playSurfaceResize(
   const plans = before
     .filter(item => item.element.isConnected)
     .map(item => {
-      const next = readRect(item.element, measurement)
+      const measured = item.measure?.()
+      const current = readRect(item.element, measurement)
+      const next = measured
+        ? { ...current, ...(measured.width === undefined ? {} : { width: measured.width }), height: measured.height }
+        : current
       const prof = resolveProfile()
       return {
         item, next,
@@ -595,6 +613,16 @@ export function playSurfaceResize(
       }
     })
     .filter(({ item, next }) => Math.abs(item.rect.height - next.height) >= 0.5)
+
+  if (plans.length === 0) {
+    before.forEach(({ element }) => { delete element.dataset.runtimeLayoutTransaction })
+    return
+  }
+
+  const plannedElements = new Set(plans.map(({ item }) => item.element))
+  before.forEach(({ element }) => {
+    if (!plannedElements.has(element)) delete element.dataset.runtimeLayoutTransaction
+  })
 
   for (const { item, fromHeight } of plans) {
     const style = item.element.style
@@ -625,8 +653,10 @@ export function playSurfaceResize(
         const state = surfaceResizeStates.get(item.element)
         if (!state || state.token !== token) return
         restoreSurfaceInlineStyle(item.element, state.baseStyle)
+        if (item.measure) style.height = `${toHeight}px`
         surfaceResizeStates.delete(item.element)
         delete item.element.dataset.runtimeSurfaceResize
+        delete item.element.dataset.runtimeLayoutTransaction
       }, profile.duration + 40)
     }
   })
@@ -644,6 +674,7 @@ function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): voi
     surfaceResizeStates.delete(element)
     delete element.dataset.runtimeSurfaceResize
     delete element.dataset.runtimeSurfaceResizeToken
+    delete element.dataset.runtimeLayoutTransaction
   }
 }
 

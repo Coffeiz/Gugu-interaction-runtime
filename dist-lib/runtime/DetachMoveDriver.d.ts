@@ -22,7 +22,10 @@ export interface DetachPickupPreparation {
     readonly beforeContent: HTMLElement;
     readonly beforePickup: ReturnType<typeof captureLayoutFlip>;
 }
-export declare function prepareDetachPickup(sourceElement: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[]): DetachPickupPreparation;
+export declare function prepareDetachPickup(sourceElement: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[], surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => {
+    width?: number;
+    height: number;
+} | null)>): DetachPickupPreparation;
 export declare function createDetachDropState<TDrop>(initialSurface: string | undefined, resolve: (event: PointerEvent) => TDrop | null, same: (drop: TDrop, previous: TDrop | null) => boolean): {
     update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null;
     release(): TDrop | null;
@@ -62,7 +65,9 @@ export declare function resolveDetachLandingTarget<TDestination>(args: {
     resolve: () => HTMLElement | null;
     applyState: (element: HTMLElement) => void;
 }): HTMLElement | null;
-export declare function captureDetachTargetSnapshot(capture: (element: HTMLElement) => VisualSnapshot, element: HTMLElement): VisualSnapshot;
+export declare function captureDetachTargetSnapshot(capture: (element: HTMLElement) => VisualSnapshot, element: HTMLElement, options?: {
+    ignoreTemporaryOpacity?: boolean;
+}): VisualSnapshot;
 export declare function createDetachVisualContext<TContext extends object>(args: {
     createContext: () => TContext;
     source: HTMLElement;
@@ -115,7 +120,10 @@ export declare function createDetachLandingLifecycle<TGate extends {
     landing: () => Promise<LandingResult>;
     reveal: () => void;
 };
-export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[]): {
+export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[], surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => {
+    width?: number;
+    height: number;
+} | null)>): {
     capture: () => import('..').LayoutFlipSnapshot;
     play: (_context: unknown, snapshot: unknown, useRaf?: boolean) => void;
 };

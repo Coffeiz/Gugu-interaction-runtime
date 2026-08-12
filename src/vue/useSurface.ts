@@ -10,6 +10,8 @@ export interface UseSurfaceOptions {
   camera?: MaybeRefOrGetter<Surface['camera']>
   /** Surface 的滚动视口回调；它本身不能再作为 getter 被 toValue 解包。 */
   viewport?: (() => HTMLElement | null) | undefined
+  layoutElement?: (() => HTMLElement | null) | undefined
+  measureLayout?: (() => { width?: number; height: number } | null) | undefined
   motion?: MaybeRefOrGetter<Surface['motion'] | undefined>
 }
 
@@ -25,6 +27,8 @@ function readSurface(options: UseSurfaceOptions): SurfaceUpdate & Pick<Surface, 
     layout: toValue(options.layout),
     camera: options.camera === undefined ? undefined : toValue(options.camera),
     viewport: options.viewport,
+    layoutElement: options.layoutElement,
+    measureLayout: options.measureLayout,
     motion: options.motion === undefined ? undefined : toValue(options.motion),
   }
 }
