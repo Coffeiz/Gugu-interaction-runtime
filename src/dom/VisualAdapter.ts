@@ -43,6 +43,8 @@ export interface VisualLifecycleContext {
   readonly targetRect?: LandingRect
   /** 目标节点作为语义落点时保留其可见性，避免与源代理发生双重交接。 */
   readonly preserveTarget?: boolean
+  /** 目标节点就是目标 Surface 外壳本身，而不是 Surface 内的语义目标。 */
+  readonly surfaceTarget?: boolean
   /** default 保持普通 landing；target 到达语义目标后追加缩小淡出；free 使用纯矩形。 */
   readonly landingMode?: 'default' | 'target' | 'free'
   /** 释放后的落地策略；physical 继承释放状态，normal 不继承释放速度。 */
@@ -229,7 +231,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
     // 样式”这段；默认落地（飞回对象自己在列表/网格里的原位）跟这个开关无关，即使目标静止态
     // 没有背景/阴影（比如列表行本来就是透明的），也必须把抓起态的玻璃/深阴影 morph 回它的
     // 真实（可能就是透明/none）样子，否则代理会一直糊到销毁揭示那一刻才突然切换。
-    const targetHasSurfaceStyle = !isTargetLanding
+    const isFreeSurfaceLanding = context.landingMode === 'free' && context.surfaceTarget === true
+    const targetHasSurfaceStyle = isFreeSurfaceLanding
+      ? false
+      : !isTargetLanding
       ? Boolean(targetSnapshot)
       : !context.disableTargetVisualMorph && targetHasVisibleSurface
     const landingProfile = context.landingMode === 'free'
@@ -271,7 +276,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // compact 列表代理与目标卡结构相同，只需要让同一份内容跟随宽度恢复；如果再挂一层
       // 目标 Grid，右侧文件大小会因为 justify-self:end 在 landing 第一帧瞬间回到完整宽度。
       // 只有真正有背景/阴影且不是 compact 列表的目标才复用结构级 content morph。
-      targetContent: targetHasVisibleSurface && !isCompactProxy ? targetElement : undefined,
+      targetContent: targetHasVisibleSurface && !isCompactProxy && !isFreeSurfaceLanding
+        ? targetElement
+        : undefined,
       landingMode: context.landingMode,
       targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
       dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,

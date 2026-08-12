@@ -638,6 +638,12 @@ setMotionProfiles(this.registry.motionProfile)
     const targetElement = target && 'getBoundingClientRect' in target ? target : undefined
     const targetRect = target && !targetElement ? target as LandingRect : undefined
     const targetIsSource = Boolean(targetElement && sourceElement && targetElement === sourceElement)
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const surfaceTarget = Boolean(
+      targetElement
+      && destinationSurfaceId
+      && this.surfaces.get(destinationSurfaceId)?.element === targetElement,
+    )
 
     const proxyLayout = this.getObjectProxyLayout(session?.objectId ?? '', sourceElement)
     return {
@@ -649,6 +655,7 @@ setMotionProfiles(this.registry.motionProfile)
       beforeContent,
       targetElement,
       targetRect,
+      surfaceTarget,
       sourceRect: sourceElement?.getBoundingClientRect(),
       visualSnapshot: sourceElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(sourceElement)
