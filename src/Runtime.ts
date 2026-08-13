@@ -1537,7 +1537,6 @@ setMotionProfiles(this.registry.motionProfile)
   takeoverRegrab(sessionId: string): boolean {
     const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return false
-    const proxy = this.visualProxyCoordinator.get(sessionId)?.element
     this.interrupt(sessionId, 'regrab')
     this.disposeVisualProxy(sessionId)
     return true

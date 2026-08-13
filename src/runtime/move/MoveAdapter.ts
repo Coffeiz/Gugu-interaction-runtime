@@ -151,12 +151,6 @@ export function createDetachMoveFromAdapter(config: {
     if (released) return { accepted: false as const }
     released = true
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
-    if (releaseEvent && sessionId) {
-      const proxy = landingProxy
-        ?? runtime.getVisualProxy(sessionId)?.element
-        ?? getFloatingProxy(element)
-      const proxyRect = proxy?.getBoundingClientRect()
-    }
     dragMotion?.stop()
     dragMotion = null
     autoScroller?.stop()
