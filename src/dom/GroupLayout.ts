@@ -3,6 +3,7 @@ import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { animateRafHeight, cancelRafHeight, cancelRafTransform } from './RafLayoutAnimator'
 import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
 import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasurement'
+import type { LayoutCache } from './LayoutCache'
 
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
@@ -515,6 +516,8 @@ export interface GroupToggleOptions {
   readonly easing?: string
   /** 由 Runtime 注入当前 root 内 Surface 的自然尺寸测量。 */
   readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
+  /** Runtime 内部布局缓存；未传时保持单次事务测量行为。 */
+  readonly layoutCache?: LayoutCache
 }
 
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
@@ -538,7 +541,8 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
   await options.waitForLayout()
   if (groupToggleTokens.get(options.content) !== token) return
   if (options.isCurrent && !options.isCurrent()) return
-  const targetHeight = options.opening ? options.content.scrollHeight : 0
+  const cachedTarget = options.layoutCache?.getGroup(options.content, options.opening)
+  const targetHeight = cachedTarget?.height ?? (options.opening ? options.content.scrollHeight : 0)
   transitionGroupHeight(options.content, targetHeight, options.duration, options.easing, currentHeight)
   if (presenceState) playGroupPresence(presenceState, options.opening)
 
@@ -547,7 +551,10 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
   if (groupToggleTokens.get(options.content) !== token) return
   if (options.isCurrent && !options.isCurrent()) return
-  const targetMeasures = measureGroupSurfaceTargets(snapshot.surfaces, options.content, targetHeight)
+  const targetMeasures = cachedTarget
+    ? new Map(cachedTarget.surfaceTargets)
+    : measureGroupSurfaceTargets(snapshot.surfaces, options.content, targetHeight)
+  options.layoutCache?.setGroup(options.content, options.opening, targetHeight, targetMeasures)
   const targetSnapshot: LayoutFlipSnapshot = targetMeasures.size > 0
     ? {
         ...snapshot,

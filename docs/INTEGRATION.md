@@ -839,6 +839,23 @@ const stopOwnership = runtime.onOwnershipChange(() => {
 
 ## 组布局的 Relative FLIP
 
+### 布局测量缓存
+
+Runtime 会在自身生命周期内缓存已经完成一次真实 DOM 测量的组展开高度和
+Surface 目标尺寸。后续同一布局版本的组开合或相关布局事务优先复用这份结果，
+避免在 Surface 仍处于冻结高度时重复读取中间尺寸。缓存不是持久化数据，也不会
+跨页面或跨 Runtime 实例复用。
+
+对象/Surface 注册表发生变化时 Runtime 会自动使缓存失效。窗口尺寸、字体、业务侧
+异步内容或其他 Runtime 无法观察的 DOM 布局变化发生后，接入层应主动调用：
+
+```ts
+runtime.invalidateLayoutCache()
+```
+
+失效后下一次布局事务会重新测量并建立缓存。业务侧仍只负责提供
+`Surface.measureLayout`，不需要维护缓存、临时高度或测量时序。
+
 有年/月、文件夹/子文件夹等嵌套布局时，为每个**布局组根节点**标记
 `data-layout-group`；不要给内部卡片标记：
 

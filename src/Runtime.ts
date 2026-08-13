@@ -47,6 +47,7 @@ import {
   type LayoutFlipSnapshot,
 } from './dom/GroupLayout'
 import { createAutoScroller, type AutoScrollController, type AutoScrollOptions } from './dom/AutoScroll'
+import { LayoutCache } from './dom/LayoutCache'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -194,6 +195,7 @@ export interface RegrabContext {
 }
 
 export class Runtime {
+  private readonly layoutCache = new LayoutCache()
   private readonly owner = new Owner()
   readonly objects = new ObjectStore()
   readonly surfaces = new SurfaceStore()
@@ -286,6 +288,7 @@ export class Runtime {
 setMotionProfiles(this.registry.motionProfile)
     this.objects.subscribe(event => {
       this.events.emit(event)
+      this.layoutCache.invalidate()
       if (event.type === 'object-added' || event.type === 'object-changed') {
         this.syncObjectPointerBinding(event.id)
         this.syncObjectTarget(event.id)
@@ -295,9 +298,17 @@ setMotionProfiles(this.registry.motionProfile)
         this.targets.unregister(`object-target:${event.id}`)
       }
     })
-    this.surfaces.subscribe(event => this.events.emit(event))
+    this.surfaces.subscribe(event => {
+      this.layoutCache.invalidate()
+      this.events.emit(event)
+    })
     this.targets.subscribe(event => this.events.emit(event))
     this.owner.subscribe(id => this.events.emit({ type: 'ownership-changed', id }))
+  }
+
+  /** 使 Runtime 缓存的 DOM 布局测量失效，供窗口尺寸或外部布局变化调用。 */
+  invalidateLayoutCache(): void {
+    this.layoutCache.invalidate()
   }
 
   registerVisualAdapter(type: string, adapter: VisualAdapter): void {
@@ -1210,7 +1221,7 @@ setMotionProfiles(this.registry.motionProfile)
         surfaceMeasures.set(element, surface.measureLayout)
       }
     }
-    return runGroupToggle({ ...options, surfaceMeasures })
+    return runGroupToggle({ ...options, surfaceMeasures, layoutCache: this.layoutCache })
   }
 
   /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */

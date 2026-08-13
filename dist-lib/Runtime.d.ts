@@ -196,6 +196,7 @@ export interface RegrabContext {
     interrupt(reason?: string): void;
 }
 export declare class Runtime {
+    private readonly layoutCache;
     private readonly owner;
     readonly objects: ObjectStore;
     readonly surfaces: SurfaceStore;
@@ -228,6 +229,8 @@ export declare class Runtime {
     /** 每个移动 session 复用同一条相机抓取倍率曲线，避免更新帧/落地重新起算。 */
     private readonly moveContentScales;
     constructor();
+    /** 使 Runtime 缓存的 DOM 布局测量失效，供窗口尺寸或外部布局变化调用。 */
+    invalidateLayoutCache(): void;
     registerVisualAdapter(type: string, adapter: VisualAdapter): void;
     registerVisualStrategy(type: string, strategy: MoveVisualStrategy): void;
     /** 查询某个 Object/Surface 当前是否由 Runtime 接管视觉状态。 */

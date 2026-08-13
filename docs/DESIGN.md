@@ -359,7 +359,9 @@ runtime.interrupt(sessionId, reason)
 
 `MoveBehavior` 只保存一次移动事务的行为状态；`VisualAdapter`、`Hit` 和
 `GroupLayout` 作为 Runtime 内部组件继续提供已有的视觉、命中和布局实现。Runtime
-负责把完整生命周期编排起来并提供统一注册 API；页面只注册 Object 和 Surface，不再
+对已提交的组展开高度与 Surface 目标尺寸使用生命周期内缓存，并在注册表变化或
+接入层显式失效后重新测量；缓存不持久化，也不取代业务提供的 `measureLayout`。
+Runtime 负责把完整生命周期编排起来并提供统一注册 API；页面只注册 Object 和 Surface，不再
 自行拼接 proxy、landing、FLIP、regrab 或通用清理步骤。
 
 

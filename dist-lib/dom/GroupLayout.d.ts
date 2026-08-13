@@ -1,6 +1,7 @@
 import { MotionProfile } from './MotionProfile';
 import { CollectionPresenceSnapshot } from './CollectionPresence';
 import { LayoutMeasurement } from './LayoutMeasurement';
+import { LayoutCache } from './LayoutCache';
 export declare function setMotionProfiles(profile: MotionProfile | null): void;
 export declare function setLayoutPresenceEnabled(enabled: boolean): void;
 export interface GroupRect {
@@ -117,6 +118,8 @@ export interface GroupToggleOptions {
         width?: number;
         height: number;
     } | null)>;
+    /** Runtime 内部布局缓存；未传时保持单次事务测量行为。 */
+    readonly layoutCache?: LayoutCache;
 }
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
 export declare function runGroupToggle(options: GroupToggleOptions): Promise<void>;

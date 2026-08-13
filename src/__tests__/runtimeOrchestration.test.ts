@@ -173,6 +173,86 @@ describe('Runtime move orchestration', () => {
     }
   })
 
+  it('同一布局版本的组开合复用 Surface 自然尺寸缓存', async () => {
+    const runtime = new Runtime()
+    const root = document.createElement('div')
+    const viewport = document.createElement('div')
+    const content = document.createElement('div')
+    const card = document.createElement('div')
+    const measureLayout = vi.fn(() => ({ height: 180 }))
+
+    viewport.dataset.layoutSurface = 'cached-drawer'
+    content.dataset.layoutContent = 'cached-group'
+    card.dataset.layoutRole = 'card'
+    content.append(card)
+    viewport.append(content)
+    root.append(viewport)
+    document.body.append(root)
+    Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 180 })
+    content.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 280, height: 0, right: 280, bottom: 0,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    viewport.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 280, height: 80, right: 280, bottom: 80,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    card.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 240, height: 40, right: 240, bottom: 40,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    runtime.surfaces.register({
+      id: 'cached-drawer', type: 'drawer', layout: 'grid', element: viewport,
+      layoutElement: () => viewport, measureLayout, accepts: ['project-card'],
+    })
+
+    await runtime.runGroupToggle({
+      root, content, opening: true,
+      mutate: () => { content.dataset.layoutOpen = 'true' },
+      waitForLayout: () => undefined,
+    })
+    const firstCallCount = measureLayout.mock.calls.length
+    await runtime.runGroupToggle({
+      root, content, opening: true,
+      mutate: () => { content.dataset.layoutOpen = 'true' },
+      waitForLayout: () => undefined,
+    })
+
+    expect(firstCallCount).toBeGreaterThan(0)
+    expect(measureLayout).toHaveBeenCalledTimes(firstCallCount)
+    root.remove()
+  })
+
+  it('布局缓存显式失效后会重新测量 Surface', async () => {
+    const runtime = new Runtime()
+    const root = document.createElement('div')
+    const viewport = document.createElement('div')
+    const content = document.createElement('div')
+    const measureLayout = vi.fn(() => ({ height: 120 }))
+    viewport.dataset.layoutSurface = 'invalidated-drawer'
+    content.dataset.layoutContent = 'invalidated-group'
+    viewport.append(content)
+    root.append(viewport)
+    document.body.append(root)
+    Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 120 })
+    content.getBoundingClientRect = () => ({ top: 0, left: 0, width: 280, height: 0, right: 280, bottom: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    viewport.getBoundingClientRect = () => ({ top: 0, left: 0, width: 280, height: 80, right: 280, bottom: 80, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    runtime.surfaces.register({ id: 'invalidated-drawer', type: 'drawer', layout: 'grid', element: viewport, layoutElement: () => viewport, measureLayout, accepts: [] })
+
+    const options = {
+      root, content, opening: true,
+      mutate: () => { content.dataset.layoutOpen = 'true' },
+      waitForLayout: () => undefined,
+    } as const
+    await runtime.runGroupToggle(options)
+    const firstCallCount = measureLayout.mock.calls.length
+    runtime.invalidateLayoutCache()
+    await runtime.runGroupToggle(options)
+
+    expect(measureLayout).toHaveBeenCalledTimes(firstCallCount * 2)
+    root.remove()
+  })
+
   it('只对 free landing 使用对象级释放速度上限', () => {
     const runtime = new Runtime()
     runtime.registerObjectType('canvas-card', {

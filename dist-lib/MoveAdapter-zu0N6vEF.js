@@ -1361,14 +1361,14 @@ async function lt(e) {
 		return t.width > 0 && t.height > 0;
 	}), e.root, !1, void 0, { surfaceMeasures: e.surfaceMeasures }), i = e.content.getBoundingClientRect().height, a = Fe ? dt(e.content, e.opening, e.duration, e.easing) : null;
 	if (e.mutate(), await e.waitForLayout(), Ie.get(e.content) !== t || e.isCurrent && !e.isCurrent()) return;
-	let o = e.opening ? e.content.scrollHeight : 0;
-	if (ot(e.content, o, e.duration, e.easing, i), a && ft(a, e.opening), await new Promise((e) => requestAnimationFrame(() => e())), Ie.get(e.content) !== t || e.isCurrent && !e.isCurrent()) return;
-	let s = ut(r.surfaces, e.content, o);
-	He(s.size > 0 ? {
+	let o = e.layoutCache?.getGroup(e.content, e.opening), s = o?.height ?? (e.opening ? e.content.scrollHeight : 0);
+	if (ot(e.content, s, e.duration, e.easing, i), a && ft(a, e.opening), await new Promise((e) => requestAnimationFrame(() => e())), Ie.get(e.content) !== t || e.isCurrent && !e.isCurrent()) return;
+	let c = o ? new Map(o.surfaceTargets) : ut(r.surfaces, e.content, s);
+	e.layoutCache?.setGroup(e.content, e.opening, s, c), He(c.size > 0 ? {
 		...r,
 		surfaces: r.surfaces.map((e) => ({
 			...e,
-			targetMeasure: s.get(e.element)
+			targetMeasure: c.get(e.element)
 		}))
 	} : r);
 }
