@@ -148,6 +148,26 @@ const { controlled } = useRuntimeTransition(`column:${status}`)
 Action 订阅由适配层自动在组件卸载时解除。Transition composable 只负责把 ownership
 状态映射成 Vue 可消费的响应式值，不重新实现动画。
 
+### 布局事务与错误处理
+
+分组开合使用 `runtime.runGroupToggle()`，浮动 Surface 的尺寸变化由
+`useSurface({ floating })` 通过 observer 自动登记到同一布局事务。业务侧只提供状态
+mutation 和 `nextTick` 等待 Vue 完成 patch，不直接调用 `transitionGroupHeight`、
+`captureLayoutFlip`、`playLayoutFlip`，也不直接写 Surface 的 `style.height`。
+
+Runtime 会在事务提交阶段执行 deferred layout plan。调用方应让错误继续向上抛出，并在
+业务边界记录或展示错误；不要在 `catch` 中再次启动一套高度/FLIP 动画，也不要通过吞掉
+错误掩盖事务失败。若业务 mutation 已经发生，恢复数据由业务 Store/API 负责，Runtime
+不回写业务状态。
+
+迁移检查：
+
+- `useSurface({ floating })` 是浮动 Surface 的唯一高度观察入口；
+- `runGroupToggle()` 是分组布局的唯一业务调用入口；
+- `data-layout-open` 只描述业务当前状态，CSS 可用于静态折叠态，不承担动画编排；
+- 列表自身的增删/重命名 FLIP 可以保留，但不能同时驱动 Surface resize；
+- 事务失败不得修改测试预期、删除用例或增加 skip。
+
 ### Node / Connection
 
 画布卡片可以直接在 `useObject` 中声明端口，端口位置不需要业务保存屏幕坐标：

@@ -125,12 +125,30 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
       if (scrollElement) scrollElement.scrollTop = scrollTop
     }, 400)
   }
+  const runFloatingObserverResize = (): void => {
+    if (!isFloatingSurface()) return
+    const root = elementRef.value?.ownerDocument ?? document
+    const transaction = runtime.layout.begin(root, 'surface-observer', 'observer')
+    runtime.layout.request(root, { type: 'surface-natural-size', surfaceId: options.id })
+    // 交互事务已经负责在同一轮里重新测量和播放 Surface。Observer 只作为
+    // 参与者登记意图，不能再启动第二条高度动画。
+    if (transaction.reasons.some(reason => reason === 'move' || reason === 'group-toggle')) {
+      runtime.layout.commit(root, transaction.participantId)
+      return
+    }
+    const animate = (plan?: { isCurrent: () => boolean }) => {
+      if (plan && !plan.isCurrent()) return
+      animateFloatingSurface()
+    }
+    const deferred = runtime.layout.defer(root, transaction.participantId, plan => animate(plan), 'surface-resize')
+    if (!deferred) animate()
+    runtime.layout.commit(root, transaction.participantId)
+  }
   const scheduleFloatingResize = (): void => {
     if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
     resizeFrame = requestAnimationFrame(() => {
       resizeFrame = null
-      if (!isFloatingSurface()) return
-      animateFloatingSurface()
+      runFloatingObserverResize()
     })
   }
 

@@ -1,6 +1,6 @@
 # Interaction Runtime · 分层结构与执行计划
 
-> 当前稳定版本：2.0.1。Runtime 2.0.1 已以 Gugu-web 的真实看板和文件系统接入作为回归场景，
+> 当前稳定版本：2.0.2。Runtime 2.0.2 已以 Gugu-web 的真实看板和文件系统接入作为回归场景，
 > 验证“只注册 Object、Surface、Target 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
 > 直接编译本仓库 `src/`，不经 npm 包或构建产物。
 

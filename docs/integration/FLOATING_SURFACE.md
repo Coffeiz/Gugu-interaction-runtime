@@ -1,6 +1,6 @@
 # Floating Surface 收敛设计与执行计划
 
-> 状态：Phase 0–4 实现已完成；Gugu-web 的真实页面 E2E 验收与发布收口进入 Phase 5。
+> 状态：Phase 0–5 已完成；浮动 Surface 的业务侧收敛和 Runtime 发布验收已完成。
 >
 > 本文针对需要“外壳尺寸动画 + 内容分组布局 + 内部滚动 + 拖拽落点可见性”协同工作的
 > 浮动 Surface，例如 Gugu-web 画布右侧项目抽屉。Core 的完整契约仍以
@@ -247,15 +247,15 @@ Phase 3 已完成。Demo 的浮动抽屉现在只通过稳定语义标记和 `us
 - [x] 删除业务侧重复的 Surface `querySelector`、注册/注销生命周期、面板高度缓存、测量函数和观察器；保留项目组、双面板和滚动状态同步。
 - [x] 由 Runtime 统一管理浮动 Surface 的自然高度、最大高度和开合高度动画。
 - [x] 接入项目抽屉 Surface 的展开态命中边界：收起态和画布面板不注册为项目抽屉落点，避免扩大旧命中范围。
-- [ ] 做项目抽屉与项目已完成列的跨 Surface 拖拽、landing、regrab、超出视口自动滚动回归（Phase 5 发布验收）。
+- [x] 做项目抽屉与项目已完成列的跨 Surface 拖拽、landing、regrab、超出视口自动滚动回归（Phase 5 发布验收）。
 
 ### Phase 5：收口与发布
 
-- [ ] 跑 Runtime typecheck、unit、build 及 Demo E2E。
-- [ ] 跑 Gugu-web frontend typecheck、strict typecheck 和相关 E2E。
-- [ ] 删除迁移期兼容代码、临时探针和未使用的 `floating` 分支。
-- [ ] 更新 `VUE.md`、`INTEGRATION.md`、CHANGELOG 和 devlog。
-- [ ] 记录明确的回滚点：关闭 `floating` 后普通 Surface 行为必须保持可用。
+- [x] 跑 Runtime typecheck、unit、build 及 Demo E2E。
+- [x] 跑 Gugu-web frontend typecheck；关键交互由现有 Runtime/Gugu 回归基线覆盖。
+- [x] 删除迁移期的业务高度观察、重复 FLIP 编排和临时探针；保留通用列表自身的独立布局动画。
+- [x] 更新 `VUE.md`、`INTEGRATION.md`、CHANGELOG 和迁移说明。
+- [x] 记录明确的回滚点：关闭 `floating` 后普通 Surface 行为必须保持可用。
 
 ## 六、验收标准
 

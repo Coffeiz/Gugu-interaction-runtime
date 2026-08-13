@@ -4,6 +4,7 @@ import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
 import { applyFloatingStyle } from '../dom/Visual'
 import { releaseVisibilityOwnership, setProxyInteractive } from '../dom/Visual'
 import type { GrabAlignConfig } from '../Runtime'
+import type { LayoutTransactionCoordinator } from '../dom/LayoutTransaction'
 
 
 
@@ -373,11 +374,18 @@ export function createDetachLayoutLifecycle(
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
+  layoutTransaction?: LayoutTransactionCoordinator,
 ) {
   let layoutToken = 0
+  let transactionRoot: ParentNode | null = null
+  let transactionParticipantId: string | undefined
   return {
     capture: () => {
       layoutToken += 1
+      transactionRoot = sourceEl.ownerDocument
+      const transaction = layoutTransaction?.begin(transactionRoot, 'move')
+      transactionParticipantId = transaction?.participantId
+      if (transaction) layoutTransaction?.request(transactionRoot, { type: 'move-layout', source: sourceEl })
       return captureLayoutFlip(
         registeredElements()
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
@@ -396,14 +404,37 @@ export function createDetachLayoutLifecycle(
         // 同帧起步，不顶动。
         requestAnimationFrame(() => {
           if (token !== layoutToken) return
-          scheduleLayoutFlipOnRaf(snapshot as ReturnType<typeof captureLayoutFlip>)
+          const play = (plan?: { isCurrent: () => boolean }) => {
+            if (plan && !plan.isCurrent()) return
+            scheduleLayoutFlipOnRaf(snapshot as ReturnType<typeof captureLayoutFlip>)
+          }
+          const deferred = transactionRoot && transactionParticipantId
+            ? layoutTransaction?.defer(transactionRoot, transactionParticipantId, plan => play(plan), 'move-flip')
+            : null
+          if (!deferred) play()
+          if (transactionRoot) layoutTransaction?.commit(transactionRoot, transactionParticipantId)
+          transactionParticipantId = undefined
         })
         return
       }
       // 中间插入/重排：有卡片位移 FLIP（有 Invert），必须 microtask 让
       // Invert 在 paint 前写入，不闪现；playLayout 在 emit 后调用，此时
       // Vue patch 已完成，microtask 量到的也是最终布局，不顶动。
-      scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
+      const play = (plan?: { isCurrent: () => boolean }) => {
+        if (plan && !plan.isCurrent()) return
+        scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
+      }
+      const deferred = transactionRoot && transactionParticipantId
+        ? layoutTransaction?.defer(transactionRoot, transactionParticipantId, plan => play(plan), 'move-flip')
+        : null
+      if (!deferred) play()
+      if (transactionRoot) layoutTransaction?.commit(transactionRoot, transactionParticipantId)
+      transactionParticipantId = undefined
+    },
+    cancel: () => {
+      if (transactionRoot) layoutTransaction?.cancel(transactionRoot, transactionParticipantId)
+      transactionRoot = null
+      transactionParticipantId = undefined
     },
   }
 }

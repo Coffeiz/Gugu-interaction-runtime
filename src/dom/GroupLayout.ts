@@ -4,6 +4,7 @@ import { animateRafHeight, cancelRafHeight, cancelRafTransform } from './RafLayo
 import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
 import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasurement'
 import type { LayoutCache } from './LayoutCache'
+import type { LayoutTransactionCoordinator } from './LayoutTransaction'
 
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
@@ -321,7 +322,6 @@ function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
 export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING, measurement?: LayoutMeasurement): void {
-  resetActiveFlip(before.map(item => item.element))
   const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
 
   for (const item of before) {
@@ -346,7 +346,8 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
       // resetActiveFlip 可能给这个元素设置了 transition: none，
       // 如果跳过 FLIP，需要清除以免永久锁定 transition。
       // 但组高度动画由 transitionGroupHeight 独立持有，不能在这里清掉。
-      if (item.element.dataset.runtimeGroupAnimating !== 'true') {
+      if (item.element.dataset.runtimeGroupAnimating !== 'true'
+        && item.element.dataset.runtimeFlip !== 'true') {
         item.element.style.transition = ''
       }
       continue
@@ -518,10 +519,19 @@ export interface GroupToggleOptions {
   readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
   /** Runtime 内部布局缓存；未传时保持单次事务测量行为。 */
   readonly layoutCache?: LayoutCache
+  readonly layoutTransaction?: LayoutTransactionCoordinator
 }
 
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
 export async function runGroupToggle(options: GroupToggleOptions): Promise<void> {
+  const transactionRoot = options.root instanceof HTMLElement
+    ? options.root.ownerDocument
+    : options.root
+  const transaction = options.layoutTransaction?.begin(transactionRoot, 'group-toggle')
+  if (transaction) options.layoutTransaction?.request(transactionRoot, {
+    type: 'group-toggle',
+    opening: options.opening,
+  })
   const token = (groupToggleTokens.get(options.content) ?? 0) + 1
   groupToggleTokens.set(options.content, token)
   const cardNodes = Array.from(options.root.querySelectorAll<HTMLElement>('[data-layout-role="card"]'))
@@ -539,8 +549,14 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
     : null
   options.mutate()
   await options.waitForLayout()
-  if (groupToggleTokens.get(options.content) !== token) return
-  if (options.isCurrent && !options.isCurrent()) return
+  if (groupToggleTokens.get(options.content) !== token) {
+    options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
+    return
+  }
+  if (options.isCurrent && !options.isCurrent()) {
+    options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
+    return
+  }
   const cachedTarget = options.layoutCache?.getGroup(options.content, options.opening)
   const targetHeight = cachedTarget?.height ?? (options.opening ? options.content.scrollHeight : 0)
   transitionGroupHeight(options.content, targetHeight, options.duration, options.easing, currentHeight)
@@ -549,8 +565,14 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
   // transitionGroupHeight 在下一帧才写入组的目标高度。Surface 的自然尺寸
   // 依赖这次写入后的最终布局，必须等这一帧提交后再测量。
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-  if (groupToggleTokens.get(options.content) !== token) return
-  if (options.isCurrent && !options.isCurrent()) return
+  if (groupToggleTokens.get(options.content) !== token) {
+    options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
+    return
+  }
+  if (options.isCurrent && !options.isCurrent()) {
+    options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
+    return
+  }
   const targetMeasures = cachedTarget
     ? new Map(cachedTarget.surfaceTargets)
     : measureGroupSurfaceTargets(snapshot.surfaces, options.content, targetHeight)
@@ -564,7 +586,15 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
         })),
       }
     : snapshot
-  playLayoutFlip(targetSnapshot)
+  const play = (plan?: { isCurrent: () => boolean }) => {
+    if (plan && !plan.isCurrent()) return
+    playLayoutFlip(targetSnapshot)
+  }
+  const deferred = transaction
+    ? options.layoutTransaction?.defer(transactionRoot, transaction.participantId, plan => play(plan), 'group-flip')
+    : null
+  if (!deferred) play()
+  options.layoutTransaction?.commit(transactionRoot, transaction?.participantId)
 }
 
 /**

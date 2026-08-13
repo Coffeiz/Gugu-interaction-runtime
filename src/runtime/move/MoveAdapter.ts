@@ -575,7 +575,13 @@ export function createDetachMoveFromAdapter(config: {
   }
 
   const lifecycle: MoveVisualLifecycle = {
-    layout: createDetachLayoutLifecycle(element, registeredElements, layoutScopeSurfaces, layoutSurfaceMeasures),
+    layout: createDetachLayoutLifecycle(
+      element,
+      registeredElements,
+      layoutScopeSurfaces,
+      layoutSurfaceMeasures,
+      runtime.layout,
+    ),
     surface: {
       // emit() 成功之后触发（见 RuntimeMove.ts MoveCommitCoordinator.commit），
       // 此时业务 store 已经落地在新 Surface，这里释放 ownership，业务

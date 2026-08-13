@@ -48,6 +48,7 @@ import {
 } from './dom/GroupLayout'
 import { createAutoScroller, type AutoScrollController, type AutoScrollOptions } from './dom/AutoScroll'
 import { LayoutCache } from './dom/LayoutCache'
+import { LayoutTransactionCoordinator } from './dom/LayoutTransaction'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
@@ -195,6 +196,8 @@ export interface RegrabContext {
 }
 
 export class Runtime {
+  /** Phase 1 布局事务入口；动画接入在后续阶段完成。 */
+  readonly layout = new LayoutTransactionCoordinator()
   private readonly layoutCache = new LayoutCache()
   private readonly owner = new Owner()
   readonly objects = new ObjectStore()
@@ -1221,7 +1224,12 @@ setMotionProfiles(this.registry.motionProfile)
         surfaceMeasures.set(element, surface.measureLayout)
       }
     }
-    return runGroupToggle({ ...options, surfaceMeasures, layoutCache: this.layoutCache })
+    return runGroupToggle({
+      ...options,
+      surfaceMeasures,
+      layoutCache: this.layoutCache,
+      layoutTransaction: this.layout,
+    })
   }
 
   /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */

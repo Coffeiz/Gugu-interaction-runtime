@@ -85,7 +85,11 @@ const { elementRef: drawerSurfaceRef } = useSurface({
   type: 'drawer',
   layout: 'grid',
   accepts: ['canvas-sticker'],
-  floating: { scrollKey: 'projects', maxHeight: 420 },
+  floating: {
+    open: () => !drawerCollapsed.value,
+    scrollKey: 'projects',
+    maxHeight: 420,
+  },
 })
 
 function registerCanvasType(): void {

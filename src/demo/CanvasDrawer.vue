@@ -8,13 +8,7 @@
     data-floating-surface
   >
     <slot name="header" :collapsed="collapsed" />
-    <div
-      ref="viewportRef"
-      class="drawer-viewport"
-      data-layout-role="viewport"
-      data-drawer-scroll="projects"
-      :style="{ height: `${viewportHeight}px` }"
-    >
+    <div ref="viewportRef" class="drawer-viewport" data-layout-role="viewport" data-drawer-scroll="projects">
       <div ref="contentRef" class="drawer-viewport-inner">
         <slot />
       </div>
@@ -26,108 +20,22 @@
 /**
  * 抽屉展示壳：宽度开合与内容自然高度分别处理。
  *
- * 宽度变化只由 CSS 驱动；内容变化由 ResizeObserver 提前记录自然高度，
- * 用单一的高度过渡收尾，避免宽度换行和高度事务互相抢写。
+ * 宽度变化只由 CSS 驱动；内容高度由 Runtime 的 floating Surface 统一测量和过渡。
  */
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ref } from 'vue'
 
 const props = withDefaults(defineProps<{
   collapsed: boolean
   collapsedWidth?: string
   openWidth?: string
-  maxHeight?: number
-  duration?: number
-  easing?: string
 }>(), {
   collapsedWidth: '50px',
   openWidth: '250px',
-  maxHeight: 420,
-  duration: 340,
-  easing: 'cubic-bezier(.22,1,.36,1)',
 })
 
 const rootRef = ref<HTMLElement | null>(null)
 const viewportRef = ref<HTMLElement | null>(null)
 const contentRef = ref<HTMLElement | null>(null)
-const viewportHeight = ref(0)
-const naturalHeight = ref(0)
-let resizeObserver: ResizeObserver | null = null
-let initialized = false
-let pendingCleanup: (() => void) | null = null
-let pendingTarget: number | null = null
-
-
-function targetFor(collapsed: boolean, natural: number): number {
-  return collapsed ? 0 : Math.min(props.maxHeight, Math.max(0, natural))
-}
-
-function applyHeight(next: number): void {
-  const viewport = viewportRef.value
-  if (!viewport) return
-  if (!initialized) {
-    viewportHeight.value = next
-    initialized = true
-    return
-  }
-  if (pendingTarget !== null ? Math.abs(next - pendingTarget) < 0.5 : Math.abs(next - viewportHeight.value) < 0.5) return
-
-  pendingCleanup?.()
-  pendingTarget = next
-  const current = viewport.getBoundingClientRect().height
-  viewport.style.transition = 'none'
-  viewport.style.height = `${current}px`
-  void viewport.offsetHeight
-
-  let settled = false
-  let fallback: ReturnType<typeof window.setTimeout> | null = null
-  const settle = () => {
-    if (settled) return
-    settled = true
-    viewport.removeEventListener('transitionend', onEnd)
-    if (fallback !== null) window.clearTimeout(fallback)
-    pendingCleanup = null
-    viewport.style.transition = ''
-    viewport.style.height = `${next}px`
-    viewportHeight.value = next
-    if (pendingTarget === next) pendingTarget = null
-  }
-  const onEnd = (event: TransitionEvent) => {
-    if (event.target === viewport && event.propertyName === 'height') settle()
-  }
-  viewport.addEventListener('transitionend', onEnd)
-  pendingCleanup = () => {
-    viewport.removeEventListener('transitionend', onEnd)
-    if (fallback !== null) window.clearTimeout(fallback)
-    settled = true
-  }
-  requestAnimationFrame(() => {
-    if (settled) return
-    viewport.style.transition = `height ${props.duration}ms ${props.easing}`
-    viewport.style.height = `${next}px`
-  })
-  fallback = window.setTimeout(settle, props.duration + 260)
-}
-
-function updateNaturalHeight(): void {
-  naturalHeight.value = contentRef.value?.scrollHeight ?? 0
-  applyHeight(targetFor(props.collapsed, naturalHeight.value))
-}
-
-onMounted(() => {
-  if (!contentRef.value) return
-  resizeObserver = new ResizeObserver(updateNaturalHeight)
-  resizeObserver.observe(contentRef.value)
-  updateNaturalHeight()
-})
-
-watch(() => props.collapsed, collapsed => {
-  applyHeight(targetFor(collapsed, naturalHeight.value))
-})
-
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
-  pendingCleanup?.()
-})
 
 defineExpose({
   rootRef,

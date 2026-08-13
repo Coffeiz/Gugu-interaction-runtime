@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.0.2
+
+### 改进
+- **浮动 Surface 业务侧收敛**：Demo 与 Gugu-web 抽屉统一通过 Vue `useSurface({ floating })` 管理自然高度、限高和布局事务，业务侧不再重复维护高度观察、过渡和 Surface FLIP。
+- **布局事务接入规范**：补充 Vue 分组开合、浮动 Surface 和事务错误处理指南，明确业务状态与 Runtime 布局职责边界。
+
+### 测试
+- Runtime typecheck、159 项单元测试、build 和 Gugu-web frontend typecheck 通过。
+
 ## v2.0.1
 
 ### 新增

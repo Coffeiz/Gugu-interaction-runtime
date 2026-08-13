@@ -2,7 +2,7 @@
 
 ## 接入状态
 
-本文描述的是 2.0.1 的稳定接入 API。Gugu-web 项目看板、文件库和项目文件面板均已完成
+本文描述的是 2.0.2 的稳定接入 API。Gugu-web 项目看板、文件库和项目文件面板均已完成
 Runtime 回归，联调直接使用 Runtime 源码而非 npm 包；文件业务仍由 Gugu-web 自己管理，
 Runtime 不持有文件树、权限或 API。
 
@@ -37,7 +37,7 @@ project-files:19:file:123
 Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽使用通用 Group Session 和
 `move-group` Action，文件业务侧只负责把对象 ID 列表分流到已有的移动、权限和回滚逻辑。
 
-## 五分钟接入（2.0.1）
+## 五分钟接入（2.0.2）
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
 默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器

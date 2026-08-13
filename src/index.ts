@@ -67,6 +67,14 @@ export { captureLayoutFlip, playLayoutFlip } from './dom/GroupLayout'
 export { cancelLayoutAnimations } from './dom/GroupLayout'
 export { LayoutCache } from './dom/LayoutCache'
 export type { CachedGroupLayout, CachedLayoutSize } from './dom/LayoutCache'
+export { LayoutTransactionCoordinator } from './dom/LayoutTransaction'
+export type { LayoutPlan, LayoutPlanSnapshot, LayoutPlanStatus } from './dom/LayoutTransaction'
+export type {
+  LayoutMutation,
+  LayoutTransactionPriority,
+  LayoutTransactionReason,
+  LayoutTransactionSnapshot,
+} from './dom/LayoutTransaction'
 export type { LayoutFlipSnapshot } from './dom/GroupLayout'
 export { captureCollectionPresence, playCollectionPresence } from './dom/CollectionPresence'
 export type { CollectionPresenceSnapshot, CollectionPresenceOptions } from './dom/CollectionPresence'
