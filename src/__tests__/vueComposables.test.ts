@@ -358,6 +358,53 @@ describe('Vue Runtime composables', () => {
     mounted.host.remove()
   })
 
+  it('浮动 Surface 为内部滚动轨道建立有限高度约束并保留滚动样式', async () => {
+    const runtime = new Runtime()
+    const open = ref(true)
+    const child = defineComponent({
+      setup() {
+        const surface = useSurface({
+          id: 'surface:floating-scroll',
+          type: 'drawer',
+          layout: 'grid',
+          accepts: ['card'],
+          floating: { open: () => open.value, scrollKey: 'projects', maxHeight: 320 },
+        })
+        return () => h('section', { ref: surface.elementRef }, [
+          h('div', { 'data-layout-role': 'viewport' }, [
+            h('div', { 'data-drawer-scroll': 'projects' }),
+          ]),
+        ])
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+
+    const root = mounted.host.querySelector('section') as HTMLElement
+    const viewport = root.querySelector('[data-layout-role="viewport"]') as HTMLElement
+    const scroll = root.querySelector('[data-drawer-scroll="projects"]') as HTMLElement
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 800 })
+    Object.defineProperty(scroll, 'scrollHeight', { configurable: true, value: 800 })
+    // 触发一次由内容/宽度变化产生的 Surface resize；布局约束必须在测量前建立。
+    const surface = runtime.surfaces.get('surface:floating-scroll')
+    expect(surface?.layoutElement?.()).toBe(viewport)
+    expect(surface?.viewport?.()).toBe(scroll)
+    await nextTick()
+
+    expect(viewport.style.display).toBe('flex')
+    expect(viewport.style.flexDirection).toBe('column')
+    expect(viewport.style.minHeight).toBe('0px')
+    expect(scroll.style.flex).toBe('1 1 auto')
+    expect(scroll.style.minHeight).toBe('0px')
+    expect(scroll.style.overflowY).toBe('auto')
+    expect(scroll.style.overflowX).toBe('hidden')
+
+    open.value = false
+    await nextTick()
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
   it('useRuntimeAction 和 useRuntimeTransition 在组件卸载时解除订阅', async () => {
     const runtime = new Runtime()
     const received: Action[] = []

@@ -465,150 +465,64 @@ function prepareBoxShadowMorph(
   content.style.transition = transition
 }
 
-/** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
- * 徽章、按钮这类会增减的子元素文字内容本身就是区分度最高的信息，不需要真的做
- * 一整套 DOM diff。 */
-function childSignature(el: HTMLElement): string {
-  return `${el.tagName}:${(el.textContent ?? '').trim()}`
-}
-
 /**
- * 把一个容器的直接子节点统一整理成"每个可见内容都是一个可以单独设置 opacity
- * 的元素"——裸文本节点（比如卡片标题，模板里直接插值、没包元素）包一层 span
- * 才能像徽章那样单独控制显隐；纯空白文本节点和 Vue 的 v-if 占位注释节点直接
- * 丢弃，不参与后面的匹配。
- */
-function normalizeToElements(container: HTMLElement): HTMLElement[] {
-  const result: HTMLElement[] = []
-  for (const node of Array.from(container.childNodes)) {
-    if (node.nodeType === Node.COMMENT_NODE) {
-      node.remove()
-      continue
-    }
-    if (node.nodeType === Node.TEXT_NODE) {
-      if (!(node.textContent ?? '').trim()) { node.remove(); continue }
-      const span = document.createElement('span')
-      span.textContent = node.textContent
-      node.replaceWith(span)
-      result.push(span)
-      continue
-    }
-    if (node.nodeType === Node.ELEMENT_NODE) result.push(node as HTMLElement)
-  }
-  return result
-}
-
-/**
- * 之前的做法是把源内容和目标内容各包一层完整克隆，整体做 opacity 交叉淡变——
- * 结果是没有变化的部分（比如标题文字）也被拆成两份各 50% 透明度叠在一起，两层
- * 半透明黑字叠加的视觉密度天然低于一份纯黑字（alpha 合成：0.5 叠 0.5 约等于
- * 0.75，不是 1），过渡途中共同内容会显得发虚、发浅。
+ * 将抓取态和目标态分别保留为完整卡片快照，再放进一个纯承载层交叉淡化。
  *
- * 第一次改用"目标结构渲染一份 + 新增子元素单独淡入 + 消失的子元素单独摘进
- * 一个空容器淡出"的方案时，又踩了另一个坑：摘出来的"消失的子元素"（比如
- * 徽章）失去了原本靠"跟在标题文字后面"撑住的相对位置，脱离兄弟节点后独自
- * 摆在一个空 div 里，会缩到容器左上角（截图/录屏里的"内容全跑到左上角"）。
- *
- * 现在的做法：完整保留"抓起时的结构"作为一层（beforeLayer），把里面"落地
- * 后依然存在"的子节点隐藏（opacity:0，但保留占位，不从文档流摘除），只让
- * "落地后真的消失"的子节点保持可见并参与淡出——徽章依然靠着（视觉不可见
- * 但仍占位的）标题文字撑住正确的相对位置。目标结构整份渲染成另一层
- * （contentLayer，全程可见），新增的子节点在这一层里单独设 opacity:0 再
- * 淡入，同样靠自己在目标结构里的原生相对位置排布，不需要额外撑位。
+ * 不能只把两张卡片的 childNodes 搬进空 div：这样会丢掉源卡片自己的
+ * display/grid/flex/padding 布局上下文，landing 外壳一变宽，源内容就会被
+ * 目标卡片的布局规则提前重排。两层各自保留根节点样式，才能让抓取快照和
+ * 目标快照在同一个外壳里独立过渡。
  */
 function wrapContentForMorph(
-  proxy: HTMLElement,
+  source: HTMLElement,
   toContent: HTMLElement,
-): { enteringEls: HTMLElement[]; leavingEls: HTMLElement[] } {
-  // 读取目标卡的 padding，让 contentLayer/beforeLayer 从目标卡 content area
-  // （padding 内部）开始定位——否则 inset:0 定位到 padding box 边缘，子节点
-  // 会偏移到卡片的视觉左上角。从 toContent 读而不是从 proxy 读：源卡和
-  // 目标卡的 padding 可能不同，内容层展示的是目标结构，必须匹配目标。
-  const targetStyle = getComputedStyle(toContent)
-  const pt = parseFloat(targetStyle.paddingTop) || 0
-  const pr = parseFloat(targetStyle.paddingRight) || 0
-  const pb = parseFloat(targetStyle.paddingBottom) || 0
-  const pl = parseFloat(targetStyle.paddingLeft) || 0
-  const layerStyle = {
-    position: 'absolute' as const,
-    left: `${pl}px`,
-    top: `${pt}px`,
-    right: `${pr}px`,
-    bottom: `${pb}px`,
-    pointerEvents: 'none' as const,
-  }
+): { contentRoot: HTMLElement; fromLayer: HTMLElement; toLayer: HTMLElement } {
+  const sourceLayer = source.cloneNode(true) as HTMLElement
+  const contentRoot = document.createElement('div')
+  contentRoot.dataset.runtimeProxyContent = 'true'
+  if (source.dataset.runtimePhase) contentRoot.dataset.runtimePhase = source.dataset.runtimePhase
+  if (source.dataset.runtimeCompact === 'true') contentRoot.dataset.runtimeCompact = 'true'
+  Object.assign(contentRoot.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box',
+    margin: '0',
+    pointerEvents: 'none',
+  })
+  delete sourceLayer.dataset.runtimeProxyContent
+  delete sourceLayer.dataset.runtimePhase
+  delete sourceLayer.dataset.runtimeCompact
+  Object.assign(sourceLayer.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box',
+    opacity: '1',
+    pointerEvents: 'none',
+  })
 
-  const beforeLayer = document.createElement('div')
-  Object.assign(beforeLayer.style, { ...layerStyle })
-  // beforeLayer 承载源卡片的子节点，同样需要源卡片的 flex 布局，否则
-  // flex 子项（右侧按钮）在 block 层里掉位。
-  const sourceStyle = getComputedStyle(proxy)
-  beforeLayer.style.display = sourceStyle.display
-  beforeLayer.style.flexDirection = sourceStyle.flexDirection
-  beforeLayer.style.flexWrap = sourceStyle.flexWrap
-  beforeLayer.style.alignItems = sourceStyle.alignItems
-  beforeLayer.style.justifyContent = sourceStyle.justifyContent
-  beforeLayer.style.gap = sourceStyle.gap
-  while (proxy.firstChild) beforeLayer.appendChild(proxy.firstChild)
-  const fromEls = normalizeToElements(beforeLayer)
-  const fromSignatures = new Set(fromEls.map(childSignature))
+  const targetLayer = toContent.cloneNode(true) as HTMLElement
+  delete targetLayer.dataset.runtimePhase
+  delete targetLayer.dataset.runtimeCompact
+  Object.assign(targetLayer.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box',
+    opacity: '0',
+    margin: '0',
+    pointerEvents: 'none',
+    visibility: 'visible',
+    display: '',
+  })
+  contentRoot.append(sourceLayer, targetLayer)
+  source.replaceWith(contentRoot)
 
-  const contentLayer = document.createElement('div')
-  Object.assign(contentLayer.style, { ...layerStyle, pointerEvents: '' })
-  // contentLayer 是绝对定位层，但子节点（如右侧推进按钮）依赖目标卡片
-  // 的 flex 布局才排得正确——不带 display，子节点会退化成块级堆叠、
-  // flex 子项（align-self:stretch 的按钮）从右侧掉走。
-  contentLayer.style.display = targetStyle.display
-  // 列表行使用 CSS Grid。这里只复制 display 会让脱离原父级后的
-  // 内容层退化成隐式网格，文件名和大小会在 landing 阶段重新分配到
-  // 中间列。把网格轨道和对齐规则一并固化，保证代理与本体同构。
-  contentLayer.style.gridTemplateColumns = targetStyle.gridTemplateColumns
-  contentLayer.style.gridTemplateRows = targetStyle.gridTemplateRows
-  contentLayer.style.gridAutoColumns = targetStyle.gridAutoColumns
-  contentLayer.style.gridAutoRows = targetStyle.gridAutoRows
-  contentLayer.style.gridAutoFlow = targetStyle.gridAutoFlow
-  contentLayer.style.justifyItems = targetStyle.justifyItems
-  contentLayer.style.alignItems = targetStyle.alignItems
-  contentLayer.style.justifyContent = targetStyle.justifyContent
-  contentLayer.style.alignContent = targetStyle.alignContent
-  contentLayer.style.columnGap = targetStyle.columnGap
-  contentLayer.style.rowGap = targetStyle.rowGap
-  contentLayer.style.flexDirection = targetStyle.flexDirection
-  contentLayer.style.flexWrap = targetStyle.flexWrap
-  contentLayer.style.alignItems = targetStyle.alignItems
-  contentLayer.style.justifyContent = targetStyle.justifyContent
-  contentLayer.style.gap = targetStyle.gap
-  contentLayer.style.overflow = 'hidden'
-  // cloneNode 会带走 toContent 当下的内联样式——调用方传进来的目标节点常常
-  // 这一刻正被业务代码隐藏（等着落地动画接管），得先复位再搬子节点。
-  const toContentClone = toContent.cloneNode(true) as HTMLElement
-  toContentClone.style.visibility = 'visible'
-  toContentClone.style.display = ''
-  // 只搬运 toContent 的子节点，不带它自己的外壳（class/padding）——padding
-  // 已经在 contentLayer 的 left/top/right/bottom 里补偿了，contentLayer 如果
-  // 带上 toContent 自己那份 padding，内容会被缩进两次，跟 proxy 对不上。
-  while (toContentClone.firstChild) contentLayer.appendChild(toContentClone.firstChild)
-  // contentLayer 被挂到 overlay 下的 proxy 中，脱离了 toContent 的原始 DOM
-  // 上下文，字体/颜色等继承属性会丢失。从 toContent 捕获视觉上下文并固化到
-  // contentLayer，确保文本渲染一致。
-  const visualContext = captureInheritedStyleContext(toContent)
-  applyInheritedStyleContext(contentLayer, visualContext)
-  const toEls = normalizeToElements(contentLayer)
-  const toSignatures = new Set(toEls.map(childSignature))
-
-  const enteringEls = toEls.filter(el => !fromSignatures.has(childSignature(el)))
-  for (const el of enteringEls) el.style.opacity = '0'
-
-  const leavingEls = fromEls.filter(el => !toSignatures.has(childSignature(el)))
-  const leavingSet = new Set(leavingEls)
-  for (const el of fromEls) {
-    if (!leavingSet.has(el)) el.style.opacity = '0'
-  }
-
-  proxy.appendChild(contentLayer)
-  if (leavingEls.length > 0) proxy.appendChild(beforeLayer)
-
-  return { enteringEls, leavingEls }
+  return { contentRoot, fromLayer: sourceLayer, toLayer: targetLayer }
 }
 
 export type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
@@ -658,14 +572,12 @@ export function landDragProxyLegacy(
   const targetBackdropFilter = options.targetBackdropFilter
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
-  const content = getProxyContent(proxy)
+  let content = getProxyContent(proxy)
   const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
+  if (contentLayers) content = contentLayers.contentRoot
   if (contentLayers) {
-    // 缓动曲线必须跟下面容器 transform 用的是同一条（easing，不是硬编码 ease）——
-    // 两条速度曲线不一致时，中途会出现"容器已经飞到大半、新增内容才淡了不到
-    // 三分之一"这种视觉上的运动不同步（探针测过，delta 峰值能到 0.38）。
-    for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
-    for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
+    contentLayers.fromLayer.style.transition = `opacity ${duration}ms ${easing}`
+    contentLayers.toLayer.style.transition = `opacity ${duration}ms ${easing}`
   }
 
   // 位置用 transform（translate），尺寸用真实 width/height——两者分开处理：
@@ -787,8 +699,8 @@ export function landDragProxyLegacy(
       }
       if (targetOpacity != null) content.style.opacity = targetOpacity
       if (contentLayers) {
-        for (const el of contentLayers.enteringEls) el.style.opacity = '1'
-        for (const el of contentLayers.leavingEls) el.style.opacity = '0'
+        contentLayers.fromLayer.style.opacity = '0'
+        contentLayers.toLayer.style.opacity = '1'
       }
     })
   }
@@ -856,12 +768,13 @@ export function landDragProxyWithMotion(
   const targetBackdropFilter = options.targetBackdropFilter
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
-  const content = getProxyContent(proxy)
+  let content = getProxyContent(proxy)
   const scaleShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
   const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
+  if (contentLayers) content = contentLayers.contentRoot
   if (contentLayers) {
-    for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
-    for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
+    contentLayers.fromLayer.style.transition = `opacity ${duration}ms ${easing}`
+    contentLayers.toLayer.style.transition = `opacity ${duration}ms ${easing}`
   }
 
   // proxy 创建时仍使用 source snapshot；landing 必须在启动控制器前切到
@@ -1096,7 +1009,9 @@ export function landDragProxyWithMotion(
     landingShell.shell.style.transform = initialContentScale === 1
       ? 'scale(1)'
       : `scale(${initialContentScale}, ${initialContentScale})`
-    landingShell.shell.style.transition = `transform ${duration}ms ${easing}`
+    // Camera shell 的归一化只是把当前视觉尺寸转换为 landing 外壳尺寸，
+    // 不应再单独播放一段缩放过渡；真正的尺寸动画由代理外壳统一承载。
+    landingShell.shell.style.transition = 'none'
   }
   // Motion 的 scale 是相对于 landing shell 基准尺寸的。相机缩放已经由
   // initialContentScale 应用到 shell，因此目标比例必须以松手瞬间的视觉尺寸
@@ -1157,6 +1072,12 @@ export function landDragProxyWithMotion(
         // 态的 0px 平滑插值回真实值，字段落回它们在本体行里原本的准确位置，不是
         // 换一套布局瞬间跳变。
         content.style.gridTemplateColumns = ''
+        if (contentLayers) {
+          contentLayers.fromLayer.style.left = '0'
+          contentLayers.fromLayer.style.width = '100%'
+          contentLayers.fromLayer.style.transform = 'none'
+          contentLayers.fromLayer.style.gridTemplateColumns = ''
+        }
         // compact 专用的列表规则只应存在于紧凑跟手阶段。列轨道恢复后
         // 继续保留标记会让 landing 代理的项目/阶段字段比真实行向右偏移，
         // 直到代理销毁才恢复。
@@ -1209,8 +1130,8 @@ export function landDragProxyWithMotion(
       }, dismissDuration + 40)
     }
     if (contentLayers) {
-      for (const el of contentLayers.enteringEls) el.style.opacity = '1'
-      for (const el of contentLayers.leavingEls) el.style.opacity = '0'
+      contentLayers.fromLayer.style.opacity = '0'
+      contentLayers.toLayer.style.opacity = '1'
     }
   })
   const scheduleMotionTimeout = (extraMs = 0) => {

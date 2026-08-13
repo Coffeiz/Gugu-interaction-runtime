@@ -75,6 +75,10 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
   const isAnimating = ref(false)
   let animationTimer: number | null = null
   let resizeFrame: number | null = null
+  let floatingScrollLayoutStyles: Array<{ element: HTMLElement; values: Record<string, string> }> | null = null
+  // ResizeObserver 会在宽度/内容布局变化的每一帧回调。记录当前高度事务的
+  // 目标，避免同一个目标被反复取消并从中间帧重启动画。
+  let floatingAnimationTarget: number | null = null
 
   const currentFloatingOptions = (): FloatingSurfaceOptions => floatingOptions()
   const isFloatingSurface = (): boolean => {
@@ -89,10 +93,56 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     const key = currentFloatingOptions().scrollKey
     return typeof key === 'function' ? key() : key ?? null
   }
+  const restoreFloatingScrollLayout = (): void => {
+    if (!floatingScrollLayoutStyles) return
+    for (const { element, values } of floatingScrollLayoutStyles) {
+      for (const [property, value] of Object.entries(values)) {
+        element.style.setProperty(property, value)
+      }
+    }
+    floatingScrollLayoutStyles = null
+  }
+  const ensureFloatingScrollLayout = (layoutElement: HTMLElement, viewport: HTMLElement | null): void => {
+    if (!viewport || !layoutElement.contains(viewport)) return
+    const chain: HTMLElement[] = []
+    let parent: HTMLElement | null = viewport
+    while (parent) {
+      chain.push(parent)
+      if (parent === layoutElement) break
+      parent = parent.parentElement
+    }
+    if (chain[chain.length - 1] !== layoutElement) return
+    if (!floatingScrollLayoutStyles) {
+      floatingScrollLayoutStyles = chain.map(element => ({
+        element,
+        values: {
+          display: element.style.display,
+          flexDirection: element.style.flexDirection,
+          flex: element.style.flex,
+          minHeight: element.style.minHeight,
+          overflow: element.style.overflow,
+          overflowX: element.style.overflowX,
+          overflowY: element.style.overflowY,
+        },
+      }))
+    }
+    layoutElement.style.display = 'flex'
+    layoutElement.style.flexDirection = 'column'
+    layoutElement.style.minHeight = '0'
+    for (const element of chain) {
+      element.style.minHeight = '0'
+      if (element !== layoutElement) element.style.flex = '1 1 auto'
+    }
+    viewport.style.overflowX = 'hidden'
+    viewport.style.overflowY = 'auto'
+    viewport.style.minHeight = '0'
+    viewport.style.flex = '1 1 auto'
+  }
   const clearFloatingAnimation = (): void => {
     if (animationTimer !== null) window.clearTimeout(animationTimer)
     animationTimer = null
     isAnimating.value = false
+    floatingAnimationTarget = null
   }
   const animateFloatingSurface = (): void => {
     const element = elementRef.value
@@ -100,8 +150,21 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     const dom = resolveFloatingSurfaceDom(element, currentFloatingOptions())
     const layoutElement = dom.layoutElement
     if (!layoutElement) return
+    if (currentFloatingOpen()) ensureFloatingScrollLayout(layoutElement, dom.viewport)
     const currentHeight = layoutElement.getBoundingClientRect().height
-    const targetHeight = currentFloatingOpen() ? dom.measureLayout()?.height ?? 0 : 0
+    // ResizeObserver 会在高度动画播放期间因壳体宽度变化而再次触发。此时
+    // 不能重新调用 measureLayout：自然高度测量会临时写入 height:auto，
+    // 再把旧的目标高度写回，从而把正在播放的展开动画瞬间撑到终点。
+    // 当前动画已经锁定了目标，先沿用该目标，等动画结束后再测量新的自然尺寸。
+    const activeTarget = isAnimating.value && floatingAnimationTarget !== null
+      ? floatingAnimationTarget
+      : null
+    const measured = activeTarget === null && currentFloatingOpen() ? dom.measureLayout() : null
+    const targetHeight = activeTarget ?? measured?.height ?? 0
+    if (isAnimating.value && floatingAnimationTarget !== null
+      && Math.abs(floatingAnimationTarget - targetHeight) < 0.5) {
+      return
+    }
     if (Math.abs(currentHeight - targetHeight) < 0.5) {
       clearFloatingAnimation()
       if (targetHeight === 0) layoutElement.style.height = '0px'
@@ -114,15 +177,17 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     const scrollTop = scrollElement?.scrollTop ?? 0
     clearFloatingAnimation()
     isAnimating.value = true
+    floatingAnimationTarget = targetHeight
     const started = transitionGroupHeight(layoutElement, targetHeight, undefined, undefined, undefined, true)
     if (!started) {
-      isAnimating.value = false
+      clearFloatingAnimation()
       return
     }
     animationTimer = window.setTimeout(() => {
       animationTimer = null
       isAnimating.value = false
       if (scrollElement) scrollElement.scrollTop = scrollTop
+      if (!currentFloatingOpen()) restoreFloatingScrollLayout()
     }, 400)
   }
   const runFloatingObserverResize = (): void => {
@@ -218,6 +283,7 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
 
   onUnmounted(() => {
     clearFloatingAnimation()
+    restoreFloatingScrollLayout()
     if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
     stopFloatingObservers()
     runtime.surfaces.unregister(options.id, generation)
