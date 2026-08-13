@@ -1,6 +1,6 @@
 # 画布节点注册与抽屉首次落地连接实施方案
 
-> 状态：Phase 0 调查待开始。Phase 0 只收集运行时证据，不修改业务逻辑。
+> 状态：Phase 0、Phase 1、Phase 2 已完成，进入回归收口阶段。
 
 ## 目标
 
@@ -14,7 +14,7 @@
 - 业务侧不新增 `isNode`、`enableLink` 等字段；由已有 `surfaceId` 派生是否为画布对象。
 - Runtime 负责端口坐标、命中和连接生命周期；业务侧负责连线绘制与关系持久化。
 
-## Phase 0：首次落地连接失败调查（先做，不改代码）
+## Phase 0：首次落地连接失败调查（已完成）
 
 ### 调查假设
 
@@ -45,16 +45,59 @@ D. 画布卡已经注册正确，但连接命中仍使用旧的节点模型坐�
 - 若能力存在但 element 未挂载/尺寸为零：判定为首次落地生命周期时序问题；
 - 若端口存在且尺寸正常但命中失败：判定为连接坐标或相机坐标转换问题。
 
-Phase 0 完成后先更新本节调查结论，再进入实现阶段；在根因确认前不修改 `MindCanvas`
-或 `useMindRuntimeObject`。
+### 调查结论
 
-## Phase 1：统一节点能力边界
+已通过首次拖出后的 Runtime JSON 日志确认：
+
+- 乐观画布卡 `nodeId=109`、`clientKey=optimistic--2` 注册为
+  `mind:optimistic--2`，并且 `hasNode=true`、`nodePorts=2`、DOM 已连接；
+- 连接开始逻辑仍按 `mind:${nodeId}` 查询，即查询 `mind:109`；该对象不存在，
+  因此 `ports=0`、`started=false`；
+- 已存在的普通画布卡使用 `mind:${nodeId}` 时可以正常开始连接；
+- 命中逻辑后来能够命中 `mind:optimistic--2`，进一步证明问题是连接起点使用了旧 ID，
+  不是端口注册或 DOM 挂载时序问题。
+
+因此根因判定为 **B：乐观插入使用 `clientKey` 生成的 object ID，但连接开始/完成逻辑
+仍按 `nodeId` 拼接旧 ID**。Phase 0 未修改行为，临时 JSON 探针已清理。
+
+## Phase 1：统一连接 object ID（进行中）
+
+连接起点和终点统一使用 `mindCanvasObjectId(item)`，不再在 `MindCanvas.vue` 中手写
+`mind:${nodeId}`。这样乐观插入对象的 `clientKey` 会贯穿连接生命周期。
+
+### 已完成
+
+- [x] 连接起点使用当前 item 的稳定 Runtime object ID；
+- [x] 连接终点使用命中 item 的稳定 Runtime object ID；
+- [x] 保留历史对象没有 `clientKey` 时的 `mind:${nodeId}` 兼容行为；
+- [x] 保留 Runtime 的端口命中、连接校验和连接生命周期。
+
+### 待验证
+
+- [x] 抽屉拖入画布后第一次即可开始连接；
+- [x] 乐观对象替换为服务端对象后仍可连接。
+
+## Phase 2：统一节点能力边界（进行中）
 
 在 `useMindRuntimeObject()` 内部根据已有 `surfaceId` 派生能力：
 
 - 画布 Surface：保留 `move`，注册 `node.ports`；
 - 项目抽屉 Surface：保留 `move`，不注册 `node`；
 - 其他 Mind Surface：默认只保留现有移动能力，不自动注册节点。
+
+### 已完成
+
+- [x] 画布 Surface 注册 `abilities: ['move', 'link']` 和左右 `node.ports`；
+- [x] 项目抽屉 Surface 只注册 `abilities: ['move']`，不再注册 `node`；
+- [x] 未新增业务字段，继续使用已有 `surfaceId` 派生能力。
+
+### 已验证
+
+- [x] 抽屉卡仍可拖入画布，且落地后由画布卡注册节点能力；
+- [x] 抽屉卡不再出现在 Runtime 的 `getNodePorts()` 候选中；
+- [x] 画布已有节点的连接、命中和去重行为不回归。
+
+手测结果：抽屉拖入画布后的卡片无需再次拖动，首次即可直接连接节点。
 
 不新增业务数据字段，不改变已有组件调用参数。
 
@@ -80,4 +123,3 @@ Phase 0 完成后先更新本节调查结论，再进入实现阶段；在根因
 - Gugu：`frontend/src/views/Mind/components/MindCanvas.vue`
 - Gugu：`frontend/src/views/Mind/components/ProjectDrawerCard.vue`
 - Gugu：`frontend/src/interaction/runtime/canvas.ts`
-
