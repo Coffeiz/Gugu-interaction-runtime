@@ -245,9 +245,13 @@ export function captureDetachTargetSnapshot(
 ): VisualSnapshot {
   const transition = element.style.transition
   const opacity = element.style.opacity
+  const pointerEvents = element.style.pointerEvents
   const computedOpacity = getComputedStyle(element).opacity
   element.dataset.runtimeLandingCapture = 'true'
   element.style.transition = 'none'
+  // pointerup 发生在源卡片上时，目标节点可能仍被浏览器视为 hover 命中。
+  // 暂时移出命中测试，读取目标的静态视觉，而不是把 hover 阴影当成落地终态。
+  element.style.pointerEvents = 'none'
   // 跨 Surface 交接时，业务侧会先把目标本体设为 opacity:0，等待代理
   // 落地完成后再 reveal。这个状态只属于交接过程，不能被当成目标的
   // 静态视觉样式，否则代理会沿着 opacity:0 淡出。
@@ -266,6 +270,7 @@ export function captureDetachTargetSnapshot(
       : snapshot
   } finally {
     element.style.opacity = opacity
+    element.style.pointerEvents = pointerEvents
     element.style.transition = transition
     delete element.dataset.runtimeLandingCapture
   }
