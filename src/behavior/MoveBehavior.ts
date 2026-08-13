@@ -11,6 +11,7 @@ export interface MoveContext {
   transaction: MoveTransaction
   sourceElement: HTMLElement | null
   dragOffset: { x: number; y: number }
+  sourceSize?: { w: number; h: number }
   followElement?: HTMLElement | null
   visualSnapshot?: VisualSnapshot
   destination?: unknown
@@ -174,6 +175,9 @@ export class MoveBehavior implements Behavior {
     const pointerEvent = request.input.event instanceof PointerEvent ? request.input.event : null
     if (sourceElement && pointerEvent) {
       const rect = sourceElement.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        moveContext.sourceSize = { w: rect.width, h: rect.height }
+      }
       moveContext.dragOffset = {
         x: pointerEvent.clientX - rect.left,
         y: pointerEvent.clientY - rect.top,

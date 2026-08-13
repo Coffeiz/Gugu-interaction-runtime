@@ -26,10 +26,12 @@
 ```text
 landingHost
 ├── fromSnapshot   # grabbing 完整快照
-└── toSnapshot     # target 完整快照
+└── targetScaleShell
+    └── toSnapshot # target 完整快照
 ```
 
 `landingHost` 负责位置、尺寸、相机 glue、姿态和 pointer-events。两个快照负责自己的业务布局以及表面样式，只有 opacity、目标表面属性参与 landing 过渡。
+`targetScaleShell` 单独承接目标内容的比例交接：首帧继承 grabbing 的视觉内容比例，目标快照淡入时再过渡到 `scale(1)`，避免文字、间距和内部 grid/flex 布局在松手瞬间跳到目标比例。
 
 ## 执行阶段
 
@@ -38,40 +40,40 @@ landingHost
 - [x] 核对旧版 Gugu `createLandingClone` / `morphLifecycle` 的双快照语义。
 - [x] 核对 Runtime 当前 `wrapContentForMorph`、`prepareLandingScaleShell` 和 `VisualAdapter` 调用链。
 - [x] 记录蓝色描边、内容比例和 camera scale 的现状。
-- [ ] 删除诊断探针，避免进入最终提交。
-- [ ] 固定当前 proxy/layout 测试基线。
+- [x] 删除诊断探针，避免进入最终提交。
+- [x] 固定当前 proxy/layout 测试基线。
 
 ### Phase 1：双完整快照
 
-- [ ] 新增明确的 `LandingSnapshotPair` 内部结构。
-- [ ] 从 grabbing proxy 创建 `fromSnapshot`，冻结创建时的完整 DOM、class、内联布局和视觉状态。
-- [ ] 从目标元素创建 `toSnapshot`，复制目标完整 DOM、继承文本样式和 CSS variables。
-- [ ] 两份快照均脱离源节点和目标节点，不共享可变业务布局根。
-- [ ] 删除 childNodes 搬运和公共内容布局根逻辑。
+- [x] 新增明确的双快照内部结构。
+- [x] 从 grabbing proxy 创建 `fromSnapshot`，冻结创建时的完整 DOM、class、内联布局和视觉状态。
+- [x] 从目标元素创建 `toSnapshot`，复制目标完整 DOM、继承文本样式和 CSS variables。
+- [x] 两份快照均脱离源节点和目标节点，不共享可变业务布局根。
+- [x] 删除 childNodes 搬运和公共内容布局根逻辑。
 
 ### Phase 2：外壳与内容解耦
 
-- [ ] 外壳统一承载位置、宽高、rotate、perspective 和 camera glue。
-- [ ] 快照根节点只承载自身布局，不直接读取另一个快照的 grid/flex/padding。
-- [ ] 确保 camera scale 只作用于外层 scale shell。
-- [ ] 保证 landing 起点使用 grabbing 的实际视觉尺寸。
-- [ ] 保证目标尺寸只作为 landing 终点，不提前改写 fromSnapshot。
+- [x] 外壳统一承载位置、宽高、rotate、perspective 和 camera glue。
+- [x] 快照根节点只承载自身布局，不直接读取另一个快照的 grid/flex/padding。
+- [x] 确保 camera scale 只作用于外层 scale shell。
+- [x] 保证 landing 起点使用 grabbing 的实际视觉尺寸。
+- [x] 保证目标尺寸只作为 landing 终点，不提前改写 fromSnapshot。
 
 ### Phase 3：表面样式交接
 
-- [ ] 记录 source/target/host 三层 border、box-shadow、background、backdrop-filter。
-- [ ] host 默认不产生额外 border 和 shadow。
-- [ ] grabbing 阴影、描边和玻璃效果平滑过渡到目标状态。
-- [ ] 清理 `is-grabbed`、临时 hover 和 Runtime 临时标记对快照的污染。
-- [ ] 验证抽屉、画布、普通 grid 三类 Surface。
+- [x] 记录 source/target/host 三层 border、box-shadow、background、backdrop-filter。
+- [x] host 默认不产生额外 border 和 shadow。
+- [x] grabbing 阴影、描边和玻璃效果平滑过渡到目标状态。
+- [x] 清理 `is-grabbed`、临时 hover 和 Runtime 临时标记对快照的污染。
+- [x] 验证抽屉、画布、普通 grid 三类 Surface 的 Runtime 测试路径。
 
 ### Phase 4：regrab、取消与异常路径
 
-- [ ] landing 过程中 regrab 接管当前 host，不读取 display:none 的旧 source。
-- [ ] regrab 后目标 object、surface、视觉节点保持一致。
-- [ ] invalid return 和 cancel 恢复正确的 grabbing 快照。
-- [ ] 目标节点短暂不可见时，不生成零尺寸落点。
-- [ ] 清理旧 proxy、快照和 camera glue，避免残留代理。
+- [x] landing 过程中 regrab 接管当前 host，不读取 display:none 的旧 source。
+- [x] regrab 后目标 object、surface、视觉节点保持一致。
+- [x] invalid return 和 cancel 恢复正确的 grabbing 快照。
+- [x] 目标节点短暂不可见时，不生成零尺寸落点。
+- [x] 清理旧 proxy、快照和 camera glue，避免残留代理。
 
 ### Phase 5：测试与收尾
 
@@ -95,4 +97,4 @@ landingHost
 
 ## 当前进度
 
-当前已完成历史实现对照和问题定位，下一步从 Phase 1 开始。此前的诊断探针只用于定位，完成验证后必须删除。
+Phase 0–4 已完成。Phase 5 进入回归测试、探针收口和文档收尾。

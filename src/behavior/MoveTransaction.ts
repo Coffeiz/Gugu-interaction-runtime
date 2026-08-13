@@ -14,6 +14,7 @@ export interface MoveActionDestination {
   readonly toIndex?: number
   readonly point?: { x: number; y: number }
   readonly releaseVelocity?: { x: number; y: number }
+  readonly sourceSize?: { w: number; h: number }
 }
 
 /**

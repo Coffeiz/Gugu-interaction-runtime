@@ -313,7 +313,11 @@ export function startDetachLandingVisual(args: {
   }
   args.enableProxy(proxy.element)
   args.bindRegrab(proxy.element)
-  void args.land(proxy.element).then(args.onComplete)
+  // 视觉适配器的异常也必须走统一失败交接；否则 landing Promise 会悬空，
+  // session 既不会 reveal，也不会进入 Runtime 的代理清理边界。
+  void args.land(proxy.element)
+    .then(args.onComplete)
+    .catch(() => args.onComplete({ completed: false, reason: 'landing-error' }))
   return proxy.element
 }
 
@@ -339,7 +343,12 @@ export function resolveDetachRegrabTarget(
   resolve: () => HTMLElement | null,
   fallback: () => HTMLElement | null,
 ): HTMLElement | null {
-  return resolve() ?? fallback()
+  const usable = (element: HTMLElement | null): HTMLElement | null => {
+    if (!element?.isConnected) return null
+    const rect = element.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0 ? element : null
+  }
+  return usable(resolve()) ?? usable(fallback())
 }
 
 

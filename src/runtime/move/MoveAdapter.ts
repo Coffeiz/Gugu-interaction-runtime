@@ -47,7 +47,7 @@ export function createDetachMoveFromAdapter(config: {
   let beforeContent: HTMLElement | undefined
   let draggingSnapshot: ReturnType<typeof captureDetachDraggingSnapshot> | undefined
   let dropState: ReturnType<typeof createDetachDropState<{ columnId: string; index: number; point?: { x: number; y: number }; releaseVelocity?: { x: number; y: number } }>> | undefined
-  let pendingDrop: { columnId: string; index: number; invalidReturn?: boolean; point?: { x: number; y: number }; releaseVelocity?: { x: number; y: number } } | null = null
+  let pendingDrop: { columnId: string; index: number; invalidReturn?: boolean; point?: { x: number; y: number }; releaseVelocity?: { x: number; y: number }; sourceSize?: { w: number; h: number } } | null = null
   let landingPlan: (() => void) | null = null
   let landingGate: RuntimeCompletionGate<LandingResult> | null = null
   let landingProxy: HTMLElement | null = null
@@ -151,6 +151,12 @@ export function createDetachMoveFromAdapter(config: {
     if (released) return { accepted: false as const }
     released = true
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
+    if (releaseEvent && sessionId) {
+      const proxy = landingProxy
+        ?? runtime.getVisualProxy(sessionId)?.element
+        ?? getFloatingProxy(element)
+      const proxyRect = proxy?.getBoundingClientRect()
+    }
     dragMotion?.stop()
     dragMotion = null
     autoScroller?.stop()
@@ -202,6 +208,8 @@ export function createDetachMoveFromAdapter(config: {
       releaseMotionState.vy = releaseVelocity.y
       pendingDrop.releaseVelocity = { x: releaseMotionState.vx, y: releaseMotionState.vy }
     }
+    const sourceSize = runtime.getMoveContext(sessionId)?.sourceSize
+    if (sourceSize) pendingDrop.sourceSize = { ...sourceSize }
     // 抓取阶段的浮动 proxy 在这里交给 landing proxy 接管；有效落点继续让源节点
     // 脱离布局，避免业务节点先恢复占位把兄弟卡片顶回去。
     // 即使落点仍是同列同 index，也不能清除 release 阶段捕获的布局快照：

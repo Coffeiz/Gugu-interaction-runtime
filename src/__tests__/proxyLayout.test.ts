@@ -142,6 +142,57 @@ describe('代理布局', () => {
     source.remove()
   })
 
+  it('landing 使用独立的 grabbing/target 完整快照，承载根不产生额外描边', async () => {
+    const source = document.createElement('article')
+    source.className = 'source-card is-grabbed'
+    source.style.display = 'grid'
+    source.style.gridTemplateColumns = '1fr 40px'
+    source.style.border = '2px solid blue'
+    source.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+    source.append(document.createElement('span'), document.createElement('button'))
+    document.body.append(source)
+
+    const target = document.createElement('article')
+    target.className = 'target-card'
+    target.style.display = 'flex'
+    target.style.border = '1px solid white'
+    target.style.boxShadow = '0 2px 8px rgba(0,0,0,.07)'
+    target.append(document.createElement('span'))
+    document.body.append(target)
+
+    const proxy = createDragProxy(source, rect(240, 96))
+    const landing = landDragProxyWithMotion(proxy, rect(300, 120), {
+      targetContent: target,
+      contentScale: 1.7,
+      targetShadow: '0 2px 8px rgba(0,0,0,.07)',
+      targetBorder: '1px solid white',
+      motionState: { x: 0, y: 0, vx: 0, vy: 0, scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0 },
+    })
+
+    const root = getProxyContent(proxy)
+    const snapshots = Array.from(root.children) as HTMLElement[]
+    expect(snapshots).toHaveLength(2)
+    expect(snapshots[0].className).toContain('source-card')
+    expect(snapshots[1].dataset.runtimeProxyTargetContentScaleShell).toBe('true')
+    const targetSnapshot = snapshots[1].firstElementChild as HTMLElement
+    expect(targetSnapshot.className).toContain('target-card')
+    expect(snapshots[0].style.display).toBe('grid')
+    expect(targetSnapshot.style.display).toBe('flex')
+    expect(snapshots[1].style.transform).toBe('scale(1)')
+    expect(root.style.border).toBe('0px')
+    expect(root.style.boxShadow).toBe('none')
+    expect(snapshots[0].style.border).toBe('2px solid blue')
+
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    expect(snapshots[1].style.transition).toBe('none')
+    expect(snapshots[1].style.transform).toBe('scale(1)')
+
+    await landing.finished
+    destroyDragProxy(proxy)
+    source.remove()
+    target.remove()
+  })
+
   it('相机缩放后没有新的 pointermove，landing 沿用 motionState 起点', async () => {
     const source = document.createElement('article')
     document.body.append(source)
@@ -336,6 +387,63 @@ describe('代理布局', () => {
     source.remove()
   })
 
+  it('画布相机缩放跨 Surface landing 时，目标内容不跳到 1x', async () => {
+    const source = document.createElement('article')
+    source.className = 'canvas-card'
+    source.append(document.createElement('span'))
+    const target = document.createElement('article')
+    target.className = 'drawer-card'
+    target.append(document.createElement('span'))
+    document.body.append(source, target)
+
+    const proxy = createDragProxy(source, rect(181, 38), { contentScale: 0.5 })
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 300,
+      top: 200,
+      width: 200,
+      height: 38,
+    }, {
+      landingMode: 'default',
+      contentScale: 0.5,
+      targetContent: target,
+      targetShadow: 'none',
+      motionState: {
+        x: 0, y: 0, vx: 0, vy: 0,
+        scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0,
+      },
+    })
+
+    vi.advanceTimersByTime(1200)
+    const cameraShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
+    const targetShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-target-content-scale-shell="true"]')!
+    expect(parseFloat(cameraShell.style.transform.match(/scale\(([^,)]+)/)?.[1] ?? '0'))
+      .toBeCloseTo(0.5 * (200 / 181), 2)
+    expect(targetShell.style.transform).toBe('scale(1)')
+    expect(parseFloat(proxy.style.width)).toBeCloseTo(200, 0)
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+    target.remove()
+  })
+
   it('landing 中相机变化由 camGlue 更新，不重复写入代理自身 scale', async () => {
     const source = document.createElement('article')
     document.body.append(source)
@@ -448,7 +556,52 @@ describe('代理布局', () => {
     source.remove()
   })
 
-  it('普通 grid landing 回抽屉时内容倍率平滑回到目标尺寸', async () => {
+  it('free landing 为相机缩放 shell 计算正确的外壳运动坐标', async () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+    const proxy = createDragProxy(source, rect(200, 100))
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 300,
+      top: 200,
+      width: 300,
+      height: 150,
+    }, {
+      landingMode: 'free',
+      motionState: {
+        x: 0, y: 0, vx: 0, vy: 0,
+        scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0,
+      },
+    })
+
+    vi.advanceTimersByTime(1200)
+
+    // shell 会在 200x100 的定位壳内缩放到 300x150，并以壳中心对齐；
+    // 所以运动壳的目标是 (350, 225)，最终视觉外框才会落在 (300, 200)。
+    expect(proxy.style.transform).toContain('translate3d(350.00px, 225.00px, 0)')
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
+  it('普通 grid landing 保留相机倍率并平滑恢复外框视觉尺寸', async () => {
     const source = document.createElement('article')
     document.body.append(source)
 
@@ -484,7 +637,8 @@ describe('代理布局', () => {
 
     vi.advanceTimersByTime(1200)
     const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
-    expect(shell?.style.transform).toBe('scale(1)')
+    expect(shell?.style.transform).toBe('scale(0.5)')
+    expect(parseFloat(shell?.style.width ?? '0')).toBeCloseTo(200, 0)
     expect(parseFloat(proxy.style.width)).toBeCloseTo(200, 0)
 
     vi.advanceTimersByTime(6000)
@@ -495,7 +649,7 @@ describe('代理布局', () => {
     source.remove()
   })
 
-  it('看板跨列时只改变代理布局宽度，不重复缩放内容 shell', async () => {
+  it('看板跨列时保持内容基准并用 shell 收敛视觉宽度', async () => {
     const source = document.createElement('article')
     document.body.append(source)
     const proxy = createDragProxy(source, rect(181, 38), { contentScale: 1 })
@@ -529,8 +683,8 @@ describe('代理布局', () => {
 
     vi.advanceTimersByTime(1200)
     const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
-    expect(shell.style.transform).toBe('scale(1)')
-    expect(parseFloat(shell.style.width)).toBeCloseTo(200, 0)
+    expect(parseFloat(shell.style.transform.match(/scale\(([^,)]+)/)?.[1] ?? '0')).toBeCloseTo(200 / 181, 2)
+    expect(parseFloat(shell.style.width)).toBeCloseTo(181, 0)
     expect(parseFloat(proxy.style.width)).toBeCloseTo(200, 0)
 
     vi.advanceTimersByTime(6000)

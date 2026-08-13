@@ -712,10 +712,14 @@ setMotionProfiles(this.registry.motionProfile)
           ? 'free'
           : 'default'
       : 'default'
-    return {
+    const transactionDestination = session ? this.moveBehavior.getContext(sessionId).transaction.destination as Partial<import('./behavior/MoveTransaction').MoveActionDestination> | null : null
+    const sourceSurfaceId = typeof transactionDestination?.fromSurfaceId === 'string'
+      ? transactionDestination.fromSurfaceId
+      : object?.surfaceId
+    const visualContext: VisualLifecycleContext = {
       objectId: session?.objectId ?? '',
       sessionId,
-      sourceSurfaceId: object?.surfaceId,
+      sourceSurfaceId,
       destinationSurfaceId: destinationSurfaceId ?? undefined,
       mode: object?.visualMode ?? 'detach',
       destination,
@@ -761,6 +765,7 @@ setMotionProfiles(this.registry.motionProfile)
           }
         : undefined,
     }
+    return visualContext
   }
 
   /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
@@ -837,7 +842,7 @@ setMotionProfiles(this.registry.motionProfile)
     let adapterDisposed = false
     if (session) {
       const context = this.createVisualLifecycleContext(sessionId)
-      const adapter = context.group
+      const adapter = context?.group
         ? (this.getObjectGroupVisualAdapter(session.objectId) ?? this.getObjectVisualAdapter(session.objectId))
         : this.getObjectVisualAdapter(session.objectId)
       if (adapter.dispose) {
@@ -1438,8 +1443,14 @@ setMotionProfiles(this.registry.motionProfile)
   ): RegrabContext | null {
     const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return null
+    // regrab 只能接管当前仍在屏幕上的 landing host 和真实节点。
+    // 旧 source 可能已经 display:none，或在 Vue 重挂载期间短暂断开；
+    // 接受这类节点会让新 session 从 [0,0,0,0] 开始，代理随后飞到窗口左上角。
+    if (!proxyElement.isConnected || !sourceElement.isConnected) return null
     const proxyRect = proxyElement.getBoundingClientRect()
     const sourceRect = sourceElement.getBoundingClientRect()
+    if (proxyRect.width <= 0 || proxyRect.height <= 0) return null
+    if (sourceRect.width <= 0 || sourceRect.height <= 0) return null
     // regrab 代理需要的是当前屏幕上的布局尺寸，而不是未经过画布 camera
     // transform 的 offsetWidth/offsetHeight。后者在 50% 画布上会把新代理
     // 重建成 100% 大小。proxyRect 不能直接作为尺寸来源，因为它包含抓取

@@ -13,6 +13,8 @@ export interface MoveAction extends BaseAction {
   readonly point?: { x: number; y: number }
   /** physical 释放策略在松手瞬间的屏幕速度。 */
   readonly releaseVelocity?: { x: number; y: number }
+  /** 抓起时捕获的源元素 CSS 尺寸，供跨 Surface 的乐观插入使用。 */
+  readonly sourceSize?: { w: number; h: number }
 }
 
 export interface MoveGroupAction extends BaseAction {

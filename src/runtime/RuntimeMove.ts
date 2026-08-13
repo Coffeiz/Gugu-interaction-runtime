@@ -301,6 +301,7 @@ export class MoveActionCoordinator {
       index?: unknown
       point?: { x?: unknown; y?: unknown }
       releaseVelocity?: { x?: unknown; y?: unknown }
+      sourceSize?: { w?: unknown; h?: unknown }
     }
     if (typeof candidate.columnId !== 'string') return null
     const fromSurfaceId = this.port.getObjectSurface(objectId)
@@ -310,6 +311,7 @@ export class MoveActionCoordinator {
     // 会收到与注册值不同的 Action。
     const point = candidate.point as { x?: unknown; y?: unknown } | undefined
     const releaseVelocity = candidate.releaseVelocity as { x?: unknown; y?: unknown } | undefined
+    const sourceSize = candidate.sourceSize as { w?: unknown; h?: unknown } | undefined
     return {
       fromSurfaceId,
       toSurfaceId: candidate.columnId,
@@ -319,6 +321,9 @@ export class MoveActionCoordinator {
         : {}),
       ...(releaseVelocity && typeof releaseVelocity.x === 'number' && typeof releaseVelocity.y === 'number'
         ? { releaseVelocity: { x: releaseVelocity.x, y: releaseVelocity.y } }
+        : {}),
+      ...(sourceSize && typeof sourceSize.w === 'number' && sourceSize.w > 0 && typeof sourceSize.h === 'number' && sourceSize.h > 0
+        ? { sourceSize: { w: sourceSize.w, h: sourceSize.h } }
         : {}),
     }
   }
@@ -340,6 +345,7 @@ export class MoveActionCoordinator {
         ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }),
         ...(normalized.point === undefined ? {} : { point: normalized.point }),
         ...(normalized.releaseVelocity === undefined ? {} : { releaseVelocity: normalized.releaseVelocity }),
+        ...(normalized.sourceSize === undefined ? {} : { sourceSize: normalized.sourceSize }),
         timestamp: Date.now(),
       })
     } else {
@@ -350,6 +356,7 @@ export class MoveActionCoordinator {
         ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }),
         ...(normalized.point === undefined ? {} : { point: normalized.point }),
         ...(normalized.releaseVelocity === undefined ? {} : { releaseVelocity: normalized.releaseVelocity }),
+        ...(normalized.sourceSize === undefined ? {} : { sourceSize: normalized.sourceSize }),
         timestamp: Date.now(),
       })
     }

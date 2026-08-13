@@ -211,6 +211,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
       return bounds ? clampLandingRectToBounds(rect, bounds) : rect
     }
     const targetRect = clampTarget(rawLandingRect)
+    const hasUsableTargetRect = targetRect.width > 0 && targetRect.height > 0
+    if (!hasUsableTargetRect) {
+      return Promise.resolve({ completed: false, reason: 'target-zero-size' })
+    }
     if (targetElement && !context.preserveTarget) concealElement(targetElement, context.sessionId)
     el.style.transition = 'none'
     const isTargetLanding = context.landingMode === 'target'
@@ -220,6 +224,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
       && context.destinationSurfaceId
       && context.sourceSurfaceId !== context.destinationSurfaceId,
     )
+    // 跨 Surface 仍然继承抓起瞬间的姿态，交给 settle controller 自然衰减到
+    // 0。这里不能直接清零，否则松手会瞬间摆正；跨 Surface 的坐标差异由
+    // landing 的位置/尺寸换算处理，不能通过丢弃旋转状态来掩盖。
+    const landingMotionState = context.motionState
     // 跨 Surface 的项目卡仍应像看板换列一样交叉淡化到目标卡；只有文件/文件夹
     // 这类明确声明 disableTargetVisualMorph 的语义目标需要保留源卡外观，避免
     // 飞入文件夹时被替换成文件夹样式。
@@ -278,7 +286,21 @@ export class DefaultVisualAdapter implements VisualAdapter {
     const land = useLegacyLanding
       ? landDragProxyLegacy
       : landDragProxyWithMotion
+    const destinationPoint = context.destination && typeof context.destination === 'object'
+      ? (context.destination as { point?: { x?: unknown; y?: unknown } }).point
+      : undefined
+    const pointerRelease = destinationPoint
+      && typeof destinationPoint.x === 'number'
+      && typeof destinationPoint.y === 'number'
+      ? { x: destinationPoint.x, y: destinationPoint.y }
+      : undefined
     const { finished, retarget } = land(el, targetRect, {
+      objectId: context.objectId,
+      sessionId: context.sessionId,
+      pointerRelease,
+      targetSnapshot,
+      sourceSurfaceId: context.sourceSurfaceId,
+      destinationSurfaceId: context.destinationSurfaceId,
       duration: landingProfile?.duration ?? (context.landingMode === 'free'
         ? DEFAULT_MOTION_PROFILE.freeLanding.duration
         : DEFAULT_MOTION_PROFILE.landing.duration),
@@ -311,7 +333,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // 专属配置。拖出 viewport 后会回到 default landing，但仍必须沿用
       // 松手瞬间的画布比例，否则代理会按 100% 尺寸回飞。
       contentScale: context.contentScale,
-      motionState: context.releaseMode === 'normal' ? undefined : context.motionState,
+      motionState: context.releaseMode === 'normal' ? undefined : landingMotionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
         friction: DEFAULT_COAST_FRICTION,
