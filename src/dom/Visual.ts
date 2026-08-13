@@ -1010,17 +1010,22 @@ export function landDragProxyWithMotion(
           // 语义目标的 scaleShell 由 target dismiss 独占。若在这里继续按
           // 相机倍率同步，会把第一帧写入的缩小比例覆盖回 1，导致文件拖入
           // 文件夹时只有淡出、没有旧版的缩小动画。
-        } else if (landingShell && landingTargetContentScale > 0) {
-          // 普通 grid/list 回到另一倍率的 Surface 时，缩放壳必须围绕中心
-          // 过渡。若继续按左上角重算 left/top，内容会在外框平滑飞行时
-          // 先垂直吸附一段距离，表现成“先对齐高度再进入”。
-          landingShell.shell.style.left = `${((width - landingShell.baseWidth) / 2).toFixed(2)}px`
-          landingShell.shell.style.top = `${((height - landingShell.baseHeight) / 2).toFixed(2)}px`
-          landingShell.shell.style.transform = `scale(${landingTargetContentScale})`
         } else if (landingShell) {
-          // 外框尺寸和相机内容倍率是两条独立动画。抽屉回收时外框可能
-          // 完全不变，但内容仍需从画布倍率平滑回到抽屉的 1x。
-          updateDragProxyScaleShell(proxy, () => frame.scaleX * initialContentScale)
+          // 普通 grid/list 的列宽差由代理外框的 width/height 负责收敛，不能
+          // 再把目标宽度比例写进 shell transform，否则会出现“外框放大一次、
+          // 内容再放大一次”。shell 只保留 camera scale，并同步自己的布局盒，
+          // 让内容按目标列的真实宽度自然重排，和 main 的 morphTransform 一致。
+          // 普通列表/看板的目标尺寸已经是屏幕上的最终视觉尺寸，列宽差
+          // 只由外框和 shell 的布局宽高承担；不能再把 camera/列宽倍率叠
+          // 到内容 transform，否则文字会被额外放大。
+          const shellScale = 1
+          landingShell.shell.style.left = '0px'
+          landingShell.shell.style.top = '0px'
+          landingShell.shell.style.width = `${(width / shellScale).toFixed(2)}px`
+          landingShell.shell.style.height = `${(height / shellScale).toFixed(2)}px`
+          landingShell.shell.style.transform = shellScale === 1
+            ? 'scale(1)'
+            : `scale(${shellScale}, ${shellScale})`
         }
       }
   }
@@ -1088,7 +1093,9 @@ export function landDragProxyWithMotion(
     landingShell.shell.style.transformOrigin = '50% 50%'
     landingShell.shell.style.left = `${((startWidth - landingBaseWidth) / 2).toFixed(2)}px`
     landingShell.shell.style.top = `${((startHeight - landingBaseHeight) / 2).toFixed(2)}px`
-    landingShell.shell.style.transform = `scale(${initialContentScale})`
+    landingShell.shell.style.transform = initialContentScale === 1
+      ? 'scale(1)'
+      : `scale(${initialContentScale}, ${initialContentScale})`
     landingShell.shell.style.transition = `transform ${duration}ms ${easing}`
   }
   // Motion 的 scale 是相对于 landing shell 基准尺寸的。相机缩放已经由
@@ -1115,7 +1122,6 @@ export function landDragProxyWithMotion(
     scaleX: targetScale.scaleX,
     scaleY: targetScale.scaleY,
   })
-
   // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
   proxy.style.transition = ''
   const visualTransition = [
