@@ -41,6 +41,138 @@ function createRequest() {
 }
 
 describe('Runtime move orchestration', () => {
+  it('组开合会把同一根节点内 Surface 的自然高度交给 Runtime resize', async () => {
+    const runtime = new Runtime()
+    const root = document.createElement('div')
+    const viewport = document.createElement('div')
+    const content = document.createElement('div')
+    const card = document.createElement('div')
+    const measureLayout = vi.fn(() => ({ height: 180 }))
+
+    viewport.dataset.layoutSurface = 'drawer'
+    content.dataset.layoutContent = 'drawer-group'
+    content.dataset.layoutOpen = 'false'
+    card.dataset.layoutRole = 'card'
+    content.append(card)
+    viewport.append(content)
+    root.append(viewport)
+    document.body.append(root)
+
+    Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 180 })
+    viewport.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 280, height: 80, right: 280, bottom: 80,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    content.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 280, height: 0, right: 280, bottom: 0,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    card.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 240, height: 40, right: 240, bottom: 40,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+
+    runtime.surfaces.register({
+      id: 'drawer',
+      type: 'drawer',
+      layout: 'grid',
+      element: viewport,
+      layoutElement: () => viewport,
+      measureLayout,
+      accepts: ['project-card'],
+    })
+
+    await runtime.runGroupToggle({
+      root,
+      content,
+      opening: true,
+      mutate: () => { content.dataset.layoutOpen = 'true' },
+      waitForLayout: () => undefined,
+    })
+
+    expect(measureLayout).toHaveBeenCalled()
+    root.remove()
+  })
+
+  it('组开合会在组目标高度提交后测量 Surface，保持展开/收起方向一致', async () => {
+    const runtime = new Runtime()
+    const root = document.createElement('div')
+    const viewport = document.createElement('div')
+    const content = document.createElement('div')
+    const card = document.createElement('div')
+    let naturalHeight = 40
+    const measuredHeights: number[] = []
+    const measureLayout = vi.fn(() => {
+      measuredHeights.push(naturalHeight)
+      return { height: naturalHeight }
+    })
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      window.setTimeout(() => callback(performance.now()), 0)
+      return 1
+    })
+
+    viewport.dataset.layoutSurface = 'drawer'
+    content.dataset.layoutContent = 'drawer-group'
+    card.dataset.layoutRole = 'card'
+    content.append(card)
+    viewport.append(content)
+    root.append(viewport)
+    document.body.append(root)
+
+    Object.defineProperty(content, 'scrollHeight', { configurable: true, get: () => naturalHeight })
+    content.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 280, height: naturalHeight, right: 280, bottom: naturalHeight,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    viewport.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 280, height: 80, right: 280, bottom: 80,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    card.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 240, height: 40, right: 240, bottom: 40,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+
+    runtime.surfaces.register({
+      id: 'drawer-direction',
+      type: 'drawer',
+      layout: 'grid',
+      element: viewport,
+      layoutElement: () => viewport,
+      measureLayout,
+      accepts: ['project-card'],
+    })
+
+    try {
+      naturalHeight = 160
+      const opening = runtime.runGroupToggle({
+        root,
+        content,
+        opening: true,
+        mutate: () => { content.dataset.layoutOpen = 'true' },
+        waitForLayout: () => undefined,
+      })
+      await opening
+      expect(measuredHeights[measuredHeights.length - 1]).toBe(160)
+
+      viewport.dataset.runtimeSurfaceResize = ''
+      naturalHeight = 40
+      const closing = runtime.runGroupToggle({
+        root,
+        content,
+        opening: false,
+        mutate: () => { content.dataset.layoutOpen = 'false' },
+        waitForLayout: () => undefined,
+      })
+      await closing
+      expect(measuredHeights[measuredHeights.length - 1]).toBe(40)
+      expect(raf).toHaveBeenCalled()
+    } finally {
+      raf.mockRestore()
+      root.remove()
+    }
+  })
+
   it('只对 free landing 使用对象级释放速度上限', () => {
     const runtime = new Runtime()
     runtime.registerObjectType('canvas-card', {

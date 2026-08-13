@@ -27,6 +27,10 @@ export interface SurfaceLayoutSnapshot {
         width?: number;
         height: number;
     } | null;
+    readonly targetMeasure?: {
+        width?: number;
+        height: number;
+    } | null;
     readonly inlineStyle: Pick<CSSStyleDeclaration, 'height' | 'overflow' | 'transition'>;
 }
 export interface LayoutFlipSnapshot {
@@ -93,7 +97,7 @@ export declare function captureGroupLayout(elements: readonly HTMLElement[], mea
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
 export declare function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration?: number, easing?: string, measurement?: LayoutMeasurement): void;
-export declare function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration?: number, easing?: string, fromHeight?: number, retainTargetHeight?: boolean): void;
+export declare function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration?: number, easing?: string, fromHeight?: number, retainTargetHeight?: boolean): boolean;
 /**
  * 组件卸载或弹窗关闭时调用，取消该根节点下尚未完成的布局动画，并恢复
  * Runtime 临时写入的 transform/height/overflow，避免下一次交互继承旧状态。
@@ -108,6 +112,11 @@ export interface GroupToggleOptions {
     readonly isCurrent?: () => boolean;
     readonly duration?: number;
     readonly easing?: string;
+    /** 由 Runtime 注入当前 root 内 Surface 的自然尺寸测量。 */
+    readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => {
+        width?: number;
+        height: number;
+    } | null)>;
 }
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
 export declare function runGroupToggle(options: GroupToggleOptions): Promise<void>;

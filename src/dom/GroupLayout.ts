@@ -35,6 +35,7 @@ export interface SurfaceLayoutSnapshot {
   readonly element: HTMLElement
   readonly rect: GroupRect
   readonly measure?: () => { width?: number; height: number } | null
+  readonly targetMeasure?: { width?: number; height: number } | null
   readonly inlineStyle: Pick<CSSStyleDeclaration, 'height' | 'overflow' | 'transition'>
 }
 export interface LayoutFlipSnapshot {
@@ -512,6 +513,8 @@ export interface GroupToggleOptions {
   readonly isCurrent?: () => boolean
   readonly duration?: number
   readonly easing?: string
+  /** 由 Runtime 注入当前 root 内 Surface 的自然尺寸测量。 */
+  readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
 }
 
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
@@ -524,7 +527,9 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
       const rect = element.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0
     })
-  const snapshot = captureLayoutFlip(cards, options.root, false)
+  const snapshot = captureLayoutFlip(cards, options.root, false, undefined, {
+    surfaceMeasures: options.surfaceMeasures,
+  })
   const currentHeight = options.content.getBoundingClientRect().height
   const presenceState = layoutPresenceEnabled
     ? prepareGroupPresence(options.content, options.opening, options.duration, options.easing)
@@ -536,7 +541,72 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
   const targetHeight = options.opening ? options.content.scrollHeight : 0
   transitionGroupHeight(options.content, targetHeight, options.duration, options.easing, currentHeight)
   if (presenceState) playGroupPresence(presenceState, options.opening)
-  playLayoutFlip(snapshot)
+
+  // transitionGroupHeight 在下一帧才写入组的目标高度。Surface 的自然尺寸
+  // 依赖这次写入后的最终布局，必须等这一帧提交后再测量。
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+  if (groupToggleTokens.get(options.content) !== token) return
+  if (options.isCurrent && !options.isCurrent()) return
+  const targetMeasures = measureGroupSurfaceTargets(snapshot.surfaces, options.content, targetHeight)
+  const targetSnapshot: LayoutFlipSnapshot = targetMeasures.size > 0
+    ? {
+        ...snapshot,
+        surfaces: snapshot.surfaces.map(item => ({
+          ...item,
+          targetMeasure: targetMeasures.get(item.element),
+        })),
+      }
+    : snapshot
+  playLayoutFlip(targetSnapshot)
+}
+
+/**
+ * 在组动画开始前测量最终 Surface 尺寸。Surface 此时已在 capture 阶段被
+ * 冻结，组内容也还没进入过渡；如果直接调用 measureLayout，只会读到当前
+ * viewport 的中间高度。临时提交组目标高度和 Surface auto 布局，测量后
+ * 立刻恢复原始 inline style，整个过程不会跨出当前 JS task。
+ */
+function measureGroupSurfaceTargets(
+  surfaces: readonly SurfaceLayoutSnapshot[],
+  content: HTMLElement,
+  targetHeight: number,
+): Map<HTMLElement, { width?: number; height: number } | null> {
+  const targets = new Map<HTMLElement, { width?: number; height: number } | null>()
+  const contentStyle = {
+    height: content.style.height,
+    overflow: content.style.overflow,
+    transition: content.style.transition,
+  }
+  content.style.height = `${Math.max(0, targetHeight)}px`
+  content.style.overflow = 'hidden'
+  content.style.transition = 'none'
+
+  const surfaceStyles = surfaces.map(item => ({
+    item,
+    height: item.element.style.height,
+    overflow: item.element.style.overflow,
+    transition: item.element.style.transition,
+  }))
+  surfaceStyles.forEach(({ item }) => {
+    if (!item.measure) return
+    item.element.style.height = 'auto'
+    item.element.style.overflow = 'visible'
+    item.element.style.transition = 'none'
+  })
+  void content.offsetHeight
+  surfaceStyles.forEach(({ item }) => {
+    if (!item.measure) return
+    targets.set(item.element, item.measure())
+  })
+  surfaceStyles.forEach(({ item, height, overflow, transition }) => {
+    item.element.style.height = height
+    item.element.style.overflow = overflow
+    item.element.style.transition = transition
+  })
+  content.style.height = contentStyle.height
+  content.style.overflow = contentStyle.overflow
+  content.style.transition = contentStyle.transition
+  return targets
 }
 
 interface GroupPresenceState { content: HTMLElement; elements: HTMLElement[]; token: string; duration: number }
@@ -613,8 +683,8 @@ export function playSurfaceResize(
   const plans = before
     .filter(item => item.element.isConnected)
     .map(item => {
-      const measured = item.measure?.()
       const current = readRect(item.element, measurement)
+      const measured = item.targetMeasure !== undefined ? item.targetMeasure : item.measure?.()
       const next = measured
         ? { ...current, ...(measured.width === undefined ? {} : { width: measured.width }), height: measured.height }
         : current
@@ -702,6 +772,7 @@ function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): voi
     delete element.dataset.runtimeLayoutTransaction
   }
 }
+
 
 type SurfaceInlineStyle = SurfaceLayoutSnapshot['inlineStyle']
 

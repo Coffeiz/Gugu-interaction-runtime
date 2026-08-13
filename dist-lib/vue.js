@@ -1,114 +1,113 @@
-import { provide as b, inject as j, ref as f, watch as d, onUnmounted as s, toValue as n } from "vue";
-const y = Symbol("gugu-interaction-runtime");
-function w(e) {
-  b(y, e);
+import { inject as e, onUnmounted as t, provide as n, ref as r, toValue as i, watch as a } from "vue";
+//#region src/vue/context.ts
+var o = Symbol("gugu-interaction-runtime");
+function s(e) {
+	n(o, e);
 }
-function m() {
-  const e = j(y);
-  if (!e)
-    throw new Error("Vue Runtime provider is missing; call provideRuntime(runtime) in a parent component");
-  return e;
+function c() {
+	let t = e(o);
+	if (!t) throw Error("Vue Runtime provider is missing; call provideRuntime(runtime) in a parent component");
+	return t;
 }
-function v(e) {
-  return {
-    type: n(e.type),
-    surfaceId: n(e.surface),
-    abilities: [...n(e.abilities)],
-    selected: e.selected === void 0 ? !1 : n(e.selected),
-    visual: e.visual === void 0 ? void 0 : n(e.visual),
-    visualMode: e.visualMode === void 0 ? void 0 : n(e.visualMode),
-    target: e.target === void 0 ? void 0 : n(e.target),
-    node: e.node === void 0 ? void 0 : n(e.node)
-  };
+//#endregion
+//#region src/vue/useObject.ts
+function l(e) {
+	return {
+		type: i(e.type),
+		surfaceId: i(e.surface),
+		abilities: [...i(e.abilities)],
+		selected: e.selected !== void 0 && i(e.selected),
+		visual: e.visual === void 0 ? void 0 : i(e.visual),
+		visualMode: e.visualMode === void 0 ? void 0 : i(e.visualMode),
+		target: e.target === void 0 ? void 0 : i(e.target),
+		node: e.node === void 0 ? void 0 : i(e.node)
+	};
 }
-function E(e) {
-  const t = m(), c = f(null), a = v(e), i = t.objects.register({
-    id: e.id,
-    ...a,
-    element: null
-  });
-  return d(
-    () => v(e),
-    (u) => t.objects.update(e.id, u),
-    { deep: !0 }
-  ), d(c, (u, l) => {
-    const r = t.objects.get(e.id);
-    (r == null ? void 0 : r.generation) === i && (u === null && r.element && r.element !== l || t.objects.setElement(e.id, u));
-  }), s(() => {
-    t.unregisterObjectWhenIdle(e.id, i);
-  }), { elementRef: c, generation: i };
+function u(e) {
+	let n = c(), i = r(null), o = l(e), s = n.objects.register({
+		id: e.id,
+		...o,
+		element: null
+	});
+	return a(() => l(e), (t) => n.objects.update(e.id, t), { deep: !0 }), a(i, (t, r) => {
+		let i = n.objects.get(e.id);
+		i?.generation === s && (t === null && i.element && i.element !== r || n.objects.setElement(e.id, t));
+	}), t(() => {
+		n.unregisterObjectWhenIdle(e.id, s);
+	}), {
+		elementRef: i,
+		generation: s
+	};
 }
-function g(e) {
-  return {
-    type: n(e.type),
-    accepts: [...n(e.accepts)],
-    layout: n(e.layout),
-    camera: e.camera === void 0 ? void 0 : n(e.camera),
-    viewport: e.viewport,
-    layoutElement: e.layoutElement,
-    measureLayout: e.measureLayout,
-    motion: e.motion === void 0 ? void 0 : n(e.motion)
-  };
+//#endregion
+//#region src/vue/useSurface.ts
+function d(e) {
+	return {
+		type: i(e.type),
+		accepts: [...i(e.accepts)],
+		layout: i(e.layout),
+		camera: e.camera === void 0 ? void 0 : i(e.camera),
+		viewport: e.viewport,
+		layoutElement: e.layoutElement,
+		measureLayout: e.measureLayout,
+		motion: e.motion === void 0 ? void 0 : i(e.motion)
+	};
 }
+function f(e) {
+	let n = c(), i = r(null), o = d(e), s = n.surfaces.register({
+		id: e.id,
+		...o,
+		element: null
+	});
+	return a(() => d(e), (t) => n.surfaces.update(e.id, t), { deep: !0 }), a(i, (t, r) => {
+		let i = n.surfaces.get(e.id);
+		i?.generation === s && (t === null && i.element && i.element !== r || n.surfaces.setElement(e.id, t));
+	}), t(() => {
+		n.surfaces.unregister(e.id, s);
+	}), {
+		elementRef: i,
+		generation: s
+	};
+}
+//#endregion
+//#region src/vue/useTarget.ts
+function p(e) {
+	return {
+		surfaceId: i(e.surfaceId),
+		accepts: [...i(e.accepts)],
+		priority: e.priority === void 0 ? void 0 : i(e.priority),
+		resolve: e.resolve === void 0 ? void 0 : i(e.resolve)
+	};
+}
+function m(e) {
+	let n = c(), i = r(null), o = p(e), s = n.targets.register({
+		id: e.id,
+		...o,
+		element: null
+	});
+	return a(() => p(e), (t) => n.targets.update(e.id, t), { deep: !0 }), a(i, (t, r) => {
+		let i = n.targets.get(e.id);
+		i?.generation === s && (t === null && i.element && i.element !== r || n.targets.setElement(e.id, t));
+	}), t(() => {
+		n.targets.unregister(e.id, s);
+	}), {
+		elementRef: i,
+		generation: s
+	};
+}
+//#endregion
+//#region src/vue/useRuntimeAction.ts
 function h(e) {
-  const t = m(), c = f(null), a = g(e), i = t.surfaces.register({
-    id: e.id,
-    ...a,
-    element: null
-  });
-  return d(
-    () => g(e),
-    (u) => t.surfaces.update(e.id, u),
-    { deep: !0 }
-  ), d(c, (u, l) => {
-    const r = t.surfaces.get(e.id);
-    (r == null ? void 0 : r.generation) === i && (u === null && r.element && r.element !== l || t.surfaces.setElement(e.id, u));
-  }), s(() => {
-    t.surfaces.unregister(e.id, i);
-  }), { elementRef: c, generation: i };
+	let n = c().onAction(e);
+	t(n);
 }
-function o(e) {
-  return {
-    surfaceId: n(e.surfaceId),
-    accepts: [...n(e.accepts)],
-    priority: e.priority === void 0 ? void 0 : n(e.priority),
-    resolve: e.resolve === void 0 ? void 0 : n(e.resolve)
-  };
+//#endregion
+//#region src/vue/useRuntimeTransition.ts
+function g(e) {
+	let n = c(), i = r(n.isControlled(e)), a = n.onOwnershipChange((t) => {
+		t === e && (i.value = n.isControlled(e));
+	});
+	return t(a), { controlled: i };
 }
-function I(e) {
-  const t = m(), c = f(null), a = o(e), i = t.targets.register({
-    id: e.id,
-    ...a,
-    element: null
-  });
-  return d(
-    () => o(e),
-    (u) => t.targets.update(e.id, u),
-    { deep: !0 }
-  ), d(c, (u, l) => {
-    const r = t.targets.get(e.id);
-    (r == null ? void 0 : r.generation) === i && (u === null && r.element && r.element !== l || t.targets.setElement(e.id, u));
-  }), s(() => {
-    t.targets.unregister(e.id, i);
-  }), { elementRef: c, generation: i };
-}
-function O(e) {
-  const t = m().onAction(e);
-  s(t);
-}
-function C(e) {
-  const t = m(), c = f(t.isControlled(e)), a = t.onOwnershipChange((i) => {
-    i === e && (c.value = t.isControlled(e));
-  });
-  return s(a), { controlled: c };
-}
-export {
-  w as provideRuntime,
-  y as runtimeInjectionKey,
-  E as useObject,
-  m as useRuntime,
-  O as useRuntimeAction,
-  C as useRuntimeTransition,
-  h as useSurface,
-  I as useTarget
-};
+//#endregion
+export { s as provideRuntime, o as runtimeInjectionKey, u as useObject, c as useRuntime, h as useRuntimeAction, g as useRuntimeTransition, f as useSurface, m as useTarget };

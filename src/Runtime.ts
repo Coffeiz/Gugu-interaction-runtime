@@ -1201,7 +1201,16 @@ setMotionProfiles(this.registry.motionProfile)
 
   /** 统一编排组展开/收起、容器 resize、兄弟 FLIP 与可选 presence。 */
   runGroupToggle(options: import('./dom/GroupLayout').GroupToggleOptions): Promise<void> {
-    return runGroupToggle(options)
+    const surfaceMeasures = new Map<HTMLElement, (() => { width?: number; height: number } | null)>()
+    for (const surface of this.surfaces.snapshot()) {
+      if (!surface.measureLayout) continue
+      const element = surface.layoutElement?.() ?? surface.element
+      if (!element?.isConnected) continue
+      if (options.root instanceof Node && options.root.contains(element)) {
+        surfaceMeasures.set(element, surface.measureLayout)
+      }
+    }
+    return runGroupToggle({ ...options, surfaceMeasures })
   }
 
   /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */

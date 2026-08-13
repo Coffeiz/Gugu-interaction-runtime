@@ -1,5 +1,2 @@
-import { f as a, h as o } from "../../MoveAdapter-Ciw0f0rt.js";
-export {
-  a as createCloneMoveFromAdapter,
-  o as createDetachMoveFromAdapter
-};
+import { n as e, t } from "../../MoveAdapter-Bms-sYk_.js";
+export { t as createCloneMoveFromAdapter, e as createDetachMoveFromAdapter };
