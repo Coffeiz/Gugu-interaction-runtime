@@ -1046,7 +1046,9 @@ export function landDragProxyWithMotion(
             landingShell,
             width,
             height,
-            frame.scaleX * cameraScale,
+            options.landingContentScale !== undefined
+              ? cameraScale
+              : frame.scaleX * cameraScale,
           )
         }
       }
@@ -1142,8 +1144,8 @@ export function landDragProxyWithMotion(
           scaleY: visualStartHeight > 0 ? initialTarget.height / visualStartHeight : 1,
         }
       : {
-          // grid/list 的目标矩形已经是屏幕视觉尺寸；相机倍率只用于
-          // scaleShell 的内容继承，不能再次进入外框的几何比例。
+          // Motion 负责代理外框从抓取尺寸到目标尺寸的布局收敛；相机
+          // 倍率只由 scaleShell 负责，不能再混进这里的尺寸基准。
           scaleX: startWidth > 0 ? initialTarget.width / startWidth : 1,
           scaleY: startHeight > 0 ? initialTarget.height / startHeight : 1,
         }
@@ -1281,7 +1283,8 @@ export function landDragProxyWithMotion(
       const nextScaleY = options.landingMode === 'target' ? 1 : options.landingMode === 'free'
         ? next.height / visualStartHeight
         : next.height / startHeight
-      if (landingShell && options.landingMode !== 'free' && options.landingMode !== 'target') {
+      if (landingShell && options.landingMode !== 'free' && options.landingMode !== 'target'
+        && options.landingContentScale === undefined) {
         landingTargetContentScale = landingBaseWidth > 0
           ? next.width / landingBaseWidth
           : landingTargetContentScale

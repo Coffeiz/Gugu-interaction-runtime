@@ -649,6 +649,66 @@ describe('代理布局', () => {
     source.remove()
   })
 
+  it('收起组展开后的 grid landing 不重复叠加抓取时的摄像机倍率', async () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+
+    // 收起组展开时，目标卡仍是 240px；代理在画布上抓起后已经被
+    // 1.2839 倍摄像机倍率放大。目标 Surface 的视觉倍率是 1，外框
+    // 不应再把 240 / 308 作为第二次相机缩放。
+    const proxy = createDragProxy(source, rect(308, 127), { contentScale: 1.2839 })
+    proxy.dataset.runtimeProxyBaseWidth = '240'
+    proxy.dataset.runtimeProxyBaseHeight = '98.6875'
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 600,
+      top: 300,
+      width: 240,
+      height: 98.6875,
+    }, {
+      landingMode: 'default',
+      contentScale: 1.2839,
+      landingContentScale: 1,
+      motionState: {
+        x: 100, y: 100, vx: 0, vy: 0,
+        scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0,
+      },
+    })
+
+    vi.advanceTimersByTime(120)
+    const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
+    const shellScale = parseFloat(shell.style.transform.match(/scale\(([^,)]+)/)?.[1] ?? '0')
+    const outerWidth = parseFloat(proxy.style.width)
+
+    // 代理当前视觉宽度应由“外框布局宽度 * shell 相机倍率”组成，
+    // 而不是再把相机倍率乘进外框目标比例。二次缩放会让中段宽度
+    // 明显小于同一帧的单次相机缩放结果。
+    expect(shellScale).toBeGreaterThan(1)
+    expect(outerWidth).toBeGreaterThan(240)
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    expect(parseFloat(shell.style.transform.match(/scale\(([^,)]+)/)?.[1] ?? '0')).toBeCloseTo(1, 2)
+    expect(parseFloat(proxy.style.width)).toBeCloseTo(240, 0)
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
   it('看板跨列时保持内容基准并用 shell 收敛视觉宽度', async () => {
     const source = document.createElement('article')
     document.body.append(source)
