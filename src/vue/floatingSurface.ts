@@ -38,11 +38,8 @@ function clampHeight(height: number, maxHeight: number | null): number {
   return maxHeight !== null ? Math.min(height, Math.max(0, maxHeight)) : height
 }
 
-/**
- * 抓取到底部卡片时，Move Runtime 会临时插入滚动补偿占位，避免源卡移出
- * 布局流后 scrollTop 上跳。它只服务于滚动位置，不属于 Surface 的自然内容高度。
- */
 function readContentScrollHeight(element: HTMLElement): number {
+  // 兼容旧 Session 结束前残留的补偿节点；新的 Move Runtime 不再创建它。
   const compensation = Array.from(
     element.querySelectorAll<HTMLElement>('[data-runtime-scroll-compensation="true"]'),
   ).reduce((total, node) => total + node.getBoundingClientRect().height, 0)
