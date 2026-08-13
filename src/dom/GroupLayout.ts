@@ -142,12 +142,15 @@ export function captureLayoutFlip(
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
   const measurement = createLayoutMeasurement()
   const profile = resolveProfile()
+  // Surface 的自然高度必须在 FLIP transform 写入前测量。组/卡片的 Invert
+  // transform 可能扩大滚动溢出范围；先测 Surface 再播放 FLIP，避免抽屉
+  // 把动画中间态误当成自然高度，抓起底部卡片时留下额外空间。
+  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing, measurement)
   const groupClip = snapshot.group
     ? releaseGroupClip(snapshot.group.before)
     : null
   if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing, measurement)
   if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing, measurement)
-  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing, measurement)
   if (snapshot.presence) playCollectionPresence(snapshot.presence, {
       duration: profile.flip.duration,
       easing: profile.flip.easing,
