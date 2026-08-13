@@ -107,12 +107,37 @@ export interface GrabAlignConfig {
   offsetY?: number
 }
 
+/** 对象类型的摄像机适配声明。Phase 1A 只记录能力，不改变既有视觉行为。 */
+export interface ObjectCameraConfig {
+  /** 是否声明该对象会消费 Surface.camera；Phase 1A 默认保持旧行为为 true。 */
+  enabled?: boolean
+  /** 抓取阶段是否消费 camera.scale。 */
+  pickup?: boolean
+  /** 代理内容是否由 camera shell 承载比例。 */
+  scale?: boolean
+  /** free landing 是否消费 camera.origin。 */
+  origin?: boolean
+  /** landing 阶段是否继续跟踪 camera。 */
+  landing?: boolean
+}
+
+/** Runtime 内部使用的完整摄像机策略。 */
+export interface ResolvedObjectCameraConfig {
+  enabled: boolean
+  pickup: boolean
+  scale: boolean
+  origin: boolean
+  landing: boolean
+}
+
 export type MoveLandingResolution =
   | { kind: 'element'; element: HTMLElement }
   | { kind: 'rect'; rect: LandingRect }
 
 export interface ObjectTypeRegistration {
   defaultVisualMode: string
+  /** 对象级摄像机能力；Phase 1A 仅完成声明/归一化，暂不切换旧行为。 */
+  camera?: boolean | ObjectCameraConfig
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
   visual?: ObjectVisualAdapter
   /** 多对象叠卡视觉；默认使用 Runtime 内置效果，也可传入自定义适配器或显式关闭。 */
@@ -607,6 +632,26 @@ setMotionProfiles(this.registry.motionProfile)
     return registration?.grabAlign
   }
 
+  /**
+   * 返回对象类型的归一化 camera 策略。
+   *
+   * Phase 1A 保持历史兼容：未声明 camera 的对象仍按原先的 Surface.camera 行为运行；
+   * Phase 1B 才会把默认值切换为关闭，并要求画布对象显式声明 enabled。
+   */
+  getObjectCameraConfig(objectId: string): ResolvedObjectCameraConfig {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const configured = registration?.camera
+    const options = configured === true ? {} : configured === false || configured === undefined ? {} : configured
+    return {
+      enabled: configured === false ? false : options.enabled ?? true,
+      pickup: options.pickup ?? true,
+      scale: options.scale ?? true,
+      origin: options.origin ?? true,
+      landing: options.landing ?? true,
+    }
+  }
+
   /** 按对象类型读取运动策略；未显式关闭（`motion.enabled !== false`）时默认使用 MotionController。 */
   getObjectMotionEnabled(objectId: string): boolean {
     const object = this.objects.get(objectId)
@@ -740,7 +785,9 @@ setMotionProfiles(this.registry.motionProfile)
       landingMode: effectiveLandingMode,
       releaseMode: registration?.releaseMode ?? 'physical',
       contentScale: this.getSessionContentScale(sessionId, object?.surfaceId ?? undefined),
+      landingContentScale: destinationSurface?.layout === 'grid' ? 1 : undefined,
       cameraOrigin: this.getSurfaceCameraOrigin(object?.surfaceId),
+      camera: this.getObjectCameraConfig(object?.id ?? ''),
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
         const surfaceId = this.getDestinationSurfaceId(destination)

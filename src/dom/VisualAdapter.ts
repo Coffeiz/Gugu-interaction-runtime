@@ -65,6 +65,8 @@ export interface VisualLifecycleContext {
   readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
   /** 代理脱离缩放祖先后需要复现的当前视觉缩放。 */
   readonly contentScale?: number | (() => number)
+  /** 目标 grid Surface 的视觉倍率；通常为 1，用于从画布倍率平滑回收。 */
+  readonly landingContentScale?: number | (() => number)
   /** free Surface 的相机原点；由 Runtime 从 Surface.camera 注入。 */
   readonly cameraOrigin?: () => { left: number; top: number }
   /** 对象类型归一化后的 camera 能力；Phase 1A 仅供 adapter 观察，不改变既有行为。 */
@@ -339,6 +341,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // 专属配置。拖出 viewport 后会回到 default landing，但仍必须沿用
       // 松手瞬间的画布比例，否则代理会按 100% 尺寸回飞。
       contentScale: context.contentScale,
+      landingContentScale: context.landingContentScale,
       motionState: context.releaseMode === 'normal' ? undefined : landingMotionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,

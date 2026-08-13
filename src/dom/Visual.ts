@@ -880,7 +880,7 @@ export function landDragProxyWithMotion(
   const landingShell = prepareLandingScaleShell(proxy, initialContentScale)
   let landingTargetContentScale = landingShell && options.landingContentScale !== undefined
     ? resolveContentScale(options.landingContentScale)
-    : 0
+    : initialContentScale
   const cameraOrigin = options.cameraOrigin?.()
   const hasCameraAnchor = Boolean(
     options.landingMode === 'free'
@@ -937,6 +937,7 @@ export function landDragProxyWithMotion(
     height: next.height,
   })
   let currentTarget = target
+  const landingStartedAt = performance.now()
   let settled = false
   const hasTargetDismiss = options.landingMode === 'target' && Boolean(scaleShell)
   const dismissDuration = hasTargetDismiss
@@ -1036,11 +1037,16 @@ export function landDragProxyWithMotion(
           // 外框收敛的是目标列的屏幕尺寸；scaleShell 保留抓取时的相机
           // 倍率，并同步调整其基准布局尺寸。这样画布放大/缩小时内容仍按
           // 世界尺寸排版，跨列时又不会把文字额外放大一遍。
+          const elapsed = Math.max(0, performance.now() - landingStartedAt)
+          const progress = Math.min(1, elapsed / Math.max(1, duration))
+          const easedProgress = 1 - (1 - progress) ** 3
+          const cameraScale = initialContentScale
+            + (landingTargetContentScale - initialContentScale) * easedProgress
           applyLandingScale(
             landingShell,
             width,
             height,
-            frame.scaleX * initialContentScale,
+            frame.scaleX * cameraScale,
           )
         }
       }
