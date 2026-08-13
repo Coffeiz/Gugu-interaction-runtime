@@ -19,13 +19,22 @@
         </div>
       </div>
 
-      <CanvasDrawer ref="drawerRef" :collapsed="drawerCollapsed">
-        <template #default>
-          <div class="drawer-header">
-            <button v-if="drawerCollapsed" @click="drawerCollapsed = false">▤</button>
-            <template v-else><strong>项目抽屉</strong><button @click="drawerCollapsed = true">⌃</button></template>
-          </div>
-          <div ref="drawerContentRef" class="drawer-drop-zone" data-layout-content>
+      <CanvasDrawer ref="drawerRef" data-layout-surface data-surface-type="drawer" :collapsed="drawerCollapsed">
+        <template #header="{ collapsed }">
+          <Transition name="drawer-heading-fade">
+            <div v-if="collapsed" key="compact" class="drawer-compact-heading">
+              <button type="button" class="drawer-icon-button" aria-label="展开项目抽屉" @click="toggleDrawer">▤</button>
+            </div>
+            <div v-else key="full" class="drawer-heading">
+              <div class="drawer-title"><span class="drawer-kicker">DRAWER</span><h3>项目抽屉</h3></div>
+              <div class="drawer-heading-actions">
+                <span>{{ drawerNodes.length }}</span>
+                <button type="button" class="drawer-toggle" aria-label="收起项目抽屉" :aria-expanded="!collapsed" @click="toggleDrawer">⌃</button>
+              </div>
+            </div>
+          </Transition>
+        </template>
+        <div ref="drawerContentRef" class="drawer-drop-zone" data-canvas-drawer-drop data-layout-content :data-layout-open="!drawerCollapsed">
             <p>拖到这里收纳</p>
             <section v-for="group in drawerGroups" :key="group.id" class="drawer-group" data-layout-group>
               <div class="drawer-group-heading"><span>{{ group.title }}</span><span>{{ group.nodes.length }}</span></div>
@@ -33,7 +42,6 @@
             </section>
             <span v-if="drawerNodes.length === 0" class="drawer-empty">抽屉还是空的</span>
           </div>
-        </template>
       </CanvasDrawer>
     </div>
   </section>
@@ -72,7 +80,13 @@ const { elementRef: canvasSurfaceRef } = useSurface({
   id: 'canvas:main', type: 'canvas', layout: 'free', accepts: ['canvas-sticker'],
   camera: { scale: 1, origin: () => ({ left: 0, top: 0 }) },
 })
-const { elementRef: drawerSurfaceRef } = useSurface({ id: 'canvas:drawer', type: 'drawer', layout: 'grid', accepts: ['canvas-sticker'] })
+const { elementRef: drawerSurfaceRef } = useSurface({
+  id: 'canvas:drawer',
+  type: 'drawer',
+  layout: 'grid',
+  accepts: ['canvas-sticker'],
+  floating: { scrollKey: 'projects', maxHeight: 420 },
+})
 
 function registerCanvasType(): void {
   runtime.registerObjectType('canvas-sticker', {
@@ -137,6 +151,7 @@ useRuntimeAction(action => {
 })
 
 function setMotionMode(mode: 'normal' | 'physical'): void { motionMode.value = mode; registerCanvasType() }
+function toggleDrawer(): void { drawerCollapsed.value = !drawerCollapsed.value }
 function onViewportPointerDown(event: PointerEvent): void { if (!(event.target as HTMLElement).closest('[data-card]')) event.currentTarget instanceof HTMLElement && event.currentTarget.setPointerCapture(event.pointerId) }
 function selectNode(id: string): void { if (!relations.value.some(relation => relation.from === id)) relations.value.push({ id: `relation-${Date.now()}`, from: id, to: nodes.value[0]?.id ?? id }) }
 function relationPath(relation: { from: string; to: string }): string { const from = nodes.value.find(node => node.id === relation.from); const to = nodes.value.find(node => node.id === relation.to); if (!from || !to) return ''; return `M ${from.x + 184} ${from.y + 43} C ${from.x + 260} ${from.y + 43}, ${to.x - 76} ${to.y + 43}, ${to.x} ${to.y + 43}` }
@@ -149,5 +164,23 @@ function relationPath(relation: { from: string; to: string }): string { const fr
 .canvas-controls { display: flex; align-items: center; gap: 8px; color: #8991a8; font-size: 12px; }.canvas-controls button,.motion-mode-switch button { border: 1px solid #dce1ec; border-radius: 8px; padding: 7px 10px; background: #fff; color: #66708b; cursor: pointer; }.canvas-controls button.active,.motion-mode-switch button.active { border-color: #7781d6; background: #7781d6; color: #fff; }
 .motion-mode-switch { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid #dce1ec; border-radius: 9px; background: rgba(255,255,255,.72); }.motion-mode-switch span { padding: 0 4px; }
 .canvas-workspace { display: flex; min-height: 0; flex: 1; gap: 14px; overflow: hidden; }.canvas-viewport { position: relative; min-width: 0; flex: 1; overflow: hidden; border: 1px solid #dfe3ef; border-radius: 16px; background-color: #f8f9fd; background-image: radial-gradient(#dce1f0 1px, transparent 1px); background-size: 18px 18px; cursor: grab; }.canvas-world { position: absolute; inset: 0; }.relation-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }.relation-line { fill: none; stroke: #8b94c8; stroke-width: 2; stroke-dasharray: 5 5; opacity: .75; }
-.drawer-header { display: flex; min-height: 52px; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #e7e9f1; }.drawer-header button { border: 0; background: transparent; color: #747eaa; cursor: pointer; font-size: 18px; }.drawer-drop-zone { display: flex; flex-direction: column; gap: 12px; padding: 14px; }.drawer-drop-zone > p { margin: 0; color: #a0a7ba; font-size: 11px; }.drawer-group { display: flex; flex-direction: column; gap: 8px; }.drawer-group-heading { display: flex; justify-content: space-between; color: #747d9d; font-size: 11px; font-weight: 650; }.drawer-empty { display: grid; min-height: 100px; place-items: center; color: #a7aec0; font-size: 12px; }
+.drawer-heading { display: flex; min-height: 52px; flex: 0 0 52px; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #e7e9f1; }
+.drawer-compact-heading { display: grid; min-height: 50px; flex: 0 0 50px; place-items: center; }
+.drawer-heading-fade-enter-active, .drawer-heading-fade-leave-active { transition: opacity .18s cubic-bezier(.22,1,.36,1), filter .18s cubic-bezier(.22,1,.36,1); }
+.drawer-heading-fade-enter-from, .drawer-heading-fade-leave-to { opacity: 0; filter: blur(3px); }
+.drawer-heading-fade-leave-active { position: absolute; top: 0; left: 0; right: 0; }
+.drawer-icon-button { display: grid; width: 36px; height: 36px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #747eaa; cursor: pointer; font-size: 18px; line-height: 1; transition: background .18s ease, color .18s ease; }
+.drawer-icon-button:hover { background: rgba(123,127,178,.11); color: #6874c3; }
+.drawer-title { min-width: 0; }
+.drawer-heading h3 { margin: 4px 0 0; font-size: 15px; }
+.drawer-heading-actions { display: flex; align-items: center; gap: 7px; color: #858db0; font-size: 12px; }
+.drawer-toggle { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: #747eaa; cursor: pointer; font-size: 16px; line-height: 1; }
+.drawer-toggle:hover { background: #eef0fb; }
+.drawer-kicker { color: #9aa2bd; font-size: 9px; letter-spacing: .12em; }
+.drawer-drop-zone { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+.drawer-drop-zone > p { margin: 0 0 2px; color: #a0a7ba; font-size: 11px; }
+.drawer-group { display: flex; flex-direction: column; gap: 8px; }
+.drawer-group-heading { display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 0; color: #747d9d; font-size: 11px; font-weight: 650; }
+.drawer-group-heading span:last-child { color: #a0a7ba; font-weight: 500; }
+.drawer-empty { display: grid; min-height: 120px; place-items: center; border: 1px dashed #d8ddea; border-radius: 12px; color: #a7aec0; font-size: 12px; }
 </style>

@@ -1,5 +1,5 @@
 import { createApp, defineComponent, h, nextTick, ref } from 'vue'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Runtime } from '../Runtime'
 import type { Action } from '../action/Action'
 import { provideRuntime } from '../vue/context'
@@ -7,6 +7,7 @@ import { useObject } from '../vue/useObject'
 import { useRuntimeAction } from '../vue/useRuntimeAction'
 import { useRuntimeTransition } from '../vue/useRuntimeTransition'
 import { useSurface } from '../vue/useSurface'
+import { resolveFloatingSurfaceDom } from '../vue/floatingSurface'
 import { useTarget } from '../vue/useTarget'
 
 function createHost(runtime: Runtime, child: ReturnType<typeof defineComponent>) {
@@ -27,6 +28,151 @@ function mount(runtime: Runtime, child: ReturnType<typeof defineComponent>) {
 }
 
 describe('Vue Runtime composables', () => {
+  it('浮动 Surface 只在根节点内发现布局节点和真实滚动节点，并限制自然高度', () => {
+    const root = document.createElement('section')
+    const viewport = document.createElement('div')
+    const projects = document.createElement('div')
+    const outside = document.createElement('div')
+    viewport.dataset.layoutRole = 'viewport'
+    projects.dataset.drawerScroll = 'projects'
+    outside.dataset.drawerScroll = 'projects'
+    viewport.append(projects)
+    root.append(viewport)
+    document.body.append(outside, root)
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 640 })
+    Object.defineProperty(projects, 'scrollHeight', { configurable: true, value: 420 })
+
+    const resolved = resolveFloatingSurfaceDom(root, { scrollKey: 'projects', maxHeight: 240 })
+
+    expect(resolved.layoutElement).toBe(viewport)
+    expect(resolved.viewport).toBe(projects)
+    expect(resolved.measureLayout()).toEqual({ height: 240 })
+    expect(resolved.viewport).not.toBe(outside)
+    outside.remove()
+    root.remove()
+  })
+
+  it('浮动 Surface 的自然高度不会被滚动节点或同级布局内容截断', () => {
+    const root = document.createElement('section')
+    const viewport = document.createElement('div')
+    const projects = document.createElement('div')
+    const groups = document.createElement('div')
+    const collapsedGroup = document.createElement('div')
+    viewport.dataset.layoutRole = 'viewport'
+    projects.dataset.drawerScroll = 'projects'
+    groups.dataset.layoutCollection = 'drawer:groups'
+    collapsedGroup.dataset.layoutContent = 'collapsed'
+    collapsedGroup.dataset.layoutOpen = 'false'
+    viewport.style.height = '140px'
+    viewport.style.overflow = 'hidden'
+    viewport.append(projects, groups, collapsedGroup)
+    root.append(viewport)
+    document.body.append(root)
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 180 })
+    Object.defineProperty(projects, 'scrollHeight', { configurable: true, value: 420 })
+    Object.defineProperty(groups, 'scrollHeight', { configurable: true, value: 680 })
+    Object.defineProperty(collapsedGroup, 'scrollHeight', { configurable: true, value: 5398 })
+
+    const resolved = resolveFloatingSurfaceDom(root, { scrollKey: 'projects', maxHeight: 700 })
+
+    expect(resolved.measureLayout()).toEqual({ height: 680 })
+    expect(viewport.style.height).toBe('140px')
+    expect(viewport.style.overflow).toBe('hidden')
+    root.remove()
+  })
+
+  it('浮动 Surface 不会把滚动轨道的溢出高度当成外壳高度', () => {
+    const root = document.createElement('section')
+    const viewport = document.createElement('div')
+    const projects = document.createElement('div')
+    const groups = document.createElement('div')
+    viewport.dataset.layoutRole = 'viewport'
+    projects.dataset.drawerScroll = 'projects'
+    groups.dataset.layoutCollection = 'drawer:groups'
+    viewport.append(projects, groups)
+    root.append(viewport)
+    document.body.append(root)
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 269 })
+    Object.defineProperty(projects, 'scrollHeight', { configurable: true, value: 317 })
+    Object.defineProperty(groups, 'scrollHeight', { configurable: true, value: 317 })
+
+    const resolved = resolveFloatingSurfaceDom(root, { scrollKey: 'projects', maxHeight: 700 })
+
+    expect(resolved.measureLayout()).toEqual({ height: 269 })
+    root.remove()
+  })
+
+  it('浮动 Surface 不会把抓取时的滚动补偿占位算进自然高度', () => {
+    const root = document.createElement('section')
+    const viewport = document.createElement('div')
+    const projects = document.createElement('div')
+    const compensation = document.createElement('div')
+    viewport.dataset.layoutRole = 'viewport'
+    projects.dataset.drawerScroll = 'projects'
+    compensation.dataset.runtimeScrollCompensation = 'true'
+    compensation.style.height = '260px'
+    viewport.append(projects, compensation)
+    root.append(viewport)
+    document.body.append(root)
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 520 })
+    Object.defineProperty(projects, 'scrollHeight', { configurable: true, value: 260 })
+    Object.defineProperty(compensation, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ height: 260, width: 1, top: 0, left: 0, right: 1, bottom: 260 }),
+    })
+
+    const resolved = resolveFloatingSurfaceDom(root, { scrollKey: 'projects', maxHeight: 700 })
+
+    expect(resolved.measureLayout()).toEqual({ height: 260 })
+    root.remove()
+  })
+
+  it('浮动 Surface 的显式 DOM getter 覆盖自动发现结果', async () => {
+    const runtime = new Runtime()
+    const explicitViewport = document.createElement('div')
+    const explicitLayout = document.createElement('div')
+    const explicitMeasure = vi.fn(() => ({ height: 88 }))
+    const child = defineComponent({
+      setup() {
+        const surface = useSurface({
+          id: 'surface:floating-explicit', type: 'drawer', layout: 'grid', accepts: ['card'],
+          floating: { scrollKey: 'projects' },
+          viewport: () => explicitViewport,
+          layoutElement: () => explicitLayout,
+          measureLayout: explicitMeasure,
+        })
+        return () => h('section', { ref: surface.elementRef }, [
+          h('div', { 'data-layout-role': 'viewport' }, [h('div', { 'data-drawer-scroll': 'projects' })]),
+        ])
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+
+    const surface = runtime.surfaces.get('surface:floating-explicit')
+    expect(surface?.viewport?.()).toBe(explicitViewport)
+    expect(surface?.layoutElement?.()).toBe(explicitLayout)
+    expect(surface?.measureLayout?.()).toEqual({ height: 88 })
+    expect(explicitMeasure).toHaveBeenCalled()
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
+  it('浮动 Surface 可以按当前面板动态选择真实滚动节点', () => {
+    const root = document.createElement('div')
+    const projects = document.createElement('div')
+    const canvases = document.createElement('div')
+    projects.dataset.drawerScroll = 'projects'
+    canvases.dataset.drawerScroll = 'canvases'
+    root.append(projects, canvases)
+    const panel = { value: 'projects' as 'projects' | 'canvases' }
+
+    const resolved = resolveFloatingSurfaceDom(root, { scrollKey: () => panel.value })
+    expect(resolved.viewport).toBe(projects)
+    panel.value = 'canvases'
+    expect(resolveFloatingSurfaceDom(root, { scrollKey: () => panel.value }).viewport).toBe(canvases)
+  })
+
   it('useObject/useSurface/useTarget 负责注册、绑定 DOM 和卸载', async () => {
     const runtime = new Runtime()
     const child = defineComponent({

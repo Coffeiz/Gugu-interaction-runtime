@@ -547,6 +547,133 @@ describe('Runtime move orchestration', () => {
     expect(viewport.scrollTop).toBe(60)
   })
 
+  it('浮动 Surface 使用内部滚动视口，而不是外壳作为自动滚动容器', () => {
+    const runtime = createRuntime()
+    const shell = document.createElement('div')
+    const viewport = document.createElement('div')
+    const target = document.createElement('div')
+    const rafCallbacks: FrameRequestCallback[] = []
+    let shellScrollTop = 17
+    let viewportScrollTop = 120
+
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback)
+      return rafCallbacks.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+    Object.defineProperty(shell, 'scrollTop', {
+      configurable: true,
+      get: () => shellScrollTop,
+      set: (value: number) => { shellScrollTop = value },
+    })
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => viewportScrollTop,
+      set: (value: number) => { viewportScrollTop = value },
+    })
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 1200 })
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 320 })
+    vi.spyOn(shell, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 40, 300, 580))
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 300, 320))
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 430, 280, 48))
+    Object.defineProperty(viewport, 'scrollTo', {
+      value: ({ top }: ScrollToOptions) => { viewport.scrollTop = top ?? viewport.scrollTop },
+    })
+    viewport.append(target)
+    shell.append(viewport)
+    document.body.append(shell)
+
+    runtime.surfaces.register({
+      id: 'surface:floating-scroll',
+      type: 'drawer',
+      layout: 'grid',
+      element: shell,
+      layoutElement: () => shell,
+      viewport: () => viewport,
+      accepts: ['project-card'],
+    })
+
+    runtime.keepSurfaceTargetVisible('surface:floating-scroll', target)
+    expect(shellScrollTop).toBe(17)
+    expect(viewportScrollTop).toBe(120)
+    rafCallbacks.shift()?.(performance.now() + 250)
+    expect(shellScrollTop).toBe(17)
+    expect(viewportScrollTop).toBe(178)
+
+    shell.remove()
+    vi.unstubAllGlobals()
+  })
+
+  it('浮动 Surface 的布局外壳与自然尺寸元素分离时仍由 Runtime 测量布局元素', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      return window.setTimeout(() => callback(performance.now()), 0)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    const runtime = new Runtime()
+    const root = document.createElement('div')
+    const shell = document.createElement('div')
+    const layoutElement = document.createElement('div')
+    const content = document.createElement('div')
+    const card = document.createElement('div')
+    const measureLayout = vi.fn(() => ({ height: 180 }))
+
+    layoutElement.dataset.layoutSurface = 'floating-drawer'
+    content.dataset.layoutContent = 'floating-group'
+    card.dataset.layoutRole = 'card'
+    content.append(card)
+    layoutElement.append(content)
+    shell.append(layoutElement)
+    root.append(shell)
+    document.body.append(root)
+    Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 180 })
+    shell.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 320, height: 580, right: 320, bottom: 580,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    layoutElement.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 320, height: 80, right: 320, bottom: 80,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    content.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 320, height: 0, right: 320, bottom: 0,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    card.getBoundingClientRect = () => ({
+      top: 0, left: 0, width: 280, height: 40, right: 280, bottom: 40,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    runtime.surfaces.register({
+      id: 'floating-drawer',
+      type: 'drawer',
+      layout: 'grid',
+      element: shell,
+      layoutElement: () => layoutElement,
+      measureLayout,
+      accepts: ['project-card'],
+    })
+
+    try {
+      const toggle = runtime.runGroupToggle({
+        root,
+        content,
+        opening: true,
+        duration: 0,
+        mutate: () => { content.dataset.layoutOpen = 'true' },
+        waitForLayout: () => undefined,
+      })
+      await vi.advanceTimersByTimeAsync(100)
+      await toggle
+
+      expect(measureLayout).toHaveBeenCalled()
+      expect(shell.dataset.runtimeLayoutTransaction).not.toBe('true')
+    } finally {
+      root.remove()
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
+  })
+
   it('Surface Lease 不允许后续 Session 覆盖当前控制权', () => {
     const runtime = createRuntime()
     const first = runtime.start(createRequest())

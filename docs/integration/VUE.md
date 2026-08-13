@@ -86,6 +86,29 @@ FLIP 的元素；`measureLayout` 返回内容变化后的自然高度。抽屉�
 等场景应使用这两个声明，不能再由业务在拖拽回调里重复驱动高度动画。Runtime 会在
 布局事务中读取自然尺寸、执行 resize，并在事务结束后保留目标高度、清理其余临时样式。
 
+浮动 Surface 可以使用 Vue 适配层的自动发现能力：
+
+```ts
+const { elementRef } = useSurface({
+  id: 'mind:drawer',
+  type: 'mind-drawer',
+  accepts: ['mind-project-object'],
+  layout: 'grid',
+  floating: {
+    open: () => expanded.value,
+    scrollKey: () => panel.value,
+    maxHeight: () => window.innerHeight * 0.55,
+  },
+})
+```
+
+根节点下标注 `data-layout-role="viewport"` 的节点会作为布局节点，
+`data-drawer-scroll="projects"` 会作为真实滚动视口。显式传入的
+`layoutElement`、`viewport`、`measureLayout` 优先于自动发现；复杂 DOM 拓扑不应依赖
+适配层猜测。`floating` 只属于 Vue 接入层，不改变 Core 的 grid/free 或 landing 语义。
+提供 `open` 后，浮动 Surface 的自然高度、限高和开合动画也由 Runtime 统一管理；业务组件
+不应再维护 `panelHeights`、`measurePanel`、`ResizeObserver` 或直接调用高度过渡函数。
+
 ### Target
 
 新增与 `useSurface` 同形状的 `useTarget`，用于面包屑、文件夹等没有独立 Object
