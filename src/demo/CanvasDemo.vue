@@ -95,6 +95,7 @@ const { elementRef: drawerSurfaceRef } = useSurface({
 function registerCanvasType(): void {
   runtime.registerObjectType('canvas-sticker', {
     defaultVisualMode: props.strategy ?? 'detach',
+    camera: { enabled: true },
     releaseMode: motionMode.value,
     resolveMoveHit: ({ x, y }) => {
       const drawer = drawerRef.value?.element

@@ -178,7 +178,7 @@ export function restoreProxyVisualState(
 export function createDragProxy(
   source: HTMLElement,
   rect: DOMRect = source.getBoundingClientRect(),
-  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number) } = {},
+  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number); cameraShell?: boolean } = {},
 ): HTMLElement {
   const compact = options.layout?.compact
   // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
@@ -187,6 +187,7 @@ export function createDragProxy(
   const scaleShell = document.createElement('div')
   const content = source.cloneNode(true) as HTMLElement
   scaleShell.dataset.runtimeProxyScaleShell = 'true'
+  if (options.cameraShell) scaleShell.dataset.runtimeCameraShell = 'true'
   content.dataset.runtimeProxyContent = 'true'
   Object.assign(scaleShell.style, {
     position: 'absolute', left: '0', top: '0',
@@ -433,6 +434,8 @@ export interface LandingVisualOptions {
   cameraOrigin?: () => { left: number; top: number }
   /** free 画布 landing 的实时相机比例。 */
   contentScale?: number | (() => number)
+  /** 当前代理是否由对象级 camera capability 启用 camera shell。 */
+  cameraShell?: boolean
   /** grid/list 目标的最终内容倍率；未提供时按目标视觉宽度与代理基准宽度推导。 */
   landingContentScale?: number | (() => number)
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
@@ -883,7 +886,8 @@ export function landDragProxyWithMotion(
     : initialContentScale
   const cameraOrigin = options.cameraOrigin?.()
   const hasCameraAnchor = Boolean(
-    options.landingMode === 'free'
+    options.cameraShell
+    && options.landingMode === 'free'
     && cameraOrigin
     && Number.isFinite(cameraOrigin.left)
     && Number.isFinite(cameraOrigin.top),
@@ -944,6 +948,7 @@ export function landDragProxyWithMotion(
     ? options.dismiss?.duration ?? duration
     : 0
   let motionArrived = false
+  let settleCheckRaf: number | null = null
   let dismissFinished = !hasTargetDismiss
   let timeoutId: number | null = null
   let dismissTimeoutId: number | null = null
@@ -961,6 +966,8 @@ export function landDragProxyWithMotion(
     dismissTimeoutId = null
     if (cameraTrackRaf !== null) window.cancelAnimationFrame(cameraTrackRaf)
     cameraTrackRaf = null
+    if (settleCheckRaf !== null) window.cancelAnimationFrame(settleCheckRaf)
+    settleCheckRaf = null
     camGlue?.remove()
     camGlue = null
     resolveFinished()
@@ -972,35 +979,31 @@ export function landDragProxyWithMotion(
 
   const settle = () => {
     if (settled) return
-    if (options.sourceSurfaceId && options.destinationSurfaceId && options.sourceSurfaceId !== options.destinationSurfaceId) {
-      const finalRect = proxy.getBoundingClientRect()
-      const finalTarget = currentTarget
-      const scaleShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
-      const contentRoot = getProxyContent(proxy)
-      const targetContentShell = contentRoot.querySelector<HTMLElement>('[data-runtime-proxy-target-content-scale-shell]')
-      const rectOf = (element: HTMLElement | null) => {
-        if (!element) return null
-        const rect = element.getBoundingClientRect()
-        const style = getComputedStyle(element)
-        return {
-          rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-          inline: {
-            width: element.style.width,
-            height: element.style.height,
-            left: element.style.left,
-            top: element.style.top,
-            transform: element.style.transform,
-          },
-          computed: {
-            transform: style.transform,
-            transformOrigin: style.transformOrigin,
-            opacity: style.opacity,
-          },
+    if (settleCheckRaf !== null) return
+    settleCheckRaf = window.requestAnimationFrame(() => {
+      settleCheckRaf = null
+      if (settled) return
+      const liveTarget = options.readTarget?.()
+      if (liveTarget && liveTarget.width > 0 && liveTarget.height > 0) {
+        const changed = Math.abs(liveTarget.left - currentTarget.left) >= 0.5
+          || Math.abs(liveTarget.top - currentTarget.top) >= 0.5
+          || Math.abs(liveTarget.width - currentTarget.width) >= 0.5
+          || Math.abs(liveTarget.height - currentTarget.height) >= 0.5
+        if (changed) {
+          currentTarget = liveTarget
+          const next = centeredTarget(liveTarget)
+          const nextScaleX = options.landingMode === 'target' ? 1
+            : next.width / (options.landingMode === 'free' ? visualStartWidth : startWidth)
+          const nextScaleY = options.landingMode === 'target' ? 1
+            : next.height / (options.landingMode === 'free' ? visualStartHeight : startHeight)
+          motion.retarget({ x: next.left, y: next.top, scaleX: nextScaleX, scaleY: nextScaleY })
+          motion.start()
+          return
         }
       }
-    }
-    motionArrived = true
-    finishWhenVisualsSettled()
+      motionArrived = true
+      finishWhenVisualsSettled()
+    })
   }
   const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
       const left = frame.x
@@ -1042,14 +1045,22 @@ export function landDragProxyWithMotion(
           const easedProgress = 1 - (1 - progress) ** 3
           const cameraScale = initialContentScale
             + (landingTargetContentScale - initialContentScale) * easedProgress
-          applyLandingScale(
-            landingShell,
-            width,
-            height,
-            options.landingContentScale !== undefined
-              ? cameraScale
-              : frame.scaleX * cameraScale,
-          )
+          if (options.cameraShell) {
+            applyLandingScale(
+              landingShell,
+              width,
+              height,
+              options.landingContentScale !== undefined
+                ? cameraScale
+                : frame.scaleX * cameraScale,
+            )
+          } else {
+            landingShell.shell.style.left = '0px'
+            landingShell.shell.style.top = '0px'
+            landingShell.shell.style.width = `${width}px`
+            landingShell.shell.style.height = `${height}px`
+            landingShell.shell.style.transform = 'scale(1)'
+          }
         }
       }
   }
@@ -1122,11 +1133,19 @@ export function landDragProxyWithMotion(
     // 抽屉回收和普通 grid 落地都需要把抓取时的相机倍率平滑还原到目标
     // Surface 的视觉倍率；不能把它混进 Motion 的外框 scale，否则会二次放大。
     landingShell.shell.style.transformOrigin = '0 0'
-    landingShell.shell.style.left = `${((startWidth - landingBaseWidth * initialContentScale) / 2).toFixed(2)}px`
-    landingShell.shell.style.top = `${((startHeight - landingBaseHeight * initialContentScale) / 2).toFixed(2)}px`
-    landingShell.shell.style.transform = initialContentScale === 1
-      ? 'scale(1)'
-      : `scale(${initialContentScale}, ${initialContentScale})`
+    if (options.cameraShell) {
+      landingShell.shell.style.left = `${((startWidth - landingBaseWidth * initialContentScale) / 2).toFixed(2)}px`
+      landingShell.shell.style.top = `${((startHeight - landingBaseHeight * initialContentScale) / 2).toFixed(2)}px`
+      landingShell.shell.style.transform = initialContentScale === 1
+        ? 'scale(1)'
+        : `scale(${initialContentScale}, ${initialContentScale})`
+    } else {
+      landingShell.shell.style.left = '0px'
+      landingShell.shell.style.top = '0px'
+      landingShell.shell.style.width = `${startWidth}px`
+      landingShell.shell.style.height = `${startHeight}px`
+      landingShell.shell.style.transform = 'scale(1)'
+    }
     // Camera shell 的归一化只是把当前视觉尺寸转换为 landing 外壳尺寸，
     // 不应再单独播放一段缩放过渡；真正的尺寸动画由代理外壳统一承载。
     landingShell.shell.style.transition = 'none'
@@ -1360,6 +1379,7 @@ export function applyFloatingStyle(
     layout?: DragProxyLayoutConfig
     keepSourceVisible?: boolean
     contentScale?: number | (() => number)
+    cameraShell?: boolean
   } = {},
 ) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
@@ -1370,7 +1390,12 @@ export function applyFloatingStyle(
   // 抓取态阴影必须从零开始，不能继承本体当前阴影作为起点；否则卡片还没
   // 浮起就已经带着一层深阴影。下一帧由 beginFloatingPickup() 统一提交浮起
   // 阴影，让阴影和卡片的启动变换同时进入过渡。
-  const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout, contentScale: options.contentScale })
+  const proxy = createDragProxy(el, rect, {
+    glass: false,
+    layout: options.layout,
+    contentScale: options.contentScale,
+    cameraShell: options.cameraShell,
+  })
   const content = getProxyContent(proxy)
   // 抓起 proxy 同样脱离了 source 的 DOM 继承链；landing 入口由
   // VisualAdapter 处理，这里补齐 grabbing 入口，避免代理回退到 body 字体。

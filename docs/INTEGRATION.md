@@ -207,6 +207,7 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 | API | 参数 | 用途 |
 | --- | --- | --- |
 | `registerObjectType(type, options)` | `defaultVisualMode` | 默认视觉策略，通常为 `detach` |
+|  | `camera` | 声明对象的摄像机适配能力；可用 `true/false` 或 `{ enabled, pickup, scale, origin, landing }`。未声明或 `false` 时对象不消费 `Surface.camera`。 |
 |  | `visual` | 可选的对象级 `VisualAdapter` |
 |  | `motion.enabled` | 是否使用内置 MotionController，默认 `true` |
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
@@ -694,6 +695,14 @@ const visual: VisualAdapter = {
   },
 }
 ```
+
+`VisualLifecycleContext.camera` 会提供对象类型归一化后的 camera 能力配置。只有启用
+camera 的对象会得到 `contentScale`/`cameraOrigin`；业务不应直接创建
+`cameraShell`/`cameraGlue`，也不应调用 DOM proxy 函数绕过 Runtime 的生命周期。
+
+Runtime Demo 的 `canvas-sticker` 与 Gugu Mind 的 Note/Entity/Project/File 对象类型已在
+注册时显式声明 `camera: { enabled: true }`；普通项目卡、文件卡、文件夹卡和看板卡不声明
+camera。Gugu Mind 的 Canvas/Drawer 只提供 `Surface.camera` 状态，不自行创建代理缩放壳。
 
 适配器负责具体的阴影、圆角、背景、proxy 运动和样式；Runtime 负责统一 hover 状态、
 生命周期时序、代理到本体的渐变交接，以及取消/清理。这样不同卡片类型可以拥有不同

@@ -109,7 +109,7 @@ export interface GrabAlignConfig {
 
 /** 对象类型的摄像机适配声明。Phase 1A 只记录能力，不改变既有视觉行为。 */
 export interface ObjectCameraConfig {
-  /** 是否声明该对象会消费 Surface.camera；Phase 1A 默认保持旧行为为 true。 */
+  /** 是否声明该对象会消费 Surface.camera；未声明时关闭。 */
   enabled?: boolean
   /** 抓取阶段是否消费 camera.scale。 */
   pickup?: boolean
@@ -635,8 +635,7 @@ setMotionProfiles(this.registry.motionProfile)
   /**
    * 返回对象类型的归一化 camera 策略。
    *
-   * Phase 1A 保持历史兼容：未声明 camera 的对象仍按原先的 Surface.camera 行为运行；
-   * Phase 1B 才会把默认值切换为关闭，并要求画布对象显式声明 enabled。
+   * Phase 1B 起未声明 camera 的对象不再消费 Surface.camera；画布对象必须显式声明 enabled。
    */
   getObjectCameraConfig(objectId: string): ResolvedObjectCameraConfig {
     const object = this.objects.get(objectId)
@@ -644,7 +643,7 @@ setMotionProfiles(this.registry.motionProfile)
     const configured = registration?.camera
     const options = configured === true ? {} : configured === false || configured === undefined ? {} : configured
     return {
-      enabled: configured === false ? false : options.enabled ?? true,
+      enabled: configured === true ? true : options.enabled ?? false,
       pickup: options.pickup ?? true,
       scale: options.scale ?? true,
       origin: options.origin ?? true,
@@ -703,6 +702,7 @@ setMotionProfiles(this.registry.motionProfile)
     const adapter = session ? this.getObjectVisualAdapter(session.objectId) : this.defaultVisualAdapter
     const fallback = new DefaultVisualAdapter()
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const cameraConfig = this.getObjectCameraConfig(object?.id ?? '')
     const destinationSurfaceId = this.getDestinationSurfaceId(destination)
     const destinationSurface = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId) : undefined
     const registeredProfile = registration?.motion?.profile
@@ -784,10 +784,21 @@ setMotionProfiles(this.registry.motionProfile)
       // target landing，也必须保留普通 landing 的完整回位表现。
       landingMode: effectiveLandingMode,
       releaseMode: registration?.releaseMode ?? 'physical',
-      contentScale: this.getSessionContentScale(sessionId, object?.surfaceId ?? undefined),
-      landingContentScale: destinationSurface?.layout === 'grid' ? 1 : undefined,
-      cameraOrigin: this.getSurfaceCameraOrigin(object?.surfaceId),
-      camera: this.getObjectCameraConfig(object?.id ?? ''),
+      contentScale: cameraConfig.enabled
+        && cameraConfig.scale
+        ? this.getSessionContentScale(sessionId, object?.surfaceId ?? undefined)
+        : undefined,
+      // 只有 camera 对象需要把抓取时的相机倍率平滑还原到 grid 目标。
+      // 普通对象的列宽变化由代理外框的 width/height 插值负责；若无条件传入 1，
+      // Visual 会把内容 shell 锁在源卡基准宽度，导致窄列拖到宽列时外框变宽而
+      // 文字、内边距仍保持窄卡布局。
+      landingContentScale: cameraConfig.enabled && destinationSurface?.layout === 'grid' ? 1 : undefined,
+      cameraOrigin: cameraConfig.enabled
+        && cameraConfig.origin
+        && cameraConfig.landing
+        ? this.getSurfaceCameraOrigin(object?.surfaceId)
+        : undefined,
+      camera: cameraConfig,
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
         const surfaceId = this.getDestinationSurfaceId(destination)

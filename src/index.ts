@@ -3,7 +3,15 @@
  * 接入方不需要了解 src 下的目录结构，也不应直接依赖 demo 实现。
  */
 export { Runtime, runtime } from './Runtime'
-export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, GrabAlignConfig, GroupVisualOption } from './Runtime'
+export type {
+  RuntimeEvent,
+  RuntimeLandingTargetOptions,
+  ObjectTypeRegistration,
+  ObjectCameraConfig,
+  ResolvedObjectCameraConfig,
+  GrabAlignConfig,
+  GroupVisualOption,
+} from './Runtime'
 export { RuntimeRegistry } from './runtime/RuntimeRegistry'
 export { createVueRuntimeAdapter } from './adapters/vue'
 export { createReactRuntimeAdapter } from './adapters/react'

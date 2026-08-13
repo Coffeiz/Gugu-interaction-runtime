@@ -95,6 +95,23 @@ describe('代理布局', () => {
     source.remove()
   })
 
+  it('camera shell 只在对象声明 camera 能力时标记，普通代理不携带 camera 标记', () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+
+    const ordinary = createDragProxy(source, rect(200, 100))
+    expect(ordinary.querySelector('[data-runtime-proxy-scale-shell]')).not.toBeNull()
+    expect(ordinary.querySelector('[data-runtime-camera-shell]')).toBeNull()
+
+    const camera = createDragProxy(source, rect(200, 100), { cameraShell: true })
+    expect(camera.querySelector('[data-runtime-proxy-scale-shell]')).not.toBeNull()
+    expect(camera.querySelector('[data-runtime-camera-shell="true"]')).not.toBeNull()
+
+    destroyDragProxy(ordinary)
+    destroyDragProxy(camera)
+    source.remove()
+  })
+
   it('相机缩放只更新内容缩放，不改写代理的定位壳尺寸', () => {
     const source = document.createElement('article')
     document.body.append(source)
@@ -418,6 +435,7 @@ describe('代理布局', () => {
       height: 38,
     }, {
       landingMode: 'default',
+      cameraShell: true,
       contentScale: 0.5,
       targetContent: target,
       targetShadow: 'none',
@@ -471,6 +489,7 @@ describe('代理布局', () => {
       height: 100,
     }, {
       landingMode: 'free',
+      cameraShell: true,
       cameraOrigin: () => ({ left: 0, top: 0 }),
       contentScale: () => cameraScale,
       motionState: {
@@ -601,7 +620,7 @@ describe('代理布局', () => {
     source.remove()
   })
 
-  it('普通 grid landing 保留相机倍率并平滑恢复外框视觉尺寸', async () => {
+  it('camera grid landing 保留相机倍率并平滑恢复外框视觉尺寸', async () => {
     const source = document.createElement('article')
     document.body.append(source)
 
@@ -628,6 +647,7 @@ describe('代理布局', () => {
       height: 100,
     }, {
       landingMode: 'default',
+      cameraShell: true,
       contentScale: 0.5,
       motionState: {
         x: 0, y: 0, vx: 0, vy: 0,
@@ -680,6 +700,7 @@ describe('代理布局', () => {
       height: 98.6875,
     }, {
       landingMode: 'default',
+      cameraShell: true,
       contentScale: 1.2839,
       landingContentScale: 1,
       motionState: {
@@ -709,7 +730,7 @@ describe('代理布局', () => {
     source.remove()
   })
 
-  it('看板跨列时保持内容基准并用 shell 收敛视觉宽度', async () => {
+  it('普通看板跨列时只用外框收敛视觉宽度，不重复缩放内容 shell', async () => {
     const source = document.createElement('article')
     document.body.append(source)
     const proxy = createDragProxy(source, rect(181, 38), { contentScale: 1 })
@@ -743,8 +764,8 @@ describe('代理布局', () => {
 
     vi.advanceTimersByTime(1200)
     const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
-    expect(parseFloat(shell.style.transform.match(/scale\(([^,)]+)/)?.[1] ?? '0')).toBeCloseTo(200 / 181, 2)
-    expect(parseFloat(shell.style.width)).toBeCloseTo(181, 0)
+    expect(parseFloat(shell.style.transform.match(/scale\(([^,)]+)/)?.[1] ?? '0')).toBeCloseTo(1, 2)
+    expect(parseFloat(shell.style.width)).toBeCloseTo(200, 0)
     expect(parseFloat(proxy.style.width)).toBeCloseTo(200, 0)
 
     vi.advanceTimersByTime(6000)

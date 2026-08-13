@@ -24,12 +24,13 @@
    - `normal`：沿普通落点过渡，适合不需要速度继承的标准卡片移动；
    - `physical`：继承抓取阶段的释放速度、旋转和缩放状态，按咕咕现有画布物理手感降落。
 4. 默认使用 `physical`，保证画布接入后仍以咕咕当前行为为基线。
-5. Stage 1 不要求 Runtime 理解相机；业务提供当前视口坐标下的 `LandingRect`，命中和
-   降落先在屏幕坐标中完成。
+5. Stage 1B 已增加对象级 camera capability；业务提供 Surface.camera，Runtime 只对
+   显式声明 camera 的对象注入缩放/原点上下文。世界坐标到屏幕坐标的转换仍由业务提供。
 
 ### 非目标
 
-- Stage 1 不实现 Runtime Camera，不改 `worldToScreen`/`screenToWorld` 的业务语义。
+- Stage 1 不实现 world/screen 转换，不改 `worldToScreen`/`screenToWorld` 的业务语义；
+  已完成的对象级 camera 隔离不等于完整 Camera Runtime。
 - Stage 1 不制作独立 Runtime Canvas Demo；Demo 放到 Stage 2，避免用半成品相机模型反向
   约束 Core。
 - Stage 1 不把 SVG 连线、关系持久化或 RelationLayer 搬进 Runtime。
@@ -269,6 +270,10 @@ runtime.configureMotion({
 
 - [x] 在 `Surface` 增加 `layout: 'free'`，由目标 Surface 决定自由落点解析。
 - [x] 在 free Surface 增加 `camera.scale/origin`，由 Runtime 统一接入 camGlue 和缩放补偿。
+- [x] Phase 1B：camera 变为 ObjectTypeRegistration 的显式能力；未声明对象不再消费
+      Surface.camera，画布对象显式声明 `camera: { enabled: true }`。
+- [x] Phase 4：Runtime Demo 与 Gugu Mind 的画布对象完成 camera capability 注册；普通
+      项目卡、文件卡、文件夹卡和看板卡保持 camera 关闭，业务侧不再编排 proxy camera shell。
 - [x] 增加 `MoveLandingResolution` 判别联合，优先以兼容方式扩展现有解析接口，避免破坏
       file/project 的 `HTMLElement` 调用者。
 - [x] 在 `VisualAdapter` 中接受 `HTMLElement | LandingRect`，实现 `element` 与 `rect`
@@ -374,13 +379,14 @@ useObject({
 快速连续拖拽压力回归，以及相机变化期间连接端点的完整浏览器级回归，仍保留在 Stage 1 E/D
 的后续专项中，不把已有的 Runtime 几何单测误写成完整浏览器覆盖。
 
-## 六、Stage 2：相机适配与 Runtime Demo
+## 六、Stage 2：完整 Camera API 与 Runtime Demo
 
 Stage 2 只有在 Stage 1 稳定后开始。
 
-### 6.1 Camera API
+### 6.1 Camera API（对象级隔离已完成，完整能力仍待 Stage 2）
 
 - 提供统一的 Camera 状态、world/screen 转换和 viewport 坐标契约；
+- 将当前 `ObjectTypeRegistration.camera` 的能力声明扩展为稳定的完整 Camera API；
 - 让 Runtime 在抓取、跟手、free landing、retarget 和 regrab 中消费当前 camera；
 - 画布移动、缩放、landing 中改变 camera 时，代理仍按世界位置运动而不是旧屏幕快照；
 - 明确卡片内容、代理、连接预览和点阵背景的变换层级，避免只缩放外壳不缩放内容。

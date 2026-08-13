@@ -306,7 +306,7 @@ describe('Runtime move orchestration', () => {
       id: 'canvas', type: 'canvas', layout: 'free', element: null, accepts: ['canvas-card'],
       camera: { scale: () => scale.value, origin: () => ({ left: 10, top: 20 }) },
     })
-    runtime.registerObjectType('canvas-card', { defaultVisualMode: 'detach' })
+    runtime.registerObjectType('canvas-card', { defaultVisualMode: 'detach', camera: { enabled: true } })
     const source = document.createElement('article')
     document.body.append(source)
     runtime.objects.register({ id: 'canvas:1', type: 'canvas-card', surfaceId: 'canvas', element: source, abilities: ['move'] })
@@ -317,6 +317,63 @@ describe('Runtime move orchestration', () => {
     scale.value = 1.5
     expect(typeof context.contentScale === 'function' ? context.contentScale() : context.contentScale).toBe(1.5)
     source.remove()
+  })
+
+  it('Phase 1B：对象 camera 配置隔离未声明对象', () => {
+    const runtime = new Runtime()
+    runtime.surfaces.register({
+      id: 'canvas', type: 'canvas', layout: 'free', element: null, accepts: ['plain-card', 'camera-card'],
+      camera: { scale: 1.5, origin: () => ({ left: 10, top: 20 }) },
+    })
+    runtime.registerObjectType('plain-card', { defaultVisualMode: 'detach' })
+    runtime.registerObjectType('camera-card', { defaultVisualMode: 'detach', camera: { enabled: true } })
+    runtime.objects.register({ id: 'plain:1', type: 'plain-card', surfaceId: 'canvas', element: null, abilities: ['move'] })
+    runtime.objects.register({ id: 'camera:1', type: 'camera-card', surfaceId: 'canvas', element: null, abilities: ['move'] })
+
+    expect(runtime.getObjectCameraConfig('plain:1')).toEqual({ enabled: false, pickup: true, scale: true, origin: true, landing: true })
+    expect(runtime.getObjectCameraConfig('camera:1')).toEqual({ enabled: true, pickup: true, scale: true, origin: true, landing: true })
+    expect(runtime.getObjectCameraConfig('missing')).toEqual({ enabled: false, pickup: true, scale: true, origin: true, landing: true })
+
+    const plainSession = runtime.startSession('move', 'plain:1')
+    const cameraSession = runtime.startSession('move', 'camera:1')
+    const plainContext = runtime.createVisualLifecycleContext(plainSession.id, { toSurfaceId: 'canvas' })
+    const cameraContext = runtime.createVisualLifecycleContext(cameraSession.id, { toSurfaceId: 'canvas' })
+    expect(plainContext.contentScale).toBeUndefined()
+    expect(plainContext.cameraOrigin).toBeUndefined()
+    expect(cameraContext.contentScale).toBe(1.5)
+    expect(cameraContext.cameraOrigin?.()).toEqual({ left: 10, top: 20 })
+  })
+
+  it('普通对象跨 grid landing 不锁定源内容倍率，camera 对象才恢复到 grid 的 1x', () => {
+    const runtime = new Runtime()
+    const grid = document.createElement('div')
+    runtime.surfaces.register({
+      id: 'grid', type: 'list', layout: 'grid', element: grid,
+      accepts: ['plain-card', 'camera-card'],
+    })
+    runtime.registerObjectType('plain-card', { defaultVisualMode: 'detach' })
+    runtime.registerObjectType('camera-card', { defaultVisualMode: 'detach', camera: { enabled: true } })
+    runtime.objects.register({ id: 'plain:1', type: 'plain-card', surfaceId: 'grid', element: null, abilities: ['move'] })
+    runtime.objects.register({ id: 'camera:1', type: 'camera-card', surfaceId: 'grid', element: null, abilities: ['move'] })
+
+    const plain = runtime.createVisualLifecycleContext(
+      runtime.startSession('move', 'plain:1').id,
+      { toSurfaceId: 'grid' },
+    )
+    const camera = runtime.createVisualLifecycleContext(
+      runtime.startSession('move', 'camera:1').id,
+      { toSurfaceId: 'grid' },
+    )
+    expect(plain.landingContentScale).toBeUndefined()
+    expect(camera.landingContentScale).toBe(1)
+    grid.remove()
+  })
+
+  it('camera: false 与未声明对象都关闭对象级摄像机适配', () => {
+    const runtime = new Runtime()
+    runtime.registerObjectType('plain-card', { defaultVisualMode: 'detach', camera: false })
+    runtime.objects.register({ id: 'plain:1', type: 'plain-card', surfaceId: 'grid', element: null, abilities: ['move'] })
+    expect(runtime.getObjectCameraConfig('plain:1')).toEqual({ enabled: false, pickup: true, scale: true, origin: true, landing: true })
   })
 
   it('同一移动 session 复用 Surface 的抓取倍率曲线', () => {

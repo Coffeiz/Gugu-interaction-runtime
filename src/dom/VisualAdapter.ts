@@ -161,6 +161,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     const proxy = createDragProxy(context.beforeContent, context.sourceRect, {
       layout: context.proxyLayout,
       contentScale: context.contentScale,
+      cameraShell: Boolean(context.camera?.enabled && context.camera.scale),
     })
     const content = getProxyContent(proxy)
     const compact = Boolean(context.proxyLayout?.compact)
@@ -341,6 +342,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // 专属配置。拖出 viewport 后会回到 default landing，但仍必须沿用
       // 松手瞬间的画布比例，否则代理会按 100% 尺寸回飞。
       contentScale: context.contentScale,
+      cameraShell: Boolean(context.camera?.enabled && context.camera.scale),
       landingContentScale: context.landingContentScale,
       motionState: context.releaseMode === 'normal' ? undefined : landingMotionState,
       coast: {
