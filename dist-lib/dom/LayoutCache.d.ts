@@ -19,5 +19,5 @@ export declare class LayoutCache {
     getVersion(): number;
     invalidate(content?: HTMLElement): void;
     getGroup(content: HTMLElement, opening: boolean): CachedGroupLayout | undefined;
-    setGroup(content: HTMLElement, opening: boolean, expandedHeight: number, surfaceTargets: ReadonlyMap<HTMLElement, CachedLayoutSize | null>): void;
+    setGroup(content: HTMLElement, opening: boolean, targetHeight: number, surfaceTargets: ReadonlyMap<HTMLElement, CachedLayoutSize | null>): void;
 }

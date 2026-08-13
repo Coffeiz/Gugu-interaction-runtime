@@ -45,7 +45,7 @@ export class LayoutCache {
   setGroup(
     content: HTMLElement,
     opening: boolean,
-    expandedHeight: number,
+    targetHeight: number,
     surfaceTargets: ReadonlyMap<HTMLElement, CachedLayoutSize | null>,
   ): void {
     const existing = this.groups.get(content)
@@ -53,7 +53,7 @@ export class LayoutCache {
       ? existing
       : { version: this.version, states: new Map() }
     entry.states.set(opening ? 'open' : 'closed', {
-      height: expandedHeight,
+      height: targetHeight,
       surfaceTargets: new Map(surfaceTargets),
     })
     this.groups.set(content, entry)

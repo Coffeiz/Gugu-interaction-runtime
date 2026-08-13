@@ -842,7 +842,7 @@ const stopOwnership = runtime.onOwnershipChange(() => {
 ### 布局测量缓存
 
 Runtime 会在自身生命周期内缓存已经完成一次真实 DOM 测量的组展开高度和
-Surface 目标尺寸。后续同一布局版本的组开合或相关布局事务优先复用这份结果，
+Surface 目标尺寸。后续同一布局版本的组开合事务优先复用这份结果，
 避免在 Surface 仍处于冻结高度时重复读取中间尺寸。缓存不是持久化数据，也不会
 跨页面或跨 Runtime 实例复用。
 
