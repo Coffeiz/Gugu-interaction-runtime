@@ -1516,7 +1516,15 @@ setMotionProfiles(this.registry.motionProfile)
     // 缩放后的尺寸，同时不受落地代理旋转影响。
     const layoutWidth = sourceRect.width || proxyRect.width
     const layoutHeight = sourceRect.height || proxyRect.height
-    const regrabRect = new DOMRect(proxyRect.left, proxyRect.top, layoutWidth, layoutHeight)
+    // landing 代理可能仍保留抓取时的相机视觉尺寸，而真实节点已经随当前相机缩放。
+    // regrab 要使用真实节点尺寸，但必须保留代理的视觉中心，否则左上角会被沿用、
+    // 尺寸替换后中心向左上/右下跳，新的 dragOffset 随后会把卡片带离指针。
+    const regrabRect = new DOMRect(
+      proxyRect.left + (proxyRect.width - layoutWidth) / 2,
+      proxyRect.top + (proxyRect.height - layoutHeight) / 2,
+      layoutWidth,
+      layoutHeight,
+    )
     return {
       sessionId,
       objectId: session.objectId,
