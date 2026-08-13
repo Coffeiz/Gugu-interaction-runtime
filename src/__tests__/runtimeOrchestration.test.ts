@@ -376,6 +376,37 @@ describe('Runtime move orchestration', () => {
     expect(runtime.getObjectCameraConfig('plain:1')).toEqual({ enabled: false, pickup: true, scale: true, origin: true, landing: true })
   })
 
+  it('camera 子开关会分别门控抓取倍率、内容 shell、origin 和 landing', () => {
+    const runtime = new Runtime()
+    const source = document.createElement('article')
+    document.body.append(source)
+    runtime.surfaces.register({
+      id: 'canvas', type: 'canvas', layout: 'free', element: null, accepts: ['partial-camera'],
+      camera: { scale: 1.7, origin: () => ({ left: 12, top: 24 }) },
+    })
+    runtime.registerObjectType('partial-camera', {
+      defaultVisualMode: 'detach',
+      camera: { enabled: true, pickup: false, scale: false, origin: false, landing: false },
+    })
+    runtime.objects.register({ id: 'partial:1', type: 'partial-camera', surfaceId: 'canvas', element: source, abilities: ['move'] })
+
+    expect(runtime.getObjectCameraConfig('partial:1')).toEqual({
+      enabled: true, pickup: false, scale: false, origin: false, landing: false,
+    })
+    const context = runtime.createVisualLifecycleContext(
+      runtime.startSession('move', 'partial:1').id,
+      { toSurfaceId: 'canvas' },
+      source,
+    )
+    expect(context.camera).toEqual({
+      enabled: true, pickup: false, scale: false, origin: false, landing: false,
+    })
+    expect(context.contentScale).toBeUndefined()
+    expect(context.cameraOrigin).toBeUndefined()
+    expect(context.landingContentScale).toBeUndefined()
+    source.remove()
+  })
+
   it('同一移动 session 复用 Surface 的抓取倍率曲线', () => {
     const runtime = new Runtime()
     let scale = 0.5

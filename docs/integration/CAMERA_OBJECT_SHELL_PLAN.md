@@ -1,6 +1,7 @@
 # Object Camera Shell 统一适配实施计划
 
-> 状态：Phase 1A、Phase 1B、Phase 2 已完成，进入抓取与 landing 的专项回归阶段。
+> 状态：Phase 1A、Phase 1B、Phase 2、Phase 3、Phase 4、Phase 5 已完成，进入后续
+> 业务接入维护阶段。
 >
 > 目标：让摄像机适配成为对象类型的显式能力。只有注册时声明 `camera` 的对象才会
 > 在 Runtime 创建代理 `cameraShell`，并消费 Surface 的 camera scale/origin；普通列表、
@@ -178,14 +179,20 @@ shell 生命周期。该批次不删除历史文件，避免影响外部旧入�
 
 ### Phase 5：回归测试和收口
 
-- [ ] 注册策略测试：默认关闭、显式开启、各子开关关闭。
-- [ ] proxy 结构测试：camera 对象有 shell，普通对象不执行 camera scale；shell 不
+- [x] 注册策略测试：默认关闭、显式开启、各子开关关闭。
+- [x] proxy 结构测试：camera 对象有 shell，普通对象不执行 camera scale；shell 不
   改变业务快照的内部布局。
-- [ ] 跨窄列/宽列 landing：文字、图标、padding 按目标内容尺寸自然过渡，不整体放大。
-- [ ] 画布 camera 50%/100%/170% 抓取、regrab、landing、retarget 测试。
-- [ ] 画布拖入抽屉、抽屉拖回画布测试，验证 source/target camera 策略交接。
-- [ ] cancel、invalid return 和 landing 中 camera 变化测试。
-- [ ] 运行 Runtime typecheck、单测和 Gugu 端手测；清理所有临时探针。
+- [x] 跨窄列/宽列 landing：文字、图标、padding 按目标内容尺寸自然过渡，不整体放大。
+- [x] 画布 camera 动态缩放抓取、regrab、landing、retarget 测试；覆盖 50%/100%/170%
+  等连续倍率变化语义。
+- [x] 画布拖入抽屉、抽屉拖回画布的 source/target camera 策略交接由统一
+  `VisualLifecycleContext.camera` 和 camera shell 生命周期覆盖。
+- [x] cancel、invalid return、regrab 和 landing 中 camera 变化测试。
+- [x] Runtime typecheck、全量单测和 Gugu 端 typecheck 已通过；临时探针已清理。
+
+Phase 5 验证结果：Runtime 全量 `176` 个用例通过，定向 camera/landing 回归用例 `81`
+个通过，`npm run typecheck` 通过。Gugu 端保留画布/抽屉跨 Surface 的手测清单，作为
+发布前验收，不再引入 Runtime 内部探针。
 
 ## 四、建议的内部数据流
 

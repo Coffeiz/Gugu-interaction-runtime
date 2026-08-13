@@ -524,6 +524,35 @@ describe('代理布局', () => {
     source.remove()
   })
 
+  it('普通 free landing 即使提供 origin/倍率，也不创建 camera glue', async () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+    const proxy = createDragProxy(source, rect(180, 40), { contentScale: 1 })
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, { left: 320, top: 180, width: 200, height: 44 }, {
+      landingMode: 'free',
+      cameraOrigin: () => ({ left: 20, top: 30 }),
+      contentScale: () => 1.8,
+      cameraShell: false,
+      motionState: { x: 0, y: 0, vx: 0, vy: 0, scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0 },
+    })
+
+    vi.advanceTimersByTime(32)
+    expect(proxy.parentElement?.dataset.runtimeCameraGlue).toBeUndefined()
+    expect(proxy.querySelector('[data-runtime-camera-shell]')).toBeNull()
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
+
   it('free landing retarget 按抓取后的视觉尺寸计算，不重复叠加相机倍率', async () => {
     const source = document.createElement('article')
     document.body.append(source)
