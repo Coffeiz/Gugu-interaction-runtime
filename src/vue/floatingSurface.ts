@@ -54,6 +54,38 @@ function readNaturalHeight(root: HTMLElement, layoutElement: HTMLElement | null,
   const inlineStyle = style
     ? { height: style.height, overflow: style.overflow, transition: style.transition }
     : null
+  const unlockedAncestors: Array<{
+    element: HTMLElement
+    height: string
+    maxHeight: string
+    minHeight: string
+    overflow: string
+    flex: string
+  }> = []
+  if (layoutElement && viewport && layoutElement.contains(viewport)) {
+    let element: HTMLElement | null = viewport
+    while (element) {
+      unlockedAncestors.push({
+        element,
+        height: element.style.height,
+        maxHeight: element.style.maxHeight,
+        minHeight: element.style.minHeight,
+        overflow: element.style.overflow,
+        flex: element.style.flex,
+      })
+      if (element === layoutElement) break
+      element = element.parentElement
+    }
+    // The scroll viewport must be measured as natural content. Its flex/height
+    // chain may otherwise resolve against the currently clamped Surface height.
+    unlockedAncestors.forEach(({ element }) => {
+      element.style.height = 'auto'
+      element.style.maxHeight = 'none'
+      element.style.minHeight = '0'
+      element.style.overflow = 'visible'
+      element.style.flex = '0 0 auto'
+    })
+  }
   if (style) {
     // 浮动 Surface 通常正处于上一笔 resize 的固定高度，直接读取
     // layoutElement.scrollHeight 会把当前高度误当成自然高度，收起组时无法缩小。
@@ -98,6 +130,13 @@ function readNaturalHeight(root: HTMLElement, layoutElement: HTMLElement | null,
       ]
     : [viewportScrollHeight, ...layoutCandidates.map(candidate => candidate.scrollHeight)]
   const height = Math.max(...candidates, 0)
+  unlockedAncestors.forEach(({ element, height, maxHeight, minHeight, overflow, flex }) => {
+    element.style.height = height
+    element.style.maxHeight = maxHeight
+    element.style.minHeight = minHeight
+    element.style.overflow = overflow
+    element.style.flex = flex
+  })
   if (style && inlineStyle) {
     style.height = inlineStyle.height
     style.overflow = inlineStyle.overflow
