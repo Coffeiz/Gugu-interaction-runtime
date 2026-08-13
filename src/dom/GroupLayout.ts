@@ -390,6 +390,7 @@ export function transitionGroupHeight(
   easing = FLIP_EASING,
   fromHeight?: number,
   retainTargetHeight = false,
+  exactDuration = false,
 ): boolean {
   // Surface resize 已由 Runtime 接管时，业务层的响应式高度更新只能提供
   // 下一次自然尺寸，不能再启动第二条高度动画或覆盖当前播放帧。
@@ -403,7 +404,9 @@ export function transitionGroupHeight(
   // 一次性完成。duration 作为基准上限，保留最小值避免小组过快。
   const distance = Math.abs(Math.max(0, targetHeight) - currentHeight)
   const speed = 8
-  const effectiveDuration = Math.min(Math.max(distance / speed, 200), 350)
+  const effectiveDuration = exactDuration
+    ? Math.max(0, duration)
+    : Math.min(Math.max(distance / speed, 200), 350)
   element.dataset.runtimeGroupAnimating = 'true'
   element.style.overflow = 'hidden'
   element.style.height = `${currentHeight}px`

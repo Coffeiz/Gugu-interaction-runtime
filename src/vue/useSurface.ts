@@ -93,6 +93,10 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     const key = currentFloatingOptions().scrollKey
     return typeof key === 'function' ? key() : key ?? null
   }
+  const currentFloatingResizeMotion = (): { duration?: number; easing?: string } | undefined => {
+    const motion = options.motion === undefined ? undefined : toValue(options.motion)
+    return motion?.resize
+  }
   const restoreFloatingScrollLayout = (): void => {
     if (!floatingScrollLayoutStyles) return
     for (const { element, values } of floatingScrollLayoutStyles) {
@@ -178,17 +182,27 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     clearFloatingAnimation()
     isAnimating.value = true
     floatingAnimationTarget = targetHeight
-    const started = transitionGroupHeight(layoutElement, targetHeight, undefined, undefined, undefined, true)
+    const resizeMotion = currentFloatingResizeMotion()
+    const started = transitionGroupHeight(
+      layoutElement,
+      targetHeight,
+      resizeMotion?.duration,
+      resizeMotion?.easing,
+      undefined,
+      true,
+      true,
+    )
     if (!started) {
       clearFloatingAnimation()
       return
     }
+    const animationDuration = resizeMotion?.duration ?? 250
     animationTimer = window.setTimeout(() => {
       animationTimer = null
       isAnimating.value = false
       if (scrollElement) scrollElement.scrollTop = scrollTop
       if (!currentFloatingOpen()) restoreFloatingScrollLayout()
-    }, 400)
+    }, animationDuration + 80)
   }
   const runFloatingObserverResize = (): void => {
     if (!isFloatingSurface()) return
