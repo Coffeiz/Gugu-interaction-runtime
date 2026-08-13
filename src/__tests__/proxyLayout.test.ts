@@ -494,4 +494,50 @@ describe('代理布局', () => {
     destroyDragProxy(proxy)
     source.remove()
   })
+
+  it('看板跨列时只改变代理布局宽度，不重复缩放内容 shell', async () => {
+    const source = document.createElement('article')
+    document.body.append(source)
+    const proxy = createDragProxy(source, rect(181, 38), { contentScale: 1 })
+    proxy.getBoundingClientRect = () => {
+      const left = parseFloat(proxy.style.left) || 0
+      const top = parseFloat(proxy.style.top) || 0
+      const width = parseFloat(proxy.style.width) || 0
+      const height = parseFloat(proxy.style.height) || 0
+      return new DOMRect(left, top, width, height)
+    }
+
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const landing = landDragProxyWithMotion(proxy, {
+      left: 300,
+      top: 200,
+      width: 200,
+      height: 38,
+    }, {
+      landingMode: 'default',
+      contentScale: 1,
+      motionState: {
+        x: 0, y: 0, vx: 0, vy: 0,
+        scaleX: 1, scaleY: 1, rotateX: 0, rotateZ: 0,
+      },
+    })
+
+    vi.advanceTimersByTime(1200)
+    const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
+    expect(shell.style.transform).toBe('scale(1)')
+    expect(parseFloat(shell.style.width)).toBeCloseTo(200, 0)
+    expect(parseFloat(proxy.style.width)).toBeCloseTo(200, 0)
+
+    vi.advanceTimersByTime(6000)
+    await landing.finished
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    destroyDragProxy(proxy)
+    source.remove()
+  })
 })
