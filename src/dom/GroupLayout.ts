@@ -722,6 +722,7 @@ export function playSurfaceResize(
     }
   })
 
+  const planTokens = new Map<HTMLElement, string>()
   for (const { item, fromHeight, toHeight } of plans) {
     const style = item.element.style
     const state = {
@@ -731,6 +732,7 @@ export function playSurfaceResize(
       token: String(++surfaceResizeSequence),
     }
     surfaceResizeStates.set(item.element, state)
+    planTokens.set(item.element, state.token)
     style.overflow = 'hidden'
     style.transition = 'none'
     style.height = `${fromHeight}px`
@@ -742,7 +744,8 @@ export function playSurfaceResize(
     for (const { item, fromHeight, toHeight, profile } of plans) {
       const style = item.element.style
       const state = surfaceResizeStates.get(item.element)
-      if (!state || item.element.dataset.runtimeSurfaceResizeToken !== state.token) continue
+      const expectedToken = planTokens.get(item.element)
+      if (!state || !expectedToken || state.token !== expectedToken || item.element.dataset.runtimeSurfaceResizeToken !== expectedToken) continue
       const token = state.token
       style.transition = 'none'
       animateRafHeight(item.element, fromHeight, toHeight, profile.duration, profile.easing)
@@ -779,7 +782,6 @@ function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): voi
     delete element.dataset.runtimeLayoutTransaction
   }
 }
-
 
 type SurfaceInlineStyle = SurfaceLayoutSnapshot['inlineStyle']
 
