@@ -336,7 +336,7 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     destroyDragProxy(proxy)
   })
 
-  it('跨 Surface landing 继承抓起姿态并交给 settle 衰减', async () => {
+  it('landing 不继承 perspective 前后倾，但保留平面旋转姿态', async () => {
     const { target, proxy } = landingFixture()
     const adapter = new DefaultVisualAdapter()
     const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
@@ -358,7 +358,36 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
       proxy,
       expect.anything(),
       expect.objectContaining({
-        motionState: expect.objectContaining({ rotateX: 5, rotateZ: -3 }),
+        motionState: expect.objectContaining({ rotateX: 0, rotateZ: -3 }),
+      }),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('同 Surface landing 也不继承抓取时的 perspective 前后倾', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'mind:same-surface', sessionId: 's', mode: 'detach', landingMode: 'default',
+      sourceSurfaceId: 'mind:canvas', destinationSurfaceId: 'mind:canvas',
+      motionState: {
+        x: 100, y: 100, vx: 240, vy: 40, scaleX: 1, scaleY: 1,
+        rotateX: 5, rotateZ: 2,
+      },
+      targetRect: { left: 200, top: 200, width: 60, height: 40 },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.anything(),
+      expect.objectContaining({
+        motionState: expect.objectContaining({ rotateX: 0, rotateZ: 2, vx: 240, vy: 40 }),
       }),
     )
     motionSpy.mockRestore()

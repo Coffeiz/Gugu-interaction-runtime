@@ -23,6 +23,7 @@ import {
 import { preserveProxyVisualContext } from './ProxyVisualContext'
 import { createCloneMoveFromAdapter, createDetachMoveFromAdapter } from '../runtime/move/MoveAdapter'
 import type { Runtime } from '../Runtime'
+import type { ResolvedObjectCameraConfig } from '../Runtime'
 import type { GroupObjectOffset } from '../session/GroupDragSession'
 
 export interface VisualGroupContext {
@@ -66,6 +67,8 @@ export interface VisualLifecycleContext {
   readonly contentScale?: number | (() => number)
   /** free Surface 的相机原点；由 Runtime 从 Surface.camera 注入。 */
   readonly cameraOrigin?: () => { left: number; top: number }
+  /** 对象类型归一化后的 camera 能力；Phase 1A 仅供 adapter 观察，不改变既有行为。 */
+  readonly camera?: ResolvedObjectCameraConfig
   /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
   readonly proxyLayout?: DragProxyLayoutConfig
   /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
@@ -224,10 +227,13 @@ export class DefaultVisualAdapter implements VisualAdapter {
       && context.destinationSurfaceId
       && context.sourceSurfaceId !== context.destinationSurfaceId,
     )
-    // 跨 Surface 仍然继承抓起瞬间的姿态，交给 settle controller 自然衰减到
-    // 0。这里不能直接清零，否则松手会瞬间摆正；跨 Surface 的坐标差异由
-    // landing 的位置/尺寸换算处理，不能通过丢弃旋转状态来掩盖。
+    // landing 的位置、缩放、释放速度和平面旋转继续继承抓取状态；但 rotateX
+    // 是 perspective 下的前后倾，会让代理上下边产生不同的屏幕投影，表现为
+    // 卡片斜切。无论是否跨 Surface，都从水平姿态开始落地，避免把抓取中的
+    // 透视倾角带入 landing；rotateZ 仍保留卡片自然的平面旋转。
     const landingMotionState = context.motionState
+      ? { ...context.motionState, rotateX: 0 }
+      : context.motionState
     // 跨 Surface 的项目卡仍应像看板换列一样交叉淡化到目标卡；只有文件/文件夹
     // 这类明确声明 disableTargetVisualMorph 的语义目标需要保留源卡外观，避免
     // 飞入文件夹时被替换成文件夹样式。
