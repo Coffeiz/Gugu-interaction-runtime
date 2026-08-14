@@ -1,5 +1,6 @@
 import { MaybeRefOrGetter, Ref } from 'vue';
 import { Surface } from '../surface/Surface';
+import { FloatingSurfaceOptions } from './floatingSurface';
 export interface UseSurfaceOptions {
     id: string;
     type: MaybeRefOrGetter<string>;
@@ -14,9 +15,12 @@ export interface UseSurfaceOptions {
         height: number;
     } | null) | undefined;
     motion?: MaybeRefOrGetter<Surface['motion'] | undefined>;
+    /** 启用约定式浮动 Surface DOM 自动发现。 */
+    floating?: MaybeRefOrGetter<boolean | FloatingSurfaceOptions>;
 }
 export interface UseSurfaceResult {
     elementRef: Ref<HTMLElement | null>;
     generation: number;
+    isAnimating: Readonly<Ref<boolean>>;
 }
 export declare function useSurface(options: UseSurfaceOptions): UseSurfaceResult;

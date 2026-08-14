@@ -2,6 +2,7 @@ import { MotionProfile } from './MotionProfile';
 import { CollectionPresenceSnapshot } from './CollectionPresence';
 import { LayoutMeasurement } from './LayoutMeasurement';
 import { LayoutCache } from './LayoutCache';
+import { LayoutTransactionCoordinator } from './LayoutTransaction';
 export declare function setMotionProfiles(profile: MotionProfile | null): void;
 export declare function setLayoutPresenceEnabled(enabled: boolean): void;
 export interface GroupRect {
@@ -98,7 +99,7 @@ export declare function captureGroupLayout(elements: readonly HTMLElement[], mea
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
 export declare function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration?: number, easing?: string, measurement?: LayoutMeasurement): void;
-export declare function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration?: number, easing?: string, fromHeight?: number, retainTargetHeight?: boolean): boolean;
+export declare function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration?: number, easing?: string, fromHeight?: number, retainTargetHeight?: boolean, exactDuration?: boolean): boolean;
 /**
  * 组件卸载或弹窗关闭时调用，取消该根节点下尚未完成的布局动画，并恢复
  * Runtime 临时写入的 transform/height/overflow，避免下一次交互继承旧状态。
@@ -120,6 +121,7 @@ export interface GroupToggleOptions {
     } | null)>;
     /** Runtime 内部布局缓存；未传时保持单次事务测量行为。 */
     readonly layoutCache?: LayoutCache;
+    readonly layoutTransaction?: LayoutTransactionCoordinator;
 }
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
 export declare function runGroupToggle(options: GroupToggleOptions): Promise<void>;

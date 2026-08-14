@@ -18,6 +18,11 @@ export interface MoveAction extends BaseAction {
         x: number;
         y: number;
     };
+    /** 抓起时捕获的源元素 CSS 尺寸，供跨 Surface 的乐观插入使用。 */
+    readonly sourceSize?: {
+        w: number;
+        h: number;
+    };
 }
 export interface MoveGroupAction extends BaseAction {
     readonly type: 'move-group';

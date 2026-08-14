@@ -6,6 +6,7 @@ export interface CollectionPresenceSnapshot {
     readonly collectionByKey: ReadonlyMap<string, string>;
     readonly entries: ReadonlyArray<{
         key: string;
+        /** 真正离场时再从旧节点序列化 ghost，捕获阶段不复制整组 DOM。 */
         element: HTMLElement;
         rect: {
             left: number;
@@ -13,8 +14,6 @@ export interface CollectionPresenceSnapshot {
             width: number;
             height: number;
         };
-        /** Serialized lazily materialized ghost content for true exits. */
-        contentHTML: string;
     }>;
     /** capture 时登记的忽略判断，play 阶段必须用同一份，否则两边判断口径不一致。 */
     readonly ignore?: (element: HTMLElement) => boolean;

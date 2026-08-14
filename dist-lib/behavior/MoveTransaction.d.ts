@@ -11,6 +11,10 @@ export interface MoveActionDestination {
         x: number;
         y: number;
     };
+    readonly sourceSize?: {
+        w: number;
+        h: number;
+    };
 }
 /**
  * 一次移动事务的最小状态容器。

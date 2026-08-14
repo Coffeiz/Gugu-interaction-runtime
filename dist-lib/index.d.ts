@@ -3,7 +3,7 @@
  * 接入方不需要了解 src 下的目录结构，也不应直接依赖 demo 实现。
  */
 export { Runtime, runtime } from './Runtime';
-export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, GrabAlignConfig, GroupVisualOption } from './Runtime';
+export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, ObjectCameraConfig, ResolvedObjectCameraConfig, GrabAlignConfig, GroupVisualOption, } from './Runtime';
 export { RuntimeRegistry } from './runtime/RuntimeRegistry';
 export { createVueRuntimeAdapter } from './adapters/vue';
 export { createReactRuntimeAdapter } from './adapters/react';
@@ -53,6 +53,9 @@ export { captureLayoutFlip, playLayoutFlip } from './dom/GroupLayout';
 export { cancelLayoutAnimations } from './dom/GroupLayout';
 export { LayoutCache } from './dom/LayoutCache';
 export type { CachedGroupLayout, CachedLayoutSize } from './dom/LayoutCache';
+export { LayoutTransactionCoordinator } from './dom/LayoutTransaction';
+export type { LayoutPlan, LayoutPlanSnapshot, LayoutPlanStatus } from './dom/LayoutTransaction';
+export type { LayoutMutation, LayoutTransactionPriority, LayoutTransactionReason, LayoutTransactionSnapshot, } from './dom/LayoutTransaction';
 export type { LayoutFlipSnapshot } from './dom/GroupLayout';
 export { captureCollectionPresence, playCollectionPresence } from './dom/CollectionPresence';
 export type { CollectionPresenceSnapshot, CollectionPresenceOptions } from './dom/CollectionPresence';

@@ -23,6 +23,7 @@ import { NodeConnectionEndpoint, NodeConnectionState, NodePortSnapshot } from '.
 import { RuntimeRegistry } from './runtime/RuntimeRegistry';
 import { LayoutFlipSnapshot } from './dom/GroupLayout';
 import { AutoScrollController, AutoScrollOptions } from './dom/AutoScroll';
+import { LayoutTransactionCoordinator } from './dom/LayoutTransaction';
 export type RuntimeEvent = {
     type: 'object-added' | 'object-removed' | 'object-changed';
     id: string;
@@ -93,6 +94,27 @@ export interface GrabAlignConfig {
     /** 在基准对齐结果上再叠加的垂直偏移(px)，正值往下；默认 0。 */
     offsetY?: number;
 }
+/** 对象类型的摄像机适配声明。Phase 1A 只记录能力，不改变既有视觉行为。 */
+export interface ObjectCameraConfig {
+    /** 是否声明该对象会消费 Surface.camera；未声明时关闭。 */
+    enabled?: boolean;
+    /** 抓取阶段是否消费 camera.scale。 */
+    pickup?: boolean;
+    /** 代理内容是否由 camera shell 承载比例。 */
+    scale?: boolean;
+    /** free landing 是否消费 camera.origin。 */
+    origin?: boolean;
+    /** landing 阶段是否继续跟踪 camera。 */
+    landing?: boolean;
+}
+/** Runtime 内部使用的完整摄像机策略。 */
+export interface ResolvedObjectCameraConfig {
+    enabled: boolean;
+    pickup: boolean;
+    scale: boolean;
+    origin: boolean;
+    landing: boolean;
+}
 export type MoveLandingResolution = {
     kind: 'element';
     element: HTMLElement;
@@ -102,6 +124,8 @@ export type MoveLandingResolution = {
 };
 export interface ObjectTypeRegistration {
     defaultVisualMode: string;
+    /** 对象级摄像机能力；Phase 1A 仅完成声明/归一化，暂不切换旧行为。 */
+    camera?: boolean | ObjectCameraConfig;
     /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
     visual?: ObjectVisualAdapter;
     /** 多对象叠卡视觉；默认使用 Runtime 内置效果，也可传入自定义适配器或显式关闭。 */
@@ -196,6 +220,8 @@ export interface RegrabContext {
     interrupt(reason?: string): void;
 }
 export declare class Runtime {
+    /** Phase 1 布局事务入口；动画接入在后续阶段完成。 */
+    readonly layout: LayoutTransactionCoordinator;
     private readonly layoutCache;
     private readonly owner;
     readonly objects: ObjectStore;
@@ -284,6 +310,12 @@ export declare class Runtime {
     getVisualAdapter(type: string): VisualAdapter;
     /** 按对象类型读取抓取对齐配置；未注册的类型返回 undefined，调用方按纯居中兜底。 */
     getObjectGrabAlign(objectId: string): GrabAlignConfig | undefined;
+    /**
+     * 返回对象类型的归一化 camera 策略。
+     *
+     * Phase 1B 起未声明 camera 的对象不再消费 Surface.camera；画布对象必须显式声明 enabled。
+     */
+    getObjectCameraConfig(objectId: string): ResolvedObjectCameraConfig;
     /** 按对象类型读取运动策略；未显式关闭（`motion.enabled !== false`）时默认使用 MotionController。 */
     getObjectMotionEnabled(objectId: string): boolean;
     /** 按对象注册解析抓取代理布局，供 detach 浮动入口与生命周期入口共用。 */

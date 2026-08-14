@@ -3,7 +3,7 @@ import { MotionProfile } from './MotionProfile';
 import { GroupDragConfig } from './GroupDragProfile';
 import { MotionState } from '../motion/CardMotionController';
 import { LandingRect, DragProxyLayoutConfig } from './Visual';
-import { Runtime } from '../Runtime';
+import { Runtime, ResolvedObjectCameraConfig } from '../Runtime';
 import { GroupObjectOffset } from '../session/GroupDragSession';
 export interface VisualGroupContext {
     readonly primaryObjectId: string;
@@ -43,11 +43,15 @@ export interface VisualLifecycleContext {
     readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
     /** 代理脱离缩放祖先后需要复现的当前视觉缩放。 */
     readonly contentScale?: number | (() => number);
+    /** 目标 grid Surface 的视觉倍率；通常为 1，用于从画布倍率平滑回收。 */
+    readonly landingContentScale?: number | (() => number);
     /** free Surface 的相机原点；由 Runtime 从 Surface.camera 注入。 */
     readonly cameraOrigin?: () => {
         left: number;
         top: number;
     };
+    /** 对象类型归一化后的 camera 能力；Phase 1A 仅供 adapter 观察，不改变既有行为。 */
+    readonly camera?: ResolvedObjectCameraConfig;
     /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
     readonly proxyLayout?: DragProxyLayoutConfig;
     /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */

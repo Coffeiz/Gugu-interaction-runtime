@@ -48,6 +48,7 @@ import { runtime } from 'gugu-interaction-runtime'
 // 只注册一次对象类型的视觉/行为策略，不注册某一张具体卡片。
 runtime.registerObjectType('project-card', {
   defaultVisualMode: 'detach',
+  affordances: { selector: '[data-card-affordances]' },
 })
 
 runtime.objects.register({
@@ -71,6 +72,14 @@ const stop = runtime.onAction(action => {
     projectStore.applyMove(action)
   }
 })
+```
+
+附加交互只需要在卡片 DOM 中标记稳定选择器，按钮、连接点和视觉过渡仍由业务侧控制：
+
+```html
+<div data-card-affordances>
+  <!-- 编辑、删除、连接点等业务交互 -->
+</div>
 ```
 
 ### 画布 Node / Connection
@@ -209,6 +218,7 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 | `registerObjectType(type, options)` | `defaultVisualMode` | 默认视觉策略，通常为 `detach` |
 |  | `camera` | 声明对象的摄像机适配能力；可用 `true/false` 或 `{ enabled, pickup, scale, origin, landing }`。未声明或 `false` 时对象不消费 `Surface.camera`。 |
 |  | `visual` | 可选的对象级 `VisualAdapter` |
+|  | `affordances.selector` | 附加交互 DOM 选择器（字符串或数组）；Runtime 在 `dragging`、`landing`、`revealing` 阶段隐藏匹配节点，回到 `idle` 后恢复。Runtime 不渲染按钮，业务侧自行提供结构和样式。 |
 |  | `motion.enabled` | 是否使用内置 MotionController，默认 `true` |
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
 |  | `releaseMode` | 释放后的降落策略：`physical` 继承释放速度（默认），`normal` 使用普通过渡 |

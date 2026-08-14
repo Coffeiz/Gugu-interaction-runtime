@@ -2,6 +2,7 @@ import { captureLayoutFlip } from '../dom/GroupLayout';
 import { LandingResult, MoveContext } from '../behavior/MoveBehavior';
 import { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes';
 import { GrabAlignConfig } from '../Runtime';
+import { LayoutTransactionCoordinator } from '../dom/LayoutTransaction';
 export declare function captureDetachDraggingSnapshot(capture: (objectId: string, element: HTMLElement) => VisualSnapshot, objectId: string, element: HTMLElement): VisualSnapshot;
 /**
  * 抓取点默认取卡片几何中心，不管实际点在卡片哪个位置——对应咕咕旧版
@@ -123,7 +124,8 @@ export declare function createDetachLandingLifecycle<TGate extends {
 export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[], surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => {
     width?: number;
     height: number;
-} | null)>): {
+} | null)>, layoutTransaction?: LayoutTransactionCoordinator): {
     capture: () => import('..').LayoutFlipSnapshot;
     play: (_context: unknown, snapshot: unknown, useRaf?: boolean) => void;
+    cancel: () => void;
 };

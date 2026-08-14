@@ -82,6 +82,21 @@ export function setProxyInteractive(
   proxy.style.pointerEvents = enabled ? 'auto' : 'none'
 }
 
+export function setRuntimeAffordancesHidden(
+  root: HTMLElement,
+  hidden: boolean,
+  selector?: string | readonly string[],
+): void {
+  const selectors = selector ? (Array.isArray(selector) ? selector : [selector]) : ['.runtime-affordances-hidden']
+  const query = selectors.filter(Boolean).join(',')
+  if (!query) return
+  const nodes = [
+    ...(root.matches(query) ? [root] : []),
+    ...root.querySelectorAll<HTMLElement>(query),
+  ]
+  nodes.forEach(node => node.classList.toggle('runtime-affordances-hidden', hidden))
+}
+
 /** 抓取代理的可选紧凑布局；尺寸和布局语义由业务声明，过渡由 Runtime 执行。 */
 export interface DragProxyLayoutConfig {
   compact?: {
@@ -128,6 +143,7 @@ function copyLandingSurfaceState(source: HTMLElement, target: HTMLElement): void
 
 function clearLandingRuntimeState(element: HTMLElement): void {
   element.classList.remove('is-grabbed', 'is-hovered')
+  setRuntimeAffordancesHidden(element, false)
   delete element.dataset.runtimeProxy
   delete element.dataset.runtimeProxyContent
   delete element.dataset.runtimePhase
@@ -178,7 +194,7 @@ export function restoreProxyVisualState(
 export function createDragProxy(
   source: HTMLElement,
   rect: DOMRect = source.getBoundingClientRect(),
-  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number); cameraShell?: boolean } = {},
+  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number); cameraShell?: boolean; affordancesSelector?: string | readonly string[] } = {},
 ): HTMLElement {
   const compact = options.layout?.compact
   // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
@@ -186,6 +202,7 @@ export function createDragProxy(
   const proxy = document.createElement('div')
   const scaleShell = document.createElement('div')
   const content = source.cloneNode(true) as HTMLElement
+  if (options.affordancesSelector) setRuntimeAffordancesHidden(content, true, options.affordancesSelector)
   scaleShell.dataset.runtimeProxyScaleShell = 'true'
   if (options.cameraShell) scaleShell.dataset.runtimeCameraShell = 'true'
   content.dataset.runtimeProxyContent = 'true'

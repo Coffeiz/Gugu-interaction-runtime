@@ -1,4 +1,4 @@
-import type { VisualState, VisualSnapshot } from './VisualAdapterTypes'
+import type { ObjectAffordancesConfig, VisualState, VisualSnapshot } from './VisualAdapterTypes'
 import type { MotionProfile } from './MotionProfile'
 import type { GroupDragConfig } from './GroupDragProfile'
 import type { MotionState } from '../motion/CardMotionController'
@@ -77,6 +77,8 @@ export interface VisualLifecycleContext {
   readonly group?: VisualGroupContext
   /** 对象类型注册的多选叠牌视觉配置。 */
   readonly groupDrag?: GroupDragConfig
+  /** 对象类型注册的附加交互声明；自定义适配器可据此处理自己的附加层。 */
+  readonly affordances?: ObjectAffordancesConfig
 }
 
 export interface VisualProxy {
@@ -162,6 +164,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       layout: context.proxyLayout,
       contentScale: context.contentScale,
       cameraShell: Boolean(context.camera?.enabled && context.camera.scale),
+      affordancesSelector: this.runtime?.getObjectAffordancesConfig(context.objectId)?.selector,
     })
     const content = getProxyContent(proxy)
     const compact = Boolean(context.proxyLayout?.compact)

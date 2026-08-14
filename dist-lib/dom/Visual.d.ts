@@ -52,6 +52,7 @@ export declare function createDragProxy(source: HTMLElement, rect?: DOMRect, opt
     layout?: DragProxyLayoutConfig;
     contentScale?: number | (() => number);
     landingContentScale?: number | (() => number);
+    cameraShell?: boolean;
 }): HTMLElement;
 /**
  * 代理挂到 documentElement 后不再继承画布的 transform: scale()。
@@ -65,6 +66,17 @@ export declare function getProxyAttitude(proxy: HTMLElement): HTMLElement;
 export declare function getProxyContent(proxy: HTMLElement): HTMLElement;
 export declare function moveDragProxy(proxy: HTMLElement, x: number, y: number, offsetX: number, offsetY: number): void;
 export interface LandingVisualOptions {
+    objectId?: string;
+    sessionId?: string;
+    pointerRelease?: {
+        x: number;
+        y: number;
+    };
+    targetSnapshot?: {
+        rect?: DOMRect;
+    };
+    sourceSurfaceId?: string;
+    destinationSurfaceId?: string;
     duration?: number;
     easing?: string;
     targetShadow?: string;
@@ -114,6 +126,8 @@ export interface LandingVisualOptions {
     };
     /** free 画布 landing 的实时相机比例。 */
     contentScale?: number | (() => number);
+    /** 当前代理是否由对象级 camera capability 启用 camera shell。 */
+    cameraShell?: boolean;
     /** grid/list 目标的最终内容倍率；未提供时按目标视觉宽度与代理基准宽度推导。 */
     landingContentScale?: number | (() => number);
     motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
@@ -165,6 +179,7 @@ export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect, optio
     layout?: DragProxyLayoutConfig;
     keepSourceVisible?: boolean;
     contentScale?: number | (() => number);
+    cameraShell?: boolean;
 }): void;
 export declare function getFloatingProxy(el: HTMLElement): HTMLElement | undefined;
 /** 将抓取阶段的 proxy 转交给 Runtime 的统一 landing 生命周期，不移除节点。 */

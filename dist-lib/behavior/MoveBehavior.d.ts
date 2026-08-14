@@ -9,6 +9,10 @@ export interface MoveContext {
         x: number;
         y: number;
     };
+    sourceSize?: {
+        w: number;
+        h: number;
+    };
     followElement?: HTMLElement | null;
     visualSnapshot?: VisualSnapshot;
     destination?: unknown;

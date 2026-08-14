@@ -12,10 +12,11 @@ import type { Behavior, BehaviorContext } from './behavior/Behavior'
 import { BehaviorStore } from './behavior/BehaviorStore'
 import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle, type MoveVisualStrategy } from './behavior/MoveBehavior'
 import { DefaultVisualAdapter, type GroupVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
-import type { VisualState } from './dom/VisualAdapterTypes'
+import type { ObjectAffordancesConfig, VisualState } from './dom/VisualAdapterTypes'
 import type { MotionProfile } from './dom/MotionProfile'
 import type { GroupDragConfig } from './dom/GroupDragProfile'
 import type { DragProxyLayoutConfig, LandingRect } from './dom/Visual'
+import { setRuntimeAffordancesHidden } from './dom/Visual'
 import type { MotionControllerConfig } from './motion/MotionProfile'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
@@ -140,6 +141,8 @@ export interface ObjectTypeRegistration {
   camera?: boolean | ObjectCameraConfig
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
   visual?: ObjectVisualAdapter
+  /** 附加交互的 DOM 标记；Runtime 只在拖拽生命周期内切换其隐藏状态。 */
+  affordances?: ObjectAffordancesConfig
   /** 多对象叠卡视觉；默认使用 Runtime 内置效果，也可传入自定义适配器或显式关闭。 */
   groupVisual?: GroupVisualOption
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
@@ -675,6 +678,13 @@ setMotionProfiles(this.registry.motionProfile)
     return this.getVisualAdapter(object?.visual ?? object?.type ?? '')
   }
 
+  /** 读取对象类型声明的附加交互选择器；未声明时不干预业务 DOM。 */
+  getObjectAffordancesConfig(objectId: string): ObjectAffordancesConfig | undefined {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    return registration?.affordances
+  }
+
   getObjectGroupVisualAdapter(objectId: string): VisualAdapter | undefined {
     const object = this.objects.get(objectId)
     const type = object?.visual ?? object?.type
@@ -812,6 +822,7 @@ setMotionProfiles(this.registry.motionProfile)
       motion: motionProfile,
       motionEnabled: registration?.motion?.enabled,
       proxyLayout,
+      affordances: registration?.affordances,
       groupDrag: registration?.groupDrag,
       group: session instanceof GroupDragSession
         ? {
@@ -866,6 +877,10 @@ setMotionProfiles(this.registry.motionProfile)
   /** 将对象的生命周期视觉状态交给其适配器写入。 */
   applyVisualState(objectId: string, element: HTMLElement, state: VisualState): void {
     this.visualState.apply(objectId, element, state)
+    const config = this.getObjectAffordancesConfig(objectId)
+    if (config) {
+      setRuntimeAffordancesHidden(element, state.phase !== 'idle' && state.phase !== 'pressed', config.selector)
+    }
   }
 
   /** 获取对象当前视觉快照；未覆盖时使用默认 DOM 样式快照。 */

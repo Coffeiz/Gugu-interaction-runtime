@@ -7,6 +7,11 @@ export interface VisualState {
   readonly grabbed: boolean
 }
 
+/** 对象附加交互的 DOM 选择器；Runtime 只管理生命周期状态，不渲染业务按钮。 */
+export interface ObjectAffordancesConfig {
+  readonly selector: string | readonly string[]
+}
+
 export interface VisualSnapshot {
   readonly rect: DOMRect
   readonly borderRadius: string

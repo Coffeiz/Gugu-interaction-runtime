@@ -52,6 +52,7 @@ export function createDetachMoveFromAdapter(config: {
   let landingGate: RuntimeCompletionGate<LandingResult> | null = null
   let landingProxy: HTMLElement | null = null
   let landingTargetElement: HTMLElement | null = null
+  let revealedTargetElement: HTMLElement | null = null
   let released = false
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
@@ -221,6 +222,7 @@ export function createDetachMoveFromAdapter(config: {
         landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
       }
       landingTargetElement = landedEl
+      revealedTargetElement = landedEl
       if (landingElement) runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
       const targetObjectId = runtime.findObjectIdByElement(landedEl, objectId) ?? objectId
       const targetSnapshot = captureDetachTargetSnapshot(
@@ -577,6 +579,18 @@ export function createDetachMoveFromAdapter(config: {
       clearRegrab: () => clearGroupRegrabs(runtime.getGroup(sessionId!)),
       finishReveal: () => {
         if (landingProxy) setProxyInteractive(landingProxy, false)
+        const target = revealedTargetElement?.isConnected
+          ? revealedTargetElement
+          : (element.isConnected ? element : null)
+        if (target) {
+          runtime.applyVisualState(objectId, target, {
+            phase: 'idle',
+            hovered: target.matches(':hover'),
+            selected: target.classList.contains('is-selected'),
+            grabbed: false,
+          })
+        }
+        revealedTargetElement = null
         // landing 完成后再保险清理旧 floating registry；正常 handoff 后这里是
         // 空操作，真正的 proxy 由 Runtime 的统一 dispose 边界销毁。
         clearFloatingStyle(element)

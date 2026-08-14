@@ -1168,6 +1168,37 @@ describe('Runtime move orchestration', () => {
     expect(element.classList.contains('is-grabbed')).toBe(true)
   })
 
+  it('落地揭示结束后恢复卡片附加交互', () => {
+    const runtime = new Runtime()
+    const element = document.createElement('div')
+    const affordances = document.createElement('div')
+    affordances.className = 'card-affordances'
+    affordances.dataset.cardAffordances = ''
+    element.append(affordances)
+    runtime.objects.register({
+      id: 'card-affordances-lifecycle',
+      type: 'affordances-card',
+      surfaceId: 'surface:affordances',
+      element,
+      abilities: ['move'],
+    })
+    runtime.registerObjectType('affordances-card', {
+      defaultVisualMode: 'detach',
+      visual: {},
+      affordances: { selector: '[data-card-affordances]' },
+    })
+
+    runtime.applyVisualState('card-affordances-lifecycle', element, {
+      phase: 'dragging', hovered: false, selected: false, grabbed: true,
+    })
+    expect(affordances.classList.contains('runtime-affordances-hidden')).toBe(true)
+
+    runtime.applyVisualState('card-affordances-lifecycle', element, {
+      phase: 'idle', hovered: false, selected: false, grabbed: false,
+    })
+    expect(affordances.classList.contains('runtime-affordances-hidden')).toBe(false)
+  })
+
   it('通过 Runtime 获取默认视觉快照', () => {
     const runtime = new Runtime()
     const element = document.createElement('div')
