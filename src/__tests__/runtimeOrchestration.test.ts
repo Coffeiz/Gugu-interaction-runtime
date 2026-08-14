@@ -1174,6 +1174,8 @@ describe('Runtime move orchestration', () => {
     const affordances = document.createElement('div')
     affordances.className = 'card-affordances'
     affordances.dataset.cardAffordances = ''
+    const action = document.createElement('button')
+    affordances.append(action)
     element.append(affordances)
     runtime.objects.register({
       id: 'card-affordances-lifecycle',
@@ -1192,11 +1194,13 @@ describe('Runtime move orchestration', () => {
       phase: 'dragging', hovered: false, selected: false, grabbed: true,
     })
     expect(affordances.classList.contains('runtime-affordances-hidden')).toBe(true)
+    expect(action.classList.contains('runtime-affordances-hidden')).toBe(true)
 
     runtime.applyVisualState('card-affordances-lifecycle', element, {
       phase: 'idle', hovered: false, selected: false, grabbed: false,
     })
     expect(affordances.classList.contains('runtime-affordances-hidden')).toBe(false)
+    expect(action.classList.contains('runtime-affordances-hidden')).toBe(false)
   })
 
   it('通过 Runtime 获取默认视觉快照', () => {

@@ -51,7 +51,7 @@ describe('代理布局', () => {
     source.remove()
   })
 
-  it('抓取代理的阴影从零开始，由下一帧进入浮起阴影', () => {
+  it('抓取代理保留阴影结构并从透明度零开始', () => {
     const source = document.createElement('article')
     source.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.2)'
     document.body.append(source)
@@ -60,7 +60,8 @@ describe('代理布局', () => {
     const proxy = getFloatingProxy(source)!
     const content = getProxyContent(proxy)
 
-    expect(content.style.boxShadow).toBe('none')
+    expect(content.style.boxShadow).not.toBe('none')
+    expect(content.style.boxShadow).toContain(', 0)')
     expect(content.style.getPropertyPriority('box-shadow')).toBe('important')
 
     clearFloatingStyle(source)

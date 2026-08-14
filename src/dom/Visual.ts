@@ -94,7 +94,8 @@ export function setRuntimeAffordancesHidden(
     ...(root.matches(query) ? [root] : []),
     ...root.querySelectorAll<HTMLElement>(query),
   ]
-  nodes.forEach(node => node.classList.toggle('runtime-affordances-hidden', hidden))
+  const affected = nodes.flatMap(node => [node, ...node.querySelectorAll<HTMLElement>('*')])
+  affected.forEach(node => node.classList.toggle('runtime-affordances-hidden', hidden))
 }
 
 /** 抓取代理的可选紧凑布局；尺寸和布局语义由业务声明，过渡由 Runtime 执行。 */
@@ -128,6 +129,17 @@ function setVisualBoxShadow(element: HTMLElement, value: string): void {
   // 业务卡片可能通过 .glass-card !important 提供默认阴影；代理的抓取/落地
   // 阴影属于 Runtime 视觉状态，必须能覆盖这条业务默认规则。
   element.style.setProperty('box-shadow', value, 'important')
+}
+
+function transparentizeBoxShadow(value: string): string {
+  // 保留阴影的偏移、模糊、扩散和 inset 结构，只把颜色透明度降到 0，
+  // 让抓起态在下一帧从透明阴影平滑过渡到完整阴影，而不是从 none 跳变。
+  return value.replace(/rgba?\(([^)]+)\)/gi, (match, channels: string) => {
+    const parts = channels.split(',').map(part => part.trim())
+    if (parts.length === 4) return `rgba(${parts.slice(0, 3).join(', ')}, 0)`
+    if (parts.length === 3) return `rgba(${parts.join(', ')}, 0)`
+    return match
+  })
 }
 
 function copyLandingSurfaceState(source: HTMLElement, target: HTMLElement): void {
@@ -453,6 +465,8 @@ export interface LandingVisualOptions {
   contentScale?: number | (() => number)
   /** 当前代理是否由对象级 camera capability 启用 camera shell。 */
   cameraShell?: boolean
+  /** 对象类型注册的附加交互选择器；landing 的源层和目标层都必须隐藏。 */
+  affordancesSelector?: string | readonly string[]
   /** grid/list 目标的最终内容倍率；未提供时按目标视觉宽度与代理基准宽度推导。 */
   landingContentScale?: number | (() => number)
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
@@ -540,6 +554,7 @@ function prepareBoxShadowMorph(
 function wrapContentForMorph(
   source: HTMLElement,
   toContent: HTMLElement,
+  affordancesSelector?: string | readonly string[],
 ): { contentRoot: HTMLElement; fromLayer: HTMLElement; toLayer: HTMLElement; targetScaleShell: HTMLElement } {
   const sourceLayer = source.cloneNode(true) as HTMLElement
   const contentRoot = document.createElement('div')
@@ -579,6 +594,7 @@ function wrapContentForMorph(
   // 渲染上下文写入目标层；源层则继续保留抓取时的上下文。
   preserveProxyVisualContext(toContent, targetLayer)
   clearLandingRuntimeState(targetLayer)
+  if (affordancesSelector) setRuntimeAffordancesHidden(targetLayer, true, affordancesSelector)
   copyLandingSurfaceState(toContent, targetLayer)
   delete targetLayer.dataset.runtimePhase
   delete targetLayer.dataset.runtimeCompact
@@ -668,7 +684,9 @@ export function landDragProxyLegacy(
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
   let content = getProxyContent(proxy)
-  const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
+  const contentLayers = options.targetContent
+    ? wrapContentForMorph(content, options.targetContent, options.affordancesSelector)
+    : null
   if (contentLayers) content = contentLayers.contentRoot
   const sourceSurface = contentLayers?.fromLayer ?? content
   const targetSurface = contentLayers?.toLayer ?? content
@@ -866,7 +884,9 @@ export function landDragProxyWithMotion(
   const targetOpacity = options.targetOpacity
   let content = getProxyContent(proxy)
   const scaleShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
-  const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
+  const contentLayers = options.targetContent
+    ? wrapContentForMorph(content, options.targetContent, options.affordancesSelector)
+    : null
   if (contentLayers) content = contentLayers.contentRoot
   const sourceSurface = contentLayers?.fromLayer ?? content
   const targetSurface = contentLayers?.toLayer ?? content
@@ -1397,6 +1417,7 @@ export function applyFloatingStyle(
     keepSourceVisible?: boolean
     contentScale?: number | (() => number)
     cameraShell?: boolean
+    affordancesSelector?: string | readonly string[]
   } = {},
 ) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
@@ -1404,25 +1425,21 @@ export function applyFloatingStyle(
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
-  // 抓取态阴影必须从零开始，不能继承本体当前阴影作为起点；否则卡片还没
-  // 浮起就已经带着一层深阴影。下一帧由 beginFloatingPickup() 统一提交浮起
-  // 阴影，让阴影和卡片的启动变换同时进入过渡。
   const proxy = createDragProxy(el, rect, {
     glass: false,
     layout: options.layout,
     contentScale: options.contentScale,
     cameraShell: options.cameraShell,
+    affordancesSelector: options.affordancesSelector,
   })
   const content = getProxyContent(proxy)
   // 抓起 proxy 同样脱离了 source 的 DOM 继承链；landing 入口由
   // VisualAdapter 处理，这里补齐 grabbing 入口，避免代理回退到 body 字体。
   preserveProxyVisualContext(el, content)
+  const grabbingShadow = content.style.boxShadow
   const pickupTransition = content.style.transition
-  // createDragProxy() 为后续视觉过渡预先设置了 box-shadow transition；如果直接
-  // 把初始阴影改成 none，浏览器会把创建时的深阴影也纳入过渡，首帧读到的仍是
-  // 深阴影。先冻结、提交零阴影，再恢复 transition，下一帧才开始真正的 0 -> 浮起。
   content.style.transition = 'none'
-  setVisualBoxShadow(content, 'none')
+  setVisualBoxShadow(content, transparentizeBoxShadow(grabbingShadow))
   void content.offsetWidth
   content.style.transition = pickupTransition
   const compact = Boolean(options.layout?.compact)
@@ -1441,7 +1458,13 @@ export function applyFloatingStyle(
     if (!proxy.isConnected || !pickupHandoffPending.has(proxy)) {
       return
     }
-    beginFloatingPickup(proxy, compact)
+    // 让代理先完成一帧透明阴影的绘制，再提交抓取态阴影；否则首帧还没
+    // 被浏览器绘制就已经写入完整阴影，视觉上会从一个不透明度起步。
+    requestAnimationFrame(() => {
+      if (!proxy.isConnected || !pickupHandoffPending.has(proxy)) return
+      pickupHandoffPending.delete(proxy)
+      beginFloatingPickup(proxy, compact)
+    })
   })
 }
 
@@ -1481,10 +1504,11 @@ export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: num
   const left = `${x - offsetX}px`
   const top = `${y - offsetY}px`
   if (pickupHandoffPending.has(target)) {
-    pickupHandoffPending.delete(target)
-    beginFloatingPickup(target, getProxyContent(target).dataset.runtimeCompact === 'true')
     target.style.transition = 'left 120ms cubic-bezier(.22,1,.36,1), top 120ms cubic-bezier(.22,1,.36,1), transform 120ms cubic-bezier(.22,1,.36,1), box-shadow 120ms ease'
     requestAnimationFrame(() => {
+      if (!target.isConnected || !pickupHandoffPending.has(target)) return
+      pickupHandoffPending.delete(target)
+      beginFloatingPickup(target, getProxyContent(target).dataset.runtimeCompact === 'true')
       target.style.left = left
       target.style.top = top
       window.setTimeout(() => {

@@ -347,6 +347,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       contentScale: context.contentScale,
       cameraShell: Boolean(context.camera?.enabled && context.camera.scale),
       landingContentScale: context.landingContentScale,
+      affordancesSelector: context.affordances?.selector,
       motionState: context.releaseMode === 'normal' ? undefined : landingMotionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
