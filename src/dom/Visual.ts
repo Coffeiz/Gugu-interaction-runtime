@@ -977,6 +977,41 @@ export function landDragProxyWithMotion(
     : 0
   let motionArrived = false
   let settleCheckRaf: number | null = null
+  let freeGeometryProbeFrames = 0
+  let freeGeometryProbeLast: {
+    x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number
+  } | null = null
+  const probeFreeLandingGeometry = (
+    phase: string,
+    frame?: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number },
+  ) => {
+    if (options.landingMode !== 'free') return
+    const proxyRect = proxy.getBoundingClientRect()
+    const shellRect = landingShell?.shell.getBoundingClientRect() ?? null
+    const glueRect = camGlue?.getBoundingClientRect() ?? null
+    const targetRect = currentTarget
+    console.info('[runtime-free-landing-geometry-probe]', JSON.stringify({
+      phase,
+      targetRect: [targetRect.left, targetRect.top, targetRect.width, targetRect.height],
+      proxyRect: [proxyRect.left, proxyRect.top, proxyRect.width, proxyRect.height],
+      shellRect: shellRect && [shellRect.left, shellRect.top, shellRect.width, shellRect.height],
+      glueRect: glueRect && [glueRect.left, glueRect.top, glueRect.width, glueRect.height],
+      delta: [
+        proxyRect.left - targetRect.left,
+        proxyRect.top - targetRect.top,
+        proxyRect.width - targetRect.width,
+        proxyRect.height - targetRect.height,
+      ],
+      transform: proxy.style.transform,
+      transformOrigin: proxy.style.transformOrigin,
+      cameraScale: initialContentScale,
+      frame: frame ? {
+        x: frame.x, y: frame.y, scaleX: frame.scaleX, scaleY: frame.scaleY,
+        rotateX: frame.rotateX, rotateZ: frame.rotateZ,
+      } : null,
+      time: performance.now(),
+    }))
+  }
   let dismissFinished = !hasTargetDismiss
   let timeoutId: number | null = null
   let dismissTimeoutId: number | null = null
@@ -1030,10 +1065,18 @@ export function landDragProxyWithMotion(
         }
       }
       motionArrived = true
+      probeFreeLandingGeometry('arrived-before-reveal', freeGeometryProbeLast ?? undefined)
       finishWhenVisualsSettled()
     })
   }
   const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
+      if (options.landingMode === 'free') {
+        freeGeometryProbeFrames += 1
+        freeGeometryProbeLast = frame
+        if (freeGeometryProbeFrames <= 2) {
+          probeFreeLandingGeometry(`frame-${freeGeometryProbeFrames}`, frame)
+        }
+      }
       const left = frame.x
       const top = frame.y
       proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`

@@ -102,7 +102,6 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
   let raf: number | null = null
   let running = false
   const easing = resolveFreeLandingEasing(options.easing)
-
   const emit = (progress: number) => {
     const t = easing(Math.max(0, Math.min(1, progress)))
     state.x = start.x + (target.x - start.x) * t
@@ -153,9 +152,7 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
       running = true
       start = { ...state }
       startedAt = performance.now()
-      // 抓取代理在进入 landing 前已经处于 seed 位置。这里不要再同步发一帧
-      // 0 进度，否则紧接着的首个 requestAnimationFrame 会重复输出起点，
-      // 让视觉出现“停一拍后突然加速”的错觉。
+      emit(0)
       raf = requestAnimationFrame(tick)
     },
     stop() {
