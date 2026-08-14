@@ -681,6 +681,7 @@ export function landDragProxyLegacy(
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
   let content = getProxyContent(proxy)
+  const attitude = getProxyAttitude(proxy)
   const contentLayers = options.targetContent
     ? wrapContentForMorph(content, options.targetContent, options.affordancesSelector)
     : null
@@ -761,16 +762,21 @@ export function landDragProxyLegacy(
     currentTarget = nextTarget
     const startRect = proxy.getBoundingClientRect()
     proxy.style.transition = 'none'
+    const currentAttitudeTransform = getComputedStyle(attitude).transform
+    attitude.style.transition = 'none'
+    attitude.style.transform = currentAttitudeTransform
     proxy.style.width = `${startRect.width.toFixed(2)}px`
     proxy.style.height = `${startRect.height.toFixed(2)}px`
     proxy.style.transform =
       `translate3d(${(startRect.left - layoutLeft).toFixed(2)}px, ${(startRect.top - layoutTop).toFixed(2)}px, 0)`
-    proxy.style.transform = 'none'
+    // 保留当前视觉位移作为 landing 起点。清成 none 会让代理瞬间回到
+    // style.left/top 的原始位置，普通模式因此会从抓取前的位置飞出。
     void proxy.offsetWidth
     const targetTransform =
       `translate3d(${(nextTarget.left - layoutLeft).toFixed(2)}px, ${(nextTarget.top - layoutTop).toFixed(2)}px, 0)`
 
     proxy.style.transition = `transform ${animDuration}ms ${easing}, width ${animDuration}ms ${easing}, height ${animDuration}ms ${easing}`
+    attitude.style.transition = `transform ${animDuration}ms ${easing}`
     const visualTransition = [
       `box-shadow ${animDuration}ms ease`,
       `border-radius ${animDuration}ms ease`,
@@ -791,6 +797,7 @@ export function landDragProxyLegacy(
     // 再改成目标值，过渡才有起点可插值。
     requestAnimationFrame(() => {
       proxy.style.transform = targetTransform
+      attitude.style.transform = 'none'
       proxy.style.width = `${nextTarget.width.toFixed(2)}px`
       proxy.style.height = `${nextTarget.height.toFixed(2)}px`
       // morph 根壳是透明的定位容器，不能承载目标阴影；否则它的 0 圆角会
