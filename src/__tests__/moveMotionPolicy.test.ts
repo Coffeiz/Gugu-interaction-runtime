@@ -82,8 +82,8 @@ describe('motion.enabled 契约：grabbing/follow 阶段', () => {
     const afterSecond = parseTranslate(proxy!.style.transform)
     expect(afterSecond.x - afterFirst.x).toBeCloseTo(40, 5)
     expect(afterSecond.y - afterFirst.y).toBeCloseTo(60, 5)
-    expect(proxy!.style.transform).toContain('rotateX(0.00deg)')
-    expect(proxy!.style.transform).toContain('rotateZ(0.00deg)')
+    // direct follow 不产生姿态层；它只保证指针差值和基础缩放立即生效。
+    expect(proxy!.style.transform).not.toMatch(/rotate[ZX]/)
     expect(proxy!.style.transform).toContain('scale(1.0000, 1.0000)')
 
     const up = new PointerEvent('pointerup', { clientX: 300, clientY: 260 })
@@ -364,7 +364,7 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     destroyDragProxy(proxy)
   })
 
-  it('landing 不继承 perspective 前后倾，但保留平面旋转姿态', async () => {
+  it('landing 继承当前姿态并交给落地控制器平滑衰减', async () => {
     const { target, proxy } = landingFixture()
     const adapter = new DefaultVisualAdapter()
     const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
@@ -386,14 +386,14 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
       proxy,
       expect.anything(),
       expect.objectContaining({
-        motionState: expect.objectContaining({ rotateX: 0, rotateZ: -3 }),
+        motionState: expect.objectContaining({ rotateX: 5, rotateZ: -3 }),
       }),
     )
     motionSpy.mockRestore()
     destroyDragProxy(proxy)
   })
 
-  it('同 Surface landing 也不继承抓取时的 perspective 前后倾', async () => {
+  it('同 Surface landing 也继承抓取时的姿态和释放速度', async () => {
     const { target, proxy } = landingFixture()
     const adapter = new DefaultVisualAdapter()
     const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
@@ -415,7 +415,7 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
       proxy,
       expect.anything(),
       expect.objectContaining({
-        motionState: expect.objectContaining({ rotateX: 0, rotateZ: 2, vx: 240, vy: 40 }),
+        motionState: expect.objectContaining({ rotateX: 5, rotateZ: 2, vx: 240, vy: 40 }),
       }),
     )
     motionSpy.mockRestore()

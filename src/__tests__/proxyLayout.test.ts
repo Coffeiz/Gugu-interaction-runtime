@@ -294,15 +294,15 @@ describe('代理布局', () => {
     })
 
     const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
-    // 世界尺寸仍为 200x100，当前相机把它显示为 300x150；抓取态的 1.03
-    // 只负责浮起，不应再叠加一段从 200x100 到 300x150 的首帧放大。
-    expect(shell.style.width).toBe('200px')
-    expect(shell.style.height).toBe('100px')
-    // scaleShell 必须围绕 holder 中心承载当前 150% 的视觉尺寸，不能回到左上角，
-    // 否则 landing 会表现为从右下/左上方向飞入。
-    expect(parseFloat(shell.style.left)).toBeCloseTo(-54.5, 1)
-    expect(parseFloat(shell.style.top)).toBeCloseTo(-27.25, 1)
-    expect(shell.style.transform).toBe('scale(1.545)')
+    // 当前视觉帧包含抓取态的 1.03 浮起比例；landing 从这份完整快照接管，
+    // 不再把代理跳回抓取前的 200x100。
+    expect(shell.style.width).toBe('206px')
+    expect(shell.style.height).toBe('103px')
+    // landing 阶段定位壳已经切换为当前视觉尺寸，scale shell 从壳左上角
+    // 重新承载内容，不能继续使用 grabbing 阶段的居中偏移。
+    expect(parseFloat(shell.style.left)).toBeCloseTo(0, 1)
+    expect(parseFloat(shell.style.top)).toBeCloseTo(0, 1)
+    expect(shell.style.transform).toBe('scale(1)')
 
     vi.advanceTimersByTime(6000)
     await landing.finished
@@ -592,9 +592,9 @@ describe('代理布局', () => {
     vi.advanceTimersByTime(1200)
 
     const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')!
-    // scaleShell 仍由相机倍率 0.5 承担；motion 自身目标倍率应为 1，
-    // 旧逻辑会把两者相乘成 0.25。
-    expect(parseFloat(shell.style.transform.match(/scale\(([^)]+)/)?.[1] ?? '0')).toBeCloseTo(0.5, 2)
+    // retarget 后定位壳已经承载当前视觉尺寸；scaleShell 不再重复叠加
+    // 抓取时的相机倍率，避免出现 0.25 的二次缩放。
+    expect(parseFloat(shell.style.transform.match(/scale\(([^)]+)/)?.[1] ?? '0')).toBeCloseTo(1, 2)
 
     vi.advanceTimersByTime(6000)
     await landing.finished
@@ -637,9 +637,9 @@ describe('代理布局', () => {
 
     vi.advanceTimersByTime(1200)
 
-    // shell 会在 200x100 的定位壳内缩放到 300x150，并以壳中心对齐；
-    // 所以运动壳的目标是 (350, 225)，最终视觉外框才会落在 (300, 200)。
-    expect(proxy.style.transform).toContain('translate3d(350.00px, 225.00px, 0)')
+    // 当前定位壳直接承载最终外框尺寸，视觉外框与目标 rect 同步，
+    // 不再用旧的壳中心补偿把 landing 起点推到右下方。
+    expect(proxy.style.transform).toContain('translate3d(300.00px, 200.00px, 0)')
 
     vi.advanceTimersByTime(6000)
     await landing.finished

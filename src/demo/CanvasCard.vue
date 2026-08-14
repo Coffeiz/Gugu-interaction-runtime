@@ -17,8 +17,10 @@
         <strong>{{ node.title }}</strong>
         <span>{{ node.meta }}</span>
       </div>
-      <button type="button" class="canvas-card-port canvas-card-port-left" data-card-port="left" aria-label="从左侧连接" @pointerdown.stop.prevent="emit('connect-start', node.id, 'left')" @click.stop />
-      <button type="button" class="canvas-card-port canvas-card-port-right" data-card-port="right" aria-label="从右侧连接" @pointerdown.stop.prevent="emit('connect-start', node.id, 'right')" @click.stop />
+      <template v-if="!inDrawer">
+        <button type="button" class="canvas-card-port canvas-card-port-left" data-card-port="left" aria-label="从左侧连接" @pointerdown.stop.prevent="emit('connect-start', node.id, 'left')" @click.stop />
+        <button type="button" class="canvas-card-port canvas-card-port-right" data-card-port="right" aria-label="从右侧连接" @pointerdown.stop.prevent="emit('connect-start', node.id, 'right')" @click.stop />
+      </template>
       <span v-if="node.kind === 'note'" class="canvas-card-dot" />
     </article>
   </div>
@@ -56,7 +58,9 @@ const { elementRef } = useObject({
   visualMode: () => props.strategy ?? 'detach',
   surface: toRef(props, 'surfaceId'),
   abilities: ['move'],
-  node: {
+  // 抽屉卡是尚未进入画布的可移动 Object，不是可连接 Node；只有画布中的卡片
+  // 才注册左右 Port，并显示连接点。
+  node: () => props.inDrawer ? undefined : {
     ports: [
       { id: 'left', side: 'left', position: 0.5, hitRadius: 16 },
       { id: 'right', side: 'right', position: 0.5, hitRadius: 16 },
