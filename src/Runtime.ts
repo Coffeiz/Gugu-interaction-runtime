@@ -327,6 +327,13 @@ setMotionProfiles(this.registry.motionProfile)
       if (event.type === 'object-removed') {
         this.inputCoordinator.remove(event.id)
         this.targets.unregister(`object-target:${event.id}`)
+        const prefix = `${event.id}:`
+        const middle = `->${event.id}:`
+        for (const connectionId of this.nodeConnections) {
+          if (connectionId.startsWith(prefix) || connectionId.includes(middle)) {
+            this.nodeConnections.delete(connectionId)
+          }
+        }
       }
     })
     this.surfaces.subscribe(event => {
@@ -1116,7 +1123,7 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   /** 在实时端点附近命中一个端口；命中结果按距离和对象 DOM 顺序稳定返回。 */
-  hitNodePort(point: { x: number; y: number }, options: { objectId?: string; objectType?: string } = {}): NodePortSnapshot | null {
+  hitNodePort(point: { x: number; y: number }, options: { objectId?: string; objectType?: string; snapToObject?: boolean } = {}): NodePortSnapshot | null {
     const candidates = options.objectId
       ? this.getNodePorts(options.objectId)
       : [...this.objects.values()].flatMap(object => this.getNodePorts(object.id))
@@ -1124,6 +1131,19 @@ setMotionProfiles(this.registry.motionProfile)
       if (!options.objectType) return true
       return !port.accepts || port.accepts.length === 0 || port.accepts.includes(options.objectType)
     })
+    if (options.snapToObject) {
+      const objectIds = [...new Set(valid.map(port => port.objectId))]
+      const objectTargets = objectIds.flatMap(objectId => {
+        const object = this.objects.get(objectId)
+        const rect = object?.element?.isConnected ? object.element.getBoundingClientRect() : null
+        if (!rect || point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return []
+        const ports = valid.filter(port => port.objectId === objectId)
+        const side = point.x <= rect.left + rect.width / 2 ? 'left' : 'right'
+        const port = ports.find(candidate => candidate.side === side) ?? ports[0]
+        return port ? [{ port, distance: Math.hypot(point.x - port.point.x, point.y - port.point.y) }] : []
+      })
+      if (objectTargets.length > 0) return objectTargets.sort((left, right) => left.distance - right.distance)[0].port
+    }
     return valid
       .map(port => ({ port, distance: Math.hypot(point.x - port.point.x, point.y - port.point.y) }))
       .filter(entry => entry.distance <= (entry.port.hitRadius ?? 10))
@@ -1151,13 +1171,16 @@ setMotionProfiles(this.registry.motionProfile)
   finishNodeConnection(targetObjectId: string, targetPortId: string): boolean {
     const active = this.activeNodeConnection
     const target = this.getNodePorts(targetObjectId).find(port => port.id === targetPortId)
+    const connectionId = active && target
+      ? this.nodeConnectionId(active.sourceObjectId, active.sourcePortId, targetObjectId, targetPortId)
+      : null
+    const alreadyRegistered = connectionId !== null && this.nodeConnections.has(connectionId)
     if (!active || !target || active.sourceObjectId === targetObjectId) return false
     const targetObject = this.objects.get(targetObjectId)
     const sourceObject = this.objects.get(active.sourceObjectId)
     if (!targetObject || !sourceObject) return false
     if (target.accepts?.length && !target.accepts.includes(sourceObject.type)) return false
-    const connectionId = this.nodeConnectionId(active.sourceObjectId, active.sourcePortId, targetObjectId, targetPortId)
-    if (this.nodeConnections.has(connectionId)) return false
+    if (connectionId === null || alreadyRegistered) return false
     this.nodeConnections.add(connectionId)
     this.activeNodeConnection = null
     this.actions.emit({
@@ -1205,6 +1228,23 @@ setMotionProfiles(this.registry.motionProfile)
     )
     this.nodeConnections.add(connectionId)
     return connectionId
+  }
+
+  /** 按对象对清理连接；画布等无向关系无需暴露 Runtime 内部端点或外部关系 ID。 */
+  deleteNodeConnectionsBetween(objectId: string, targetObjectId: string): number {
+    const leftPrefix = `${objectId}:`
+    const rightMarker = `->${targetObjectId}:`
+    const reversePrefix = `${targetObjectId}:`
+    const reverseMarker = `->${objectId}:`
+    let removed = 0
+    for (const connectionId of this.nodeConnections) {
+      if ((connectionId.startsWith(leftPrefix) && connectionId.includes(rightMarker))
+        || (connectionId.startsWith(reversePrefix) && connectionId.includes(reverseMarker))) {
+        this.nodeConnections.delete(connectionId)
+        removed += 1
+      }
+    }
+    return removed
   }
 
   unregisterNodeConnection(connection: NodeConnectionEndpoint | string): boolean {
@@ -1354,10 +1394,13 @@ setMotionProfiles(this.registry.motionProfile)
     const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
     const destinationSurfaceId = this.getDestinationSurfaceId(destination)
     const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
-    const target = customTarget
-      ?? semanticTarget?.element
-      ?? fallback?.()
-      ?? this.resolveMoveTarget(sessionId, destination)
+    const candidates = [
+      customTarget,
+      semanticTarget?.element,
+      fallback?.() ?? null,
+      this.resolveMoveTarget(sessionId, destination),
+    ]
+    const target = candidates.find(element => Boolean(element?.isConnected))
     if (!target || !target.isConnected) return null
     return target
   }

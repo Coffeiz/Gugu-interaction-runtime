@@ -94,6 +94,10 @@ const stop = runtime.onAction(action => {
 调用 `unregisterNodeConnection()`；`hasNodeConnection()` 可用于读取当前去重状态。预注册只
 影响 Runtime 的连接校验，不会替业务写入或删除后端关系。
 
+Node 端口只需在 Object 注册时声明一次。无向关系删除时可调用
+`deleteNodeConnectionsBetween(sourceObjectId, targetObjectId)`，不需要业务维护端点映射或外部
+关系 ID；Vue 的 `useObject()` 也会返回同名语义的 `disconnectFrom()` 方法。
+
 Vue、React 和其他框架都使用同一组 Runtime Core API。Vue 项目如果希望减少 ref、generation
 和卸载样板，优先从 `gugu-interaction-runtime/vue` 导入 composable；低层 DOM adapter
 仍保留给迁移期和布局事务使用。适配器不替代 Core 注册，也不形成第二套拖拽语义。

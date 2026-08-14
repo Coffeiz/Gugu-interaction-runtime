@@ -305,6 +305,39 @@ describe('Vue Runtime composables', () => {
     expect(runtime.hasNodeConnection(connection)).toBe(false)
   })
 
+  it('节点卸载后清理涉及该节点的 Runtime 连接去重记录', () => {
+    const runtime = new Runtime()
+    const connection = {
+      sourceObjectId: 'node:source', sourcePortId: 'right',
+      targetObjectId: 'node:target', targetPortId: 'left',
+    }
+    const sourceGeneration = runtime.objects.register({
+      id: connection.sourceObjectId, type: 'card', surfaceId: 'surface:canvas', element: null, abilities: ['link'],
+    })
+    runtime.objects.register({
+      id: connection.targetObjectId, type: 'card', surfaceId: 'surface:canvas', element: null, abilities: ['link'],
+    })
+    runtime.registerNodeConnection(connection)
+    expect(runtime.hasNodeConnection(connection)).toBe(true)
+
+    runtime.unregisterObjectWhenIdle(connection.sourceObjectId, sourceGeneration)
+
+    expect(runtime.hasNodeConnection(connection)).toBe(false)
+  })
+
+  it('可以按对象对由 Runtime 统一解除无向连接', () => {
+    const runtime = new Runtime()
+    const connection = {
+      sourceObjectId: 'node:source', sourcePortId: 'right',
+      targetObjectId: 'node:target', targetPortId: 'left',
+    }
+    runtime.registerNodeConnection(connection)
+
+    expect(runtime.deleteNodeConnectionsBetween(connection.sourceObjectId, connection.targetObjectId)).toBe(1)
+    expect(runtime.hasNodeConnection(connection)).toBe(false)
+    expect(runtime.deleteNodeConnectionsBetween(connection.sourceObjectId, connection.targetObjectId)).toBe(0)
+  })
+
   it('端点读取实时 DOMRect，移动、缩放和尺寸变化不会复用旧坐标', async () => {
     const runtime = new Runtime()
     let rect = { x: 20, y: 30, width: 100, height: 80 }
@@ -330,6 +363,67 @@ describe('Vue Runtime composables', () => {
     rect = { x: 200, y: 100, width: 160, height: 120 }
     expect(runtime.getNodePorts('node:live')[0]?.point).toEqual({ x: 360, y: 160 })
     expect(runtime.hitNodePort({ x: 360, y: 160 }, { objectType: 'card' })?.objectId).toBe('node:live')
+
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
+  it('连接点在透明交互区内可以吸附，超出 16px 命中半径不会误吸附', async () => {
+    const runtime = new Runtime()
+    const child = defineComponent({
+      setup() {
+        const object = useObject({
+          id: 'node:snap', type: 'card', surface: 'surface:canvas', abilities: ['link'],
+          node: { ports: [{ id: 'right', side: 'right', position: 0.5, hitRadius: 16 }] },
+        })
+        return () => h('article', { ref: object.elementRef })
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+    const element = runtime.objects.get('node:snap')?.element
+    expect(element).toBeInstanceOf(HTMLElement)
+    Object.defineProperty(element, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, right: 200, bottom: 120, width: 100, height: 80 }),
+    })
+
+    expect(runtime.hitNodePort({ x: 215, y: 80 })?.objectId).toBe('node:snap')
+    expect(runtime.hitNodePort({ x: 217, y: 80 })).toBeNull()
+
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
+  it('整卡命中时按鼠标所在半区吸附左右连接点，卡片外仍使用端口半径', async () => {
+    const runtime = new Runtime()
+    const child = defineComponent({
+      setup() {
+        const object = useObject({
+          id: 'node:card-snap', type: 'card', surface: 'surface:canvas', abilities: ['link'],
+          node: {
+            ports: [
+              { id: 'left', side: 'left', position: 0.5, hitRadius: 16 },
+              { id: 'right', side: 'right', position: 0.5, hitRadius: 16 },
+            ],
+          },
+        })
+        return () => h('article', { ref: object.elementRef })
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+    const element = runtime.objects.get('node:card-snap')?.element
+    expect(element).toBeInstanceOf(HTMLElement)
+    Object.defineProperty(element, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, right: 300, bottom: 140, width: 200, height: 100 }),
+    })
+
+    expect(runtime.hitNodePort({ x: 140, y: 90 }, { snapToObject: true })?.id).toBe('left')
+    expect(runtime.hitNodePort({ x: 260, y: 90 }, { snapToObject: true })?.id).toBe('right')
+    expect(runtime.hitNodePort({ x: 200, y: 90 }, { snapToObject: true })?.id).toBe('left')
+    expect(runtime.hitNodePort({ x: 200, y: 160 }, { snapToObject: true })).toBeNull()
 
     mounted.app.unmount()
     mounted.host.remove()

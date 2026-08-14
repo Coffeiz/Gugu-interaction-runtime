@@ -196,6 +196,10 @@ Runtime 提供 `getNodePorts()`、`hitNodePort()`、`beginNodeConnection()`、
 已有关系可在初始化或数据同步时调用 `registerNodeConnection()`，关系删除时调用
 `unregisterNodeConnection()`，避免只依赖当前连接会话做重复校验。
 
+Node 仍只在 `useObject({ node })` 注册时声明。无向关系删除时使用
+`useObject().disconnectFrom(targetObjectId)`（或 Core 的
+`deleteNodeConnectionsBetween()`），不需要业务维护 Runtime 端点映射。
+
 ## 生命周期要求
 
 每个使用 `useObject` 或 `useSurface` 的资源必须属于自己的 Vue 组件实例。对于父组件

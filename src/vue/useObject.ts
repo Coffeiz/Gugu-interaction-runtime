@@ -24,6 +24,8 @@ export interface UseObjectOptions {
 export interface UseObjectResult {
   elementRef: Ref<HTMLElement | null>
   generation: number
+  /** 清理当前对象与目标对象之间的 Runtime 连接；关系数据仍由业务层删除。 */
+  disconnectFrom: (targetObjectId: string) => number
 }
 
 function readObject(options: UseObjectOptions): ObjectUpdate & Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities'> {
@@ -66,5 +68,9 @@ export function useObject(options: UseObjectOptions): UseObjectResult {
     runtime.unregisterObjectWhenIdle(options.id, generation)
   })
 
-  return { elementRef, generation }
+  return {
+    elementRef,
+    generation,
+    disconnectFrom: targetObjectId => runtime.deleteNodeConnectionsBetween(options.id, targetObjectId),
+  }
 }

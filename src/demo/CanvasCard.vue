@@ -5,9 +5,9 @@
     :style="inDrawer ? undefined : { left: `${node.x}px`, top: `${node.y}px` }"
   >
     <article
-      ref="elementRef"
-      class="canvas-card"
-      :class="[`is-${node.kind}`, { 'is-drawer-card': inDrawer }]"
+    ref="elementRef"
+    class="canvas-card"
+    :class="[`is-${node.kind}`, { 'is-drawer-card': inDrawer }]"
       :data-card="node.id"
       @click="emit('select', node.id)"
     >
@@ -17,6 +17,8 @@
         <strong>{{ node.title }}</strong>
         <span>{{ node.meta }}</span>
       </div>
+      <button type="button" class="canvas-card-port canvas-card-port-left" data-card-port="left" aria-label="从左侧连接" @pointerdown.stop.prevent="emit('connect-start', node.id, 'left')" @click.stop />
+      <button type="button" class="canvas-card-port canvas-card-port-right" data-card-port="right" aria-label="从右侧连接" @pointerdown.stop.prevent="emit('connect-start', node.id, 'right')" @click.stop />
       <span v-if="node.kind === 'note'" class="canvas-card-dot" />
     </article>
   </div>
@@ -40,16 +42,26 @@ const props = defineProps<{
   node: CanvasNodeModel
   surfaceId: string
   inDrawer?: boolean
+  strategy?: 'detach' | 'clone'
 }>()
-const emit = defineEmits<{ select: [id: string] }>()
+const emit = defineEmits<{
+  select: [id: string]
+  'connect-start': [objectId: string, portId: 'left' | 'right']
+}>()
 
 const { elementRef } = useObject({
   id: props.node.id,
   type: 'canvas-sticker',
   visual: 'canvas-sticker',
-  visualMode: 'detach',
+  visualMode: () => props.strategy ?? 'detach',
   surface: toRef(props, 'surfaceId'),
   abilities: ['move'],
+  node: {
+    ports: [
+      { id: 'left', side: 'left', position: 0.5, hitRadius: 16 },
+      { id: 'right', side: 'right', position: 0.5, hitRadius: 16 },
+    ],
+  },
 })
 
 const icon = computed(() => ({ note: '✦', image: '▧', file: 'F', task: '✓' }[props.node.kind]))
@@ -59,7 +71,7 @@ const icon = computed(() => ({ note: '✦', image: '▧', file: 'F', task: '✓'
 .canvas-card-position { position: absolute; width: 184px; height: 86px; }
 .canvas-card-position.is-drawer-card { position: relative; width: 100%; height: auto; }
 .canvas-card {
-  position: relative; display: flex; align-items: flex-start; gap: 10px; width: 184px;
+  position: relative; display: flex; align-items: flex-start; gap: 10px; width: 100%;
   min-height: 86px; padding: 14px; box-sizing: border-box; border: 1px solid rgba(255,255,255,.75);
   border-radius: 14px; background: rgba(255,255,255,.82);
   box-shadow: 0 10px 26px rgba(67,75,108,.12), inset 0 1px 0 rgba(255,255,255,.9);
@@ -75,5 +87,7 @@ const icon = computed(() => ({ note: '✦', image: '▧', file: 'F', task: '✓'
 .canvas-card-body strong { overflow: hidden; color: #343a53; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-card-body span { color: #9299ad; font-size: 11px; }
 .canvas-card-dot { position: absolute; right: 12px; bottom: 12px; width: 6px; height: 6px; border-radius: 50%; background: #d59c64; }
-.canvas-card.is-drawer-card { width: 100%; min-height: 64px; height: auto; padding: 10px; border-radius: 10px; box-shadow: 0 4px 12px rgba(67,75,108,.09); }
+.canvas-card-port { position: absolute; top: 50%; z-index: 2; width: 10px; height: 10px; box-sizing: border-box; margin: 0; padding: 0; border: 2px solid #fff; border-radius: 50%; background: #7781d6; box-shadow: 0 2px 7px rgba(71,78,137,.28); opacity: 0; cursor: crosshair; pointer-events: auto; transform: translateY(-50%) scale(.72); transition: opacity .16s ease, transform .16s ease; }
+.canvas-card-port-left { left: -6px; }.canvas-card-port-right { right: -6px; }
+.canvas-card:hover .canvas-card-port { opacity: 1; transform: translateY(-50%) scale(1); }
 </style>

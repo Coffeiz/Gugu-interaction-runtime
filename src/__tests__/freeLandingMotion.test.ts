@@ -43,6 +43,26 @@ describe('FreeLandingMotion', () => {
     vi.useRealTimers()
   })
 
+  it('启动时不重复发出起点帧，避免 landing 首段停顿后突然加速', () => {
+    vi.useFakeTimers()
+    const frames: number[] = []
+    const motion = createFreeLandingMotion({
+      duration: 550,
+      easing: 'cubic-bezier(.22,1,.36,1)',
+      onFrame: frame => frames.push(frame.x),
+    })
+    motion.seed({ x: 0, y: 0 })
+    motion.setTarget({ x: 300, y: 0 })
+    motion.start()
+
+    expect(frames).toHaveLength(0)
+    vi.advanceTimersByTime(16)
+    expect(frames.length).toBeGreaterThan(0)
+    expect(frames[0]).toBeGreaterThan(0)
+    motion.stop()
+    vi.useRealTimers()
+  })
+
   it('retarget 从当前视觉位置接管，不回到旧起点', () => {
     vi.useFakeTimers()
     const frames: number[] = []

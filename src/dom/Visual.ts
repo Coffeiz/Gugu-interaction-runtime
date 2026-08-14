@@ -131,17 +131,6 @@ function setVisualBoxShadow(element: HTMLElement, value: string): void {
   element.style.setProperty('box-shadow', value, 'important')
 }
 
-function transparentizeBoxShadow(value: string): string {
-  // 保留阴影的偏移、模糊、扩散和 inset 结构，只把颜色透明度降到 0，
-  // 让抓起态在下一帧从透明阴影平滑过渡到完整阴影，而不是从 none 跳变。
-  return value.replace(/rgba?\(([^)]+)\)/gi, (match, channels: string) => {
-    const parts = channels.split(',').map(part => part.trim())
-    if (parts.length === 4) return `rgba(${parts.slice(0, 3).join(', ')}, 0)`
-    if (parts.length === 3) return `rgba(${parts.join(', ')}, 0)`
-    return match
-  })
-}
-
 function copyLandingSurfaceState(source: HTMLElement, target: HTMLElement): void {
   const style = getComputedStyle(source)
   target.style.border = style.border
@@ -796,7 +785,9 @@ export function landDragProxyLegacy(
       proxy.style.transform = targetTransform
       proxy.style.width = `${nextTarget.width.toFixed(2)}px`
       proxy.style.height = `${nextTarget.height.toFixed(2)}px`
-      if (targetShadow != null) setVisualBoxShadow(content, targetShadow)
+      // morph 根壳是透明的定位容器，不能承载目标阴影；否则它的 0 圆角会
+      // 在真实卡片外再生成一个直角阴影。没有分层时 targetSurface 就是 content。
+      if (targetShadow != null) setVisualBoxShadow(targetSurface, targetShadow)
       if (targetRadius != null) targetSurface.style.borderRadius = targetRadius
       // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
       // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
@@ -1262,7 +1253,9 @@ export function landDragProxyWithMotion(
     // 在交接前也通过强制布局读取保留了这一帧。
     if (targetShadow != null) {
       void content.offsetWidth
-      setVisualBoxShadow(content, targetShadow)
+      // 目标阴影必须落在真实目标内容层，不能写到透明的 morph 根壳上；根壳
+      // border-radius 为 0，否则会出现画布拖入时的直角方形残影。
+      setVisualBoxShadow(targetSurface, targetShadow)
     }
     if (targetRadius != null) targetSurface.style.borderRadius = targetRadius
     // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
@@ -1425,6 +1418,9 @@ export function applyFloatingStyle(
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
+  // 抓取态阴影必须从零开始，不能继承本体当前阴影作为起点；否则卡片还没
+  // 浮起就已经带着一层深阴影。下一帧由 beginFloatingPickup() 统一提交浮起
+  // 阴影，让阴影和卡片的启动变换同时进入过渡。
   const proxy = createDragProxy(el, rect, {
     glass: false,
     layout: options.layout,
@@ -1436,10 +1432,12 @@ export function applyFloatingStyle(
   // 抓起 proxy 同样脱离了 source 的 DOM 继承链；landing 入口由
   // VisualAdapter 处理，这里补齐 grabbing 入口，避免代理回退到 body 字体。
   preserveProxyVisualContext(el, content)
-  const grabbingShadow = content.style.boxShadow
   const pickupTransition = content.style.transition
+  // createDragProxy() 为后续视觉过渡预先设置了 box-shadow transition；如果直接
+  // 把初始阴影改成 none，浏览器会把创建时的深阴影也纳入过渡，首帧读到的仍是
+  // 深阴影。先冻结、提交零阴影，再恢复 transition，下一帧才开始真正的 0 -> 浮起。
   content.style.transition = 'none'
-  setVisualBoxShadow(content, transparentizeBoxShadow(grabbingShadow))
+  setVisualBoxShadow(content, 'none')
   void content.offsetWidth
   content.style.transition = pickupTransition
   const compact = Boolean(options.layout?.compact)
@@ -1458,13 +1456,7 @@ export function applyFloatingStyle(
     if (!proxy.isConnected || !pickupHandoffPending.has(proxy)) {
       return
     }
-    // 让代理先完成一帧透明阴影的绘制，再提交抓取态阴影；否则首帧还没
-    // 被浏览器绘制就已经写入完整阴影，视觉上会从一个不透明度起步。
-    requestAnimationFrame(() => {
-      if (!proxy.isConnected || !pickupHandoffPending.has(proxy)) return
-      pickupHandoffPending.delete(proxy)
-      beginFloatingPickup(proxy, compact)
-    })
+    beginFloatingPickup(proxy, compact)
   })
 }
 
@@ -1504,11 +1496,10 @@ export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: num
   const left = `${x - offsetX}px`
   const top = `${y - offsetY}px`
   if (pickupHandoffPending.has(target)) {
+    pickupHandoffPending.delete(target)
+    beginFloatingPickup(target, getProxyContent(target).dataset.runtimeCompact === 'true')
     target.style.transition = 'left 120ms cubic-bezier(.22,1,.36,1), top 120ms cubic-bezier(.22,1,.36,1), transform 120ms cubic-bezier(.22,1,.36,1), box-shadow 120ms ease'
     requestAnimationFrame(() => {
-      if (!target.isConnected || !pickupHandoffPending.has(target)) return
-      pickupHandoffPending.delete(target)
-      beginFloatingPickup(target, getProxyContent(target).dataset.runtimeCompact === 'true')
       target.style.left = left
       target.style.top = top
       window.setTimeout(() => {
