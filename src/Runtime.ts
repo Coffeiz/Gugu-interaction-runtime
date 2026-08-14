@@ -1006,6 +1006,27 @@ setMotionProfiles(this.registry.motionProfile)
     return surface?.viewport?.() ?? surface?.element ?? null
   }
 
+  /**
+   * 自由 Surface 的落点坐标使用 viewport 外框坐标，而卡片实际位于其内容盒。
+   * viewport 存在 border 时，业务用 getBoundingClientRect() 计算的卡片位置会
+   * 比外框原点多出 clientLeft/clientTop；这里统一把纯矩形落点转换到内容原点。
+   * 同时按 viewport 的屏幕/CSS 比例换算，兼容 viewport 自身被 transform 缩放的场景。
+   */
+  private normalizeFreeLandingRect(surfaceId: string | null, rect: LandingRect): LandingRect {
+    if (!surfaceId) return rect
+    const viewport = this.resolveMoveSurfaceViewport(surfaceId)
+    if (!viewport || viewport.clientLeft === 0 && viewport.clientTop === 0) return rect
+    const viewportRect = viewport.getBoundingClientRect()
+    const scaleX = viewport.offsetWidth > 0 ? viewportRect.width / viewport.offsetWidth : 1
+    const scaleY = viewport.offsetHeight > 0 ? viewportRect.height / viewport.offsetHeight : 1
+    const normalized = {
+      ...rect,
+      left: rect.left + viewport.clientLeft * (Number.isFinite(scaleX) && scaleX > 0 ? scaleX : 1),
+      top: rect.top + viewport.clientTop * (Number.isFinite(scaleY) && scaleY > 0 ? scaleY : 1),
+    }
+    return normalized
+  }
+
   /** 创建绑定当前 Session 的自动滚动控制器；滚动资源随 Session 自动清理。 */
   createAutoScroller(
     sessionId: string,
@@ -1452,12 +1473,12 @@ setMotionProfiles(this.registry.motionProfile)
       ? this.targets.findForSurface(destinationSurfaceId, object?.type)?.element ?? null
       : null
     const explicitTarget = customTarget ?? semanticTarget
-    if (explicitTarget) {
-      return { kind: 'element', element: explicitTarget }
-    }
+    if (explicitTarget) return { kind: 'element', element: explicitTarget }
     if (!invalidReturn && surfaceLayout === 'free') {
       const rect = registration?.resolveFreeLandingRect?.({ objectId: session.objectId, destination })
-      if (rect && rect.width > 0 && rect.height > 0) return { kind: 'rect', rect }
+      if (rect && rect.width > 0 && rect.height > 0) {
+        return { kind: 'rect', rect: this.normalizeFreeLandingRect(destinationSurfaceId, rect) }
+      }
     }
     const visualTarget = this.getObjectVisualAdapter(session.objectId)
       .resolveTarget?.(session.objectId, destination) ?? null

@@ -271,10 +271,12 @@ export function createDetachMoveFromAdapter(config: {
             // 后续的 session.handoff() → behavior.reveal()（我们自己的 finishReveal，只关
             // pointerEvents）→ port.end()（真正 disposeVisualProxy 的地方）——那条链隔了两次
             // await，代理在本体已可见之后还会多留几帧甚至更久，表现为本体和代理短暂重叠。
-            reveal: () => runtime.revealVisualProxy(sid, landedEl, visualContext).then(() => {
-              if (landingProxy) { runtime.disposeVisualProxy(sid); landingProxy = null }
-              landingTargetElement = null
-            }),
+            reveal: () => {
+              return runtime.revealVisualProxy(sid, landedEl, visualContext).then(() => {
+                if (landingProxy) { runtime.disposeVisualProxy(sid); landingProxy = null }
+                landingTargetElement = null
+              })
+            },
           })
           landingGate = null
         },

@@ -205,7 +205,13 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (!context.targetRect && !context.targetSnapshot?.rect && !directTargetRect && (!targetElement || !targetElement.isConnected)) {
       return Promise.resolve({ completed: false, reason: 'target-disconnected' })
     }
-    const rawTargetRect = context.targetRect ?? context.targetSnapshot?.rect ?? directTargetRect ?? targetElement!.getBoundingClientRect()
+    // 语义目标可能在 camera/布局交接期间发生位移；targetSnapshot 只用于
+    // 视觉样式和目标节点暂时断开时的兜底，不能覆盖仍连接节点的实时几何。
+    const liveTargetRect = targetElement?.isConnected ? targetElement.getBoundingClientRect() : undefined
+    const rawTargetRect = context.targetRect
+      ?? directTargetRect
+      ?? liveTargetRect
+      ?? context.targetSnapshot?.rect!
     const rawLandingRect = {
       left: rawTargetRect.left,
       top: rawTargetRect.top,
