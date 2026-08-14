@@ -85,4 +85,21 @@ describe('FreeLandingMotion', () => {
     expect(frames.every((value, index) => index === 0 || value >= frames[index - 1])).toBe(true)
     vi.useRealTimers()
   })
+
+  it('free landing 的摆动回正与位置收束保持同一节奏', () => {
+    vi.useFakeTimers()
+    const frames: number[] = []
+    const motion = createFreeLandingMotion({
+      duration: 550,
+      easing: 'cubic-bezier(.22,1,.36,1)',
+      onFrame: frame => frames.push(frame.rotateZ),
+    })
+    motion.seed({ x: 0, y: 0, rotateZ: 5 })
+    motion.setTarget({ x: 100, y: 0 })
+    motion.start()
+    vi.advanceTimersByTime(100)
+
+    expect(frames[frames.length - 1]).toBeGreaterThan(2.5)
+    vi.useRealTimers()
+  })
 })

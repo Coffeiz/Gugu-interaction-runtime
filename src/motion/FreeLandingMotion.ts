@@ -21,8 +21,13 @@ export const DEFAULT_FREE_LANDING_COAST: FreeLandingCoastConfig = {
 // free landing 的目标距离通常来自画布卡片的实际落点，可能明显大于一张卡片宽度。
 // 采用咕咕旧版跟手阶段的弹簧参数，让 free landing 的手感更接近画布拖拽。
 // 释放速度仍从抓取控制器连续继承，避免重新启动 easing。
+// 比跟手阶段更慢地收束，避免松手后过快贴到目标；阻尼保持接近临界值，
+// 让速度放缓的同时不引入明显回弹。
 const FREE_LANDING_STIFFNESS = 240
 const FREE_LANDING_DAMPING = 30
+// 位置 spring 通常需要约 500~700ms 才完全收束；旋转不能沿用普通
+// controller 的快速衰减，否则卡片会先摆正、再继续滑向目标。
+const FREE_LANDING_ROTATION_DECAY = 5
 
 /** 计算自由画布的最终落点，视觉目标与业务提交必须共用这一结果。 */
 export function resolveFreeLandingPoint(
@@ -132,7 +137,7 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
     state.scaleY = scale.position.y
     state.scaleVX = scale.velocity.x
     state.scaleVY = scale.velocity.y
-    const rotationDecay = Math.exp(-10 * dt)
+    const rotationDecay = Math.exp(-FREE_LANDING_ROTATION_DECAY * dt)
     state.rotateX *= rotationDecay
     state.rotateZ *= rotationDecay
     emit()
