@@ -64,6 +64,9 @@ const props = defineProps<{ strategy?: 'detach' | 'clone' }>()
 const motionMode = ref<'normal' | 'physical'>('physical')
 const drawerCollapsed = ref(false)
 const relationRevision = ref(0)
+let relationFrameRaf = 0
+const visualRects = new Map<string, { x: number; y: number; width: number; height: number }>()
+let stopRuntimeEvents: (() => void) | null = null
 const drawerRef = ref<InstanceType<typeof CanvasDrawer> | null>(null)
 const nodes = ref<CanvasNodeModel[]>([
   { id: 'canvas:idea', title: '产品构想', meta: '笔记 · 2 分钟前', kind: 'note', x: 120, y: 110 },
@@ -82,6 +85,8 @@ const relations = ref<DemoRelation[]>([
   { id: 'relation-2', from: 'canvas:reference', fromPort: 'right', to: 'canvas:brief', toPort: 'left' },
 ])
 const connectionState = ref<NodeConnectionState | null>(null)
+const connectionPoint = ref<{ x: number; y: number } | null>(null)
+const connectionTargetSide = ref<NodePortSide | null>(null)
 const drawerGroups = computed(() => [{ id: 'projects', title: '项目' }, { id: 'files', title: '文件' }, { id: 'ideas', title: '灵感' }].map(group => ({ ...group, nodes: drawerNodes.value.filter(node => node.group === group.id) })).filter(group => group.nodes.length))
 
 const { elementRef: canvasSurfaceRef } = useSurface({
@@ -152,14 +157,64 @@ onMounted(() => {
     })
   }
   relationRevision.value += 1
+  stopRuntimeEvents = runtime.subscribe(event => {
+    if (event.type === 'move-visual-update') {
+      visualRects.set(event.objectId, event.rect)
+      scheduleRelationFrame()
+    } else if (event.type === 'move-visual-end') {
+      visualRects.delete(event.objectId)
+      scheduleRelationFrame()
+    }
+  })
+  window.addEventListener('pointermove', scheduleRelationFrame, { passive: true })
 })
+
+function scheduleRelationFrame(): void {
+  if (relationFrameRaf) return
+  relationFrameRaf = requestAnimationFrame(() => {
+    relationFrameRaf = 0
+    relationRevision.value += 1
+  })
+}
 
 function beginConnection(objectId: string, portId: NodePortSide): void {
   const state = runtime.beginNodeConnection(objectId, portId)
   if (!state) return
   connectionState.value = state
+  connectionPoint.value = { ...state.currentPoint }
+  connectionTargetSide.value = null
+  connSpringTarget = { ...state.currentPoint }
+  connSpringVel = { x: 0, y: 0 }
+  connSpringLastT = null
+  connSpringRaf = requestAnimationFrame(connSpringFrame)
   window.addEventListener('pointermove', updateConnection)
   window.addEventListener('pointerup', finishConnection, { once: true })
+}
+
+let connSpringTarget = { x: 0, y: 0 }
+let connSpringVel = { x: 0, y: 0 }
+let connSpringRaf = 0
+let connSpringLastT: number | null = null
+const CONN_SPRING = 900
+const CONN_DAMP = 2 * 0.7 * Math.sqrt(CONN_SPRING)
+
+function connSpringFrame(now: number): void {
+  if (!connectionPoint.value || !connectionState.value) return
+  let dt = connSpringLastT === null ? 1 / 60 : (now - connSpringLastT) / 1000
+  connSpringLastT = now
+  if (dt > 1 / 20) dt = 1 / 20
+  let remaining = dt
+  while (remaining > 1e-4) {
+    const step = Math.min(remaining, 1 / 120)
+    remaining -= step
+    const ax = CONN_SPRING * (connSpringTarget.x - connectionPoint.value.x) - CONN_DAMP * connSpringVel.x
+    const ay = CONN_SPRING * (connSpringTarget.y - connectionPoint.value.y) - CONN_DAMP * connSpringVel.y
+    connSpringVel.x += ax * step
+    connSpringVel.y += ay * step
+    connectionPoint.value = { x: connectionPoint.value.x + connSpringVel.x * step, y: connectionPoint.value.y + connSpringVel.y * step }
+  }
+  relationRevision.value += 1
+  if (connectionState.value) connSpringRaf = requestAnimationFrame(connSpringFrame)
 }
 
 function drawerGroupFor(node: CanvasNodeModel): NonNullable<CanvasNodeModel['group']> {
@@ -173,6 +228,13 @@ function updateConnection(event: PointerEvent): void {
   const state = runtime.updateNodeConnection({ x: event.clientX, y: event.clientY })
   if (!state) return
   connectionState.value = state
+  const target = runtime.hitNodePort(
+    { x: event.clientX, y: event.clientY },
+    { objectType: 'canvas-sticker', snapToObject: true },
+  )
+  const isSelf = target?.objectId === state.sourceObjectId
+  connectionTargetSide.value = target && !isSelf ? target.side : null
+  connSpringTarget = target && !isSelf ? { ...target.point } : { ...state.currentPoint }
   relationRevision.value += 1
 }
 
@@ -184,6 +246,11 @@ function finishConnection(event: PointerEvent): void {
   )
   if (target) runtime.finishNodeConnection(target.objectId, target.id)
   else runtime.cancelNodeConnection()
+  cancelAnimationFrame(connSpringRaf)
+  connSpringRaf = 0
+  connectionPoint.value = null
+  connectionTargetSide.value = null
+  connSpringLastT = null
   connectionState.value = null
   relationRevision.value += 1
 }
@@ -239,14 +306,52 @@ function removeRelation(relation: DemoRelation): void {
 function relationPath(relation: DemoRelation): string {
   relationRevision.value
   const layer = document.querySelector<SVGSVGElement>('.relation-layer')
-  const from = runtime.getNodePorts(relation.from).find(port => port.id === relation.fromPort)
-  const to = runtime.getNodePorts(relation.to).find(port => port.id === relation.toPort)
-  if (!layer || !from || !to) return ''
-  const start = screenToLayerPoint(layer, from.point)
-  const end = screenToLayerPoint(layer, to.point)
+  const startPoint = demoPortPoint(relation.from, relation.fromPort)
+  const endPoint = demoPortPoint(relation.to, relation.toPort)
+  if (!layer || !startPoint || !endPoint) return ''
+  const start = screenToLayerPoint(layer, startPoint)
+  const end = screenToLayerPoint(layer, endPoint)
   if (!start || !end) return ''
-  const distance = Math.max(48, Math.abs(end.x - start.x) * 0.42)
-  return `M ${start.x} ${start.y} C ${start.x + distance} ${start.y}, ${end.x - distance} ${end.y}, ${end.x} ${end.y}`
+  return sidePath(start, relation.fromPort, end, relation.toPort)
+}
+
+function demoPortPoint(objectId: string, side: NodePortSide): { x: number; y: number } | null {
+  const proxyPoint = visualProxyPortPoint(objectId, side)
+  if (proxyPoint) return proxyPoint
+  const visualRect = visualRects.get(objectId)
+  if (visualRect) {
+    return {
+      x: side === 'right' ? visualRect.x + visualRect.width : visualRect.x,
+      y: visualRect.y + visualRect.height / 2,
+    }
+  }
+  return runtime.getNodePorts(objectId).find(port => port.id === side)?.point ?? null
+}
+
+function visualProxyPortPoint(objectId: string, side: NodePortSide): { x: number; y: number } | null {
+  const proxy = [...document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]')].find(candidate => {
+    const content = candidate.querySelector<HTMLElement>('[data-runtime-proxy-content]')
+    return content?.dataset.card === objectId
+  })
+  const port = proxy?.querySelector<HTMLElement>(`.canvas-card-port-${side}`)
+  if (!port || !port.isConnected) return null
+  const rect = port.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+}
+
+const MIN_EXTEND = 40
+const MAX_EXTEND = 140
+
+function sidePath(from: { x: number; y: number }, fromSide: NodePortSide, to: { x: number; y: number }, toSide: NodePortSide): string {
+  const distance = Math.min(Math.max(Math.hypot(to.x - from.x, to.y - from.y) * 0.5, MIN_EXTEND), MAX_EXTEND)
+  const start = extend(from, fromSide, distance)
+  const end = extend(to, toSide, distance)
+  return `M ${from.x} ${from.y} C ${start.x} ${start.y}, ${end.x} ${end.y}, ${to.x} ${to.y}`
+}
+
+function extend(point: { x: number; y: number }, side: NodePortSide, distance: number): { x: number; y: number } {
+  return { x: point.x + (side === 'right' ? distance : -distance), y: point.y }
 }
 
 function screenToLayerPoint(layer: SVGSVGElement, point: { x: number; y: number }): { x: number; y: number } | null {
@@ -265,16 +370,22 @@ const connectionPreviewPath = computed(() => {
   const state = connectionState.value
   const layer = document.querySelector<SVGSVGElement>('.relation-layer')
   if (!state || !layer) return ''
-  const start = screenToLayerPoint(layer, state.source.point)
-  const end = screenToLayerPoint(layer, state.currentPoint)
+  const startPoint = demoPortPoint(state.sourceObjectId, state.sourcePortId as NodePortSide) ?? state.source.point
+  const start = screenToLayerPoint(layer, startPoint)
+  const end = connectionPoint.value ? screenToLayerPoint(layer, connectionPoint.value) : null
   if (!start || !end) return ''
-  const distance = Math.max(48, Math.abs(end.x - start.x) * 0.42)
-  return `M ${start.x} ${start.y} C ${start.x + distance} ${start.y}, ${end.x - distance} ${end.y}, ${end.x} ${end.y}`
+  const targetSide = connectionTargetSide.value ?? (state.sourcePortId === 'left' ? 'right' : 'left')
+  return sidePath(start, state.sourcePortId as NodePortSide, end, targetSide)
 })
 
 onBeforeUnmount(() => {
+  stopRuntimeEvents?.()
+  stopRuntimeEvents = null
+  window.removeEventListener('pointermove', scheduleRelationFrame)
   window.removeEventListener('pointermove', updateConnection)
   window.removeEventListener('pointerup', finishConnection)
+  cancelAnimationFrame(relationFrameRaf)
+  cancelAnimationFrame(connSpringRaf)
   if (connectionState.value) runtime.cancelNodeConnection()
 })
 </script>
@@ -285,7 +396,7 @@ onBeforeUnmount(() => {
 .canvas-toolbar h2 { margin: 0; font-size: 18px; }.canvas-toolbar p { margin: 5px 0 0; color: #8991a8; font-size: 12px; }
 .canvas-controls { display: flex; align-items: center; gap: 8px; color: #8991a8; font-size: 12px; }.canvas-controls button,.motion-mode-switch button { border: 1px solid #dce1ec; border-radius: 8px; padding: 7px 10px; background: #fff; color: #66708b; cursor: pointer; }.canvas-controls button.active,.motion-mode-switch button.active { border-color: #7781d6; background: #7781d6; color: #fff; }
 .motion-mode-switch { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid #dce1ec; border-radius: 9px; background: rgba(255,255,255,.72); }.motion-mode-switch span { padding: 0 4px; }
-.canvas-workspace { display: flex; min-height: 0; flex: 1; gap: 14px; overflow: hidden; }.canvas-viewport { position: relative; min-width: 0; flex: 1; overflow: hidden; border: 1px solid #dfe3ef; border-radius: 16px; background-color: #f8f9fd; background-image: radial-gradient(#dce1f0 1px, transparent 1px); background-size: 18px 18px; cursor: grab; }.canvas-world { position: absolute; inset: 0; }.relation-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }.relation-group { pointer-events: auto; cursor: pointer; }.relation-hit { fill: none; stroke: transparent; stroke-width: 18; }.relation-line { fill: none; stroke: #8b94c8; stroke-width: 2; stroke-dasharray: 5 5; opacity: .75; pointer-events: none; transition: stroke .16s ease, stroke-width .16s ease; }.relation-group:hover .relation-line { stroke: #c85a5a; stroke-width: 2.6; }.relation-line-preview { stroke: #7781d6; stroke-dasharray: 7 5; opacity: .95; }
+.canvas-workspace { display: flex; min-height: 0; flex: 1; gap: 14px; overflow: hidden; }.canvas-viewport { position: relative; min-width: 0; flex: 1; overflow: hidden; border: 1px solid #dfe3ef; border-radius: 16px; background-color: #f8f9fd; background-image: radial-gradient(#dce1f0 1px, transparent 1px); background-size: 18px 18px; cursor: grab; }.canvas-world { position: absolute; inset: 0; }.relation-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }.relation-group { pointer-events: auto; cursor: pointer; }.relation-hit { fill: none; stroke: transparent; stroke-width: 21.6; }.relation-line { fill: none; stroke: rgba(104,111,164,.35); stroke-width: 1.6; opacity: 1; pointer-events: none; transition: stroke .18s ease, stroke-width .18s ease; }.relation-group:hover .relation-line { stroke: rgba(200,90,90,.8); stroke-width: 2.4; }.relation-line-preview { stroke: rgba(123,127,178,.85); stroke-width: 2.2; stroke-dasharray: 4 5; }
 .drawer-heading { display: flex; min-height: 52px; flex: 0 0 52px; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #e7e9f1; }
 .drawer-compact-heading { display: grid; min-height: 50px; flex: 0 0 50px; place-items: center; }
 .drawer-heading-fade-enter-active, .drawer-heading-fade-leave-active { transition: opacity .18s cubic-bezier(.22,1,.36,1), filter .18s cubic-bezier(.22,1,.36,1); }

@@ -87,7 +87,8 @@ const icon = computed(() => ({ note: '✦', image: '▧', file: 'F', task: '✓'
 .canvas-card-body strong { overflow: hidden; color: #343a53; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-card-body span { color: #9299ad; font-size: 11px; }
 .canvas-card-dot { position: absolute; right: 12px; bottom: 12px; width: 6px; height: 6px; border-radius: 50%; background: #d59c64; }
-.canvas-card-port { position: absolute; top: 50%; z-index: 2; width: 10px; height: 10px; box-sizing: border-box; margin: 0; padding: 0; border: 2px solid #fff; border-radius: 50%; background: #7781d6; box-shadow: 0 2px 7px rgba(71,78,137,.28); opacity: 0; cursor: crosshair; pointer-events: auto; transform: translateY(-50%) scale(.72); transition: opacity .16s ease, transform .16s ease; }
-.canvas-card-port-left { left: -6px; }.canvas-card-port-right { right: -6px; }
-.canvas-card:hover .canvas-card-port { opacity: 1; transform: translateY(-50%) scale(1); }
+.canvas-card-port { position: absolute; top: 50%; z-index: 2; width: 32px; height: 32px; box-sizing: border-box; margin: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; opacity: 1; cursor: crosshair; pointer-events: auto; transform: translateY(-50%); }
+.canvas-card-port::before { content: ''; position: absolute; inset: 10px; border: 2px solid #fff; border-radius: 50%; background: #7781d6; box-shadow: 0 1px 4px rgba(30,35,60,.25); opacity: 0; transform: scale(.72); transition: opacity .15s, transform .15s, box-shadow .15s; }
+.canvas-card:hover .canvas-card-port::before, .canvas-card-port:hover::before { opacity: 1; transform: scale(1); }
+.canvas-card-port-left { left: -17px; }.canvas-card-port-right { right: -17px; }
 </style>
