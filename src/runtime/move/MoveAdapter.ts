@@ -1,4 +1,4 @@
-import { applyFloatingStyle, claimVisibilityOwnership, clearFloatingStyle, getFloatingProxy, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
+import { applyFloatingStyle, claimVisibilityOwnership, clearFloatingStyle, getFloatingProxy, getProxyAttitude, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
 import { createCardMotionController } from '../../motion/CardMotionController'
 import { createDirectFollowController, type DragMotionDriver } from '../../motion/DirectFollowController'
@@ -174,17 +174,6 @@ export function createDetachMoveFromAdapter(config: {
       releaseMotionState.vx = releaseVelocity.x
       releaseMotionState.vy = releaseVelocity.y
       pendingDrop.releaseVelocity = { x: releaseMotionState.vx, y: releaseMotionState.vy }
-      console.info('[runtime-release-handoff-probe]', JSON.stringify({
-        phase: 'release',
-        sessionId,
-        objectId,
-        controllerVelocity,
-        releaseVelocity,
-        speed: {
-          controller: Math.hypot(controllerVelocity.x, controllerVelocity.y),
-          shaped: Math.hypot(releaseVelocity.x, releaseVelocity.y),
-        },
-      }))
     }
     const sourceSize = runtime.getMoveContext(sessionId)?.sourceSize
     if (sourceSize) pendingDrop.sourceSize = { ...sourceSize }
@@ -230,16 +219,6 @@ export function createDetachMoveFromAdapter(config: {
         resolve: () => revealTarget,
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
-      console.info('[runtime-demo-drawer-landing-probe]', JSON.stringify({
-        phase: 'target-resolved',
-        objectId,
-        targetKind: target?.kind ?? null,
-        targetElement: Boolean(landingElement),
-        landed: landedEl
-          ? { connected: landedEl.isConnected, visibility: getComputedStyle(landedEl).visibility, opacity: getComputedStyle(landedEl).opacity, rect: (() => { const r = landedEl.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })() }
-          : null,
-        time: performance.now(),
-      }))
       if (!landedEl) {
         landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
       }
@@ -248,13 +227,6 @@ export function createDetachMoveFromAdapter(config: {
       if (landingElement) runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
       if (!landingElement && target?.kind === 'rect') {
         runtime.concealVisualTarget(sid, landedEl)
-        console.info('[runtime-demo-drawer-landing-probe]', JSON.stringify({
-          phase: 'target-concealed',
-          objectId,
-          visibility: getComputedStyle(landedEl).visibility,
-          opacity: getComputedStyle(landedEl).opacity,
-          time: performance.now(),
-        }))
       }
       const targetObjectId = runtime.findObjectIdByElement(landedEl, objectId) ?? objectId
       const liveLandingRect = target?.kind === 'rect'
@@ -300,7 +272,9 @@ export function createDetachMoveFromAdapter(config: {
             }
           }
         },
-        land: () => runtime.landVisualProxy(sid, target?.kind === 'rect' ? target.rect : landedEl, visualContext),
+        land: () => {
+          return runtime.landVisualProxy(sid, target?.kind === 'rect' ? target.rect : landedEl, visualContext)
+        },
         onMissing: () => { landingGate?.complete({ completed: false, reason: 'visual-proxy-missing' }); landingGate = null },
         onComplete: (landingResult: LandingResult) => {
           completeDetachLanding({
@@ -512,7 +486,9 @@ export function createDetachMoveFromAdapter(config: {
         // 在每次缩放后用代理外框重新校正位置。
         const dx = frame.x - anchorLeft
         const dy = frame.y - anchorTop
-        floatingProxy.style.transform = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
+        floatingProxy.style.transform = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
+        getProxyAttitude(floatingProxy).style.transform =
+          `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
       }
       // motion.enabled === false：跳过 MotionController 的弹簧/tilt/sway，退化为
       // pointermove 坐标直接写 transform 的 direct follow；landing 阶段已经在

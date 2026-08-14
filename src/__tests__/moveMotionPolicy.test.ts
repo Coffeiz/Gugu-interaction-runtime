@@ -150,6 +150,34 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     destroyDragProxy(proxy)
   })
 
+  it('transform 过渡未完成时松手：landing 以当前呈现位置接管，避免首帧跳回 motion 终值', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    proxy.style.left = '100px'
+    proxy.style.top = '100px'
+    proxy.style.width = '60px'
+    proxy.style.height = '40px'
+    proxy.style.transform = 'matrix(1, 0, 0, 1, 0, 0)'
+    proxy.style.transition = 'transform 150ms ease'
+    vi.spyOn(proxy, 'getBoundingClientRect').mockReturnValue(rect(110, 100, 60, 40))
+    const landSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockImplementation(() => ({
+      finished: Promise.resolve(),
+      retarget: vi.fn(),
+    }) as never)
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'o',
+      sessionId: 's',
+      mode: 'detach',
+      motionState: { x: 120, y: 100, vx: 300, vy: 0, scaleX: 1, scaleY: 1, rotateX: 5, rotateZ: 1 },
+    } as never)
+
+    const motionOptions = landSpy.mock.calls[0]?.[2] as { motionState?: { x: number; y: number; vx: number } }
+    expect(motionOptions.motionState).toMatchObject({ x: 110, y: 100, vx: 300 })
+    landSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
   it('releaseMode=normal：只切换落地策略，不继承释放运动状态', async () => {
     const legacySpy = vi.spyOn(VisualModule, 'landDragProxyLegacy')
     const { target, proxy } = landingFixture()

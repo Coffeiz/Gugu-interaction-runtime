@@ -198,18 +198,24 @@ export function createDragProxy(
   options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number); cameraShell?: boolean; affordancesSelector?: string | readonly string[] } = {},
 ): HTMLElement {
   const compact = options.layout?.compact
-  // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
-  // perspective/rotate 由定位壳统一承载，不额外引入业务侧不存在的姿态节点。
+  // 与 main 看板保持一致：定位壳、姿态层、缩放壳和卡片内容各自只承担一类
+  // 变换，避免 perspective/rotate 与 landing 位移在同一个矩阵里重新组合。
   const proxy = document.createElement('div')
+  const attitude = document.createElement('div')
   const scaleShell = document.createElement('div')
   const content = source.cloneNode(true) as HTMLElement
   if (options.affordancesSelector) setRuntimeAffordancesHidden(content, true, options.affordancesSelector)
   scaleShell.dataset.runtimeProxyScaleShell = 'true'
   if (options.cameraShell) scaleShell.dataset.runtimeCameraShell = 'true'
+  attitude.dataset.runtimeProxyAttitude = 'true'
   content.dataset.runtimeProxyContent = 'true'
   Object.assign(scaleShell.style, {
     position: 'absolute', left: '0', top: '0',
     transformOrigin: '0 0', pointerEvents: 'none',
+  })
+  Object.assign(attitude.style, {
+    position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
+    transformOrigin: '50% 50%', transform: 'none', pointerEvents: 'none',
   })
   Object.assign(content.style, {
     position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
@@ -219,7 +225,8 @@ export function createDragProxy(
   // 这样列表卡片会把信息压进窄卡片，而不是创建代理时瞬间变窄。
   content.dataset.runtimePhase = 'grab-start'
   scaleShell.appendChild(content)
-  proxy.appendChild(scaleShell)
+  attitude.appendChild(scaleShell)
+  proxy.appendChild(attitude)
   // 源节点在 clone 策略中会暂时使用隐藏类保留列表占位；代理必须是唯一可见
   // 的视觉主体，不能把源节点的隐藏状态一起复制过来。
   proxy.className = ''
@@ -232,6 +239,7 @@ export function createDragProxy(
   // 撑大，代理看起来比本体大一圈。这里强制代理自己用 border-box，不依赖
   // 业务样式约定。
   proxy.style.boxSizing = 'border-box'
+  proxy.style.transformOrigin = '50% 50%'
   proxy.style.width = `${rect.width}px`
   proxy.style.height = `${rect.height}px`
   updateDragProxyContentScale(proxy, options.contentScale)
@@ -393,7 +401,7 @@ function applyLandingScale(
 
 
 export function getProxyAttitude(proxy: HTMLElement): HTMLElement {
-  return proxy
+  return proxy.querySelector<HTMLElement>('[data-runtime-proxy-attitude]') ?? proxy
 }
 
 export function getProxyContent(proxy: HTMLElement): HTMLElement {
@@ -942,8 +950,7 @@ export function landDragProxyWithMotion(
       zIndex: proxy.style.zIndex,
       willChange: 'transform',
     })
-    const proxyParent = proxy.parentElement
-    proxyParent?.appendChild(camGlue)
+    proxy.parentElement?.appendChild(camGlue)
     camGlue.appendChild(proxy)
 
     const trackCamera = () => {
@@ -1033,40 +1040,22 @@ export function landDragProxyWithMotion(
       finishWhenVisualsSettled()
     })
   }
-  let freeProbeFrame = 0
-  let freeProbePrevious: { x: number; y: number; time: number } | null = null
   const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
-      if (options.landingMode === 'free' && freeProbeFrame < 3) {
-        const time = performance.now()
-        const delta = freeProbePrevious
-          ? { x: frame.x - freeProbePrevious.x, y: frame.y - freeProbePrevious.y, ms: time - freeProbePrevious.time }
-          : null
-        console.info('[runtime-release-handoff-probe]', JSON.stringify({
-          phase: 'free-frame',
-          sessionId: options.sessionId,
-          frame: ++freeProbeFrame,
-          position: { x: frame.x, y: frame.y },
-          delta,
-          pixelsPerSecond: delta && delta.ms > 0
-            ? { x: delta.x * 1000 / delta.ms, y: delta.y * 1000 / delta.ms }
-            : null,
-          releaseVelocity: options.motionState
-            ? { x: options.motionState.vx, y: options.motionState.vy }
-            : null,
-        }))
-        freeProbePrevious = { x: frame.x, y: frame.y, time }
-      }
       const left = frame.x
       const top = frame.y
-      proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
-      if (options.landingMode === 'free' && landingShell) {
-        // 相机缩放由外层 camGlue 承担；scaleShell 这里只保留 landing 自身
-        // 的尺寸动画和抓取时的初始 contentScale，避免相机比例被重复计算。
+      proxy.style.transform = `translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
+      getProxyAttitude(proxy).style.transform =
+        `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
+      if (options.landingMode === 'free' && landingShell && options.cameraShell) {
+        // free 的 holder 负责从源视觉尺寸收敛到目标视觉尺寸，scaleShell 只
+        // 保留抓取瞬间的相机倍率。把 frame.scale 再写进 scaleShell 会让同一
+        // 个落地比例同时作用于 holder 和内容，造成代理先缩小/放大一遍再跳到
+        // target；摄像机在动画期间的变化由外层 camGlue 单独跟随。
         applyLandingScale(
           landingShell,
           startWidth,
           startHeight,
-          frame.scaleX * initialContentScale,
+          initialContentScale,
         )
       } else {
         // 普通列表/看板的列宽差是布局变化，不是整体视觉缩放。尤其是有无滚动条
@@ -1079,7 +1068,9 @@ export function landDragProxyWithMotion(
         const layoutTopForSize = frame.y + (startHeight - height) / 2
         proxy.style.width = `${width.toFixed(2)}px`
         proxy.style.height = `${height.toFixed(2)}px`
-        proxy.style.transform = `perspective(760px) translate3d(${(layoutLeftForSize - layoutLeft).toFixed(2)}px, ${(layoutTopForSize - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
+        proxy.style.transform = `translate3d(${(layoutLeftForSize - layoutLeft).toFixed(2)}px, ${(layoutTopForSize - layoutTop).toFixed(2)}px, 0)`
+        getProxyAttitude(proxy).style.transform =
+          `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
         // 抓起阶段已经把相机倍率写入 scaleShell；落地的尺寸收敛不能把它
         // 重置为 1，否则松手时会再播放一遍相机缩放。
         if (options.landingMode === 'target' && hasTargetDismiss) {
@@ -1165,16 +1156,6 @@ export function landDragProxyWithMotion(
     rotateX: options.motionState?.rotateX ?? 0,
     rotateZ: options.motionState?.rotateZ ?? 0,
   })
-  if (options.landingMode === 'free') {
-    console.info('[runtime-release-handoff-probe]', JSON.stringify({
-      phase: 'landing-seed',
-      sessionId: options.sessionId,
-      seed: { x: options.motionState?.x ?? startRect.left, y: options.motionState?.y ?? startRect.top },
-      seedVelocity: { x: options.motionState?.vx ?? 0, y: options.motionState?.vy ?? 0 },
-      target: { left: currentTarget.left, top: currentTarget.top, width: currentTarget.width, height: currentTarget.height },
-      releaseSpeed,
-    }))
-  }
   // 代理定位壳的运动坐标是外壳左上角，而相机/尺寸缩放由内部 shell 居中承载。
   // 因此 free landing 也要把外壳移动到能让缩放后的 shell 对齐目标矩形的位置；
   // 直接使用 target.left/top 会在缩小时向右下、放大时向左上偏移。

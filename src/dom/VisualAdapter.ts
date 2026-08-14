@@ -178,7 +178,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
         content.style.backgroundImage = snapshot.backgroundImage
       }
       content.style.opacity = snapshot.opacity
-      getProxyAttitude(proxy).style.transform = `scale(${compact ? 1 : 1.03})`
+      proxy.style.transform = `scale(${compact ? 1 : 1.03})`
     }
     if (isDefaultDraggingGlassEnabled()) applyDraggingGlassStyle(content)
     // 业务卡片常把操作按钮做成默认 opacity:0、hover 时显示；proxy 是
@@ -203,18 +203,6 @@ export class DefaultVisualAdapter implements VisualAdapter {
     const content = getProxyContent(el)
     const targetElement = 'getBoundingClientRect' in target ? target : undefined
     const directTargetRect: LandingRect | undefined = targetElement ? undefined : target as LandingRect
-    console.info('[runtime-demo-drawer-landing-probe]', JSON.stringify({
-      phase: 'visual-land-start',
-      objectId: context.objectId,
-      landingMode: context.landingMode,
-      targetKind: targetElement ? 'element' : 'rect',
-      targetRect: targetElement ? (() => { const r = targetElement.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })() : directTargetRect ? [directTargetRect.left, directTargetRect.top, directTargetRect.width, directTargetRect.height] : null,
-      targetVisibility: targetElement ? getComputedStyle(targetElement).visibility : null,
-      targetOpacity: targetElement ? getComputedStyle(targetElement).opacity : null,
-      proxyRect: (() => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })(),
-      contentRect: (() => { const r = content.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })(),
-      time: performance.now(),
-    }))
     if (!context.targetRect && !context.targetSnapshot?.rect && !directTargetRect && (!targetElement || !targetElement.isConnected)) {
       return Promise.resolve({ completed: false, reason: 'target-disconnected' })
     }
@@ -243,8 +231,19 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (!hasUsableTargetRect) {
       return Promise.resolve({ completed: false, reason: 'target-zero-size' })
     }
-    if (targetElement && !context.preserveTarget) concealElement(targetElement, context.sessionId)
+    if (targetElement && !context.preserveTarget) {
+      concealElement(targetElement, context.sessionId)
+    }
+    // 抓取阶段的 transform 可能仍处于 CSS transition 的中间帧。
+    // 直接关闭 transition 会把代理跳回 inline transform 的终值，造成松手瞬移。
+    // 先把当前屏幕上的 computed transform 固定为 inline 值，再关闭过渡，保证
+    // landing 接管时沿用用户看到的最后一帧。
+    const computedTransformBeforeReset = getComputedStyle(el).transform
+    if (computedTransformBeforeReset && computedTransformBeforeReset !== 'none') {
+      el.style.transform = computedTransformBeforeReset
+    }
     el.style.transition = 'none'
+    const afterTransitionReset = el.getBoundingClientRect()
     const isTargetLanding = context.landingMode === 'target'
     const isCompactProxy = getProxyContent(el).dataset.runtimeCompact === 'true'
     const isCrossSurfaceLanding = Boolean(
@@ -252,12 +251,24 @@ export class DefaultVisualAdapter implements VisualAdapter {
       && context.destinationSurfaceId
       && context.sourceSurfaceId !== context.destinationSurfaceId,
     )
-    // landing 的位置、缩放、释放速度和平面旋转继续继承抓取状态；但 rotateX
-    // 是 perspective 下的前后倾，会让代理上下边产生不同的屏幕投影，表现为
-    // 卡片斜切。无论是否跨 Surface，都从水平姿态开始落地，避免把抓取中的
-    // 透视倾角带入 landing；rotateZ 仍保留卡片自然的平面旋转。
+    // landing 的位置、缩放和释放速度继续继承抓取状态。透视倾角也必须从
+    // 当前帧连续交给 motion controller 衰减；如果在这里直接清零，第一帧会
+    // 重新投影整张卡片，造成松手时的额外位移。rotation decay 会平滑消除
+    // rotateX/rotateZ，不把抓取态的倾角永久带入落地。
     const landingMotionState = context.motionState
-      ? { ...context.motionState, rotateX: 0 }
+      ? (() => {
+          const state = { ...context.motionState! }
+          // motionState 描述的是定位层的目标坐标，而浏览器此刻可能还在
+          // 播放 grabbing 的 transform transition。接管 landing 时必须以
+          // 已经绘制到屏幕上的矩形为位置种子，否则首帧会从 transition 的
+          // 中间帧跳回 inline transform 的终值。scale 的中心原点要换算回
+          // 定位层坐标，但速度和旋转保持原控制器状态，避免改变物理手感。
+          const baseWidth = parseFloat(el.style.width) || afterTransitionReset.width
+          const baseHeight = parseFloat(el.style.height) || afterTransitionReset.height
+          state.x = afterTransitionReset.left - (baseWidth * (1 - state.scaleX)) / 2
+          state.y = afterTransitionReset.top - (baseHeight * (1 - state.scaleY)) / 2
+          return state
+        })()
       : context.motionState
     // 跨 Surface 的项目卡仍应像看板换列一样交叉淡化到目标卡；只有文件/文件夹
     // 这类明确声明 disableTargetVisualMorph 的语义目标需要保留源卡外观，避免
