@@ -76,13 +76,30 @@ describe('FreeLandingMotion', () => {
     motion.seed({ x: 0, y: 0, vx: 900, vy: 0 })
     motion.setTarget({ x: 300, y: 0 })
     motion.start()
-    vi.advanceTimersByTime(700)
+    vi.advanceTimersByTime(900)
 
-    expect(frames[0]).toBe(0)
-    expect(frames[1]).toBeGreaterThan(0)
+    expect(frames[0]).toBeGreaterThan(0)
     expect(frames[frames.length - 1]).toBeCloseTo(300, 1)
     expect(frames.every((value, index) => index === 0 || value <= 300.5)).toBe(true)
     expect(frames.every((value, index) => index === 0 || value >= frames[index - 1])).toBe(true)
+    vi.useRealTimers()
+  })
+
+  it('landing 弹簧不会把释放速度推高超过允许余量', () => {
+    vi.useFakeTimers()
+    const frames: number[] = []
+    const motion = createFreeLandingMotion({
+      duration: 550,
+      easing: 'cubic-bezier(.22,1,.36,1)',
+      onFrame: frame => frames.push(frame.x),
+    })
+    motion.seed({ x: 0, y: 0, vx: 900, vy: 0 })
+    motion.setTarget({ x: 300, y: 0 })
+    motion.start()
+    vi.advanceTimersByTime(120)
+
+    const maxFrameDelta = Math.max(...frames.slice(1).map((value, index) => value - frames[index]))
+    expect(maxFrameDelta).toBeLessThanOrEqual(15.9)
     vi.useRealTimers()
   })
 

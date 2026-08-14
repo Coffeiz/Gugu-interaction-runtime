@@ -25,6 +25,7 @@ export const DEFAULT_FREE_LANDING_COAST: FreeLandingCoastConfig = {
 // 让速度放缓的同时不引入明显回弹。
 const FREE_LANDING_STIFFNESS = 240
 const FREE_LANDING_DAMPING = 30
+const FREE_LANDING_SPEED_HEADROOM = 1
 // 位置 spring 通常需要约 500~700ms 才完全收束；旋转不能沿用普通
 // controller 的快速衰减，否则卡片会先摆正、再继续滑向目标。
 const FREE_LANDING_ROTATION_DECAY = 5
@@ -112,6 +113,8 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
   let lastTime: number | null = null
   let raf: number | null = null
   let running = false
+  let maxLandingSpeed: number | undefined
+  let probeFrame = 0
   const emit = () => {
     options.onFrame({
       x: state.x, y: state.y,
@@ -124,8 +127,40 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
     if (!running) return
     const dt = Math.min(0.032, Math.max(0, (time - (lastTime ?? time)) / 1000))
     lastTime = time
+    const previousPosition = { x: state.x, y: state.y }
     const position = { position: { x: state.x, y: state.y }, velocity: { x: state.vx, y: state.vy } }
     integrateSpring(position, { x: target.x, y: target.y }, FREE_LANDING_STIFFNESS, FREE_LANDING_DAMPING, dt)
+    const speedBeforeCap = dt > 0
+      ? Math.hypot(position.position.x - previousPosition.x, position.position.y - previousPosition.y) / dt
+      : 0
+    if (maxLandingSpeed !== undefined && dt > 0) {
+      const dx = position.position.x - previousPosition.x
+      const dy = position.position.y - previousPosition.y
+      const distance = Math.hypot(dx, dy)
+      const maxDistance = maxLandingSpeed * FREE_LANDING_SPEED_HEADROOM * dt
+      if (distance > maxDistance && distance > 0) {
+        const ratio = maxDistance / distance
+        position.position.x = previousPosition.x + dx * ratio
+        position.position.y = previousPosition.y + dy * ratio
+        position.velocity.x = (position.position.x - previousPosition.x) / dt
+        position.velocity.y = (position.position.y - previousPosition.y) / dt
+      }
+    }
+    if (probeFrame < 6) {
+      const speedAfterCap = dt > 0
+        ? Math.hypot(position.position.x - previousPosition.x, position.position.y - previousPosition.y) / dt
+        : 0
+      console.log('[runtime-free-landing-motion-probe]', JSON.stringify({
+        phase: 'frame',
+        frame: probeFrame + 1,
+        dt,
+        speedBeforeCap,
+        speedAfterCap,
+        maxLandingSpeed,
+        maxAllowedSpeed: maxLandingSpeed === undefined ? null : maxLandingSpeed * FREE_LANDING_SPEED_HEADROOM,
+      }))
+      probeFrame += 1
+    }
     state.x = position.position.x
     state.y = position.position.y
     state.vx = position.velocity.x
@@ -170,6 +205,10 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
   return {
     seed(partial) {
       Object.assign(state, partial)
+      if (partial.vx !== undefined || partial.vy !== undefined) {
+        const releaseSpeed = Math.hypot(partial.vx ?? state.vx, partial.vy ?? state.vy)
+        maxLandingSpeed = releaseSpeed > 30 ? releaseSpeed : undefined
+      }
     },
     setTarget(next) {
       target = { ...next }
@@ -185,7 +224,6 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
       if (running) return
       running = true
       lastTime = performance.now()
-      emit()
       raf = requestAnimationFrame(tick)
     },
     stop() {

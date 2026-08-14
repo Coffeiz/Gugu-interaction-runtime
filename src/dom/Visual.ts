@@ -995,6 +995,9 @@ export function landDragProxyWithMotion(
   let timeoutId: number | null = null
   let dismissTimeoutId: number | null = null
   let timeoutDeadline = 0
+  let freeLandingFrame = 0
+  let freeLandingFrameTime: number | null = null
+  let freeLandingFramePosition: { x: number; y: number } | null = null
   let resolveFinished: () => void = () => undefined
   const finished = new Promise<void>(resolve => { resolveFinished = resolve })
 
@@ -1050,6 +1053,33 @@ export function landDragProxyWithMotion(
   const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
       const left = frame.x
       const top = frame.y
+      if (options.landingMode === 'free' && freeLandingFrame < 6) {
+        const now = performance.now()
+        const delta = freeLandingFramePosition && freeLandingFrameTime !== null
+          ? { x: left - freeLandingFramePosition.x, y: top - freeLandingFramePosition.y }
+          : null
+        const elapsed = freeLandingFrameTime === null ? null : now - freeLandingFrameTime
+        console.log('[runtime-free-landing-velocity-probe]', JSON.stringify({
+          phase: freeLandingFrame === 0 ? 'first-frame' : 'frame',
+          objectId: options.objectId,
+          sessionId: options.sessionId,
+          frame: freeLandingFrame + 1,
+          position: { x: left, y: top },
+          delta,
+          elapsed,
+          pixelsPerSecond: delta && elapsed && elapsed > 0
+            ? { x: delta.x * 1000 / elapsed, y: delta.y * 1000 / elapsed }
+            : null,
+          target: { x: initialTarget.left, y: initialTarget.top },
+          seedVelocity: {
+            x: options.motionState?.vx ?? 0,
+            y: options.motionState?.vy ?? 0,
+          },
+        }))
+        freeLandingFrame += 1
+        freeLandingFramePosition = { x: left, y: top }
+        freeLandingFrameTime = now
+      }
       proxy.style.transform = `translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
       getProxyAttitude(proxy).style.transform =
         `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
@@ -1167,6 +1197,24 @@ export function landDragProxyWithMotion(
   // 因此 free landing 也要把外壳移动到能让缩放后的 shell 对齐目标矩形的位置；
   // 直接使用 target.left/top 会在缩小时向右下、放大时向左上偏移。
   const initialTarget = centeredTarget(target)
+  if (options.landingMode === 'free') {
+    console.log('[runtime-free-landing-velocity-probe]', JSON.stringify({
+      phase: 'seed',
+      objectId: options.objectId,
+      sessionId: options.sessionId,
+      seed: {
+        x: options.motionState?.x ?? startRect.left,
+        y: options.motionState?.y ?? startRect.top,
+        vx: options.motionState?.vx ?? 0,
+        vy: options.motionState?.vy ?? 0,
+      },
+      target: { x: initialTarget.left, y: initialTarget.top },
+      distance: {
+        x: initialTarget.left - (options.motionState?.x ?? startRect.left),
+        y: initialTarget.top - (options.motionState?.y ?? startRect.top),
+      },
+    }))
+  }
   // 语义目标（文件夹卡、面包屑）统一以目标中心作为落点，尺寸收缩交给
   // target dismiss 负责。若再把代理缩到面包屑文字按钮的尺寸，会先发生一
   // 次目标尺寸缩放、再发生一次 dismiss 缩放，导致面包屑动画明显快于文件夹卡。
