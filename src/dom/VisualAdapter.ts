@@ -200,8 +200,21 @@ export class DefaultVisualAdapter implements VisualAdapter {
 
   land(proxy: VisualProxy, target: HTMLElement | LandingRect, context: VisualLifecycleContext): Promise<{ completed: boolean; reason?: string }> {
     const el = proxy.element
+    const content = getProxyContent(el)
     const targetElement = 'getBoundingClientRect' in target ? target : undefined
     const directTargetRect: LandingRect | undefined = targetElement ? undefined : target as LandingRect
+    console.info('[runtime-demo-drawer-landing-probe]', JSON.stringify({
+      phase: 'visual-land-start',
+      objectId: context.objectId,
+      landingMode: context.landingMode,
+      targetKind: targetElement ? 'element' : 'rect',
+      targetRect: targetElement ? (() => { const r = targetElement.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })() : directTargetRect ? [directTargetRect.left, directTargetRect.top, directTargetRect.width, directTargetRect.height] : null,
+      targetVisibility: targetElement ? getComputedStyle(targetElement).visibility : null,
+      targetOpacity: targetElement ? getComputedStyle(targetElement).opacity : null,
+      proxyRect: (() => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })(),
+      contentRect: (() => { const r = content.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })(),
+      time: performance.now(),
+    }))
     if (!context.targetRect && !context.targetSnapshot?.rect && !directTargetRect && (!targetElement || !targetElement.isConnected)) {
       return Promise.resolve({ completed: false, reason: 'target-disconnected' })
     }

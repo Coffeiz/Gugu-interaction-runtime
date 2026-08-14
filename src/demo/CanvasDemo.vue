@@ -213,6 +213,14 @@ useRuntimeAction(action => {
     return
   }
   if (action.toSurfaceId === 'canvas:main') {
+    console.info('[runtime-demo-drawer-landing-probe]', JSON.stringify({
+      phase: 'action-before-insert',
+      objectId: action.objectId,
+      fromSurfaceId: action.fromSurfaceId,
+      toSurfaceId: action.toSurfaceId,
+      sourceSize: action.sourceSize ?? null,
+      time: performance.now(),
+    }))
     drawerNodes.value = drawerNodes.value.filter(node => node.id !== source.id)
     if (!nodes.value.some(node => node.id === source.id)) nodes.value.push(source)
     const rect = canvasSurfaceRef.value?.getBoundingClientRect()
@@ -222,6 +230,15 @@ useRuntimeAction(action => {
       source.x = landingPoint.x - rect.left - 92
       source.y = landingPoint.y - rect.top - 43
       void nextTick(() => {
+        const target = document.querySelector<HTMLElement>(`[data-card="${CSS.escape(source.id)}"]`)
+        console.info('[runtime-demo-drawer-landing-probe]', JSON.stringify({
+          phase: 'action-after-insert',
+          objectId: action.objectId,
+          target: target
+            ? { connected: target.isConnected, visibility: getComputedStyle(target).visibility, opacity: getComputedStyle(target).opacity, rect: (() => { const r = target.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })() }
+            : null,
+          time: performance.now(),
+        }))
         relationRevision.value += 1
       })
     }

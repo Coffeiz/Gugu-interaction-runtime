@@ -1033,7 +1033,29 @@ export function landDragProxyWithMotion(
       finishWhenVisualsSettled()
     })
   }
+  let freeProbeFrame = 0
+  let freeProbePrevious: { x: number; y: number; time: number } | null = null
   const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
+      if (options.landingMode === 'free' && freeProbeFrame < 3) {
+        const time = performance.now()
+        const delta = freeProbePrevious
+          ? { x: frame.x - freeProbePrevious.x, y: frame.y - freeProbePrevious.y, ms: time - freeProbePrevious.time }
+          : null
+        console.info('[runtime-release-handoff-probe]', JSON.stringify({
+          phase: 'free-frame',
+          sessionId: options.sessionId,
+          frame: ++freeProbeFrame,
+          position: { x: frame.x, y: frame.y },
+          delta,
+          pixelsPerSecond: delta && delta.ms > 0
+            ? { x: delta.x * 1000 / delta.ms, y: delta.y * 1000 / delta.ms }
+            : null,
+          releaseVelocity: options.motionState
+            ? { x: options.motionState.vx, y: options.motionState.vy }
+            : null,
+        }))
+        freeProbePrevious = { x: frame.x, y: frame.y, time }
+      }
       const left = frame.x
       const top = frame.y
       proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
@@ -1143,6 +1165,16 @@ export function landDragProxyWithMotion(
     rotateX: options.motionState?.rotateX ?? 0,
     rotateZ: options.motionState?.rotateZ ?? 0,
   })
+  if (options.landingMode === 'free') {
+    console.info('[runtime-release-handoff-probe]', JSON.stringify({
+      phase: 'landing-seed',
+      sessionId: options.sessionId,
+      seed: { x: options.motionState?.x ?? startRect.left, y: options.motionState?.y ?? startRect.top },
+      seedVelocity: { x: options.motionState?.vx ?? 0, y: options.motionState?.vy ?? 0 },
+      target: { left: currentTarget.left, top: currentTarget.top, width: currentTarget.width, height: currentTarget.height },
+      releaseSpeed,
+    }))
+  }
   // 代理定位壳的运动坐标是外壳左上角，而相机/尺寸缩放由内部 shell 居中承载。
   // 因此 free landing 也要把外壳移动到能让缩放后的 shell 对齐目标矩形的位置；
   // 直接使用 target.left/top 会在缩小时向右下、放大时向左上偏移。

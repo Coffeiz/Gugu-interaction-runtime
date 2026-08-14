@@ -16,7 +16,7 @@ import type { ObjectAffordancesConfig, VisualState } from './dom/VisualAdapterTy
 import type { MotionProfile } from './dom/MotionProfile'
 import type { GroupDragConfig } from './dom/GroupDragProfile'
 import type { DragProxyLayoutConfig, LandingRect } from './dom/Visual'
-import { setRuntimeAffordancesHidden } from './dom/Visual'
+import { concealElement, setRuntimeAffordancesHidden } from './dom/Visual'
 import type { MotionControllerConfig } from './motion/MotionProfile'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
@@ -1090,6 +1090,16 @@ setMotionProfiles(this.registry.motionProfile)
     }
     const frame = requestAnimationFrame(tick)
     this.surfaceScrollFrames.set(viewport, frame)
+  }
+
+  /**
+   * 矩形落点也可能已经对应一个刚由业务插入的真实目标节点（典型是 free
+   * canvas 的乐观插入）。先登记 visibility owner，等 landing 完成后统一 reveal，
+   * 避免目标本体与 proxy 同时出现。
+   */
+  concealVisualTarget(sessionId: string, target: HTMLElement): void {
+    if (!target.isConnected) return
+    concealElement(target, sessionId)
   }
 
   /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */

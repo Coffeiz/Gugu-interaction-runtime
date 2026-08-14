@@ -166,13 +166,25 @@ export function createDetachMoveFromAdapter(config: {
     // source Surface 决定。对象类型仍然提供具体 free 物理参数；grid
     // Surface 则继续使用默认释放参数，避免画布参数污染列表卡片。
     if (releaseMotionState) {
+      const controllerVelocity = { x: releaseMotionState.vx, y: releaseMotionState.vy }
       const releaseVelocity = shapeReleaseVelocity(
-        { x: releaseMotionState.vx, y: releaseMotionState.vy },
+        controllerVelocity,
         runtime.getObjectReleaseMotionProfile(objectId, pendingDrop),
       )
       releaseMotionState.vx = releaseVelocity.x
       releaseMotionState.vy = releaseVelocity.y
       pendingDrop.releaseVelocity = { x: releaseMotionState.vx, y: releaseMotionState.vy }
+      console.info('[runtime-release-handoff-probe]', JSON.stringify({
+        phase: 'release',
+        sessionId,
+        objectId,
+        controllerVelocity,
+        releaseVelocity,
+        speed: {
+          controller: Math.hypot(controllerVelocity.x, controllerVelocity.y),
+          shaped: Math.hypot(releaseVelocity.x, releaseVelocity.y),
+        },
+      }))
     }
     const sourceSize = runtime.getMoveContext(sessionId)?.sourceSize
     if (sourceSize) pendingDrop.sourceSize = { ...sourceSize }
@@ -218,13 +230,41 @@ export function createDetachMoveFromAdapter(config: {
         resolve: () => revealTarget,
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
+      console.info('[runtime-demo-drawer-landing-probe]', JSON.stringify({
+        phase: 'target-resolved',
+        objectId,
+        targetKind: target?.kind ?? null,
+        targetElement: Boolean(landingElement),
+        landed: landedEl
+          ? { connected: landedEl.isConnected, visibility: getComputedStyle(landedEl).visibility, opacity: getComputedStyle(landedEl).opacity, rect: (() => { const r = landedEl.getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })() }
+          : null,
+        time: performance.now(),
+      }))
       if (!landedEl) {
         landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
       }
       landingTargetElement = landedEl
       revealedTargetElement = landedEl
       if (landingElement) runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
+      if (!landingElement && target?.kind === 'rect') {
+        runtime.concealVisualTarget(sid, landedEl)
+        console.info('[runtime-demo-drawer-landing-probe]', JSON.stringify({
+          phase: 'target-concealed',
+          objectId,
+          visibility: getComputedStyle(landedEl).visibility,
+          opacity: getComputedStyle(landedEl).opacity,
+          time: performance.now(),
+        }))
+      }
       const targetObjectId = runtime.findObjectIdByElement(landedEl, objectId) ?? objectId
+      const liveLandingRect = target?.kind === 'rect'
+        ? (() => {
+            const rect = landedEl.getBoundingClientRect()
+            return rect.width > 0 && rect.height > 0
+              ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+              : target.rect
+          })()
+        : target?.kind === 'element' ? target.element : landedEl
       const targetSnapshot = captureDetachTargetSnapshot(
         (el: HTMLElement) => runtime.captureVisualState(targetObjectId, el),
         landedEl,
@@ -234,7 +274,7 @@ export function createDetachMoveFromAdapter(config: {
         createContext: () => runtime.createVisualLifecycleContext(
           sid,
           destination,
-          target?.kind === 'rect' ? target.rect : target?.element ?? landedEl,
+          liveLandingRect,
           beforeContent!,
         ),
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,

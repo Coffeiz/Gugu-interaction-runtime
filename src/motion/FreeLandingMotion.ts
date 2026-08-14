@@ -1,4 +1,5 @@
 import type { MotionFrame, MotionState, MotionTarget } from './CardMotionController'
+import { integrateSpring } from './physics'
 
 export interface FreeLandingPoint {
   x: number
@@ -16,6 +17,12 @@ export const DEFAULT_FREE_LANDING_COAST: FreeLandingCoastConfig = {
   maxCoast: 260,
   minVelocity: 30,
 }
+
+// free landing 的目标距离通常来自画布卡片的实际落点，可能明显大于一张卡片宽度。
+// 采用咕咕旧版跟手阶段的弹簧参数，让 free landing 的手感更接近画布拖拽。
+// 释放速度仍从抓取控制器连续继承，避免重新启动 easing。
+const FREE_LANDING_STIFFNESS = 240
+const FREE_LANDING_DAMPING = 30
 
 /** 计算自由画布的最终落点，视觉目标与业务提交必须共用这一结果。 */
 export function resolveFreeLandingPoint(
@@ -83,12 +90,12 @@ export function resolveFreeLandingEasing(value: string): (progress: number) => n
 }
 
 /**
- * 画布 free landing 的单调缓出控制器。
+ * 画布 free landing 的速度连续控制器。
  *
- * 画布的惯性落点由释放阶段决定，落点后的视觉飞行不再把释放速度注入
- * 固定目标弹簧，因此不会出现列表 landing 那种过冲回弹。控制器仍然保留
- * 与普通 MotionController 相同的 seed/target/start 生命周期，便于 Runtime
- * 统一管理代理、相机转换和完成回调。
+ * 画布的惯性落点由释放阶段决定，落地阶段使用临界阻尼积分继续继承释放速度。
+ * 这样不会像固定 cubic-bezier 那样在第一帧重新生成更高的速度，也不会引入
+ * 列表 landing 的回弹效果。控制器仍然保留与普通 MotionController 相同的
+ * seed/target/start 生命周期，便于 Runtime 统一管理代理、相机转换和完成回调。
  */
 export function createFreeLandingMotion(options: FreeLandingMotionOptions): FreeLandingMotion {
   const state: MotionState = {
@@ -97,19 +104,10 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
     rotateX: 0, rotateZ: 0,
   }
   let target: MotionTarget = { x: 0, y: 0 }
-  let start: MotionState = { ...state }
-  let startedAt = 0
+  let lastTime: number | null = null
   let raf: number | null = null
   let running = false
-  const easing = resolveFreeLandingEasing(options.easing)
-  const emit = (progress: number) => {
-    const t = easing(Math.max(0, Math.min(1, progress)))
-    state.x = start.x + (target.x - start.x) * t
-    state.y = start.y + (target.y - start.y) * t
-    state.scaleX = start.scaleX + ((target.scaleX ?? start.scaleX) - start.scaleX) * t
-    state.scaleY = start.scaleY + ((target.scaleY ?? start.scaleY) - start.scaleY) * t
-    state.rotateX = start.rotateX * (1 - t)
-    state.rotateZ = start.rotateZ * (1 - t)
+  const emit = () => {
     options.onFrame({
       x: state.x, y: state.y,
       scaleX: state.scaleX, scaleY: state.scaleY,
@@ -119,9 +117,43 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
 
   const tick = (time: number) => {
     if (!running) return
-    const progress = options.duration <= 0 ? 1 : (time - startedAt) / options.duration
-    emit(progress)
-    if (progress >= 1) {
+    const dt = Math.min(0.032, Math.max(0, (time - (lastTime ?? time)) / 1000))
+    lastTime = time
+    const position = { position: { x: state.x, y: state.y }, velocity: { x: state.vx, y: state.vy } }
+    integrateSpring(position, { x: target.x, y: target.y }, FREE_LANDING_STIFFNESS, FREE_LANDING_DAMPING, dt)
+    state.x = position.position.x
+    state.y = position.position.y
+    state.vx = position.velocity.x
+    state.vy = position.velocity.y
+
+    const scale = { position: { x: state.scaleX, y: state.scaleY }, velocity: { x: state.scaleVX, y: state.scaleVY } }
+    integrateSpring(scale, { x: target.scaleX ?? state.scaleX, y: target.scaleY ?? state.scaleY }, FREE_LANDING_STIFFNESS, FREE_LANDING_DAMPING, dt)
+    state.scaleX = scale.position.x
+    state.scaleY = scale.position.y
+    state.scaleVX = scale.velocity.x
+    state.scaleVY = scale.velocity.y
+    const rotationDecay = Math.exp(-10 * dt)
+    state.rotateX *= rotationDecay
+    state.rotateZ *= rotationDecay
+    emit()
+    const arrived = Math.abs(target.x - state.x) < 0.35
+      && Math.abs(target.y - state.y) < 0.35
+      && Math.abs(state.vx) < 5
+      && Math.abs(state.vy) < 5
+      && Math.abs((target.scaleX ?? state.scaleX) - state.scaleX) < 0.001
+      && Math.abs((target.scaleY ?? state.scaleY) - state.scaleY) < 0.001
+      && Math.abs(state.scaleVX) < 0.01
+      && Math.abs(state.scaleVY) < 0.01
+    if (arrived) {
+      state.x = target.x
+      state.y = target.y
+      if (target.scaleX !== undefined) state.scaleX = target.scaleX
+      if (target.scaleY !== undefined) state.scaleY = target.scaleY
+      state.vx = 0
+      state.vy = 0
+      state.scaleVX = 0
+      state.scaleVY = 0
+      emit()
       running = false
       raf = null
       options.onArrived?.()
@@ -142,17 +174,13 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
         target = { ...next }
         return
       }
-      // 目标发生布局变化时从当前视觉帧接管，避免回到旧起点。
-      start = { ...state }
       target = { ...next }
-      startedAt = performance.now()
     },
     start() {
       if (running) return
       running = true
-      start = { ...state }
-      startedAt = performance.now()
-      emit(0)
+      lastTime = performance.now()
+      emit()
       raf = requestAnimationFrame(tick)
     },
     stop() {

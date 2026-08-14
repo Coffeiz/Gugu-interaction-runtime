@@ -64,4 +64,25 @@ describe('FreeLandingMotion', () => {
     motion.stop()
     vi.useRealTimers()
   })
+
+  it('继承释放初速度并保持无回弹收敛', () => {
+    vi.useFakeTimers()
+    const frames: number[] = []
+    const motion = createFreeLandingMotion({
+      duration: 550,
+      easing: 'cubic-bezier(.22,1,.36,1)',
+      onFrame: frame => frames.push(frame.x),
+    })
+    motion.seed({ x: 0, y: 0, vx: 900, vy: 0 })
+    motion.setTarget({ x: 300, y: 0 })
+    motion.start()
+    vi.advanceTimersByTime(700)
+
+    expect(frames[0]).toBe(0)
+    expect(frames[1]).toBeGreaterThan(0)
+    expect(frames[frames.length - 1]).toBeCloseTo(300, 1)
+    expect(frames.every((value, index) => index === 0 || value <= 300.5)).toBe(true)
+    expect(frames.every((value, index) => index === 0 || value >= frames[index - 1])).toBe(true)
+    vi.useRealTimers()
+  })
 })
