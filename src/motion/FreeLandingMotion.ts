@@ -114,7 +114,6 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
   let raf: number | null = null
   let running = false
   let maxLandingSpeed: number | undefined
-  let probeFrame = 0
   const emit = () => {
     options.onFrame({
       x: state.x, y: state.y,
@@ -130,9 +129,6 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
     const previousPosition = { x: state.x, y: state.y }
     const position = { position: { x: state.x, y: state.y }, velocity: { x: state.vx, y: state.vy } }
     integrateSpring(position, { x: target.x, y: target.y }, FREE_LANDING_STIFFNESS, FREE_LANDING_DAMPING, dt)
-    const speedBeforeCap = dt > 0
-      ? Math.hypot(position.position.x - previousPosition.x, position.position.y - previousPosition.y) / dt
-      : 0
     if (maxLandingSpeed !== undefined && dt > 0) {
       const dx = position.position.x - previousPosition.x
       const dy = position.position.y - previousPosition.y
@@ -145,21 +141,6 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
         position.velocity.x = (position.position.x - previousPosition.x) / dt
         position.velocity.y = (position.position.y - previousPosition.y) / dt
       }
-    }
-    if (probeFrame < 6) {
-      const speedAfterCap = dt > 0
-        ? Math.hypot(position.position.x - previousPosition.x, position.position.y - previousPosition.y) / dt
-        : 0
-      console.log('[runtime-free-landing-motion-probe]', JSON.stringify({
-        phase: 'frame',
-        frame: probeFrame + 1,
-        dt,
-        speedBeforeCap,
-        speedAfterCap,
-        maxLandingSpeed,
-        maxAllowedSpeed: maxLandingSpeed === undefined ? null : maxLandingSpeed * FREE_LANDING_SPEED_HEADROOM,
-      }))
-      probeFrame += 1
     }
     state.x = position.position.x
     state.y = position.position.y

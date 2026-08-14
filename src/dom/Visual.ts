@@ -995,9 +995,6 @@ export function landDragProxyWithMotion(
   let timeoutId: number | null = null
   let dismissTimeoutId: number | null = null
   let timeoutDeadline = 0
-  let freeLandingFrame = 0
-  let freeLandingFrameTime: number | null = null
-  let freeLandingFramePosition: { x: number; y: number } | null = null
   let resolveFinished: () => void = () => undefined
   const finished = new Promise<void>(resolve => { resolveFinished = resolve })
 
@@ -1053,36 +1050,52 @@ export function landDragProxyWithMotion(
   const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
       const left = frame.x
       const top = frame.y
-      if (options.landingMode === 'free' && freeLandingFrame < 6) {
-        const now = performance.now()
-        const delta = freeLandingFramePosition && freeLandingFrameTime !== null
-          ? { x: left - freeLandingFramePosition.x, y: top - freeLandingFramePosition.y }
-          : null
-        const elapsed = freeLandingFrameTime === null ? null : now - freeLandingFrameTime
-        console.log('[runtime-free-landing-velocity-probe]', JSON.stringify({
-          phase: freeLandingFrame === 0 ? 'first-frame' : 'frame',
-          objectId: options.objectId,
-          sessionId: options.sessionId,
-          frame: freeLandingFrame + 1,
-          position: { x: left, y: top },
-          delta,
-          elapsed,
-          pixelsPerSecond: delta && elapsed && elapsed > 0
-            ? { x: delta.x * 1000 / elapsed, y: delta.y * 1000 / elapsed }
-            : null,
-          target: { x: initialTarget.left, y: initialTarget.top },
-          seedVelocity: {
-            x: options.motionState?.vx ?? 0,
-            y: options.motionState?.vy ?? 0,
-          },
-        }))
-        freeLandingFrame += 1
-        freeLandingFramePosition = { x: left, y: top }
-        freeLandingFrameTime = now
-      }
       proxy.style.transform = `translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
       getProxyAttitude(proxy).style.transform =
         `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
+      const probeFrame = (proxy.dataset.runtimeHandoffProbeFrame ? Number(proxy.dataset.runtimeHandoffProbeFrame) : 0) + 1
+      if (probeFrame <= 2) {
+        const rect = proxy.getBoundingClientRect()
+        const now = performance.now()
+        const previousLeft = Number(proxy.dataset.runtimeHandoffProbeLeft)
+        const previousTop = Number(proxy.dataset.runtimeHandoffProbeTop)
+        const previousTime = Number(proxy.dataset.runtimeHandoffProbeTime)
+        const elapsedFromHandoff = now - Number(proxy.dataset.runtimeHandoffTime)
+        const handoff = {
+          left: Number(proxy.dataset.runtimeHandoffLeft),
+          top: Number(proxy.dataset.runtimeHandoffTop),
+          width: Number(proxy.dataset.runtimeHandoffWidth),
+          height: Number(proxy.dataset.runtimeHandoffHeight),
+        }
+        console.log('[runtime-landing-handoff-probe]', JSON.stringify({
+          phase: 'landing-frame',
+          objectId: options.objectId,
+          sessionId: options.sessionId,
+          time: now,
+          frame: probeFrame,
+          handoff,
+          landingCardRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+          frameRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+          deltaFromHandoff: { left: rect.left - handoff.left, top: rect.top - handoff.top },
+          deltaFromPrevious: probeFrame === 1 ? null : {
+            elapsed: now - previousTime,
+            left: rect.left - previousLeft,
+            top: rect.top - previousTop,
+          },
+          elapsedFromHandoff,
+          expectedFromReleaseVelocity: options.motionState
+            ? {
+                left: options.motionState.vx * elapsedFromHandoff / 1000,
+                top: options.motionState.vy * elapsedFromHandoff / 1000,
+              }
+            : null,
+          motion: { x: frame.x, y: frame.y, rotateX: frame.rotateX, rotateZ: frame.rotateZ },
+        }))
+        proxy.dataset.runtimeHandoffProbeFrame = String(probeFrame)
+        proxy.dataset.runtimeHandoffProbeLeft = String(rect.left)
+        proxy.dataset.runtimeHandoffProbeTop = String(rect.top)
+        proxy.dataset.runtimeHandoffProbeTime = String(now)
+      }
       if (options.landingMode === 'free' && landingShell && options.cameraShell) {
         // free 的 holder 负责从源视觉尺寸收敛到目标视觉尺寸，scaleShell 只
         // 保留抓取瞬间的相机倍率。把 frame.scale 再写进 scaleShell 会让同一
@@ -1197,24 +1210,6 @@ export function landDragProxyWithMotion(
   // 因此 free landing 也要把外壳移动到能让缩放后的 shell 对齐目标矩形的位置；
   // 直接使用 target.left/top 会在缩小时向右下、放大时向左上偏移。
   const initialTarget = centeredTarget(target)
-  if (options.landingMode === 'free') {
-    console.log('[runtime-free-landing-velocity-probe]', JSON.stringify({
-      phase: 'seed',
-      objectId: options.objectId,
-      sessionId: options.sessionId,
-      seed: {
-        x: options.motionState?.x ?? startRect.left,
-        y: options.motionState?.y ?? startRect.top,
-        vx: options.motionState?.vx ?? 0,
-        vy: options.motionState?.vy ?? 0,
-      },
-      target: { x: initialTarget.left, y: initialTarget.top },
-      distance: {
-        x: initialTarget.left - (options.motionState?.x ?? startRect.left),
-        y: initialTarget.top - (options.motionState?.y ?? startRect.top),
-      },
-    }))
-  }
   // 语义目标（文件夹卡、面包屑）统一以目标中心作为落点，尺寸收缩交给
   // target dismiss 负责。若再把代理缩到面包屑文字按钮的尺寸，会先发生一
   // 次目标尺寸缩放、再发生一次 dismiss 缩放，导致面包屑动画明显快于文件夹卡。

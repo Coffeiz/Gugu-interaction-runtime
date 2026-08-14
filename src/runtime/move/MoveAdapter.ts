@@ -186,6 +186,40 @@ export function createDetachMoveFromAdapter(config: {
       ?? runtime.getVisualProxy(sessionId!)?.element.getBoundingClientRect()
       ?? getFloatingProxy(element)?.getBoundingClientRect()
       ?? element.getBoundingClientRect()
+    console.log('[runtime-landing-handoff-probe]', JSON.stringify({
+      phase: 'pointerup',
+      objectId,
+      sessionId,
+      time: performance.now(),
+      pointer: releaseEvent ? { x: releaseEvent.clientX, y: releaseEvent.clientY } : null,
+      grabbingCardRect: {
+        left: beforeRect.left,
+        top: beforeRect.top,
+        width: beforeRect.width,
+        height: beforeRect.height,
+      },
+      sourceCardRect: (() => {
+        const rect = element.getBoundingClientRect()
+        return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+      })(),
+      proxyRect: {
+        left: beforeRect.left,
+        top: beforeRect.top,
+        width: beforeRect.width,
+        height: beforeRect.height,
+      },
+      motionState: releaseMotionState
+        ? { x: releaseMotionState.x, y: releaseMotionState.y, vx: releaseMotionState.vx, vy: releaseMotionState.vy }
+        : null,
+    }))
+    const handoffProbeProxy = landingProxy
+      ?? runtime.getVisualProxy(sessionId!)?.element
+      ?? getFloatingProxy(element)
+    handoffProbeProxy?.setAttribute('data-runtime-handoff-pointerup-time', String(performance.now()))
+    handoffProbeProxy?.setAttribute('data-runtime-handoff-pointerup-left', String(beforeRect.left))
+    handoffProbeProxy?.setAttribute('data-runtime-handoff-pointerup-top', String(beforeRect.top))
+    handoffProbeProxy?.setAttribute('data-runtime-handoff-pointerup-width', String(beforeRect.width))
+    handoffProbeProxy?.setAttribute('data-runtime-handoff-pointerup-height', String(beforeRect.height))
     delete element.dataset.runtimeActive
     // objectLease 释放时机分两种情况：
     // - 无效落点（invalidReturn）：destination 就是原位置，没有 emit，业务

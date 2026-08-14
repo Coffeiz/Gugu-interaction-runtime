@@ -234,16 +234,49 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (targetElement && !context.preserveTarget) {
       concealElement(targetElement, context.sessionId)
     }
-    // 抓取阶段的 transform 可能仍处于 CSS transition 的中间帧。
-    // 直接关闭 transition 会把代理跳回 inline transform 的终值，造成松手瞬移。
-    // 先把当前屏幕上的 computed transform 固定为 inline 值，再关闭过渡，保证
-    // landing 接管时沿用用户看到的最后一帧。
-    const computedTransformBeforeReset = getComputedStyle(el).transform
-    if (computedTransformBeforeReset && computedTransformBeforeReset !== 'none') {
-      el.style.transform = computedTransformBeforeReset
+    // free landing 需要保留用户看到的 grabbing 中间帧，避免画布物理接管时
+    // 先跳回控制器终值；grid/default/target 则直接结束 grabbing transition，
+    // 让列表布局坐标负责接管，避免把 transition 中间帧带进网格落地。
+    if (context.landingMode === 'free') {
+      const computedTransformBeforeReset = getComputedStyle(el).transform
+      if (computedTransformBeforeReset && computedTransformBeforeReset !== 'none') {
+        el.style.transform = computedTransformBeforeReset
+      }
     }
     el.style.transition = 'none'
     const afterTransitionReset = el.getBoundingClientRect()
+    el.dataset.runtimeHandoffProbeFrame = '0'
+    el.dataset.runtimeHandoffTime = String(performance.now())
+    el.dataset.runtimeHandoffLeft = String(afterTransitionReset.left)
+    el.dataset.runtimeHandoffTop = String(afterTransitionReset.top)
+    el.dataset.runtimeHandoffWidth = String(afterTransitionReset.width)
+    el.dataset.runtimeHandoffHeight = String(afterTransitionReset.height)
+    console.log('[runtime-landing-handoff-probe]', JSON.stringify({
+      phase: 'handoff',
+      objectId: context.objectId,
+      sessionId: context.sessionId,
+      time: performance.now(),
+      beforeRect: {
+        left: afterTransitionReset.left,
+        top: afterTransitionReset.top,
+        width: afterTransitionReset.width,
+        height: afterTransitionReset.height,
+      },
+      grabbingCardRect: {
+        left: Number(el.dataset.runtimeHandoffPointerupLeft),
+        top: Number(el.dataset.runtimeHandoffPointerupTop),
+        width: Number(el.dataset.runtimeHandoffPointerupWidth),
+        height: Number(el.dataset.runtimeHandoffPointerupHeight),
+      },
+      motionState: context.motionState
+        ? { x: context.motionState.x, y: context.motionState.y, vx: context.motionState.vx, vy: context.motionState.vy }
+        : null,
+      deltaFromPointerup: {
+        elapsed: performance.now() - Number(el.dataset.runtimeHandoffPointerupTime),
+        left: afterTransitionReset.left - Number(el.dataset.runtimeHandoffPointerupLeft),
+        top: afterTransitionReset.top - Number(el.dataset.runtimeHandoffPointerupTop),
+      },
+    }))
     const isTargetLanding = context.landingMode === 'target'
     const isCompactProxy = getProxyContent(el).dataset.runtimeCompact === 'true'
     const isCrossSurfaceLanding = Boolean(
