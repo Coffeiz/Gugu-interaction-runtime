@@ -119,12 +119,13 @@ src/
 
 ### 当前稳定基线
 
-Runtime 2.0.1 当前基线为提交 `952ac10`（文件系统接入与拖拽滚动回归完成）。
+Runtime 2.0.2 当前分支基线为提交 `f908d65`（文件系统与画布接入回归完成）；当前工作树另有
+收起抽屉落点和 Surface accepts 响应式更新修改，待进入下一次发布记录。
 Session、MoveBehavior、Action、MotionController、landing/reveal、regrab、FLIP、
 Vue/React DOM 适配器、文件系统 Demo 和 `proxyLayout` API 均已进入稳定实现。
 后续新增能力继续从独立分支开始，并通过 Demo 与浏览器回归验证；Gugu-web 文件页、
 画布和多选等业务迁移仍按阶段 2/3 的计划推进。
-Vue composable 适配层已经恢复并进入稳定接入路径，兼容基线与迁移边界见
+Vue composable 适配层已经进入稳定接入路径，兼容基线与迁移边界见
 [Vue 接入指南](integration/VUE.md)。新业务优先使用 `useObject`、`useSurface`、
 `useTarget` 和 `useRuntimeAction`，`createVueRuntimeAdapter` 只作为旧接入面的过渡桥接。
 

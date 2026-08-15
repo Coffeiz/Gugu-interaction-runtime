@@ -96,7 +96,9 @@ const { elementRef: drawerSurfaceRef } = useSurface({
   id: 'canvas:drawer',
   type: 'drawer',
   layout: 'grid',
-  accepts: ['canvas-sticker'],
+  // 收起后保留 Surface 用于抽屉自身的布局事务，但不再参与拖放命中。
+  // 空 accepts 代表“不限类型”，因此这里使用一个不会注册的类型作为关闭态哨兵。
+  accepts: () => drawerCollapsed.value ? ['canvas-drawer-closed'] : ['canvas-sticker'],
   floating: {
     open: () => !drawerCollapsed.value,
     scrollKey: 'projects',
@@ -114,6 +116,7 @@ function registerCanvasType(): void {
       return { left: point.x - 92, top: point.y - 43, width: 184, height: 86 }
     },
     resolveMoveLandingTarget: ({ objectId, destination }) => {
+      if (drawerCollapsed.value) return null
       const targetSurface = destination && typeof destination === 'object'
         ? (destination as { toSurfaceId?: unknown; columnId?: unknown }).toSurfaceId
           ?? (destination as { toSurfaceId?: unknown; columnId?: unknown }).columnId
@@ -274,6 +277,7 @@ useRuntimeAction(action => {
   const source = nodes.value.find(node => node.id === action.objectId) ?? drawerNodes.value.find(node => node.id === action.objectId)
   if (!source) return
   if (action.toSurfaceId === 'canvas:drawer') {
+    if (drawerCollapsed.value) return
     nodes.value = nodes.value.filter(node => node.id !== source.id)
     source.group = drawerGroupFor(source)
     if (!drawerNodes.value.some(node => node.id === source.id)) drawerNodes.value.push(source)

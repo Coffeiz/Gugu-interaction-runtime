@@ -62,20 +62,18 @@
 
 ### 2.3 Gugu-web 当前画布链路
 
-当前画布主要经过：
+当前画布业务接入已经收口为：
 
 ```text
-Note/Entity/Project/File/Drawer Card
-  -> canvasDrag.ts / useCardDrag
-  -> usePhysicsDrag.ts
-  -> startThresholdDrag / startPhysicsDrag
-  -> onFollow: screenToWorld -> 修改画布临时位置
-  -> onDrop: coastOffset -> screenToWorld -> 写回 item.x/item.y
-  -> animateLanding: 手写落地插值
-  -> RelationLayer: 读取拖动或落地中的临时位置
+Mind Object registration
+  -> Runtime pointer/session/motion controller
+  -> proxy + landing/reveal/regrab lifecycle
+  -> Action: 业务更新 item 位置与关系数据
+  -> RelationLayer: 读取 Runtime 的 active/landing 几何状态
 ```
 
-抽屉方向另有 `drawerDrag.ts`、`resolveAbsorbTarget` 和
+抽屉方向不再有独立页面级拖拽引擎；抽屉 Surface、画布 Surface 与 Runtime target
+共同完成命中和落地解析。
 `resolveAbsorbLandingTarget`。这些逻辑与文件夹吸入同构，但目前仍由业务适配器自己决定
 目标、代理和落地执行。
 
@@ -367,17 +365,21 @@ useObject({
 - [x] 画布卡片和抽屉卡片均只通过 Object/Surface/Group 注册接入；抽屉 Surface 直接作为落点，只有外部语义落点使用 Target。
 - [x] 默认 physical 的抓取、释放、旋转、速度和落点观感与咕咕当前画布一致。
 - [x] 切换 normal 后只改变释放策略，不改变抓取、命中、FLIP、regrab 和清理。
-- [x] 画布移动不再由旧 `usePhysicsDrag` 直接编排；业务只接收 Action 并更新数据。
+- [x] 画布移动不再由页面级物理拖拽函数直接编排；业务只接收 Runtime Action 并更新数据。
 - [x] 不依赖 Runtime Camera，不出现 world/screen 坐标混用。
 - [x] 人工回归已覆盖抽屉进出、连续拖拽、landing/regrab、连接创建/删除、连接线跟随和普通/physical 两种落地。
 - [x] 自动化已覆盖 Stage 1 核心跨场景矩阵；Runtime Demo 已覆盖 16 次长序列快速连续拖拽压力回归，单测、类型检查和 smoke 已纳入当前验证流程。
 
-本轮验证记录：Runtime 单测通过（183 tests），Runtime typecheck 通过；现有看板/文件页
+最近一次稳定基线验证记录：Runtime 单测通过（183 tests），Runtime typecheck 通过；现有看板/文件页
 Playwright 回归和新增 Runtime Demo 5 条回归（free、normal、跨 Surface、连续两张卡、16 次压力序列）均通过。
 真实画布页已完成人工抽屉进出、落地中
 代理 regrab、再次释放、连接创建和清理，测试产生的临时画布节点与关系已清理；未修改卡片
 DnD 动画。Stage 1 的阶段性测试项已完成；相机变化期间连接端点的完整浏览器级矩阵和无限时长
 压力测试属于 Stage 2/专项，不把 smoke 和 Runtime 几何单测误写成完整 Camera API 覆盖。
+
+当前工作树验证补充：Runtime typecheck 通过，Vitest 共 185 项中 184 项通过；
+`src/__tests__/proxyLayout.test.ts` 的相机 landing 尺寸断言当前期望 `206px`、实际为
+`200px`，该失败待单独确认实现契约后处理，本次文档更新不修改断言。
 
 ## 六、Stage 2：完整 Camera API 与 Runtime Demo
 
@@ -417,11 +419,11 @@ Stage 2 只有在 Stage 1 稳定后开始。
 
 1. `HTMLElement` 到判别联合的接口变更可能影响项目/文件 landing；必须保留 element 分支
    的原有行为，并在现有回归测试下升级。
-2. physical 参数如果同时留在 `usePhysicsDrag` 和 Runtime，会形成两套真相；迁移完成后
-   只允许 Runtime 持有释放和 landing 参数。
+2. physical 参数如果同时留在业务组件和 Runtime，会形成两套真相；当前迁移完成后只允许
+   Runtime 持有释放和 landing 参数。
 3. Stage 1 若把相机状态直接塞入 free landing，会把屏幕坐标和世界坐标耦合，导致 Stage 2
    仍需重写；第一阶段明确只传视口 `LandingRect`。
-4. RelationLayer 仍然需要拖动中位置输入，但这不是第二套拖拽编排；应使用 Runtime 的
+4. RelationLayer 仍然需要拖动中位置输入，但这不是第二套拖拽编排；使用 Runtime 的
    生命周期回调/transition 状态桥接，保留 SVG 和关系数据在业务侧。
 
 ## 八、阶段完成定义

@@ -52,9 +52,9 @@ Vue / React
    （例如折叠动画结束后何时能安全恢复 `height:auto`，恢复早了会闪一下自然
    高度，恢复晚了 v-if 卸载时机会对不上）。
 
-Gugu-web 的 `interaction/drag/` 目录已经长出了这套机制的雏形（`layoutOwners`、
-`FlipTransaction`、`createGroupLayoutTransaction`、`morphLifecycle`），但都是
-针对具体 bug 各自实现的局部方案，没有统一的所有权模型。
+Gugu-web 曾在 `interaction/drag/` 目录中积累这套机制的雏形；当前目录已清理，相关
+生命周期由本仓库 Runtime 统一实现。这里保留该描述用于解释设计来源，不应再把旧目录
+当作业务接入入口。
 
 ## 设计目标
 

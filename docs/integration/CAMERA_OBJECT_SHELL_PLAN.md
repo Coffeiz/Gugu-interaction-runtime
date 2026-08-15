@@ -173,9 +173,9 @@ landing 才创建 `cameraGlue`。
 - [x] 更新 `docs/INTEGRATION.md`、`docs/CANVAS_RUNTIME_FEASIBILITY.md` 和 API 示例，
   明确 camera 是 object capability，不是所有 free/grid 对象的隐式行为。
 
-兼容说明：Gugu 旧的 `interaction/drag` 视觉实现仍作为未使用的历史模块保留，当前 Mind
-卡片由 `runtime.bindObjectPointer()` 接管；它们不再被 Mind 组件导入，也不参与 camera
-shell 生命周期。该批次不删除历史文件，避免影响外部旧入口，Phase 5 再统一处理废弃入口。
+兼容说明：Gugu 旧的 `interaction/drag` 视觉实现已从当前业务仓库删除，当前 Mind
+卡片由 `runtime.bindObjectPointer()` 接管；旧模块不再参与 camera shell 生命周期。外部接入方
+若仍保留同名历史文件，也必须视为迁移前代码，不得作为当前 Gugu 行为的依赖。
 
 ### Phase 5：回归测试和收口
 

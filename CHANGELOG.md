@@ -1,5 +1,11 @@
 # Changelog
 
+## 未发布
+
+### 改进
+- **收起抽屉不再接收落点**：Runtime Demo 的收起抽屉使用独立的 Surface accepts 标识，并在目标解析阶段拒绝向收起抽屉落卡，避免代理进入不可见列表后出现尺寸和生命周期异常。
+- **Surface 接受类型支持响应式更新**：Vue composable 在业务状态变化时更新 accepts，而不递增 Surface generation；补充对应单元测试，保证目标解析仍使用最新接受类型。
+
 ## v2.0.2
 
 ### 改进

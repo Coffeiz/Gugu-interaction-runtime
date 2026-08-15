@@ -238,9 +238,15 @@ describe('Vue Runtime composables', () => {
   it('响应式 Surface/Target 字段使用 update 而不改变 generation', async () => {
     const runtime = new Runtime()
     const targetSurfaceId = ref('surface:a')
+    const surfaceOpen = ref(true)
     const child = defineComponent({
       setup() {
-        const surface = useSurface({ id: 'surface:dynamic', type: 'list', layout: 'grid', accepts: () => ['card'] })
+        const surface = useSurface({
+          id: 'surface:dynamic',
+          type: 'list',
+          layout: 'grid',
+          accepts: () => surfaceOpen.value ? ['card'] : ['surface-closed'],
+        })
         const target = useTarget({ id: 'target:dynamic', surfaceId: targetSurfaceId, accepts: ['card'] })
         return () => h('section', { ref: surface.elementRef }, [h('button', { ref: target.elementRef })])
       },
@@ -249,9 +255,11 @@ describe('Vue Runtime composables', () => {
     await nextTick()
     const targetGeneration = runtime.targets.get('target:dynamic')?.generation
     targetSurfaceId.value = 'surface:b'
+    surfaceOpen.value = false
     await nextTick()
 
     expect(runtime.targets.get('target:dynamic')).toMatchObject({ surfaceId: 'surface:b', generation: targetGeneration })
+    expect(runtime.surfaces.get('surface:dynamic')?.accepts).toEqual(['surface-closed'])
     mounted.app.unmount()
     mounted.host.remove()
   })
