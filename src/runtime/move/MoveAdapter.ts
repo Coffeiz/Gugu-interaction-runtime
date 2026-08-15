@@ -474,6 +474,11 @@ export function createDetachMoveFromAdapter(config: {
       const floatingProxy = runtime.getVisualProxy(sessionId!)?.element
         ?? getFloatingProxy(element)
       if (!floatingProxy) return
+      // 定位 transform 从这一刻开始由 dragMotion 独占。createDragProxy/applyFloatingStyle
+      // 的 pickup 动画会给 proxy 留下 transform transition；如果不在 ownership handoff
+      // 这里清掉，浏览器会继续在 MotionController 每帧输出之间做二次插值，导致实际
+      // rendered pose 落后于 motionState，pointerup 时就不可能无缝交给 landing。
+      floatingProxy.style.transition = 'none'
       // floatingProxy 的 left/top 由 createDragProxy 一次性定死在 rect.left/rect.top
       // （position:fixed），此后每帧只用 transform 的 translate3d 叠加位移量——
       // left/top 是会触发布局的属性，每帧写会弄脏布局；紧跟着的命中判定
@@ -545,7 +550,7 @@ export function createDetachMoveFromAdapter(config: {
       const destinationSurface = typeof destination === 'object'
         && destination !== null
         ? ((destination as { columnId?: unknown; toSurfaceId?: unknown }).toSurfaceId
-          ?? (destination as { columnId?: unknown }).columnId)
+          ?? (destination as { columnId?: unknown; toSurfaceId?: unknown }).columnId)
         : undefined
       const sameSurfaceLanding = !invalidReturn
         && typeof destinationSurface === 'string'
