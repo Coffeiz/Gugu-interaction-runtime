@@ -48,8 +48,17 @@ describe('Runtime move orchestration', () => {
     const content = document.createElement('div')
     const card = document.createElement('div')
     const measureLayout = vi.fn(() => ({ height: 180 }))
+    let scrollTop = 40
 
     viewport.dataset.layoutSurface = 'drawer'
+    viewport.style.overflowY = 'auto'
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value },
+    })
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 500 })
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 80 })
     content.dataset.layoutContent = 'drawer-group'
     content.dataset.layoutOpen = 'false'
     card.dataset.layoutRole = 'card'
@@ -91,6 +100,7 @@ describe('Runtime move orchestration', () => {
     })
 
     expect(measureLayout).toHaveBeenCalled()
+    expect(scrollTop).toBe(40)
     root.remove()
   })
 

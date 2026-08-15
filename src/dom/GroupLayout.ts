@@ -630,6 +630,8 @@ function measureGroupSurfaceTargets(
 ): Map<HTMLElement, { width?: number; height: number } | null> {
   const targets = new Map<HTMLElement, { width?: number; height: number } | null>()
   if (surfaces.length === 0) return targets
+  const scrollContainer = findScrollContainer(content)
+  const scrollSnapshot = scrollContainer ? captureScroll(scrollContainer) : null
   const contentStyle = {
     height: content.style.height,
     overflow: content.style.overflow,
@@ -664,7 +666,18 @@ function measureGroupSurfaceTargets(
   content.style.height = contentStyle.height
   content.style.overflow = contentStyle.overflow
   content.style.transition = contentStyle.transition
+  if (scrollSnapshot && scrollContainer) restoreScroll(scrollContainer, scrollSnapshot)
   return targets
+}
+
+function findScrollContainer(element: HTMLElement): HTMLElement | null {
+  let parent = element.parentElement
+  while (parent) {
+    const style = getComputedStyle(parent)
+    if (/(auto|scroll|overlay)/.test(`${style.overflowY} ${style.overflow}`)) return parent
+    parent = parent.parentElement
+  }
+  return null
 }
 
 interface GroupPresenceState { content: HTMLElement; elements: HTMLElement[]; token: string; duration: number }
