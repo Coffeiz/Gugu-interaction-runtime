@@ -233,31 +233,45 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
 
   let resizeObserver: ResizeObserver | null = null
   let mutationObserver: MutationObserver | null = null
+  let windowResizeHandler: (() => void) | null = null
   const stopFloatingObservers = (): void => {
     resizeObserver?.disconnect()
     mutationObserver?.disconnect()
+    if (windowResizeHandler) window.removeEventListener('resize', windowResizeHandler)
     resizeObserver = null
     mutationObserver = null
+    windowResizeHandler = null
   }
   const syncFloatingObservers = (element: HTMLElement | null): void => {
     stopFloatingObservers()
     const floating = options.floating === undefined ? false : toValue(options.floating)
-    if (!floating || !element || typeof ResizeObserver === 'undefined') return
+    if (!floating || !element) return
     const sync = (): void => {
       const current = runtime.surfaces.get(options.id)
       if (current?.generation !== generation) return
       runtime.surfaces.update(options.id, readSurface(options, root, floatingResolvers))
       scheduleFloatingResize()
     }
-    resizeObserver = new ResizeObserver(sync)
-    resizeObserver.observe(element)
     const layoutElement = resolveFloatingSurfaceDom(element, floating === true ? {} : floating).layoutElement
     const viewport = resolveFloatingSurfaceDom(element, floating === true ? {} : floating).viewport
-    if (layoutElement && layoutElement !== element) resizeObserver.observe(layoutElement)
-    if (viewport && viewport !== element && viewport !== layoutElement) resizeObserver.observe(viewport)
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(sync)
+      resizeObserver.observe(element)
+      if (layoutElement && layoutElement !== element) resizeObserver.observe(layoutElement)
+      if (viewport && viewport !== element && viewport !== layoutElement) resizeObserver.observe(viewport)
+    }
     if (typeof MutationObserver !== 'undefined') {
       mutationObserver = new MutationObserver(sync)
       mutationObserver.observe(element, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-layout-role', 'data-drawer-scroll', 'data-scroll-viewport'] })
+    }
+    // maxHeight may depend on viewport dimensions even when the floating DOM itself
+    // keeps the same natural size. ResizeObserver alone cannot observe that change.
+    if (typeof window !== 'undefined') {
+      windowResizeHandler = () => {
+        floatingAnimationTarget = null
+        scheduleFloatingResize()
+      }
+      window.addEventListener('resize', windowResizeHandler)
     }
     sync()
     scheduleFloatingResize()
