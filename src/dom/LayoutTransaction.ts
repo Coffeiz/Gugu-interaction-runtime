@@ -106,22 +106,7 @@ export class LayoutTransactionCoordinator {
     const participant = participantId ?? current.participantIds.values().next().value
     if (!participant || !current.participantIds.delete(participant)) return null
     current.participants = Math.max(0, current.participants - 1)
-    if (current.participants === 0) {
-      this.active.delete(root)
-      const plans = current.plans.filter(plan => plan.status === 'queued')
-      let firstError: unknown
-      plans.forEach(plan => {
-        plan.status = 'running'
-        try {
-          plan.run(plan)
-          plan.status = 'completed'
-        } catch (error) {
-          plan.status = 'failed'
-          firstError ??= error
-        }
-      })
-      if (firstError) throw firstError
-    }
+    this.finalizeIfComplete(root, current)
     return this.snapshot(current, participant)
   }
 
@@ -135,7 +120,7 @@ export class LayoutTransactionCoordinator {
       .forEach(plan => { plan.status = 'cancelled' })
     current.cancelledParticipants += 1
     current.participants = Math.max(0, current.participants - 1)
-    if (current.participants === 0) this.active.delete(root)
+    this.finalizeIfComplete(root, current)
     return this.snapshot(current, participant)
   }
 
@@ -171,6 +156,24 @@ export class LayoutTransactionCoordinator {
   private mergeReason(state: TransactionState, reason: LayoutTransactionReason, priority: LayoutTransactionPriority): void {
     if (!state.reasons.includes(reason)) state.reasons.push(reason)
     if (priority === 'interaction') state.priority = priority
+  }
+
+  private finalizeIfComplete(root: ParentNode, state: TransactionState): void {
+    if (state.participants !== 0) return
+    this.active.delete(root)
+    const plans = state.plans.filter(plan => plan.status === 'queued')
+    let firstError: unknown
+    plans.forEach(plan => {
+      plan.status = 'running'
+      try {
+        plan.run(plan)
+        plan.status = 'completed'
+      } catch (error) {
+        plan.status = 'failed'
+        firstError ??= error
+      }
+    })
+    if (firstError) throw firstError
   }
 
   private snapshot(state: TransactionState, participantId: string): LayoutTransactionSnapshot {

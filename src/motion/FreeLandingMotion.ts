@@ -23,12 +23,17 @@ export const DEFAULT_FREE_LANDING_COAST: FreeLandingCoastConfig = {
 // 释放速度仍从抓取控制器连续继承，避免重新启动 easing。
 // 比跟手阶段更慢地收束，避免松手后过快贴到目标；阻尼保持接近临界值，
 // 让速度放缓的同时不引入明显回弹。
-const FREE_LANDING_STIFFNESS = 240
-const FREE_LANDING_DAMPING = 30
+export const DEFAULT_FREE_LANDING_PHYSICS = {
+  stiffness: 240,
+  damping: 30,
+  rotationDecay: 5,
+} as const
+const FREE_LANDING_STIFFNESS = DEFAULT_FREE_LANDING_PHYSICS.stiffness
+const FREE_LANDING_DAMPING = DEFAULT_FREE_LANDING_PHYSICS.damping
 const FREE_LANDING_SPEED_HEADROOM = 1
 // 位置 spring 通常需要约 500~700ms 才完全收束；旋转不能沿用普通
 // controller 的快速衰减，否则卡片会先摆正、再继续滑向目标。
-const FREE_LANDING_ROTATION_DECAY = 5
+const FREE_LANDING_ROTATION_DECAY = DEFAULT_FREE_LANDING_PHYSICS.rotationDecay
 
 /** 计算自由画布的最终落点，视觉目标与业务提交必须共用这一结果。 */
 export function resolveFreeLandingPoint(
@@ -49,8 +54,12 @@ export function resolveFreeLandingPoint(
 export interface FreeLandingMotionOptions {
   onFrame: (frame: MotionFrame) => void
   onArrived?: () => void
-  duration: number
-  easing: string
+  /** 物理参数；duration/easing 不参与位置积分。 */
+  duration?: number
+  easing?: string
+  stiffness?: number
+  damping?: number
+  rotationDecay?: number
 }
 
 export interface FreeLandingMotion {
@@ -128,7 +137,7 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
     lastTime = time
     const previousPosition = { x: state.x, y: state.y }
     const position = { position: { x: state.x, y: state.y }, velocity: { x: state.vx, y: state.vy } }
-    integrateSpring(position, { x: target.x, y: target.y }, FREE_LANDING_STIFFNESS, FREE_LANDING_DAMPING, dt)
+    integrateSpring(position, { x: target.x, y: target.y }, options.stiffness ?? FREE_LANDING_STIFFNESS, options.damping ?? FREE_LANDING_DAMPING, dt)
     if (maxLandingSpeed !== undefined && dt > 0) {
       const dx = position.position.x - previousPosition.x
       const dy = position.position.y - previousPosition.y
@@ -148,12 +157,12 @@ export function createFreeLandingMotion(options: FreeLandingMotionOptions): Free
     state.vy = position.velocity.y
 
     const scale = { position: { x: state.scaleX, y: state.scaleY }, velocity: { x: state.scaleVX, y: state.scaleVY } }
-    integrateSpring(scale, { x: target.scaleX ?? state.scaleX, y: target.scaleY ?? state.scaleY }, FREE_LANDING_STIFFNESS, FREE_LANDING_DAMPING, dt)
+    integrateSpring(scale, { x: target.scaleX ?? state.scaleX, y: target.scaleY ?? state.scaleY }, options.stiffness ?? FREE_LANDING_STIFFNESS, options.damping ?? FREE_LANDING_DAMPING, dt)
     state.scaleX = scale.position.x
     state.scaleY = scale.position.y
     state.scaleVX = scale.velocity.x
     state.scaleVY = scale.velocity.y
-    const rotationDecay = Math.exp(-FREE_LANDING_ROTATION_DECAY * dt)
+    const rotationDecay = Math.exp(-(options.rotationDecay ?? FREE_LANDING_ROTATION_DECAY) * dt)
     state.rotateX *= rotationDecay
     state.rotateZ *= rotationDecay
     emit()

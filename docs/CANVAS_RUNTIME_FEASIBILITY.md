@@ -214,20 +214,21 @@ runtime.registerObjectType('canvas-card', {
 
 ### 3.4 free landing 运动参数
 
-画布 free landing 不复用 `LANDING_PROFILE` 的列表弹簧。旧版 Gugu-web 的行为是：释放
-速度只参与惯性落点计算，代理从当前视觉位置以固定时长缓出到最终位置。因此 Runtime
-对外提供独立配置：
+画布 free landing 不复用 `LANDING_PROFILE` 的列表弹簧。释放速度只参与惯性落点计算，
+代理从当前视觉位置以独立的临界阻尼弹簧继续运动。因此 Runtime 对外提供独立物理配置：
 
 ```ts
 runtime.configureMotion({
   freeLanding: {
-    duration: 550,
-    easing: 'cubic-bezier(.22,1,.36,1)',
+    stiffness: 240,
+    damping: 30,
+    rotationDecay: 5,
   },
 })
 ```
 
-默认值与旧画布的落地时长和缓动对齐。`landing` 仍只控制列表/网格 landing，
+`freeLanding.duration/easing` 仍可用于视觉 morph 和收尾过渡，但不参与位置积分；
+`landing` 仍只控制列表/网格 landing，
 `freeLanding` 不影响项目列、文件网格或语义目标吸入。free landing 不使用欠阻尼弹簧，
 因此不应出现目标点附近的回弹。释放后的最终世界坐标仍由业务通过
 `resolveFreeLandingRect` 提供，Runtime 不在视觉层偷偷追加偏移，避免代理终点与真实本体

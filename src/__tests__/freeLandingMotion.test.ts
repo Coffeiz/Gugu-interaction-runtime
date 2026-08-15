@@ -103,6 +103,36 @@ describe('FreeLandingMotion', () => {
     vi.useRealTimers()
   })
 
+  it('free landing 使用配置的物理参数，而不是忽略公开配置', () => {
+    vi.useFakeTimers()
+    const slow: number[] = []
+    const fast: number[] = []
+    const slowMotion = createFreeLandingMotion({
+      stiffness: 80,
+      damping: 20,
+      rotationDecay: 2,
+      onFrame: frame => slow.push(frame.x),
+    })
+    const fastMotion = createFreeLandingMotion({
+      stiffness: 500,
+      damping: 45,
+      rotationDecay: 8,
+      onFrame: frame => fast.push(frame.x),
+    })
+    slowMotion.seed({ x: 0, y: 0 })
+    fastMotion.seed({ x: 0, y: 0 })
+    slowMotion.setTarget({ x: 300, y: 0 })
+    fastMotion.setTarget({ x: 300, y: 0 })
+    slowMotion.start()
+    fastMotion.start()
+    vi.advanceTimersByTime(100)
+
+    expect(fast[fast.length - 1]).toBeGreaterThan(slow[slow.length - 1])
+    slowMotion.stop()
+    fastMotion.stop()
+    vi.useRealTimers()
+  })
+
   it('free landing 的摆动回正与位置收束保持同一节奏', () => {
     vi.useFakeTimers()
     const frames: number[] = []

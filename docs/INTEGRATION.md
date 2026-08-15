@@ -228,8 +228,10 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `releaseMode` | 释放后的降落策略：`physical` 继承释放速度（默认），`normal` 使用普通过渡 |
 |  | `motion.profile.freeLanding.release` | 仅落到 `layout: 'free'` 的 Surface 时使用的释放速度整形，可配置 `velocityScale` 与 `maxVelocity`；列表/网格对象忽略该字段 |
 |  | `resolveFreeLandingRect` | `free` 模式解析视口坐标 `LandingRect`，不要求目标 DOM |
-| `runtime.configureMotion(config)` | `freeLanding.duration` | 画布 free landing 的非回弹飞行时长，默认 550ms |
-|  | `freeLanding.easing` | 画布 landing 缓动曲线，默认 `cubic-bezier(.22,1,.36,1)` |
+| `runtime.configureMotion(config)` | `freeLanding.stiffness` | 画布 free landing 的位置弹簧刚度，默认 240 |
+|  | `freeLanding.damping` | 画布 free landing 的位置弹簧阻尼，默认 30 |
+|  | `freeLanding.rotationDecay` | 画布 free landing 的摆动回正衰减，默认 5 |
+|  | `freeLanding.duration` / `freeLanding.easing` | 仅控制 landing 的视觉 morph/收尾过渡，不控制位置物理积分 |
 |  | `grabAlign.align` | 抓取基准对齐方式：`'center'`（默认，卡片中心对指针）或 `'pointer'`（点哪抓哪） |
 |  | `grabAlign.offsetX` / `offsetY` | 在基准对齐结果上叠加的固定像素偏移，正值往右/往下 |
 | `runtime.objects.register(options)` | `id` | 对象唯一标识 |

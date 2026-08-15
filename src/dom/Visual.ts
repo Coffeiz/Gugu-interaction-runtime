@@ -426,6 +426,9 @@ export interface LandingVisualOptions {
   destinationSurfaceId?: string
   duration?: number
   easing?: string
+  stiffness?: number
+  damping?: number
+  rotationDecay?: number
   targetShadow?: string
   targetRadius?: string
   targetBorder?: string
@@ -1125,6 +1128,9 @@ export function landDragProxyWithMotion(
     ? createFreeLandingMotion({
         duration,
         easing,
+        stiffness: options.stiffness,
+        damping: options.damping,
+        rotationDecay: options.rotationDecay,
         onFrame: onMotionFrame,
         onArrived: settle,
       })

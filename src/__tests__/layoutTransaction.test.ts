@@ -106,6 +106,23 @@ describe('LayoutTransactionCoordinator', () => {
     expect(calls).toEqual(['active'])
   })
 
+  it('先提交后取消最后参与者时仍执行已提交参与者的 deferred plan', () => {
+    const coordinator = new LayoutTransactionCoordinator()
+    const root = document.createElement('div')
+    const committed = coordinator.begin(root, 'move')
+    const cancelled = coordinator.begin(root, 'group-toggle')
+    const calls: string[] = []
+
+    coordinator.defer(root, committed.participantId, () => calls.push('move'))
+    coordinator.defer(root, cancelled.participantId, () => calls.push('group'))
+    coordinator.commit(root, committed.participantId)
+    expect(calls).toEqual([])
+    coordinator.cancel(root, cancelled.participantId)
+
+    expect(calls).toEqual(['move'])
+    expect(coordinator.isActive(root)).toBe(false)
+  })
+
   it('计划执行异常不会阻断同一事务中的后续计划', () => {
     const coordinator = new LayoutTransactionCoordinator()
     const root = document.createElement('div')

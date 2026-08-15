@@ -355,6 +355,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
       easing: landingProfile?.easing ?? (context.landingMode === 'free'
         ? DEFAULT_MOTION_PROFILE.freeLanding.easing
         : DEFAULT_MOTION_PROFILE.landing.easing),
+      stiffness: context.landingMode === 'free' ? context.motion?.freeLanding?.stiffness : undefined,
+      damping: context.landingMode === 'free' ? context.motion?.freeLanding?.damping : undefined,
+      rotationDecay: context.landingMode === 'free' ? context.motion?.freeLanding?.rotationDecay : undefined,
       // 面包屑是透明文本节点，只提供位置和消失时机，不能把它的透明表面
       // 样式覆盖到代理卡片；有可见表面的文件夹卡仍完整执行视觉 morph。
       targetShadow: targetHasSurfaceStyle || suppressCrossSurfaceMorph
