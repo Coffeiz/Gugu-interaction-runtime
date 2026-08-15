@@ -220,6 +220,16 @@ describe('Runtime move orchestration', () => {
 
     expect(firstCallCount).toBeGreaterThan(0)
     expect(measureLayout).toHaveBeenCalledTimes(firstCallCount)
+
+    // 子组展开后父组自然高度变化时，不能复用子组收起阶段缓存的展开高度。
+    Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 320 })
+    await runtime.runGroupToggle({
+      root, content, opening: true,
+      mutate: () => { content.dataset.layoutOpen = 'true' },
+      waitForLayout: () => undefined,
+    })
+
+    expect(measureLayout.mock.calls.length).toBeGreaterThan(firstCallCount)
     root.remove()
   })
 

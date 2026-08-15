@@ -550,6 +550,15 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
     surfaceMeasures: options.surfaceMeasures,
   })
   const currentHeight = options.content.getBoundingClientRect().height
+  if (!options.opening && currentHeight > 0) {
+    // 业务的 closed 样式会在 mutate 后立即把组压成 0；先冻结起点，
+    // 让 Runtime 在 nextTick 后仍能从真实高度启动收起过渡。
+    cancelGroupAnimation(options.content)
+    options.content.dataset.runtimeGroupAnimating = 'true'
+    options.content.style.height = `${currentHeight}px`
+    options.content.style.overflow = 'hidden'
+    options.content.style.transition = ''
+  }
   const presenceState = layoutPresenceEnabled
     ? prepareGroupPresence(options.content, options.opening, options.duration, options.easing)
     : null
@@ -564,7 +573,12 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
     return
   }
   const cachedTarget = options.layoutCache?.getGroup(options.content, options.opening)
-  const targetHeight = cachedTarget?.height ?? (options.opening ? options.content.scrollHeight : 0)
+  const liveScrollHeight = options.content.scrollHeight
+  const targetHeight = options.opening ? liveScrollHeight : 0
+  // 子组开合会改变父组的自然高度，不能直接复用旧的展开高度。
+  const reusableTarget = cachedTarget && cachedTarget.height === targetHeight
+    ? cachedTarget
+    : undefined
   transitionGroupHeight(options.content, targetHeight, options.duration, options.easing, currentHeight)
   if (presenceState) playGroupPresence(presenceState, options.opening)
 
@@ -579,8 +593,8 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
     options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
     return
   }
-  const targetMeasures = cachedTarget
-    ? new Map(cachedTarget.surfaceTargets)
+  const targetMeasures = reusableTarget
+    ? new Map(reusableTarget.surfaceTargets)
     : measureGroupSurfaceTargets(snapshot.surfaces, options.content, targetHeight)
   options.layoutCache?.setGroup(options.content, options.opening, targetHeight, targetMeasures)
   const targetSnapshot: LayoutFlipSnapshot = targetMeasures.size > 0
@@ -615,6 +629,7 @@ function measureGroupSurfaceTargets(
   targetHeight: number,
 ): Map<HTMLElement, { width?: number; height: number } | null> {
   const targets = new Map<HTMLElement, { width?: number; height: number } | null>()
+  if (surfaces.length === 0) return targets
   const contentStyle = {
     height: content.style.height,
     overflow: content.style.overflow,
