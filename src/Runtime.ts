@@ -473,6 +473,20 @@ setMotionProfiles(this.registry.motionProfile)
     return this.moveContentScales.get(sessionId) ?? this.getSurfaceCameraScale(surfaceId)
   }
 
+  /**
+   * pointerup 把抓取阶段的 camera pickup scale 交给 landing 时，必须冻结在
+   * 释放瞬间的值。否则 landing 继续读取 pickup 函数，缩放动画会跨越两个
+   * 生命周期，代理的视觉尺寸与 landing 的初始尺寸不一致。
+   */
+  freezeSessionContentScale(sessionId: string): number | undefined {
+    const current = this.moveContentScales.get(sessionId)
+    if (current === undefined) return undefined
+    const value = typeof current === 'function' ? current() : current
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+    this.moveContentScales.set(sessionId, value)
+    return value
+  }
+
   private clearSessionContentScale(sessionId: string): void {
     this.moveContentScales.delete(sessionId)
   }

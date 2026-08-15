@@ -432,6 +432,28 @@ describe('Runtime move orchestration', () => {
     expect(readScale()).toBeLessThanOrEqual(1)
   })
 
+  it('pointerup 冻结抓取倍率，landing 不继续消费 pickup 曲线', () => {
+    const runtime = new Runtime()
+    let scale = 0.5
+    runtime.surfaces.register({
+      id: 'drawer',
+      type: 'drawer',
+      layout: 'grid',
+      element: null,
+      accepts: ['project-card'],
+      camera: { scale: () => scale, pickupDuration: 160 },
+    })
+
+    runtime.getSurfaceCameraPickupScale('drawer', 'session-1')
+    const frozen = runtime.freezeSessionContentScale('session-1')
+    expect(frozen).toBeGreaterThanOrEqual(0.5)
+    expect(frozen).toBeLessThanOrEqual(1)
+
+    scale = 0.25
+    const afterFreeze = runtime.getSurfaceCameraPickupScale('drawer', 'session-1')
+    expect(afterFreeze).toBe(frozen)
+  })
+
   it('free landing 通过纯矩形解析，不要求目标 DOM', () => {
     const runtime = new Runtime()
     const element = document.createElement('article')

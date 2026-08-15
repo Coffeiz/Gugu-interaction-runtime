@@ -162,6 +162,11 @@ export function createDetachMoveFromAdapter(config: {
       }
     }
     if (!pendingDrop) return { accepted: false as const }
+    // camera pickup 的缩放动画可能尚未完成就 pointerup。先把当前视觉倍率
+    // 写入代理，再冻结 session scale，避免 landing 继续消费抓取阶段的动态
+    // scale 函数，造成代理释放尺寸与 landing 首帧不一致。
+    runtime.updateVisualProxy(sessionId)
+    runtime.freezeSessionContentScale(sessionId)
     // 释放速度的 free 档案由最终目标 Surface 决定，而不是由抓取前的
     // source Surface 决定。对象类型仍然提供具体 free 物理参数；grid
     // Surface 则继续使用默认释放参数，避免画布参数污染列表卡片。
