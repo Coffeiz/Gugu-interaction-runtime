@@ -313,6 +313,44 @@ describe('Vue Runtime composables', () => {
     expect(runtime.hasNodeConnection(connection)).toBe(false)
   })
 
+  it('连接 finish 失败时也会结束 active gesture', async () => {
+    const runtime = new Runtime()
+    const child = defineComponent({
+      setup() {
+        const left = useObject({
+          id: 'node:finish-source', type: 'card', surface: 'surface:canvas', abilities: ['link'],
+          node: { ports: [{ id: 'out', side: 'right', position: 0.5 }] },
+        })
+        const right = useObject({
+          id: 'node:finish-target', type: 'card', surface: 'surface:canvas', abilities: ['link'],
+          node: { ports: [{ id: 'in', side: 'left', position: 0.5, accepts: ['card'] }] },
+        })
+        return () => h('section', [
+          h('article', { ref: left.elementRef, style: { width: '100px', height: '80px' } }),
+          h('article', { ref: right.elementRef, style: { width: '100px', height: '80px' } }),
+        ])
+      },
+    })
+    const mounted = mount(runtime, child)
+    await nextTick()
+
+    const connection = {
+      sourceObjectId: 'node:finish-source', sourcePortId: 'out',
+      targetObjectId: 'node:finish-target', targetPortId: 'in',
+    }
+    runtime.registerNodeConnection(connection)
+    expect(runtime.beginNodeConnection(connection.sourceObjectId, connection.sourcePortId)).not.toBeNull()
+    expect(runtime.finishNodeConnection(connection.targetObjectId, connection.targetPortId)).toBe(false)
+    expect(runtime.activeConnection).toBeNull()
+
+    expect(runtime.beginNodeConnection(connection.sourceObjectId, connection.sourcePortId)).not.toBeNull()
+    expect(runtime.finishNodeConnection('node:missing', 'in')).toBe(false)
+    expect(runtime.activeConnection).toBeNull()
+
+    mounted.app.unmount()
+    mounted.host.remove()
+  })
+
   it('节点卸载后清理涉及该节点的 Runtime 连接去重记录', () => {
     const runtime = new Runtime()
     const connection = {

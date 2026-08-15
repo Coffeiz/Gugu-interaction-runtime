@@ -1206,6 +1206,9 @@ setMotionProfiles(this.registry.motionProfile)
 
   finishNodeConnection(targetObjectId: string, targetPortId: string): boolean {
     const active = this.activeNodeConnection
+    // pointerup 已经结束这次连接手势；无论目标校验成功与否，都不能把旧
+    // gesture 留在 Runtime 中，避免下一次连接被幽灵状态污染。
+    this.activeNodeConnection = null
     const target = this.getNodePorts(targetObjectId).find(port => port.id === targetPortId)
     const connectionId = active && target
       ? this.nodeConnectionId(active.sourceObjectId, active.sourcePortId, targetObjectId, targetPortId)
@@ -1218,7 +1221,6 @@ setMotionProfiles(this.registry.motionProfile)
     if (target.accepts?.length && !target.accepts.includes(sourceObject.type)) return false
     if (connectionId === null || alreadyRegistered) return false
     this.nodeConnections.add(connectionId)
-    this.activeNodeConnection = null
     this.actions.emit({
       type: 'connection-create',
       objectId: active.sourceObjectId,
