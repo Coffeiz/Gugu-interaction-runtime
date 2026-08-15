@@ -55,6 +55,14 @@ describe('motion.enabled 契约：grabbing/follow 阶段', () => {
     directSpy.mockRestore()
   })
 
+  it('grabbing proxy 的定位 transform 由 motion driver 独占，不保留 CSS transition', () => {
+    const { runtime, session } = setup('card:transform-owner')
+    const proxy = runtime.getVisualProxy(session.id)?.element as HTMLElement | undefined
+
+    expect(proxy).toBeTruthy()
+    expect(proxy!.style.transition).toBe('none')
+  })
+
   it('B. enabled=false：grabbing 不创建 CardMotionController，改用 direct follow，pointermove 直接写 transform', () => {
     const cardSpy = vi.spyOn(CardMotionControllerModule, 'createCardMotionController')
     const directSpy = vi.spyOn(DirectFollowControllerModule, 'createDirectFollowController')
@@ -150,7 +158,7 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     destroyDragProxy(proxy)
   })
 
-  it('transform 过渡未完成时松手：landing 以当前呈现位置接管，避免首帧跳回 motion 终值', async () => {
+  it('landing 直接继承 controller pose，不再用滞后的 rendered rect 重采样位置', async () => {
     const { target, proxy } = landingFixture()
     const adapter = new DefaultVisualAdapter()
     proxy.style.left = '100px'
@@ -173,7 +181,8 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     } as never)
 
     const motionOptions = landSpy.mock.calls[0]?.[2] as { motionState?: { x: number; y: number; vx: number } }
-    expect(motionOptions.motionState).toMatchObject({ x: 110, y: 100, vx: 300 })
+    expect(motionOptions.motionState).toMatchObject({ x: 120, y: 100, vx: 300 })
+    expect(proxy.style.transition).toBe('none')
     landSpy.mockRestore()
     destroyDragProxy(proxy)
   })

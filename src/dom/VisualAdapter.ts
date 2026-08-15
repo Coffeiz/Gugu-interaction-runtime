@@ -61,7 +61,7 @@ export interface VisualLifecycleContext {
   readonly motionEnabled?: boolean
   /** landing 视觉目标所在 Surface 的 viewport 边界。 */
   readonly landingBounds?: () => DOMRect | null
-  /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
+  /** grabbing 控制器最后一次提交的运动状态；landing 直接从同一状态继续。 */
   readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
   /** 代理脱离缩放祖先后需要复现的当前视觉缩放。 */
   readonly contentScale?: number | (() => number)
@@ -238,17 +238,11 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (targetElement && !context.preserveTarget) {
       concealElement(targetElement, context.sessionId)
     }
-    // free landing 需要保留用户看到的 grabbing 中间帧，避免画布物理接管时
-    // 先跳回控制器终值；grid/default/target 则直接结束 grabbing transition，
-    // 让列表布局坐标负责接管，避免把 transition 中间帧带进网格落地。
-    if (context.landingMode === 'free') {
-      const computedTransformBeforeReset = getComputedStyle(el).transform
-      if (computedTransformBeforeReset && computedTransformBeforeReset !== 'none') {
-        el.style.transform = computedTransformBeforeReset
-      }
-    }
+    // 位置 transform 在 grabbing 与 motion landing 阶段都由 Runtime 的运动控制器独占。
+    // 这里仅关闭抓取启动阶段可能遗留的 CSS transition，不再读取 computed transform /
+    // rendered rect 重建位置。context.motionState 就是抓取控制器最后提交到代理的同一帧状态，
+    // 直接交给 landing 才能同时保持位置和速度连续。
     el.style.transition = 'none'
-    const afterTransitionReset = el.getBoundingClientRect()
     const isTargetLanding = context.landingMode === 'target'
     const isCompactProxy = getProxyContent(el).dataset.runtimeCompact === 'true'
     const isCrossSurfaceLanding = Boolean(
@@ -260,21 +254,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     // 当前帧连续交给 motion controller 衰减；如果在这里直接清零，第一帧会
     // 重新投影整张卡片，造成松手时的额外位移。rotation decay 会平滑消除
     // rotateX/rotateZ，不把抓取态的倾角永久带入落地。
-    const landingMotionState = context.motionState
-      ? (() => {
-          const state = { ...context.motionState! }
-          // motionState 描述的是定位层的目标坐标，而浏览器此刻可能还在
-          // 播放 grabbing 的 transform transition。接管 landing 时必须以
-          // 已经绘制到屏幕上的矩形为位置种子，否则首帧会从 transition 的
-          // 中间帧跳回 inline transform 的终值。scale 的中心原点要换算回
-          // 定位层坐标，但速度和旋转保持原控制器状态，避免改变物理手感。
-          const baseWidth = parseFloat(el.style.width) || afterTransitionReset.width
-          const baseHeight = parseFloat(el.style.height) || afterTransitionReset.height
-          state.x = afterTransitionReset.left - (baseWidth * (1 - state.scaleX)) / 2
-          state.y = afterTransitionReset.top - (baseHeight * (1 - state.scaleY)) / 2
-          return state
-        })()
-      : context.motionState
+    const landingMotionState = context.motionState ? { ...context.motionState } : undefined
     // 跨 Surface 的项目卡仍应像看板换列一样交叉淡化到目标卡；只有文件/文件夹
     // 这类明确声明 disableTargetVisualMorph 的语义目标需要保留源卡外观，避免
     // 飞入文件夹时被替换成文件夹样式。
