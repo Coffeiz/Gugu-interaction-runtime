@@ -2,8 +2,8 @@ import { VisualState, VisualSnapshot } from './VisualAdapterTypes';
 import { MotionProfile } from './MotionProfile';
 import { GroupDragConfig } from './GroupDragProfile';
 import { MotionState } from '../motion/CardMotionController';
-import { DragProxyLayoutConfig } from './Visual';
-import { Runtime } from '../Runtime';
+import { LandingRect, DragProxyLayoutConfig } from './Visual';
+import { Runtime, ResolvedObjectCameraConfig } from '../Runtime';
 import { GroupObjectOffset } from '../session/GroupDragSession';
 export interface VisualGroupContext {
     readonly primaryObjectId: string;
@@ -13,16 +13,21 @@ export interface VisualGroupContext {
 export interface VisualLifecycleContext {
     readonly objectId: string;
     readonly sessionId: string;
+    readonly sourceSurfaceId?: string;
+    readonly destinationSurfaceId?: string;
     readonly mode: string;
     readonly destination?: unknown;
     readonly sourceElement?: HTMLElement;
     /** 抓取开始时冻结的内容快照；仅供视觉代理使用，不承载业务状态。 */
     readonly beforeContent?: HTMLElement;
     readonly targetElement?: HTMLElement;
+    readonly targetRect?: LandingRect;
     /** 目标节点作为语义落点时保留其可见性，避免与源代理发生双重交接。 */
     readonly preserveTarget?: boolean;
-    /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
-    readonly landingMode?: 'default' | 'target';
+    /** default 保持普通 landing；target 到达语义目标后追加缩小淡出；free 使用纯矩形。 */
+    readonly landingMode?: 'default' | 'target' | 'free';
+    /** 释放后的落地策略；physical 继承释放状态，normal 不继承释放速度。 */
+    readonly releaseMode?: 'normal' | 'physical';
     /** target landing 时跳过代理套上目标背景/圆角/内容的视觉 morph，只保留位置和缩小淡出。 */
     readonly disableTargetVisualMorph?: boolean;
     readonly sourceRect?: DOMRect;
@@ -36,6 +41,17 @@ export interface VisualLifecycleContext {
     readonly landingBounds?: () => DOMRect | null;
     /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
     readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
+    /** 代理脱离缩放祖先后需要复现的当前视觉缩放。 */
+    readonly contentScale?: number | (() => number);
+    /** 目标 grid Surface 的视觉倍率；通常为 1，用于从画布倍率平滑回收。 */
+    readonly landingContentScale?: number | (() => number);
+    /** free Surface 的相机原点；由 Runtime 从 Surface.camera 注入。 */
+    readonly cameraOrigin?: () => {
+        left: number;
+        top: number;
+    };
+    /** 对象类型归一化后的 camera 能力；Phase 1A 仅供 adapter 观察，不改变既有行为。 */
+    readonly camera?: ResolvedObjectCameraConfig;
     /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
     readonly proxyLayout?: DragProxyLayoutConfig;
     /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
@@ -55,7 +71,7 @@ export interface VisualAdapter {
     applyState?(element: HTMLElement, state: VisualState): void;
     createProxy?(context: VisualLifecycleContext): VisualProxy;
     updateProxy?(proxy: VisualProxy, context: VisualLifecycleContext): void;
-    land?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<{
+    land?(proxy: VisualProxy, target: HTMLElement | LandingRect, context: VisualLifecycleContext): void | Promise<{
         completed: boolean;
         reason?: string;
     }>;
@@ -80,7 +96,8 @@ export declare class DefaultVisualAdapter implements VisualAdapter {
     captureVisualState(element: HTMLElement): VisualSnapshot;
     applyState(element: HTMLElement, state: VisualState): void;
     createProxy(context: VisualLifecycleContext): VisualProxy;
-    land(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): Promise<{
+    updateProxy(proxy: VisualProxy, context: VisualLifecycleContext): void;
+    land(proxy: VisualProxy, target: HTMLElement | LandingRect, context: VisualLifecycleContext): Promise<{
         completed: boolean;
         reason?: string;
     }>;

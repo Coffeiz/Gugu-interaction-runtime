@@ -42,4 +42,26 @@ describe('MoveActionCoordinator', () => {
       timestamp: expect.any(Number),
     }])
   })
+
+  it('跨 Surface 移动时透传抓起瞬间的源尺寸，避免源节点隐藏后回退到错误尺寸', async () => {
+    const actions: unknown[] = []
+    const coordinator = new MoveActionCoordinator({
+      getObjectSurface: () => 'drawer',
+      emit: action => { actions.push(action) },
+    })
+
+    const transaction = { actionEmitted: false } as never
+    await expect(coordinator.emit('drawer-project:193', {
+      columnId: 'canvas',
+      point: { x: 586, y: 529 },
+      sourceSize: { w: 240, h: 98.6875 },
+    }, transaction)).resolves.toBe(true)
+    expect(actions).toEqual([expect.objectContaining({
+      type: 'move',
+      objectId: 'drawer-project:193',
+      fromSurfaceId: 'drawer',
+      toSurfaceId: 'canvas',
+      sourceSize: { w: 240, h: 98.6875 },
+    })])
+  })
 })

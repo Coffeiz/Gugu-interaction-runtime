@@ -1,6 +1,6 @@
 # Interaction Runtime · 设计目标
 
-> 当前实现版本：2.0.1。接入步骤和公开参数请先阅读
+> 当前实现版本：3.0.0。接入步骤和公开参数请先阅读
 > [INTEGRATION.md](./INTEGRATION.md)。
 
 ## 先看结论
@@ -52,9 +52,9 @@ Vue / React
    （例如折叠动画结束后何时能安全恢复 `height:auto`，恢复早了会闪一下自然
    高度，恢复晚了 v-if 卸载时机会对不上）。
 
-Gugu-web 的 `interaction/drag/` 目录已经长出了这套机制的雏形（`layoutOwners`、
-`FlipTransaction`、`createGroupLayoutTransaction`、`morphLifecycle`），但都是
-针对具体 bug 各自实现的局部方案，没有统一的所有权模型。
+Gugu-web 曾在 `interaction/drag/` 目录中积累这套机制的雏形；当前目录已清理，相关
+生命周期由本仓库 Runtime 统一实现。这里保留该描述用于解释设计来源，不应再把旧目录
+当作业务接入入口。
 
 ## 设计目标
 
@@ -103,6 +103,11 @@ Surface 的运动所有权属于 Runtime：它负责 before/after 测量、位�
 在同一节点上自行写竞争性的 `height`、`width`、`transform` 或 `transition`。
 当前 Surface resize 参数统一通过 `runtime.configureMotion({ resize })` 配置，
 不再使用单独的 `registerSurfaceLayout()` 入口。
+
+命中区域和布局元素不一致时，Surface 可以声明 `layoutElement` 与
+`measureLayout`：前者提供 Runtime 实际做 FLIP 的节点，后者提供固定 viewport
+背后的自然目标尺寸。两者属于 Surface 声明，不属于拖拽事件回调；这样 Runtime
+仍然拥有完整的 Surface resize 时序，业务不会与它竞争高度动画。
 
 业务模板只需标注：
 
@@ -354,7 +359,9 @@ runtime.interrupt(sessionId, reason)
 
 `MoveBehavior` 只保存一次移动事务的行为状态；`VisualAdapter`、`Hit` 和
 `GroupLayout` 作为 Runtime 内部组件继续提供已有的视觉、命中和布局实现。Runtime
-负责把完整生命周期编排起来并提供统一注册 API；页面只注册 Object 和 Surface，不再
+对已提交的组展开高度与 Surface 目标尺寸使用生命周期内缓存，并在注册表变化或
+接入层显式失效后重新测量；缓存不持久化，也不取代业务提供的 `measureLayout`。
+Runtime 负责把完整生命周期编排起来并提供统一注册 API；页面只注册 Object 和 Surface，不再
 自行拼接 proxy、landing、FLIP、regrab 或通用清理步骤。
 
 

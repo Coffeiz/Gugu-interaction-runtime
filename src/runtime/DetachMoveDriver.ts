@@ -4,6 +4,7 @@ import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
 import { applyFloatingStyle } from '../dom/Visual'
 import { releaseVisibilityOwnership, setProxyInteractive } from '../dom/Visual'
 import type { GrabAlignConfig } from '../Runtime'
+import type { LayoutTransactionCoordinator } from '../dom/LayoutTransaction'
 
 
 
@@ -96,6 +97,7 @@ export function prepareDetachPickup(
   sourceElement: HTMLElement,
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
+  surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
 ): DetachPickupPreparation {
   const beforeContent = sourceElement.cloneNode(true) as HTMLElement
   const cards = registeredElements()
@@ -104,6 +106,7 @@ export function prepareDetachPickup(
     beforeContent,
     beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement), {
       scopeSurfaces: scopeSurfaces?.(),
+      surfaceMeasures: surfaceMeasures?.(),
     }),
   }
 }
@@ -238,15 +241,39 @@ export function resolveDetachLandingTarget<TDestination>(args: {
 export function captureDetachTargetSnapshot(
   capture: (element: HTMLElement) => VisualSnapshot,
   element: HTMLElement,
+  options: { ignoreTemporaryOpacity?: boolean } = {},
 ): VisualSnapshot {
   const transition = element.style.transition
+  const opacity = element.style.opacity
+  const pointerEvents = element.style.pointerEvents
+  const computedOpacity = getComputedStyle(element).opacity
   element.dataset.runtimeLandingCapture = 'true'
   element.style.transition = 'none'
-  void element.offsetWidth
-  const snapshot = capture(element)
-  element.style.transition = transition
-  delete element.dataset.runtimeLandingCapture
-  return snapshot
+  // pointerup 发生在源卡片上时，目标节点可能仍被浏览器视为 hover 命中。
+  // 暂时移出命中测试，读取目标的静态视觉，而不是把 hover 阴影当成落地终态。
+  element.style.pointerEvents = 'none'
+  // 跨 Surface 交接时，业务侧会先把目标本体设为 opacity:0，等待代理
+  // 落地完成后再 reveal。这个状态只属于交接过程，不能被当成目标的
+  // 静态视觉样式，否则代理会沿着 opacity:0 淡出。
+  if (options.ignoreTemporaryOpacity && (opacity === '0' || computedOpacity === '0')) {
+    element.style.opacity = '1'
+  }
+  try {
+    void element.offsetWidth
+    const snapshot = capture(element)
+    // CSS animation 或祖先交接状态可能继续让 computedStyle 返回 0，
+    // 即使上面的临时 inline 覆盖已经生效。这里仍要把这个明确的
+    // 交接态从目标静态快照中剔除，否则代理会按 opacity:0 淡出。
+    return options.ignoreTemporaryOpacity
+      && (opacity === '0' || computedOpacity === '0' || snapshot.opacity === '0')
+      ? { ...snapshot, opacity: '1' }
+      : snapshot
+  } finally {
+    element.style.opacity = opacity
+    element.style.pointerEvents = pointerEvents
+    element.style.transition = transition
+    delete element.dataset.runtimeLandingCapture
+  }
 }
 
 
@@ -291,7 +318,11 @@ export function startDetachLandingVisual(args: {
   }
   args.enableProxy(proxy.element)
   args.bindRegrab(proxy.element)
-  void args.land(proxy.element).then(args.onComplete)
+  // 视觉适配器的异常也必须走统一失败交接；否则 landing Promise 会悬空，
+  // session 既不会 reveal，也不会进入 Runtime 的代理清理边界。
+  void args.land(proxy.element)
+    .then(args.onComplete)
+    .catch(() => args.onComplete({ completed: false, reason: 'landing-error' }))
   return proxy.element
 }
 
@@ -317,7 +348,12 @@ export function resolveDetachRegrabTarget(
   resolve: () => HTMLElement | null,
   fallback: () => HTMLElement | null,
 ): HTMLElement | null {
-  return resolve() ?? fallback()
+  const usable = (element: HTMLElement | null): HTMLElement | null => {
+    if (!element?.isConnected) return null
+    const rect = element.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0 ? element : null
+  }
+  return usable(resolve()) ?? usable(fallback())
 }
 
 
@@ -351,18 +387,26 @@ export function createDetachLayoutLifecycle(
   sourceEl: HTMLElement,
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
+  surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
+  layoutTransaction?: LayoutTransactionCoordinator,
 ) {
   let layoutToken = 0
+  let transactionRoot: ParentNode | null = null
+  let transactionParticipantId: string | undefined
   return {
     capture: () => {
       layoutToken += 1
+      transactionRoot = sourceEl.ownerDocument
+      const transaction = layoutTransaction?.begin(transactionRoot, 'move')
+      transactionParticipantId = transaction?.participantId
+      if (transaction) layoutTransaction?.request(transactionRoot, { type: 'move-layout', source: sourceEl })
       return captureLayoutFlip(
         registeredElements()
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
         document,
         true,
         ignoreDetachSource(sourceEl),
-        { scopeSurfaces: scopeSurfaces?.() },
+        { scopeSurfaces: scopeSurfaces?.(), surfaceMeasures: surfaceMeasures?.() },
       )
     },
     play: (_context: unknown, snapshot: unknown, useRaf = false) => {
@@ -374,14 +418,37 @@ export function createDetachLayoutLifecycle(
         // 同帧起步，不顶动。
         requestAnimationFrame(() => {
           if (token !== layoutToken) return
-          scheduleLayoutFlipOnRaf(snapshot as ReturnType<typeof captureLayoutFlip>)
+          const play = (plan?: { isCurrent: () => boolean }) => {
+            if (plan && !plan.isCurrent()) return
+            scheduleLayoutFlipOnRaf(snapshot as ReturnType<typeof captureLayoutFlip>)
+          }
+          const deferred = transactionRoot && transactionParticipantId
+            ? layoutTransaction?.defer(transactionRoot, transactionParticipantId, plan => play(plan), 'move-flip')
+            : null
+          if (!deferred) play()
+          if (transactionRoot) layoutTransaction?.commit(transactionRoot, transactionParticipantId)
+          transactionParticipantId = undefined
         })
         return
       }
       // 中间插入/重排：有卡片位移 FLIP（有 Invert），必须 microtask 让
       // Invert 在 paint 前写入，不闪现；playLayout 在 emit 后调用，此时
       // Vue patch 已完成，microtask 量到的也是最终布局，不顶动。
-      scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
+      const play = (plan?: { isCurrent: () => boolean }) => {
+        if (plan && !plan.isCurrent()) return
+        scheduleLayoutFlip(snapshot as ReturnType<typeof captureLayoutFlip>)
+      }
+      const deferred = transactionRoot && transactionParticipantId
+        ? layoutTransaction?.defer(transactionRoot, transactionParticipantId, plan => play(plan), 'move-flip')
+        : null
+      if (!deferred) play()
+      if (transactionRoot) layoutTransaction?.commit(transactionRoot, transactionParticipantId)
+      transactionParticipantId = undefined
+    },
+    cancel: () => {
+      if (transactionRoot) layoutTransaction?.cancel(transactionRoot, transactionParticipantId)
+      transactionRoot = null
+      transactionParticipantId = undefined
     },
   }
 }

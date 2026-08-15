@@ -24,7 +24,7 @@ function setup(objectId: string, motion?: { enabled?: boolean }) {
   vi.spyOn(surfaceEl, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 800, 600))
 
   runtime.registerObjectType('card', { defaultVisualMode: 'detach', motion })
-  runtime.surfaces.register({ id: 'surface:a', type: 'list', element: surfaceEl, accepts: ['card'] })
+  runtime.surfaces.register({ id: 'surface:a', type: 'list', layout: 'grid', element: surfaceEl, accepts: ['card'] })
   runtime.objects.register({ id: objectId, type: 'card', surfaceId: 'surface:a', element, abilities: ['move'] })
 
   const session = runtime.startSession('move', objectId)
@@ -82,8 +82,8 @@ describe('motion.enabled 契约：grabbing/follow 阶段', () => {
     const afterSecond = parseTranslate(proxy!.style.transform)
     expect(afterSecond.x - afterFirst.x).toBeCloseTo(40, 5)
     expect(afterSecond.y - afterFirst.y).toBeCloseTo(60, 5)
-    expect(proxy!.style.transform).toContain('rotateX(0.00deg)')
-    expect(proxy!.style.transform).toContain('rotateZ(0.00deg)')
+    // direct follow 不产生姿态层；它只保证指针差值和基础缩放立即生效。
+    expect(proxy!.style.transform).not.toMatch(/rotate[ZX]/)
     expect(proxy!.style.transform).toContain('scale(1.0000, 1.0000)')
 
     const up = new PointerEvent('pointerup', { clientX: 300, clientY: 260 })
@@ -147,6 +147,278 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
 
     expect(legacySpy).toHaveBeenCalledTimes(1)
     legacySpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('transform 过渡未完成时松手：landing 以当前呈现位置接管，避免首帧跳回 motion 终值', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    proxy.style.left = '100px'
+    proxy.style.top = '100px'
+    proxy.style.width = '60px'
+    proxy.style.height = '40px'
+    proxy.style.transform = 'matrix(1, 0, 0, 1, 0, 0)'
+    proxy.style.transition = 'transform 150ms ease'
+    vi.spyOn(proxy, 'getBoundingClientRect').mockReturnValue(rect(110, 100, 60, 40))
+    const landSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockImplementation(() => ({
+      finished: Promise.resolve(),
+      retarget: vi.fn(),
+    }) as never)
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'o',
+      sessionId: 's',
+      mode: 'detach',
+      motionState: { x: 120, y: 100, vx: 300, vy: 0, scaleX: 1, scaleY: 1, rotateX: 5, rotateZ: 1 },
+    } as never)
+
+    const motionOptions = landSpy.mock.calls[0]?.[2] as { motionState?: { x: number; y: number; vx: number } }
+    expect(motionOptions.motionState).toMatchObject({ x: 110, y: 100, vx: 300 })
+    landSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('releaseMode=normal：只切换落地策略，不继承释放运动状态', async () => {
+    const legacySpy = vi.spyOn(VisualModule, 'landDragProxyLegacy')
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'o', sessionId: 's', mode: 'detach', releaseMode: 'normal',
+      motionState: { x: 0, y: 0, vx: 800, vy: -300, scaleX: 1.03, scaleY: 1.03, rotateX: 5, rotateZ: 2 },
+    } as never)
+
+    expect(legacySpy).toHaveBeenCalledOnce()
+    legacySpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('free landing：接受没有 DOM 目标的纯矩形', async () => {
+    const { source, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+
+    const result = await adapter.land({ element: proxy }, {
+      left: 420, top: 260, width: 60, height: 40,
+    }, {
+      objectId: 'o', sessionId: 's', mode: 'detach', landingMode: 'free',
+      targetRect: { left: 420, top: 260, width: 60, height: 40 },
+    } as never)
+
+    expect(result.completed).toBe(true)
+    expect(source.isConnected).toBe(true)
+    destroyDragProxy(proxy)
+  })
+
+  it('free landing：屏幕外落点不被 viewport clamp 到浏览器边缘', async () => {
+    const { proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, {
+      left: -420,
+      top: 760,
+      width: 60,
+      height: 40,
+    }, {
+      objectId: 'o', sessionId: 's', mode: 'detach', landingMode: 'free',
+      landingBounds: () => rect(0, 0, 800, 600),
+      targetRect: { left: -420, top: 760, width: 60, height: 40 },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.objectContaining({ left: -420, top: 760, width: 60, height: 40 }),
+      expect.anything(),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('default landing：画布无效回位仍传递当前 contentScale', async () => {
+    const { proxy, target } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'o', sessionId: 's', mode: 'detach', landingMode: 'default',
+      contentScale: 1.5,
+      targetRect: { left: 200, top: 200, width: 60, height: 40 },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.anything(),
+      expect.objectContaining({ contentScale: 1.5 }),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('文件拖入文件夹：代理保留文件内容并执行 target 缩小淡出，不复制文件夹结构', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'file:1', sessionId: 's', mode: 'detach', landingMode: 'target',
+      disableTargetVisualMorph: true,
+      targetRect: { left: 200, top: 200, width: 60, height: 40 },
+      motion: {
+        target: {
+          dismiss: { duration: 300, easing: 'ease-out', scale: 0.72 },
+        },
+      },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.objectContaining({ left: 200, top: 200, width: 60, height: 40 }),
+      expect.objectContaining({
+        landingMode: 'target',
+        targetContent: undefined,
+        dismiss: { duration: 300, easing: 'ease-out', scale: 0.72 },
+      }),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('跨 Surface 落入抽屉：保留画布项目代理内容，不执行目标卡结构 morph', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'mind:109', sessionId: 's', mode: 'detach', landingMode: 'default',
+      sourceSurfaceId: 'mind:canvas', destinationSurfaceId: 'mind:drawer',
+      disableTargetVisualMorph: true,
+      targetRect: { left: 200, top: 200, width: 240, height: 96 },
+      targetSnapshot: {
+        rect: rect(200, 200, 240, 96),
+        borderRadius: '16px', boxShadow: 'rgba(0,0,0,.12) 0 8px 20px',
+        border: '1px solid white', backdropFilter: 'blur(12px)',
+        background: 'rgba(255,255,255,.8)', opacity: '1', transform: 'none',
+      },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.objectContaining({ left: 200, top: 200, width: 240, height: 96 }),
+      expect.objectContaining({
+        landingMode: 'default',
+        targetContent: undefined,
+        targetShadow: 'rgba(0,0,0,.12) 0 8px 20px',
+        targetRadius: undefined,
+        targetBorder: undefined,
+        targetBackdropFilter: undefined,
+        targetBackground: undefined,
+        targetOpacity: undefined,
+      }),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('项目卡跨 Surface landing 允许目标卡交叉淡化', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'project:cross', sessionId: 's', mode: 'detach', landingMode: 'default',
+      sourceSurfaceId: 'column:todo', destinationSurfaceId: 'column:done',
+      targetRect: { left: 200, top: 200, width: 240, height: 96 },
+      targetSnapshot: {
+        rect: rect(200, 200, 240, 96),
+        borderRadius: '16px', boxShadow: 'rgba(0,0,0,.12) 0 8px 20px',
+        border: '1px solid white', backdropFilter: 'blur(12px)',
+        background: 'rgba(255,255,255,.8)', opacity: '1', transform: 'none',
+      },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.anything(),
+      expect.objectContaining({
+        targetContent: target,
+        targetRadius: '16px',
+        targetBackground: 'rgba(255,255,255,.8)',
+      }),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('landing 继承当前姿态并交给落地控制器平滑衰减', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'mind:cross-surface', sessionId: 's', mode: 'detach', landingMode: 'default',
+      sourceSurfaceId: 'mind:project-drawer', destinationSurfaceId: 'mind:canvas',
+      motionState: {
+        x: 100, y: 100, vx: 0, vy: 0, scaleX: 1, scaleY: 1,
+        rotateX: 5, rotateZ: -3,
+      },
+      targetRect: { left: 200, top: 200, width: 60, height: 40 },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.anything(),
+      expect.objectContaining({
+        motionState: expect.objectContaining({ rotateX: 5, rotateZ: -3 }),
+      }),
+    )
+    motionSpy.mockRestore()
+    destroyDragProxy(proxy)
+  })
+
+  it('同 Surface landing 也继承抓取时的姿态和释放速度', async () => {
+    const { target, proxy } = landingFixture()
+    const adapter = new DefaultVisualAdapter()
+    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
+      finished: Promise.resolve(),
+      retarget: () => undefined,
+    })
+
+    await adapter.land({ element: proxy }, target, {
+      objectId: 'mind:same-surface', sessionId: 's', mode: 'detach', landingMode: 'default',
+      sourceSurfaceId: 'mind:canvas', destinationSurfaceId: 'mind:canvas',
+      motionState: {
+        x: 100, y: 100, vx: 240, vy: 40, scaleX: 1, scaleY: 1,
+        rotateX: 5, rotateZ: 2,
+      },
+      targetRect: { left: 200, top: 200, width: 60, height: 40 },
+    } as never)
+
+    expect(motionSpy).toHaveBeenCalledWith(
+      proxy,
+      expect.anything(),
+      expect.objectContaining({
+        motionState: expect.objectContaining({ rotateX: 5, rotateZ: 2, vx: 240, vy: 40 }),
+      }),
+    )
+    motionSpy.mockRestore()
     destroyDragProxy(proxy)
   })
 })

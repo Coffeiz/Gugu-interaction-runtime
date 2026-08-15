@@ -12,10 +12,11 @@ import type { Behavior, BehaviorContext } from './behavior/Behavior'
 import { BehaviorStore } from './behavior/BehaviorStore'
 import { MoveBehavior, type MoveBehaviorDriver, type MoveContext, type MoveVisualLifecycle, type MoveVisualStrategy } from './behavior/MoveBehavior'
 import { DefaultVisualAdapter, type GroupVisualAdapter, type VisualAdapter, type VisualLifecycleContext, type VisualProxy } from './dom/VisualAdapter'
-import type { VisualState } from './dom/VisualAdapterTypes'
+import type { ObjectAffordancesConfig, VisualState } from './dom/VisualAdapterTypes'
 import type { MotionProfile } from './dom/MotionProfile'
 import type { GroupDragConfig } from './dom/GroupDragProfile'
-import type { DragProxyLayoutConfig } from './dom/Visual'
+import type { DragProxyLayoutConfig, LandingRect } from './dom/Visual'
+import { concealElement, setRuntimeAffordancesHidden } from './dom/Visual'
 import type { MotionControllerConfig } from './motion/MotionProfile'
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from './motion/MotionProfile'
 import { DEFAULT_RELEASE_PROFILE } from './motion/ReleaseMotion'
@@ -25,6 +26,7 @@ import type { Surface } from './surface/Surface'
 import type { LandingTargetTrackerOptions } from './dom/LandingTargetTracker'
 import type { PointerSessionInputOptions } from './input/PointerSessionInput'
 import type { Action } from './action/Action'
+import type { NodeConnectionEndpoint, NodeConnectionState, NodePortSnapshot } from './node/Node'
 import { RuntimeRegistry } from './runtime/RuntimeRegistry'
 import { SessionCoordinator, type SessionCompletionGate } from './runtime/RuntimeSession'
 import { MoveActionCoordinator } from './runtime/RuntimeMove'
@@ -46,11 +48,15 @@ import {
   type LayoutFlipSnapshot,
 } from './dom/GroupLayout'
 import { createAutoScroller, type AutoScrollController, type AutoScrollOptions } from './dom/AutoScroll'
+import { LayoutCache } from './dom/LayoutCache'
+import { LayoutTransactionCoordinator } from './dom/LayoutTransaction'
 
 export type RuntimeEvent =
   | { type: 'object-added' | 'object-removed' | 'object-changed'; id: string }
   | { type: 'surface-added' | 'surface-removed' | 'surface-changed'; id: string }
   | { type: 'target-added' | 'target-removed' | 'target-changed'; id: string }
+  | { type: 'move-visual-update'; sessionId: string; objectId: string; phase: 'active' | 'landing'; rect: { x: number; y: number; width: number; height: number } }
+  | { type: 'move-visual-end'; sessionId: string; objectId: string }
   | { type: 'ownership-changed'; id: string }
 
 export type RuntimeLandingTargetOptions = Omit<
@@ -102,16 +108,47 @@ export interface GrabAlignConfig {
   offsetY?: number
 }
 
+/** 对象类型的摄像机适配声明。Phase 1A 只记录能力，不改变既有视觉行为。 */
+export interface ObjectCameraConfig {
+  /** 是否声明该对象会消费 Surface.camera；未声明时关闭。 */
+  enabled?: boolean
+  /** 抓取阶段是否消费 camera.scale。 */
+  pickup?: boolean
+  /** 代理内容是否由 camera shell 承载比例。 */
+  scale?: boolean
+  /** free landing 是否消费 camera.origin。 */
+  origin?: boolean
+  /** landing 阶段是否继续跟踪 camera。 */
+  landing?: boolean
+}
+
+/** Runtime 内部使用的完整摄像机策略。 */
+export interface ResolvedObjectCameraConfig {
+  enabled: boolean
+  pickup: boolean
+  scale: boolean
+  origin: boolean
+  landing: boolean
+}
+
+export type MoveLandingResolution =
+  | { kind: 'element'; element: HTMLElement }
+  | { kind: 'rect'; rect: LandingRect }
+
 export interface ObjectTypeRegistration {
   defaultVisualMode: string
+  /** 对象级摄像机能力；Phase 1A 仅完成声明/归一化，暂不切换旧行为。 */
+  camera?: boolean | ObjectCameraConfig
   /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
   visual?: ObjectVisualAdapter
+  /** 附加交互的 DOM 标记；Runtime 只在拖拽生命周期内切换其隐藏状态。 */
+  affordances?: ObjectAffordancesConfig
   /** 多对象叠卡视觉；默认使用 Runtime 内置效果，也可传入自定义适配器或显式关闭。 */
   groupVisual?: GroupVisualOption
   /** 运动实现与参数；默认启用 Runtime MotionController。 */
   motion?: { enabled?: boolean; profile?: MotionProfile }
-  /** landing 的终态表现；default 保持看板行为，target 到达语义目标后缩小淡出。 */
-  landingMode?: 'default' | 'target'
+  /** 释放后的落地策略；physical 继承释放速度，normal 不继承释放速度。默认 physical。 */
+  releaseMode?: 'normal' | 'physical'
   /** target landing 时是否跳过"代理套上目标背景/圆角/内容"的视觉 morph，只保留位置和
    * 缩小淡出。目标和源对象内部结构差异较大（不同组件、不同子节点布局）时，内容 morph 会
    * 插值出不对齐的中间态，看起来像"代理直接变成了目标"而不是"飞向目标后消失"；只有源和
@@ -132,6 +169,8 @@ export interface ObjectTypeRegistration {
   resolveMoveTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
   /** 可选视觉落点解析；目标可以是文件夹卡、面包屑等语义接收节点。 */
   resolveMoveLandingTarget?(context: { objectId: string; destination: unknown }): HTMLElement | null
+  /** free landing 的视口矩形解析器；不要求存在对应 DOM 节点。 */
+  resolveFreeLandingRect?(context: { objectId: string; destination: unknown }): LandingRect | null
   /** 落地代理飞向业务目标时是否保留目标节点可见。 */
   preserveMoveTarget?: boolean
   /** 新入口：Runtime 根据适配器自动创建并编排一次 Move Session。 */
@@ -185,6 +224,9 @@ export interface RegrabContext {
 }
 
 export class Runtime {
+  /** Phase 1 布局事务入口；动画接入在后续阶段完成。 */
+  readonly layout = new LayoutTransactionCoordinator()
+  private readonly layoutCache = new LayoutCache()
   private readonly owner = new Owner()
   readonly objects = new ObjectStore()
   readonly surfaces = new SurfaceStore()
@@ -210,6 +252,12 @@ export class Runtime {
   private readonly visualMotion: VisualMotionCoordinator
   private readonly groupVisualAdapters = new Map<string, VisualAdapter>()
   private readonly surfaceScrollFrames = new WeakMap<HTMLElement, number>()
+  private activeNodeConnection: NodeConnectionState | null = null
+  private readonly nodeConnections = new Set<string>()
+  private readonly moveVisualFrames = new Map<string, number>()
+  private readonly moveVisualPhases = new Map<string, 'active' | 'landing'>()
+  /** 每个移动 session 复用同一条相机抓取倍率曲线，避免更新帧/落地重新起算。 */
+  private readonly moveContentScales = new Map<string, number | (() => number)>()
 
   constructor() {
     this.moveBehavior = new MoveBehavior()
@@ -271,6 +319,7 @@ export class Runtime {
 setMotionProfiles(this.registry.motionProfile)
     this.objects.subscribe(event => {
       this.events.emit(event)
+      this.layoutCache.invalidate()
       if (event.type === 'object-added' || event.type === 'object-changed') {
         this.syncObjectPointerBinding(event.id)
         this.syncObjectTarget(event.id)
@@ -278,11 +327,26 @@ setMotionProfiles(this.registry.motionProfile)
       if (event.type === 'object-removed') {
         this.inputCoordinator.remove(event.id)
         this.targets.unregister(`object-target:${event.id}`)
+        const prefix = `${event.id}:`
+        const middle = `->${event.id}:`
+        for (const connectionId of this.nodeConnections) {
+          if (connectionId.startsWith(prefix) || connectionId.includes(middle)) {
+            this.nodeConnections.delete(connectionId)
+          }
+        }
       }
     })
-    this.surfaces.subscribe(event => this.events.emit(event))
+    this.surfaces.subscribe(event => {
+      this.layoutCache.invalidate()
+      this.events.emit(event)
+    })
     this.targets.subscribe(event => this.events.emit(event))
     this.owner.subscribe(id => this.events.emit({ type: 'ownership-changed', id }))
+  }
+
+  /** 使 Runtime 缓存的 DOM 布局测量失效，供窗口尺寸或外部布局变化调用。 */
+  invalidateLayoutCache(): void {
+    this.layoutCache.invalidate()
   }
 
   registerVisualAdapter(type: string, adapter: VisualAdapter): void {
@@ -352,6 +416,83 @@ setMotionProfiles(this.registry.motionProfile)
 
   getMotionProfile(): import('./dom/MotionProfile').MotionProfile | null {
     return this.registry.motionProfile
+  }
+
+  /**
+   * 返回对象释放时使用的速度档案。
+   * free landing 可以按对象类型覆写速度倍率和上限；其它落地模式始终使用
+   * 全局档案，避免列表/网格卡片被画布调参影响。
+   */
+  getObjectReleaseMotionProfile(objectId: string, destination?: unknown) {
+    const object = this.objects.get(objectId)
+    const registration = object
+      ? this.registry.objectTypes.get(object.visual ?? object.type)
+      : undefined
+    const surfaceId = this.getDestinationSurfaceId(destination) ?? object?.surfaceId
+    const release = surfaceId && this.surfaces.get(surfaceId)?.layout === 'free'
+      ? registration?.motion?.profile?.freeLanding?.release
+        ?? this.registry.motionProfile?.freeLanding?.release
+      : undefined
+    return release
+      ? { ...DEFAULT_RELEASE_PROFILE, ...release }
+      : DEFAULT_RELEASE_PROFILE
+  }
+
+  getSurfaceCameraScale(surfaceId?: string): number | (() => number) | undefined {
+    const camera = surfaceId ? this.surfaces.get(surfaceId)?.camera : undefined
+    return camera?.scale
+  }
+
+  /** Surface 可选择让抓取代理从 1x 平滑过渡到当前相机倍率。 */
+  getSurfaceCameraPickupScale(surfaceId?: string, sessionId?: string): number | (() => number) | undefined {
+    if (sessionId) {
+      const existing = this.moveContentScales.get(sessionId)
+      if (existing !== undefined) return existing
+    }
+    const camera = surfaceId ? this.surfaces.get(surfaceId)?.camera : undefined
+    if (!camera) return undefined
+    const duration = camera.pickupDuration
+    if (!duration || duration <= 0) {
+      return camera.scale
+    }
+    const startedAt = performance.now()
+    const readScale = () => {
+      const value = typeof camera.scale === 'function' ? camera.scale() : camera.scale
+      return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 1
+    }
+    const pickupScale = () => {
+      const progress = Math.min(1, Math.max(0, (performance.now() - startedAt) / duration))
+      const eased = 1 - (1 - progress) ** 3
+      return 1 + (readScale() - 1) * eased
+    }
+    if (sessionId) this.moveContentScales.set(sessionId, pickupScale)
+    return pickupScale
+  }
+
+  private getSessionContentScale(sessionId: string, surfaceId?: string): number | (() => number) | undefined {
+    return this.moveContentScales.get(sessionId) ?? this.getSurfaceCameraScale(surfaceId)
+  }
+
+  /**
+   * pointerup 把抓取阶段的 camera pickup scale 交给 landing 时，必须冻结在
+   * 释放瞬间的值。否则 landing 继续读取 pickup 函数，缩放动画会跨越两个
+   * 生命周期，代理的视觉尺寸与 landing 的初始尺寸不一致。
+   */
+  freezeSessionContentScale(sessionId: string): number | undefined {
+    const current = this.moveContentScales.get(sessionId)
+    if (current === undefined) return undefined
+    const value = typeof current === 'function' ? current() : current
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+    this.moveContentScales.set(sessionId, value)
+    return value
+  }
+
+  private clearSessionContentScale(sessionId: string): void {
+    this.moveContentScales.delete(sessionId)
+  }
+
+  getSurfaceCameraOrigin(surfaceId?: string): (() => { left: number; top: number }) | undefined {
+    return surfaceId ? this.surfaces.get(surfaceId)?.camera?.origin : undefined
   }
 
   /**
@@ -515,6 +656,25 @@ setMotionProfiles(this.registry.motionProfile)
     return registration?.grabAlign
   }
 
+  /**
+   * 返回对象类型的归一化 camera 策略。
+   *
+   * Phase 1B 起未声明 camera 的对象不再消费 Surface.camera；画布对象必须显式声明 enabled。
+   */
+  getObjectCameraConfig(objectId: string): ResolvedObjectCameraConfig {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const configured = registration?.camera
+    const options = configured === true ? {} : configured === false || configured === undefined ? {} : configured
+    return {
+      enabled: configured === true ? true : options.enabled ?? false,
+      pickup: options.pickup ?? true,
+      scale: options.scale ?? true,
+      origin: options.origin ?? true,
+      landing: options.landing ?? true,
+    }
+  }
+
   /** 按对象类型读取运动策略；未显式关闭（`motion.enabled !== false`）时默认使用 MotionController。 */
   getObjectMotionEnabled(objectId: string): boolean {
     const object = this.objects.get(objectId)
@@ -539,6 +699,13 @@ setMotionProfiles(this.registry.motionProfile)
     return this.getVisualAdapter(object?.visual ?? object?.type ?? '')
   }
 
+  /** 读取对象类型声明的附加交互选择器；未声明时不干预业务 DOM。 */
+  getObjectAffordancesConfig(objectId: string): ObjectAffordancesConfig | undefined {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    return registration?.affordances
+  }
+
   getObjectGroupVisualAdapter(objectId: string): VisualAdapter | undefined {
     const object = this.objects.get(objectId)
     const type = object?.visual ?? object?.type
@@ -557,7 +724,7 @@ setMotionProfiles(this.registry.motionProfile)
   createVisualLifecycleContext(
     sessionId: string,
     destination?: unknown,
-    targetElement?: HTMLElement,
+    target?: HTMLElement | LandingRect,
     beforeContent?: HTMLElement,
   ): VisualLifecycleContext {
     const session = this.sessionCoordinator.get(sessionId)
@@ -566,6 +733,9 @@ setMotionProfiles(this.registry.motionProfile)
     const adapter = session ? this.getObjectVisualAdapter(session.objectId) : this.defaultVisualAdapter
     const fallback = new DefaultVisualAdapter()
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const cameraConfig = this.getObjectCameraConfig(object?.id ?? '')
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const destinationSurface = destinationSurfaceId ? this.surfaces.get(destinationSurfaceId) : undefined
     const registeredProfile = registration?.motion?.profile
     const globalProfile = this.registry.motionProfile
     const motionProfile: MotionProfile | undefined = registeredProfile || globalProfile
@@ -575,6 +745,14 @@ setMotionProfiles(this.registry.motionProfile)
           flip: { ...globalProfile?.flip, ...registeredProfile?.flip },
           resize: { ...globalProfile?.resize, ...registeredProfile?.resize },
           landing: { ...globalProfile?.landing, ...registeredProfile?.landing },
+          freeLanding: {
+            ...globalProfile?.freeLanding,
+            ...registeredProfile?.freeLanding,
+            release: {
+              ...globalProfile?.freeLanding?.release,
+              ...registeredProfile?.freeLanding?.release,
+            },
+          },
           target: {
             ...globalProfile?.target,
             ...registeredProfile?.target,
@@ -588,17 +766,43 @@ setMotionProfiles(this.registry.motionProfile)
     const invalidReturn = typeof destination === 'object'
       && destination !== null
       && (destination as { invalidReturn?: unknown }).invalidReturn === true
+    const targetElement = target && 'getBoundingClientRect' in target ? target : undefined
+    const targetRect = target && !targetElement ? target as LandingRect : undefined
     const targetIsSource = Boolean(targetElement && sourceElement && targetElement === sourceElement)
-
+    const targetIsSurface = Boolean(targetElement && destinationSurface?.element === targetElement)
     const proxyLayout = this.getObjectProxyLayout(session?.objectId ?? '', sourceElement)
-    return {
+    const customSemanticTarget = registration?.resolveMoveLandingTarget?.({ objectId: session?.objectId ?? '', destination })
+    const visualSemanticTarget = adapter.resolveTarget?.(session?.objectId ?? '', destination)
+    const registeredSemanticTarget = destinationSurfaceId
+      ? this.targets.findForSurface(destinationSurfaceId, object?.type)?.element
+      : null
+    const hasSemanticTarget = Boolean(targetElement && !targetIsSource && !targetIsSurface && (
+      targetElement === customSemanticTarget
+      || targetElement === visualSemanticTarget
+      || targetElement === registeredSemanticTarget
+    ))
+    const effectiveLandingMode = !invalidReturn && !targetIsSource
+      ? hasSemanticTarget
+        ? 'target'
+        : destinationSurface?.layout === 'free'
+          ? 'free'
+          : 'default'
+      : 'default'
+    const transactionDestination = session ? this.moveBehavior.getContext(sessionId).transaction.destination as Partial<import('./behavior/MoveTransaction').MoveActionDestination> | null : null
+    const sourceSurfaceId = typeof transactionDestination?.fromSurfaceId === 'string'
+      ? transactionDestination.fromSurfaceId
+      : object?.surfaceId
+    const visualContext: VisualLifecycleContext = {
       objectId: session?.objectId ?? '',
       sessionId,
+      sourceSurfaceId,
+      destinationSurfaceId: destinationSurfaceId ?? undefined,
       mode: object?.visualMode ?? 'detach',
       destination,
       sourceElement,
       beforeContent,
       targetElement,
+      targetRect,
       sourceRect: sourceElement?.getBoundingClientRect(),
       visualSnapshot: sourceElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(sourceElement)
@@ -609,7 +813,31 @@ setMotionProfiles(this.registry.motionProfile)
       preserveTarget: registration?.preserveMoveTarget ?? false,
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。
-      landingMode: !invalidReturn && !targetIsSource && registration?.landingMode === 'target' ? 'target' : 'default',
+      landingMode: effectiveLandingMode,
+      releaseMode: registration?.releaseMode ?? 'physical',
+      contentScale: cameraConfig.enabled
+        && cameraConfig.scale
+        ? this.getSessionContentScale(sessionId, object?.surfaceId ?? undefined)
+        : undefined,
+      // 只有 camera 对象需要把抓取时的相机倍率平滑还原到 grid 目标。
+      // 普通对象的列宽变化由代理外框的 width/height 插值负责；若无条件传入 1，
+      // Visual 会把内容 shell 锁在源卡基准宽度，导致窄列拖到宽列时外框变宽而
+      // 文字、内边距仍保持窄卡布局。
+      landingContentScale: cameraConfig.enabled && destinationSurface?.layout === 'grid' ? 1 : undefined,
+      cameraOrigin: cameraConfig.enabled
+        && cameraConfig.origin
+        && cameraConfig.landing
+        ? this.getSurfaceCameraOrigin(object?.surfaceId)
+        : undefined,
+      // landing 的相机属于目标 Surface，不应受源对象类型的 camera 能力限制。
+      // 例如抽屉项目卡本身不消费 camera，但落到画布后仍必须跟随画布平移/缩放。
+      landingCameraOrigin: effectiveLandingMode === 'free'
+        ? this.getSurfaceCameraOrigin(destinationSurfaceId ?? undefined)
+        : undefined,
+      landingCameraScale: effectiveLandingMode === 'free'
+        ? this.getSurfaceCameraScale(destinationSurfaceId ?? undefined)
+        : undefined,
+      camera: cameraConfig,
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
         const surfaceId = this.getDestinationSurfaceId(destination)
@@ -623,6 +851,7 @@ setMotionProfiles(this.registry.motionProfile)
       motion: motionProfile,
       motionEnabled: registration?.motion?.enabled,
       proxyLayout,
+      affordances: registration?.affordances,
       groupDrag: registration?.groupDrag,
       group: session instanceof GroupDragSession
         ? {
@@ -634,6 +863,7 @@ setMotionProfiles(this.registry.motionProfile)
           }
         : undefined,
     }
+    return visualContext
   }
 
   /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
@@ -647,7 +877,7 @@ setMotionProfiles(this.registry.motionProfile)
   /** 调用当前对象适配器的 landing，并保证无代理时也有确定结果。 */
   async landVisualProxy(
     sessionId: string,
-    target: HTMLElement,
+    target: HTMLElement | LandingRect,
     context?: VisualLifecycleContext,
   ): Promise<{ completed: boolean; reason?: string }> {
     return this.visualMotion.land(sessionId, target, context)
@@ -665,9 +895,21 @@ setMotionProfiles(this.registry.motionProfile)
     return this.visualState.resolveTarget(session.objectId, destination)
   }
 
+  /** 跨 Surface 重抓时，将业务重挂载后的真实 DOM 反查回 Runtime Object。 */
+  findObjectIdByElement(element: HTMLElement, excludeId?: string): string | null {
+    for (const object of this.objects.values()) {
+      if (object.id !== excludeId && object.element === element) return object.id
+    }
+    return null
+  }
+
   /** 将对象的生命周期视觉状态交给其适配器写入。 */
   applyVisualState(objectId: string, element: HTMLElement, state: VisualState): void {
     this.visualState.apply(objectId, element, state)
+    const config = this.getObjectAffordancesConfig(objectId)
+    if (config) {
+      setRuntimeAffordancesHidden(element, state.phase !== 'idle' && state.phase !== 'pressed', config.selector)
+    }
   }
 
   /** 获取对象当前视觉快照；未覆盖时使用默认 DOM 样式快照。 */
@@ -702,7 +944,7 @@ setMotionProfiles(this.registry.motionProfile)
     let adapterDisposed = false
     if (session) {
       const context = this.createVisualLifecycleContext(sessionId)
-      const adapter = context.group
+      const adapter = context?.group
         ? (this.getObjectGroupVisualAdapter(session.objectId) ?? this.getObjectVisualAdapter(session.objectId))
         : this.getObjectVisualAdapter(session.objectId)
       if (adapter.dispose) {
@@ -786,6 +1028,27 @@ setMotionProfiles(this.registry.motionProfile)
     return surface?.viewport?.() ?? surface?.element ?? null
   }
 
+  /**
+   * 自由 Surface 的落点坐标使用 viewport 外框坐标，而卡片实际位于其内容盒。
+   * viewport 存在 border 时，业务用 getBoundingClientRect() 计算的卡片位置会
+   * 比外框原点多出 clientLeft/clientTop；这里统一把纯矩形落点转换到内容原点。
+   * 同时按 viewport 的屏幕/CSS 比例换算，兼容 viewport 自身被 transform 缩放的场景。
+   */
+  private normalizeFreeLandingRect(surfaceId: string | null, rect: LandingRect): LandingRect {
+    if (!surfaceId) return rect
+    const viewport = this.resolveMoveSurfaceViewport(surfaceId)
+    if (!viewport || viewport.clientLeft === 0 && viewport.clientTop === 0) return rect
+    const viewportRect = viewport.getBoundingClientRect()
+    const scaleX = viewport.offsetWidth > 0 ? viewportRect.width / viewport.offsetWidth : 1
+    const scaleY = viewport.offsetHeight > 0 ? viewportRect.height / viewport.offsetHeight : 1
+    const normalized = {
+      ...rect,
+      left: rect.left + viewport.clientLeft * (Number.isFinite(scaleX) && scaleX > 0 ? scaleX : 1),
+      top: rect.top + viewport.clientTop * (Number.isFinite(scaleY) && scaleY > 0 ? scaleY : 1),
+    }
+    return normalized
+  }
+
   /** 创建绑定当前 Session 的自动滚动控制器；滚动资源随 Session 自动清理。 */
   createAutoScroller(
     sessionId: string,
@@ -851,6 +1114,16 @@ setMotionProfiles(this.registry.motionProfile)
     this.surfaceScrollFrames.set(viewport, frame)
   }
 
+  /**
+   * 矩形落点也可能已经对应一个刚由业务插入的真实目标节点（典型是 free
+   * canvas 的乐观插入）。先登记 visibility owner，等 landing 完成后统一 reveal，
+   * 避免目标本体与 proxy 同时出现。
+   */
+  concealVisualTarget(sessionId: string, target: HTMLElement): void {
+    if (!target.isConnected) return
+    concealElement(target, sessionId)
+  }
+
   /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */
   getObjectSurfaceIndex(objectId: string, surfaceId?: string): number {
     const object = this.objects.get(objectId)
@@ -878,6 +1151,180 @@ setMotionProfiles(this.registry.motionProfile)
 
   emitAction(action: Action): void {
     this.actions.emit(action)
+  }
+
+  /** 读取对象当前端口；位置始终来自当前 DOMRect，不缓存拖拽/相机变换后的坐标。 */
+  getNodePorts(objectId: string): NodePortSnapshot[] {
+    const object = this.objects.get(objectId)
+    const element = object?.element
+    const ports = object?.node?.ports
+    if (!object || !element?.isConnected || !ports) return []
+    const rect = element.getBoundingClientRect()
+    return ports.map(port => {
+      const position = Math.max(0, Math.min(1, port.position ?? 0.5))
+      const x = port.side === 'left' ? rect.left : rect.right
+      const y = rect.top + rect.height * position
+      const hitRadius = port.hitRadius ?? 10
+      return {
+        ...port,
+        position,
+        objectId,
+        point: { x, y },
+        rect: new DOMRect(x - hitRadius, y - hitRadius, hitRadius * 2, hitRadius * 2),
+      }
+    })
+  }
+
+  /** 在实时端点附近命中一个端口；命中结果按距离和对象 DOM 顺序稳定返回。 */
+  hitNodePort(point: { x: number; y: number }, options: { objectId?: string; objectType?: string; snapToObject?: boolean } = {}): NodePortSnapshot | null {
+    const candidates = options.objectId
+      ? this.getNodePorts(options.objectId)
+      : [...this.objects.values()].flatMap(object => this.getNodePorts(object.id))
+    const valid = candidates.filter(port => {
+      if (!options.objectType) return true
+      return !port.accepts || port.accepts.length === 0 || port.accepts.includes(options.objectType)
+    })
+    if (options.snapToObject) {
+      const objectIds = [...new Set(valid.map(port => port.objectId))]
+      const objectTargets = objectIds.flatMap(objectId => {
+        const object = this.objects.get(objectId)
+        const rect = object?.element?.isConnected ? object.element.getBoundingClientRect() : null
+        if (!rect || point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return []
+        const ports = valid.filter(port => port.objectId === objectId)
+        const side = point.x <= rect.left + rect.width / 2 ? 'left' : 'right'
+        const port = ports.find(candidate => candidate.side === side) ?? ports[0]
+        return port ? [{ port, distance: Math.hypot(point.x - port.point.x, point.y - port.point.y) }] : []
+      })
+      if (objectTargets.length > 0) return objectTargets.sort((left, right) => left.distance - right.distance)[0].port
+    }
+    return valid
+      .map(port => ({ port, distance: Math.hypot(point.x - port.point.x, point.y - port.point.y) }))
+      .filter(entry => entry.distance <= (entry.port.hitRadius ?? 10))
+      .sort((left, right) => left.distance - right.distance)[0]?.port ?? null
+  }
+
+  beginNodeConnection(objectId: string, portId: string): NodeConnectionState | null {
+    const source = this.getNodePorts(objectId).find(port => port.id === portId)
+    if (!source) return null
+    this.activeNodeConnection = {
+      sourceObjectId: objectId,
+      sourcePortId: portId,
+      source,
+      currentPoint: { ...source.point },
+    }
+    return this.activeNodeConnection
+  }
+
+  updateNodeConnection(point: { x: number; y: number }): NodeConnectionState | null {
+    if (!this.activeNodeConnection) return null
+    this.activeNodeConnection = { ...this.activeNodeConnection, currentPoint: { ...point } }
+    return this.activeNodeConnection
+  }
+
+  finishNodeConnection(targetObjectId: string, targetPortId: string): boolean {
+    const active = this.activeNodeConnection
+    // pointerup 已经结束这次连接手势；无论目标校验成功与否，都不能把旧
+    // gesture 留在 Runtime 中，避免下一次连接被幽灵状态污染。
+    this.activeNodeConnection = null
+    const target = this.getNodePorts(targetObjectId).find(port => port.id === targetPortId)
+    const connectionId = active && target
+      ? this.nodeConnectionId(active.sourceObjectId, active.sourcePortId, targetObjectId, targetPortId)
+      : null
+    const alreadyRegistered = connectionId !== null && this.nodeConnections.has(connectionId)
+    if (!active || !target || active.sourceObjectId === targetObjectId) return false
+    const targetObject = this.objects.get(targetObjectId)
+    const sourceObject = this.objects.get(active.sourceObjectId)
+    if (!targetObject || !sourceObject) return false
+    if (target.accepts?.length && !target.accepts.includes(sourceObject.type)) return false
+    if (connectionId === null || alreadyRegistered) return false
+    this.nodeConnections.add(connectionId)
+    this.actions.emit({
+      type: 'connection-create',
+      objectId: active.sourceObjectId,
+      sourceObjectId: active.sourceObjectId,
+      sourcePortId: active.sourcePortId,
+      targetObjectId,
+      targetPortId,
+      timestamp: Date.now(),
+    })
+    return true
+  }
+
+  cancelNodeConnection(): void {
+    const active = this.activeNodeConnection
+    if (!active) return
+    this.activeNodeConnection = null
+    this.actions.emit({
+      type: 'connection-cancel',
+      objectId: active.sourceObjectId,
+      sourceObjectId: active.sourceObjectId,
+      sourcePortId: active.sourcePortId,
+      timestamp: Date.now(),
+    })
+  }
+
+  deleteNodeConnection(connectionId: string): boolean {
+    if (!this.nodeConnections.delete(connectionId)) return false
+    this.actions.emit({ type: 'connection-delete', objectId: connectionId, connectionId, timestamp: Date.now() })
+    return true
+  }
+
+  get activeConnection(): NodeConnectionState | null {
+    return this.activeNodeConnection
+  }
+
+  /** 注册宿主已经持久化的连接，避免首次连接时只校验当前 Runtime 会话。 */
+  registerNodeConnection(connection: NodeConnectionEndpoint): string {
+    const connectionId = this.nodeConnectionId(
+      connection.sourceObjectId,
+      connection.sourcePortId,
+      connection.targetObjectId,
+      connection.targetPortId,
+    )
+    this.nodeConnections.add(connectionId)
+    return connectionId
+  }
+
+  /** 按对象对清理连接；画布等无向关系无需暴露 Runtime 内部端点或外部关系 ID。 */
+  deleteNodeConnectionsBetween(objectId: string, targetObjectId: string): number {
+    const leftPrefix = `${objectId}:`
+    const rightMarker = `->${targetObjectId}:`
+    const reversePrefix = `${targetObjectId}:`
+    const reverseMarker = `->${objectId}:`
+    let removed = 0
+    for (const connectionId of this.nodeConnections) {
+      if ((connectionId.startsWith(leftPrefix) && connectionId.includes(rightMarker))
+        || (connectionId.startsWith(reversePrefix) && connectionId.includes(reverseMarker))) {
+        this.nodeConnections.delete(connectionId)
+        removed += 1
+      }
+    }
+    return removed
+  }
+
+  unregisterNodeConnection(connection: NodeConnectionEndpoint | string): boolean {
+    const connectionId = typeof connection === 'string'
+      ? connection
+      : this.nodeConnectionId(
+          connection.sourceObjectId,
+          connection.sourcePortId,
+          connection.targetObjectId,
+          connection.targetPortId,
+        )
+    return this.nodeConnections.delete(connectionId)
+  }
+
+  hasNodeConnection(connection: NodeConnectionEndpoint): boolean {
+    return this.nodeConnections.has(this.nodeConnectionId(
+      connection.sourceObjectId,
+      connection.sourcePortId,
+      connection.targetObjectId,
+      connection.targetPortId,
+    ))
+  }
+
+  private nodeConnectionId(sourceObjectId: string, sourcePortId: string, targetObjectId: string, targetPortId: string): string {
+    return `${sourceObjectId}:${sourcePortId}->${targetObjectId}:${targetPortId}`
   }
 
   snapshot() {
@@ -941,7 +1388,21 @@ setMotionProfiles(this.registry.motionProfile)
 
   /** 统一编排组展开/收起、容器 resize、兄弟 FLIP 与可选 presence。 */
   runGroupToggle(options: import('./dom/GroupLayout').GroupToggleOptions): Promise<void> {
-    return runGroupToggle(options)
+    const surfaceMeasures = new Map<HTMLElement, (() => { width?: number; height: number } | null)>()
+    for (const surface of this.surfaces.snapshot()) {
+      if (!surface.measureLayout) continue
+      const element = surface.layoutElement?.() ?? surface.element
+      if (!element?.isConnected) continue
+      if (options.root instanceof Node && options.root.contains(element)) {
+        surfaceMeasures.set(element, surface.measureLayout)
+      }
+    }
+    return runGroupToggle({
+      ...options,
+      surfaceMeasures,
+      layoutCache: this.layoutCache,
+      layoutTransaction: this.layout,
+    })
   }
 
   /** 组件卸载/弹窗关闭时取消根节点下尚未完成的布局动画。 */
@@ -963,8 +1424,14 @@ setMotionProfiles(this.registry.motionProfile)
     const resolveResult = context.visual?.resolveTarget?.(session.objectId, destination)
     const fallbackResult = fallback?.()
     const registeredElement = this.objects.get(session.objectId)?.element
-    const semanticTarget = this.targets.findForSurface(this.getDestinationSurfaceId(destination) ?? '', object?.type)
-    const target = customTarget ?? resolveResult ?? fallbackResult ?? semanticTarget?.element ?? registeredElement ?? null
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
+    const target = customTarget
+      ?? resolveResult
+      ?? semanticTarget?.element
+      ?? fallbackResult
+      ?? registeredElement
+      ?? null
     if (!target || !target.isConnected) return null
     this.moveBehavior.getContext(sessionId).transaction.target = target
     return target
@@ -980,9 +1447,15 @@ setMotionProfiles(this.registry.motionProfile)
     const object = this.objects.get(session.objectId)
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
     const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
-    const fallbackTarget = fallback?.() ?? null
-    const semanticTarget = this.targets.findForSurface(this.getDestinationSurfaceId(destination) ?? '', object?.type)
-    const target = customTarget ?? fallbackTarget ?? semanticTarget?.element ?? this.resolveMoveTarget(sessionId, destination)
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const semanticTarget = this.targets.findForSurface(destinationSurfaceId ?? '', object?.type)
+    const candidates = [
+      customTarget,
+      semanticTarget?.element,
+      fallback?.() ?? null,
+      this.resolveMoveTarget(sessionId, destination),
+    ]
+    const target = candidates.find(element => Boolean(element?.isConnected))
     if (!target || !target.isConnected) return null
     return target
   }
@@ -996,15 +1469,56 @@ setMotionProfiles(this.registry.motionProfile)
     sessionId: string,
     destination: unknown,
     maxFrames = 6,
-  ): Promise<HTMLElement | null> {
-    const immediate = this.resolveMoveLandingTarget(sessionId, destination)
-    if (immediate) {
-      const rect = immediate.getBoundingClientRect()
+  ): Promise<MoveLandingResolution | null> {
+    const immediate = this.resolveMoveLandingResolution(sessionId, destination)
+    if (immediate?.kind === 'rect') return immediate
+    if (immediate?.kind === 'element') {
+      const rect = immediate.element.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
         return immediate
       }
     }
-    return this.waitForMoveTarget(sessionId, destination, maxFrames)
+    const waited = await this.waitForMoveTarget(sessionId, destination, maxFrames)
+    return waited ? { kind: 'element', element: waited } : null
+  }
+
+  /**
+   * 解析最终落地形态。保留 resolveMoveLandingTarget 的 HTMLElement 旧契约，
+   * 仅由新入口增加 free 的纯矩形分支，避免影响项目/文件现有接入。
+   */
+  resolveMoveLandingResolution(
+    sessionId: string,
+    destination: unknown,
+    fallback?: () => HTMLElement | null,
+  ): MoveLandingResolution | null {
+    const session = this.sessionCoordinator.get(sessionId)
+    if (!session) return null
+    const object = this.objects.get(session.objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const invalidReturn = typeof destination === 'object'
+      && destination !== null
+      && (destination as { invalidReturn?: unknown }).invalidReturn === true
+    const destinationSurfaceId = this.getDestinationSurfaceId(destination)
+    const surfaceLayout = destinationSurfaceId
+      ? this.surfaces.get(destinationSurfaceId)?.layout
+      : undefined
+    const customTarget = registration?.resolveMoveLandingTarget?.({ objectId: session.objectId, destination })
+    const semanticTarget = destinationSurfaceId
+      ? this.targets.findForSurface(destinationSurfaceId, object?.type)?.element ?? null
+      : null
+    const explicitTarget = customTarget ?? semanticTarget
+    if (explicitTarget) return { kind: 'element', element: explicitTarget }
+    if (!invalidReturn && surfaceLayout === 'free') {
+      const rect = registration?.resolveFreeLandingRect?.({ objectId: session.objectId, destination })
+      if (rect && rect.width > 0 && rect.height > 0) {
+        return { kind: 'rect', rect: this.normalizeFreeLandingRect(destinationSurfaceId, rect) }
+      }
+    }
+    const visualTarget = this.getObjectVisualAdapter(session.objectId)
+      .resolveTarget?.(session.objectId, destination) ?? null
+    if (visualTarget) return { kind: 'element', element: visualTarget }
+    const target = this.resolveMoveLandingTarget(sessionId, destination, fallback)
+    return target ? { kind: 'element', element: target } : null
   }
 
   /**
@@ -1100,11 +1614,30 @@ setMotionProfiles(this.registry.motionProfile)
   ): RegrabContext | null {
     const session = this.sessionCoordinator.get(sessionId)
     if (!session || session.state !== 'landing') return null
+    // regrab 只能接管当前仍在屏幕上的 landing host 和真实节点。
+    // 旧 source 可能已经 display:none，或在 Vue 重挂载期间短暂断开；
+    // 接受这类节点会让新 session 从 [0,0,0,0] 开始，代理随后飞到窗口左上角。
+    if (!proxyElement.isConnected || !sourceElement.isConnected) return null
     const proxyRect = proxyElement.getBoundingClientRect()
     const sourceRect = sourceElement.getBoundingClientRect()
-    const layoutWidth = sourceElement.offsetWidth || sourceRect.width
-    const layoutHeight = sourceElement.offsetHeight || sourceRect.height
-    const regrabRect = new DOMRect(proxyRect.left, proxyRect.top, layoutWidth, layoutHeight)
+    if (proxyRect.width <= 0 || proxyRect.height <= 0) return null
+    if (sourceRect.width <= 0 || sourceRect.height <= 0) return null
+    // regrab 代理需要的是当前屏幕上的布局尺寸，而不是未经过画布 camera
+    // transform 的 offsetWidth/offsetHeight。后者在 50% 画布上会把新代理
+    // 重建成 100% 大小。proxyRect 不能直接作为尺寸来源，因为它包含抓取
+    // 姿态的旋转外接框；源节点的 getBoundingClientRect() 保留了当前 camera
+    // 缩放后的尺寸，同时不受落地代理旋转影响。
+    const layoutWidth = sourceRect.width || proxyRect.width
+    const layoutHeight = sourceRect.height || proxyRect.height
+    // landing 代理可能仍保留抓取时的相机视觉尺寸，而真实节点已经随当前相机缩放。
+    // regrab 要使用真实节点尺寸，但必须保留代理的视觉中心，否则左上角会被沿用、
+    // 尺寸替换后中心向左上/右下跳，新的 dragOffset 随后会把卡片带离指针。
+    const regrabRect = new DOMRect(
+      proxyRect.left + (proxyRect.width - layoutWidth) / 2,
+      proxyRect.top + (proxyRect.height - layoutHeight) / 2,
+      layoutWidth,
+      layoutHeight,
+    )
     return {
       sessionId,
       objectId: session.objectId,
@@ -1162,7 +1695,7 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   private startInternal(request: StartRequest): SessionHandle {
-    return this.runtimeMove.start(request, {
+    const handle = this.runtimeMove.start(request, {
       getBehavior: type => this.behaviors.get(type),
       createSession: (type, objectId) => this.startSession(type, objectId),
       getVisualStrategy: objectId => {
@@ -1175,6 +1708,49 @@ setMotionProfiles(this.registry.motionProfile)
       cancel: (sessionId, reason) => this.cancel(sessionId, reason),
       interrupt: (sessionId, reason) => this.interrupt(sessionId, reason),
     })
+    this.startMoveVisualTracking(handle.id, 'active')
+    return handle
+  }
+
+  private startMoveVisualTracking(sessionId: string, phase: 'active' | 'landing'): void {
+    if (typeof requestAnimationFrame !== 'function') return
+    this.moveVisualPhases.set(sessionId, phase)
+    if (this.moveVisualFrames.has(sessionId)) return
+    const tick = () => {
+      const session = this.sessionCoordinator.get(sessionId)
+      if (!session) {
+        this.moveVisualFrames.delete(sessionId)
+        this.moveVisualPhases.delete(sessionId)
+        return
+      }
+      const proxy = this.visualProxyCoordinator.get(sessionId)?.element
+      const element = proxy?.isConnected ? proxy : this.objects.get(session.objectId)?.element
+      const rect = element?.getBoundingClientRect()
+      if (rect && rect.width > 0 && rect.height > 0) {
+        this.events.emit({
+          type: 'move-visual-update',
+          sessionId,
+          objectId: session.objectId,
+          phase: this.moveVisualPhases.get(sessionId) ?? phase,
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        })
+      }
+      this.moveVisualFrames.set(sessionId, requestAnimationFrame(tick))
+    }
+    this.moveVisualFrames.set(sessionId, requestAnimationFrame(tick))
+  }
+
+  private setMoveVisualPhase(sessionId: string, phase: 'active' | 'landing'): void {
+    if (this.moveVisualPhases.has(sessionId)) this.moveVisualPhases.set(sessionId, phase)
+  }
+
+  private stopMoveVisualTracking(session: Session): void {
+    const tracked = this.moveVisualFrames.has(session.id) || this.moveVisualPhases.has(session.id)
+    const frame = this.moveVisualFrames.get(session.id)
+    if (frame !== undefined && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
+    this.moveVisualFrames.delete(session.id)
+    this.moveVisualPhases.delete(session.id)
+    if (tracked) this.events.emit({ type: 'move-visual-end', sessionId: session.id, objectId: session.objectId })
   }
 
   /**
@@ -1256,6 +1832,7 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   private async releaseInternal(sessionId: string, input: RuntimeInput): Promise<void> {
+    this.setMoveVisualPhase(sessionId, 'landing')
     const port: MoveReleasePort = {
       getSession: id => this.sessionCoordinator.get(id),
       getBehavior: type => this.behaviors.get(type),
@@ -1277,6 +1854,7 @@ setMotionProfiles(this.registry.motionProfile)
     if (!session) return
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
+    this.stopMoveVisualTracking(session)
 
     this.runtimeSession.terminate(
         session,
@@ -1291,6 +1869,7 @@ setMotionProfiles(this.registry.motionProfile)
         current => this.failCompletionGates(current.id),
         (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
     )
+    this.clearSessionContentScale(sessionId)
   }
 
   interrupt(sessionId: string, reason: string = 'cancel'): void {
@@ -1302,6 +1881,7 @@ setMotionProfiles(this.registry.motionProfile)
     if (!session) return
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
+    this.stopMoveVisualTracking(session)
 
     this.runtimeSession.terminate(
         session,
@@ -1316,6 +1896,7 @@ setMotionProfiles(this.registry.motionProfile)
         current => this.failCompletionGates(current.id),
         (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
     )
+    this.clearSessionContentScale(sessionId)
   }
 
   startSession(type: string, objectId = ''): Session {
@@ -1377,6 +1958,7 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   endSession(session: Session): void {
+    this.stopMoveVisualTracking(session)
     const behavior = this.behaviors.get(session.type)
     const context = this.createBehaviorContext(session)
     this.runtimeSession.finalize(
@@ -1386,6 +1968,7 @@ setMotionProfiles(this.registry.motionProfile)
       sessionId => this.disposeVisualProxy(sessionId),
       (currentBehavior, currentContext) => this.disposeBehavior(currentBehavior, currentContext),
     )
+    this.clearSessionContentScale(session.id)
   }
 
   private failCompletionGates(sessionId: string): void {

@@ -2,7 +2,7 @@
 
 ## 接入状态
 
-本文描述的是 2.0.1 的稳定接入 API。Gugu-web 项目看板、文件库和项目文件面板均已完成
+本文描述的是 3.0.0 的稳定接入 API。Gugu-web 项目看板、文件库和项目文件面板均已完成
 Runtime 回归，联调直接使用 Runtime 源码而非 npm 包；文件业务仍由 Gugu-web 自己管理，
 Runtime 不持有文件树、权限或 API。
 
@@ -37,7 +37,7 @@ project-files:19:file:123
 Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽使用通用 Group Session 和
 `move-group` Action，文件业务侧只负责把对象 ID 列表分流到已有的移动、权限和回滚逻辑。
 
-## 五分钟接入（2.0.1）
+## 五分钟接入（3.0.0）
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
 默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器
@@ -48,6 +48,7 @@ import { runtime } from 'gugu-interaction-runtime'
 // 只注册一次对象类型的视觉/行为策略，不注册某一张具体卡片。
 runtime.registerObjectType('project-card', {
   defaultVisualMode: 'detach',
+  affordances: { selector: '[data-card-affordances]' },
 })
 
 runtime.objects.register({
@@ -61,6 +62,7 @@ runtime.objects.register({
 runtime.surfaces.register({
   id: `column:${status}`,
   type: 'project-column',
+  layout: 'grid',
   element: columnElement,
   accepts: ['project-card'],
 })
@@ -71,6 +73,30 @@ const stop = runtime.onAction(action => {
   }
 })
 ```
+
+附加交互只需要在卡片 DOM 中标记稳定选择器，按钮、连接点和视觉过渡仍由业务侧控制：
+
+```html
+<div data-card-affordances>
+  <!-- 编辑、删除、连接点等业务交互 -->
+</div>
+```
+
+### 画布 Node / Connection
+
+需要连接点的 Object 可在注册时提供 `node.ports`。每个端口至少声明 `id`、`side` 和可选的
+`position`（0 到 1，表示沿卡片边缘的比例）。Runtime 不缓存端点坐标，而是从对象当前
+`getBoundingClientRect()` 计算；连接创建、取消、去重和删除分别通过 `connection-create`、
+`connection-cancel`、`connection-delete` Action 通知业务。Runtime 只负责几何和连接生命周期，
+关系数据、SVG 绘制和后端持久化仍属于业务层。
+
+宿主加载已有关系后，可用 `registerNodeConnection()` 预注册端点组合，删除或同步失效关系时
+调用 `unregisterNodeConnection()`；`hasNodeConnection()` 可用于读取当前去重状态。预注册只
+影响 Runtime 的连接校验，不会替业务写入或删除后端关系。
+
+Node 端口只需在 Object 注册时声明一次。无向关系删除时可调用
+`deleteNodeConnectionsBetween(sourceObjectId, targetObjectId)`，不需要业务维护端点映射或外部
+关系 ID；Vue 的 `useObject()` 也会返回同名语义的 `disconnectFrom()` 方法。
 
 Vue、React 和其他框架都使用同一组 Runtime Core API。Vue 项目如果希望减少 ref、generation
 和卸载样板，优先从 `gugu-interaction-runtime/vue` 导入 composable；低层 DOM adapter
@@ -90,7 +116,7 @@ const generation = runtime.objects.register({
   element: null,
   abilities: ['move', 'sort'],
 })
-runtime.surfaces.register({ id: `column:${project.status}`, type: 'project-column', element: null, accepts: ['project-card'] })
+runtime.surfaces.register({ id: `column:${project.status}`, type: 'project-column', layout: 'grid', element: null, accepts: ['project-card'] })
 
 // Vue ref 只负责同步 DOM；null 回调会被适配器安全处理。
 const bindCard = (element: HTMLElement | null) => dom.bindObject(`project:${project.id}`, element)
@@ -165,6 +191,7 @@ if (runtime.objects.get(`project:${project.id}`)?.generation === generation) {
 runtime.surfaces.register({
   id: `column:${status}`,
   type: 'list',
+  layout: 'grid',
   element: null,
   accepts: ['project-card'],  // 空数组表示不限制类型
 })
@@ -193,9 +220,18 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 | API | 参数 | 用途 |
 | --- | --- | --- |
 | `registerObjectType(type, options)` | `defaultVisualMode` | 默认视觉策略，通常为 `detach` |
+|  | `camera` | 声明对象的摄像机适配能力；可用 `true/false` 或 `{ enabled, pickup, scale, origin, landing }`。未声明或 `false` 时对象不消费 `Surface.camera`。 |
 |  | `visual` | 可选的对象级 `VisualAdapter` |
+|  | `affordances.selector` | 附加交互 DOM 选择器（字符串或数组）；Runtime 在 `dragging`、`landing`、`revealing` 阶段隐藏匹配节点，回到 `idle` 后恢复。Runtime 不渲染按钮，业务侧自行提供结构和样式。 |
 |  | `motion.enabled` | 是否使用内置 MotionController，默认 `true` |
 |  | `motion.profile` | 该对象类型的运动参数覆盖 |
+|  | `releaseMode` | 释放后的降落策略：`physical` 继承释放速度（默认），`normal` 使用普通过渡 |
+|  | `motion.profile.freeLanding.release` | 仅落到 `layout: 'free'` 的 Surface 时使用的释放速度整形，可配置 `velocityScale` 与 `maxVelocity`；列表/网格对象忽略该字段 |
+|  | `resolveFreeLandingRect` | `free` 模式解析视口坐标 `LandingRect`，不要求目标 DOM |
+| `runtime.configureMotion(config)` | `freeLanding.stiffness` | 画布 free landing 的位置弹簧刚度，默认 240 |
+|  | `freeLanding.damping` | 画布 free landing 的位置弹簧阻尼，默认 30 |
+|  | `freeLanding.rotationDecay` | 画布 free landing 的摆动回正衰减，默认 5 |
+|  | `freeLanding.duration` / `freeLanding.easing` | 仅控制 landing 的视觉 morph/收尾过渡，不控制位置物理积分 |
 |  | `grabAlign.align` | 抓取基准对齐方式：`'center'`（默认，卡片中心对指针）或 `'pointer'`（点哪抓哪） |
 |  | `grabAlign.offsetX` / `offsetY` | 在基准对齐结果上叠加的固定像素偏移，正值往右/往下 |
 | `runtime.objects.register(options)` | `id` | 对象唯一标识 |
@@ -209,6 +245,8 @@ clone / landing proxy 会由 Runtime 自动挂到 `document.documentElement` 下
 |  | `type` | Surface 类型 |
 |  | `element` | Surface 真实 DOM 元素 |
 |  | `accepts` | 接受的对象类型，空数组表示不限 |
+|  | `layout` | Surface 布局：`grid` 卡片容器或 `free` 自由坐标画布 |
+|  | `camera` | free Surface 的视觉上下文：`scale` 提供实时缩放，`origin` 提供相机原点；grid 通常不设置 |
 | `runtime.onAction(handler)` | `action` | 业务保存移动结果的语义化事件 |
 | `runtime.targets.register(target)` | `id` / `surfaceId` / `element` | 注册没有 Object 身份的面包屑等语义落点 |
 
@@ -243,6 +281,29 @@ runtime.configureMotion({
   group:   { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' },
 })
 ```
+
+如果只有某一种 free 对象需要限制抛出速度，优先写在该对象类型上，不要修改全局释放档案：
+
+```ts
+runtime.registerObjectType('canvas-card', {
+  defaultVisualMode: 'detach',
+  motion: {
+    profile: {
+      freeLanding: {
+        duration: 550,
+        easing: 'cubic-bezier(.22,1,.36,1)',
+        coastSeconds: 0.12,
+        maxCoast: 260,
+        minVelocity: 30,
+        release: { velocityScale: 1, maxVelocity: 2500 },
+      },
+    },
+  },
+})
+```
+
+`freeLanding.release` 只在该对象最终走 free landing 时参与释放速度裁剪；`target`、`default`
+以及列表/网格对象仍使用全局 `DEFAULT_RELEASE_PROFILE`，因此不会被画布参数联动修改。
 
 跟手和释放物理参数通过同一个入口配置：`follow.stiffness/damping` 控制跟手弹簧，
 `rotation.tilt/sway/smoothing` 控制抓取姿态，`release.velocityScale` 控制释放速度，
@@ -521,6 +582,25 @@ runtime.registerObjectType('file-item', {
 
 如果没有配置 `proxyLayout`，代理行为保持原有的本体尺寸抓取方式。
 
+### 画布缩放下的代理内容
+
+画布卡片通常位于带 `transform: scale(...)` 的世界层中。Runtime 创建抓取/landing
+代理后，代理已经脱离这个祖先，业务应在对象注册时传入当前画布比例：
+
+```ts
+runtime.objects.register({
+  id: 'mind:note-1',
+  type: 'mind-canvas-object',
+  surfaceId: 'mind:canvas',
+  element,
+  abilities: ['move'],
+})
+```
+
+Runtime 会保留未缩放的布局尺寸，并在内部缩放代理内容层，因此文字、内边距、图标
+和卡片外框保持同一比例。传函数时，拖拽期间继续缩放画布也会同步到代理；业务不需要
+自行创建 proxy、复制 `scaleShell` 或在每帧重写内容尺寸。
+
 对象类型也可以选择是否使用 Runtime 内置的 MotionController，并覆盖该对象的运动参数。
 未填写 `enabled` 时默认启用；未填写的参数继续回退到全局配置和 Runtime 默认值：
 
@@ -537,10 +617,55 @@ runtime.registerObjectType('kanban', {
 })
 ```
 
-landing 的终态表现通过 `landingMode` 区分，默认值为 `default`。看板和普通卡片
-继续使用 `default`；文件夹卡、面包屑这类语义目标可以使用 `target`：代理从松手
-后的第一帧就开始缩小淡出，同时继承原有 landing 的释放速度、旋转和位置运动。
-`target` 不改变位置运动，也不会影响看板的 landing。
+landing 的终态由目标类型决定：命中 Object/Target 注册的语义目标时使用 `target`，
+目标 Surface 为 `grid` 时使用普通网格落位，目标 Surface 为 `free` 时使用自由坐标落点。
+文件夹卡、面包屑这类语义目标必须通过 Object/Target 注册；普通 Surface 外壳不会自动
+成为 target。
+
+自由画布应注册为 `layout: 'free'`。此模式的解析器返回与
+`getBoundingClientRect()` 相同视口坐标系的矩形，不需要真实目标元素；Runtime 会跳过
+目标 DOM 等待和目标隐藏，但仍复用同一套代理、释放、retarget、淡出和清理流程。默认
+`releaseMode: 'physical'` 会继承释放时的速度、旋转和缩放状态；需要无惯性普通落地时
+设置 `releaseMode: 'normal'`。Stage 1 的画布接入由业务负责把世界坐标转换为当前视口
+矩形，Camera API 留到后续阶段。
+
+```ts
+runtime.registerObjectType('canvas-card', {
+  defaultVisualMode: 'detach',
+  releaseMode: 'physical',
+  resolveFreeLandingRect: ({ destination }) => destination as {
+    left: number; top: number; width: number; height: number
+  },
+})
+
+runtime.surfaces.register({
+  id: 'canvas:main',
+  type: 'canvas',
+  layout: 'free',
+  camera: {
+    scale: () => camera.scale,
+    origin: () => ({ left: camera.x, top: camera.y }),
+  },
+  element: canvasElement,
+  accepts: ['canvas-card'],
+})
+```
+
+如果自由画布里的对象也可以被拖入网格抽屉，抽屉只需要注册为 `grid` Surface：
+
+```ts
+runtime.surfaces.register({
+  id: 'canvas:drawer',
+  type: 'grid',
+  layout: 'grid',
+  element: drawerElement,
+  accepts: ['canvas-card'],
+})
+```
+
+同一个对象可以在 `free` 画布内使用连续坐标，进入 `grid` 抽屉后按卡片容器落位。
+抽屉外壳本身不会参与 target landing；只有文件夹、面包屑等显式注册的语义 Target
+才会触发缩小淡出。
 
 `target` 的飞入和缩小淡出可以分别调参。`target.motion` 控制飞入弹簧速度，
 `target.landing` 控制飞入段的时长与视觉缓动，`target.dismiss` 控制同步开始的缩小淡出；
@@ -550,7 +675,6 @@ landing 的终态表现通过 `landingMode` 区分，默认值为 `default`。�
 ```ts
 runtime.registerObjectType('file-item', {
   defaultVisualMode: 'detach',
-  landingMode: 'target',
   motion: {
     profile: {
       target: {
@@ -587,6 +711,14 @@ const visual: VisualAdapter = {
   },
 }
 ```
+
+`VisualLifecycleContext.camera` 会提供对象类型归一化后的 camera 能力配置。只有启用
+camera 的对象会得到 `contentScale`/`cameraOrigin`；业务不应直接创建
+`cameraShell`/`cameraGlue`，也不应调用 DOM proxy 函数绕过 Runtime 的生命周期。
+
+Runtime Demo 的 `canvas-sticker` 与 Gugu Mind 的 Note/Entity/Project/File 对象类型已在
+注册时显式声明 `camera: { enabled: true }`；普通项目卡、文件卡、文件夹卡和看板卡不声明
+camera。Gugu Mind 的 Canvas/Drawer 只提供 `Surface.camera` 状态，不自行创建代理缩放壳。
 
 适配器负责具体的阴影、圆角、背景、proxy 运动和样式；Runtime 负责统一 hover 状态、
 生命周期时序、代理到本体的渐变交接，以及取消/清理。这样不同卡片类型可以拥有不同
@@ -731,6 +863,23 @@ const stopOwnership = runtime.onOwnershipChange(() => {
 ```
 
 ## 组布局的 Relative FLIP
+
+### 布局测量缓存
+
+Runtime 会在自身生命周期内缓存已经完成一次真实 DOM 测量的组展开高度和
+Surface 目标尺寸。后续同一布局版本的组开合事务优先复用这份结果，
+避免在 Surface 仍处于冻结高度时重复读取中间尺寸。缓存不是持久化数据，也不会
+跨页面或跨 Runtime 实例复用。
+
+对象/Surface 注册表发生变化时 Runtime 会自动使缓存失效。窗口尺寸、字体、业务侧
+异步内容或其他 Runtime 无法观察的 DOM 布局变化发生后，接入层应主动调用：
+
+```ts
+runtime.invalidateLayoutCache()
+```
+
+失效后下一次布局事务会重新测量并建立缓存。业务侧仍只负责提供
+`Surface.measureLayout`，不需要维护缓存、临时高度或测量时序。
 
 有年/月、文件夹/子文件夹等嵌套布局时，为每个**布局组根节点**标记
 `data-layout-group`；不要给内部卡片标记：

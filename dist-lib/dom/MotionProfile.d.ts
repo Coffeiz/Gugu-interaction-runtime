@@ -1,3 +1,4 @@
+import { ReleaseMotionProfile } from '../motion/ReleaseMotion';
 /** 运动参数配置：控制 FLIP、Surface resize 和落地速度。所有字段可选，
  *  注册时只填关心的部分，未设置的字段回退到 DEFAULT_MOTION_PROFILE。 */
 export interface MotionProfile {
@@ -18,6 +19,20 @@ export interface MotionProfile {
         duration: number;
         /** CSS easing 函数。 */
         easing: string;
+    };
+    freeLanding?: {
+        /** 画布 free landing 的非回弹飞行时长，ms。 */
+        duration: number;
+        /** 画布 landing 的缓动曲线。 */
+        easing: string;
+        /** 物理释放时的惯性外推时间，秒。 */
+        coastSeconds: number;
+        /** 物理释放时的最大惯性距离，像素。 */
+        maxCoast: number;
+        /** 低于该速度时不产生惯性外推。 */
+        minVelocity: number;
+        /** 仅 free landing 使用的释放速度整形参数；未设置时沿用全局释放档案。 */
+        release?: Partial<Pick<ReleaseMotionProfile, 'velocityScale' | 'maxVelocity'>>;
     };
     target?: {
         /** 语义目标飞入使用的独立弹簧参数，不继承全局 landing。 */

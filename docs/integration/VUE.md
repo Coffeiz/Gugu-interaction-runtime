@@ -69,6 +69,46 @@ const { elementRef } = useSurface({
 })
 ```
 
+当命中区域和实际需要做布局 FLIP 的元素不是同一个节点时，可以额外声明：
+
+```ts
+const { elementRef } = useSurface({
+  id: 'mind:drawer',
+  type: 'mind-drawer',
+  accepts: ['project-card'],
+  layoutElement: () => viewportRef.value,
+  measureLayout: () => ({ height: contentRef.value?.scrollHeight ?? 0 }),
+})
+```
+
+`elementRef` 仍是命中区域；`layoutElement` 是 Runtime 捕获和播放 Surface
+FLIP 的元素；`measureLayout` 返回内容变化后的自然高度。抽屉、固定高度 viewport
+等场景应使用这两个声明，不能再由业务在拖拽回调里重复驱动高度动画。Runtime 会在
+布局事务中读取自然尺寸、执行 resize，并在事务结束后保留目标高度、清理其余临时样式。
+
+浮动 Surface 可以使用 Vue 适配层的自动发现能力：
+
+```ts
+const { elementRef } = useSurface({
+  id: 'mind:drawer',
+  type: 'mind-drawer',
+  accepts: ['mind-project-object'],
+  layout: 'grid',
+  floating: {
+    open: () => expanded.value,
+    scrollKey: () => panel.value,
+    maxHeight: () => window.innerHeight * 0.55,
+  },
+})
+```
+
+根节点下标注 `data-layout-role="viewport"` 的节点会作为布局节点，
+`data-drawer-scroll="projects"` 会作为真实滚动视口。显式传入的
+`layoutElement`、`viewport`、`measureLayout` 优先于自动发现；复杂 DOM 拓扑不应依赖
+适配层猜测。`floating` 只属于 Vue 接入层，不改变 Core 的 grid/free 或 landing 语义。
+提供 `open` 后，浮动 Surface 的自然高度、限高和开合动画也由 Runtime 统一管理；业务组件
+不应再维护 `panelHeights`、`measurePanel`、`ResizeObserver` 或直接调用高度过渡函数。
+
 ### Target
 
 新增与 `useSurface` 同形状的 `useTarget`，用于面包屑、文件夹等没有独立 Object
@@ -107,6 +147,58 @@ const { controlled } = useRuntimeTransition(`column:${status}`)
 
 Action 订阅由适配层自动在组件卸载时解除。Transition composable 只负责把 ownership
 状态映射成 Vue 可消费的响应式值，不重新实现动画。
+
+### 布局事务与错误处理
+
+分组开合使用 `runtime.runGroupToggle()`，浮动 Surface 的尺寸变化由
+`useSurface({ floating })` 通过 observer 自动登记到同一布局事务。业务侧只提供状态
+mutation 和 `nextTick` 等待 Vue 完成 patch，不直接调用 `transitionGroupHeight`、
+`captureLayoutFlip`、`playLayoutFlip`，也不直接写 Surface 的 `style.height`。
+
+Runtime 会在事务提交阶段执行 deferred layout plan。调用方应让错误继续向上抛出，并在
+业务边界记录或展示错误；不要在 `catch` 中再次启动一套高度/FLIP 动画，也不要通过吞掉
+错误掩盖事务失败。若业务 mutation 已经发生，恢复数据由业务 Store/API 负责，Runtime
+不回写业务状态。
+
+迁移检查：
+
+- `useSurface({ floating })` 是浮动 Surface 的唯一高度观察入口；
+- `runGroupToggle()` 是分组布局的唯一业务调用入口；
+- `data-layout-open` 只描述业务当前状态，CSS 可用于静态折叠态，不承担动画编排；
+- 列表自身的增删/重命名 FLIP 可以保留，但不能同时驱动 Surface resize；
+- 事务失败不得修改测试预期、删除用例或增加 skip。
+
+### Node / Connection
+
+画布卡片可以直接在 `useObject` 中声明端口，端口位置不需要业务保存屏幕坐标：
+
+```ts
+const card = useObject({
+  id: `canvas:card:${id}`,
+  type: 'canvas-card',
+  surface: 'canvas:main',
+  abilities: ['move', 'link'],
+  node: {
+    ports: [
+      { id: 'left', side: 'left', position: 0.5 },
+      { id: 'right', side: 'right', position: 0.5 },
+    ],
+  },
+})
+```
+
+Runtime 提供 `getNodePorts()`、`hitNodePort()`、`beginNodeConnection()`、
+`updateNodeConnection()`、`finishNodeConnection()` 和 `cancelNodeConnection()`；它们每次
+从当前 DOMRect 计算端点，覆盖卡片移动、尺寸变化和相机变换后的几何变化。创建、取消、删除
+通过 `connection-create`、`connection-cancel`、`connection-delete` Action 输出，Vue 侧只需
+用 `useRuntimeAction()` 接收并持久化；SVG 线条仍由业务 RelationLayer 绘制。
+
+已有关系可在初始化或数据同步时调用 `registerNodeConnection()`，关系删除时调用
+`unregisterNodeConnection()`，避免只依赖当前连接会话做重复校验。
+
+Node 仍只在 `useObject({ node })` 注册时声明。无向关系删除时使用
+`useObject().disconnectFrom(targetObjectId)`（或 Core 的
+`deleteNodeConnectionsBetween()`），不需要业务维护 Runtime 端点映射。
 
 ## 生命周期要求
 

@@ -296,14 +296,36 @@ export class MoveActionCoordinator {
   normalize(objectId: string, value: unknown): MoveActionDestination | null {
     if (this.isDestination(value)) return value
     if (!value || typeof value !== 'object') return null
-    const candidate = value as { columnId?: unknown; index?: unknown }
+    const candidate = value as {
+      columnId?: unknown
+      index?: unknown
+      point?: { x?: unknown; y?: unknown }
+      releaseVelocity?: { x?: unknown; y?: unknown }
+      sourceSize?: { w?: unknown; h?: unknown }
+    }
     if (typeof candidate.columnId !== 'string') return null
     const fromSurfaceId = this.port.getObjectSurface(objectId)
     if (!fromSurfaceId) return null
     // Surface ID 是业务注册表的稳定标识，不是看板列名。Runtime 不能擅自添加
     // `column:` 前缀，否则 file/drawer/canvas 等 Surface 以及真实业务 Store
     // 会收到与注册值不同的 Action。
-    return { fromSurfaceId, toSurfaceId: candidate.columnId, ...(typeof candidate.index === 'number' ? { toIndex: candidate.index } : {}) }
+    const point = candidate.point as { x?: unknown; y?: unknown } | undefined
+    const releaseVelocity = candidate.releaseVelocity as { x?: unknown; y?: unknown } | undefined
+    const sourceSize = candidate.sourceSize as { w?: unknown; h?: unknown } | undefined
+    return {
+      fromSurfaceId,
+      toSurfaceId: candidate.columnId,
+      ...(typeof candidate.index === 'number' ? { toIndex: candidate.index } : {}),
+      ...(point && typeof point.x === 'number' && typeof point.y === 'number'
+        ? { point: { x: point.x, y: point.y } }
+        : {}),
+      ...(releaseVelocity && typeof releaseVelocity.x === 'number' && typeof releaseVelocity.y === 'number'
+        ? { releaseVelocity: { x: releaseVelocity.x, y: releaseVelocity.y } }
+        : {}),
+      ...(sourceSize && typeof sourceSize.w === 'number' && sourceSize.w > 0 && typeof sourceSize.h === 'number' && sourceSize.h > 0
+        ? { sourceSize: { w: sourceSize.w, h: sourceSize.h } }
+        : {}),
+    }
   }
   async emit(objectId: string, destination: unknown, transaction: MoveContext['transaction']): Promise<boolean> {
     if (transaction.actionEmitted) return false
@@ -321,10 +343,22 @@ export class MoveActionCoordinator {
         fromSurfaceId: normalized.fromSurfaceId,
         toSurfaceId: normalized.toSurfaceId,
         ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }),
+        ...(normalized.point === undefined ? {} : { point: normalized.point }),
+        ...(normalized.releaseVelocity === undefined ? {} : { releaseVelocity: normalized.releaseVelocity }),
+        ...(normalized.sourceSize === undefined ? {} : { sourceSize: normalized.sourceSize }),
         timestamp: Date.now(),
       })
     } else {
-      await this.port.emit({ type: 'move', objectId, fromSurfaceId: normalized.fromSurfaceId, toSurfaceId: normalized.toSurfaceId, ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }), timestamp: Date.now() })
+      await this.port.emit({
+        type: 'move', objectId,
+        fromSurfaceId: normalized.fromSurfaceId,
+        toSurfaceId: normalized.toSurfaceId,
+        ...(normalized.toIndex === undefined ? {} : { toIndex: normalized.toIndex }),
+        ...(normalized.point === undefined ? {} : { point: normalized.point }),
+        ...(normalized.releaseVelocity === undefined ? {} : { releaseVelocity: normalized.releaseVelocity }),
+        ...(normalized.sourceSize === undefined ? {} : { sourceSize: normalized.sourceSize }),
+        timestamp: Date.now(),
+      })
     }
     return true
   }

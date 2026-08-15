@@ -1,3 +1,5 @@
+import type { ReleaseMotionProfile } from '../motion/ReleaseMotion'
+
 /** 运动参数配置：控制 FLIP、Surface resize 和落地速度。所有字段可选，
  *  注册时只填关心的部分，未设置的字段回退到 DEFAULT_MOTION_PROFILE。 */
 export interface MotionProfile {
@@ -18,6 +20,26 @@ export interface MotionProfile {
     duration: number
     /** CSS easing 函数。 */
     easing: string
+  }
+  freeLanding?: {
+    /** 画布 free landing 的非回弹飞行时长，ms。 */
+    duration: number
+    /** 画布 landing 的缓动曲线。 */
+    easing: string
+    /** 画布 free landing 的位置弹簧刚度。 */
+    stiffness?: number
+    /** 画布 free landing 的位置弹簧阻尼。 */
+    damping?: number
+    /** 画布 free landing 的摆动回正衰减。 */
+    rotationDecay?: number
+    /** 物理释放时的惯性外推时间，秒。 */
+    coastSeconds: number
+    /** 物理释放时的最大惯性距离，像素。 */
+    maxCoast: number
+    /** 低于该速度时不产生惯性外推。 */
+    minVelocity: number
+    /** 仅 free landing 使用的释放速度整形参数；未设置时沿用全局释放档案。 */
+    release?: Partial<Pick<ReleaseMotionProfile, 'velocityScale' | 'maxVelocity'>>
   }
   target?: {
     /** 语义目标飞入使用的独立弹簧参数，不继承全局 landing。 */
@@ -50,6 +72,13 @@ export const DEFAULT_MOTION_PROFILE: Required<MotionProfile> = {
   flip: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
   resize: { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)' },
   landing: { duration: 300, easing: 'cubic-bezier(.22,1,.36,1)' },
+  freeLanding: {
+    duration: 550,
+    easing: 'cubic-bezier(.22,1,.36,1)',
+    coastSeconds: 0.12,
+    maxCoast: 260,
+    minVelocity: 30,
+  },
   target: {
     motion: {
       position: { stiffness: 420, damping: 41 },

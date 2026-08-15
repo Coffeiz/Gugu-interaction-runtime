@@ -3,11 +3,14 @@ import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { animateRafHeight, cancelRafHeight, cancelRafTransform } from './RafLayoutAnimator'
 import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
 import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasurement'
+import type { LayoutCache } from './LayoutCache'
+import type { LayoutTransactionCoordinator } from './LayoutTransaction'
 
 /** Runtime 通过此引用注入全局 MotionProfile；模块级而非传参。 */
 let currentProfile: MotionProfile | null = null
 let layoutPresenceEnabled = false
 const groupToggleTokens = new WeakMap<HTMLElement, number>()
+
 export function setMotionProfiles(profile: MotionProfile | null): void {
   currentProfile = profile
 }
@@ -33,6 +36,8 @@ export interface ScrollSnapshot { readonly top: number; readonly height: number;
 export interface SurfaceLayoutSnapshot {
   readonly element: HTMLElement
   readonly rect: GroupRect
+  readonly measure?: () => { width?: number; height: number } | null
+  readonly targetMeasure?: { width?: number; height: number } | null
   readonly inlineStyle: Pick<CSSStyleDeclaration, 'height' | 'overflow' | 'transition'>
 }
 export interface LayoutFlipSnapshot {
@@ -86,10 +91,13 @@ export function captureLayoutFlip(
    * 在抓取→落地全程都拿得到确定的源节点引用，直接传进来最可靠。
    */
   presenceIgnore?: (element: HTMLElement) => boolean,
-  options: { readonly scopeSurfaces?: readonly HTMLElement[] } = {},
+  options: {
+    readonly scopeSurfaces?: readonly HTMLElement[]
+    readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
+  } = {},
 ): LayoutFlipSnapshot {
-  // 新事务开始时先终止上一笔仍在运行的 Surface resize，避免旧 timeout
-  // 在本事务中恢复过期高度。
+  // 不在 capture 阶段恢复正在运行的 Surface resize。新事务需要继承当前
+  // 动画帧作为起点，否则抓起后立即松手会先回到旧高度，再播放第二次 resize。
   const inScope = (element: HTMLElement): boolean => {
     const surfaces = options.scopeSurfaces
     if (!surfaces || surfaces.length === 0) return true
@@ -99,14 +107,17 @@ export function captureLayoutFlip(
   // 和 surfaces 各自现查一遍，同一批节点在一次 captureLayoutFlip 里被
   // querySelectorAll 两次——见 landing 卡顿排查，trace 里这个查询单次能到
   // 9ms 自身耗时。
-  const inScopeSurfaceElements = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]'))
+  const rootSurface = root instanceof HTMLElement && root.matches('[data-layout-surface]')
+    ? [root]
+    : []
+  const inScopeSurfaceElements = [
+    ...rootSurface,
+    ...Array.from(root.querySelectorAll<HTMLElement>('[data-layout-surface]')),
+  ]
     .filter(inScope)
-  const activeSurfaces = inScopeSurfaceElements
-    .map(element => ({ element, rect: readRect(element), inlineStyle: readSurfaceInlineStyle(element) }))
-  resetActiveSurfaceResize(activeSurfaces)
   const measurement = createLayoutMeasurement()
   const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root, options.scopeSurfaces)
-  const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement)
+  const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement, options.surfaceMeasures)
   // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
   // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
   // 显式开启。collection 通常标在列表容器上，卡片节点只标
@@ -131,12 +142,15 @@ export function captureLayoutFlip(
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
   const measurement = createLayoutMeasurement()
   const profile = resolveProfile()
+  // Surface 的自然高度必须在 FLIP transform 写入前测量。组/卡片的 Invert
+  // transform 可能扩大滚动溢出范围；先测 Surface 再播放 FLIP，避免抽屉
+  // 把动画中间态误当成自然高度，抓起底部卡片时留下额外空间。
+  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing, measurement)
   const groupClip = snapshot.group
     ? releaseGroupClip(snapshot.group.before)
     : null
   if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing, measurement)
   if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing, measurement)
-  playSurfaceResize(snapshot.surfaces, profile.resize.duration, profile.resize.easing, measurement)
   if (snapshot.presence) playCollectionPresence(snapshot.presence, {
       duration: profile.flip.duration,
       easing: profile.flip.easing,
@@ -311,7 +325,6 @@ function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
 export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING, measurement?: LayoutMeasurement): void {
-  resetActiveFlip(before.map(item => item.element))
   const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
 
   for (const item of before) {
@@ -336,7 +349,8 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
       // resetActiveFlip 可能给这个元素设置了 transition: none，
       // 如果跳过 FLIP，需要清除以免永久锁定 transition。
       // 但组高度动画由 transitionGroupHeight 独立持有，不能在这里清掉。
-      if (item.element.dataset.runtimeGroupAnimating !== 'true') {
+      if (item.element.dataset.runtimeGroupAnimating !== 'true'
+        && item.element.dataset.runtimeFlip !== 'true') {
         item.element.style.transition = ''
       }
       continue
@@ -369,7 +383,19 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
   }
 }
 
-export function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration = FLIP_DURATION, easing = FLIP_EASING, fromHeight?: number): void {
+export function transitionGroupHeight(
+  element: HTMLElement,
+  targetHeight: number,
+  duration = FLIP_DURATION,
+  easing = FLIP_EASING,
+  fromHeight?: number,
+  retainTargetHeight = false,
+  exactDuration = false,
+): boolean {
+  // Surface resize 已由 Runtime 接管时，业务层的响应式高度更新只能提供
+  // 下一次自然尺寸，不能再启动第二条高度动画或覆盖当前播放帧。
+  if (element.dataset.runtimeLayoutTransaction === 'true'
+    || element.dataset.runtimeSurfaceResize === 'true') return false
   cancelGroupAnimation(element)
   const currentHeight = fromHeight ?? element.getBoundingClientRect().height
   const heightToken = String(Number(element.dataset.runtimeGroupToken ?? '0') + 1)
@@ -378,7 +404,9 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
   // 一次性完成。duration 作为基准上限，保留最小值避免小组过快。
   const distance = Math.abs(Math.max(0, targetHeight) - currentHeight)
   const speed = 8
-  const effectiveDuration = Math.min(Math.max(distance / speed, 200), 350)
+  const effectiveDuration = exactDuration
+    ? Math.max(0, duration)
+    : Math.min(Math.max(distance / speed, 200), 350)
   element.dataset.runtimeGroupAnimating = 'true'
   element.style.overflow = 'hidden'
   element.style.height = `${currentHeight}px`
@@ -397,6 +425,11 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
     if (targetHeight <= 0) {
       element.style.height = '0px'
       element.style.overflow = 'hidden'
+    } else if (retainTargetHeight) {
+      // 外层 viewport 的最终高度由 Vue ref 持有。Vue 在事务结束后才会
+      // flush 绑定值，因此不能先清掉 inline height，否则会短暂回到旧高度。
+      element.style.height = `${targetHeight}px`
+      element.style.overflow = ''
     } else {
       element.style.height = ''
       element.style.overflow = ''
@@ -405,6 +438,7 @@ export function transitionGroupHeight(element: HTMLElement, targetHeight: number
     delete element.dataset.runtimeGroupAnimating
     groupAnimationStates.delete(element)
   }, effectiveDuration + 40)
+  return true
 }
 
 function cancelGroupAnimation(element: HTMLElement): void {
@@ -437,7 +471,7 @@ export function cancelLayoutAnimations(root: ParentNode): void {
   if (root instanceof HTMLElement) elements.push(root)
   if (typeof root.querySelectorAll === 'function') {
     elements.push(...Array.from(root.querySelectorAll<HTMLElement>(
-      '[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-layout-content]',
+      '[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-runtime-layout-transaction], [data-layout-content]',
     )))
   }
   for (const element of elements) {
@@ -447,6 +481,7 @@ export function cancelLayoutAnimations(root: ParentNode): void {
       || element.dataset.runtimeFlip === 'true'
       || element.dataset.runtimeGroupAnimating === 'true'
       || element.dataset.runtimeSurfaceResize === 'true'
+      || element.dataset.runtimeLayoutTransaction === 'true'
     if (flipTimer !== undefined) {
       window.clearTimeout(flipTimer)
       flipCleanupTimers.delete(element)
@@ -472,6 +507,7 @@ export function cancelLayoutAnimations(root: ParentNode): void {
     if (element.dataset.runtimeFlip === 'true') delete element.dataset.runtimeFlip
     delete element.dataset.runtimeSurfaceResize
     delete element.dataset.runtimeSurfaceResizeToken
+    delete element.dataset.runtimeLayoutTransaction
     delete element.dataset.runtimeGroupAnimating
   }
 }
@@ -485,36 +521,141 @@ export interface GroupToggleOptions {
   readonly isCurrent?: () => boolean
   readonly duration?: number
   readonly easing?: string
+  /** 由 Runtime 注入当前 root 内 Surface 的自然尺寸测量。 */
+  readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
+  /** Runtime 内部布局缓存；未传时保持单次事务测量行为。 */
+  readonly layoutCache?: LayoutCache
+  readonly layoutTransaction?: LayoutTransactionCoordinator
 }
 
 /** 统一编排组展开/收起及其兄弟 FLIP。 */
 export async function runGroupToggle(options: GroupToggleOptions): Promise<void> {
+  const transactionRoot = options.root instanceof HTMLElement
+    ? options.root.ownerDocument
+    : options.root
+  const transaction = options.layoutTransaction?.begin(transactionRoot, 'group-toggle')
+  if (transaction) options.layoutTransaction?.request(transactionRoot, {
+    type: 'group-toggle',
+    opening: options.opening,
+  })
   const token = (groupToggleTokens.get(options.content) ?? 0) + 1
   groupToggleTokens.set(options.content, token)
-  const cardNodes = Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item'))
-  const cards = (cardNodes.length > 0 ? cardNodes : Array.from(options.root.querySelectorAll<HTMLElement>('[data-card]')))
+  const cardNodes = Array.from(options.root.querySelectorAll<HTMLElement>('[data-layout-role="card"]'))
+  const cards = (cardNodes.length > 0 ? cardNodes : Array.from(options.root.querySelectorAll<HTMLElement>('.done-card-item, [data-card]')))
     .filter(element => {
       const rect = element.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0
     })
-  const snapshot = captureLayoutFlip(cards, options.root, false)
+  const snapshot = captureLayoutFlip(cards, options.root, false, undefined, {
+    surfaceMeasures: options.surfaceMeasures,
+  })
   const currentHeight = options.content.getBoundingClientRect().height
   const presenceState = layoutPresenceEnabled
     ? prepareGroupPresence(options.content, options.opening, options.duration, options.easing)
     : null
   options.mutate()
   await options.waitForLayout()
-  if (groupToggleTokens.get(options.content) !== token) return
-  if (options.isCurrent && !options.isCurrent()) return
-  transitionGroupHeight(options.content, options.opening ? options.content.scrollHeight : 0, options.duration, options.easing, currentHeight)
+  if (groupToggleTokens.get(options.content) !== token) {
+    options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
+    return
+  }
+  if (options.isCurrent && !options.isCurrent()) {
+    options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
+    return
+  }
+  const cachedTarget = options.layoutCache?.getGroup(options.content, options.opening)
+  const targetHeight = cachedTarget?.height ?? (options.opening ? options.content.scrollHeight : 0)
+  transitionGroupHeight(options.content, targetHeight, options.duration, options.easing, currentHeight)
   if (presenceState) playGroupPresence(presenceState, options.opening)
-  playLayoutFlip(snapshot)
+
+  // transitionGroupHeight 在下一帧才写入组的目标高度。Surface 的自然尺寸
+  // 依赖这次写入后的最终布局，必须等这一帧提交后再测量。
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+  if (groupToggleTokens.get(options.content) !== token) {
+    options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
+    return
+  }
+  if (options.isCurrent && !options.isCurrent()) {
+    options.layoutTransaction?.cancel(transactionRoot, transaction?.participantId)
+    return
+  }
+  const targetMeasures = cachedTarget
+    ? new Map(cachedTarget.surfaceTargets)
+    : measureGroupSurfaceTargets(snapshot.surfaces, options.content, targetHeight)
+  options.layoutCache?.setGroup(options.content, options.opening, targetHeight, targetMeasures)
+  const targetSnapshot: LayoutFlipSnapshot = targetMeasures.size > 0
+    ? {
+        ...snapshot,
+        surfaces: snapshot.surfaces.map(item => ({
+          ...item,
+          targetMeasure: targetMeasures.get(item.element),
+        })),
+      }
+    : snapshot
+  const play = (plan?: { isCurrent: () => boolean }) => {
+    if (plan && !plan.isCurrent()) return
+    playLayoutFlip(targetSnapshot)
+  }
+  const deferred = transaction
+    ? options.layoutTransaction?.defer(transactionRoot, transaction.participantId, plan => play(plan), 'group-flip')
+    : null
+  if (!deferred) play()
+  options.layoutTransaction?.commit(transactionRoot, transaction?.participantId)
+}
+
+/**
+ * 在组动画开始前测量最终 Surface 尺寸。Surface 此时已在 capture 阶段被
+ * 冻结，组内容也还没进入过渡；如果直接调用 measureLayout，只会读到当前
+ * viewport 的中间高度。临时提交组目标高度和 Surface auto 布局，测量后
+ * 立刻恢复原始 inline style，整个过程不会跨出当前 JS task。
+ */
+function measureGroupSurfaceTargets(
+  surfaces: readonly SurfaceLayoutSnapshot[],
+  content: HTMLElement,
+  targetHeight: number,
+): Map<HTMLElement, { width?: number; height: number } | null> {
+  const targets = new Map<HTMLElement, { width?: number; height: number } | null>()
+  const contentStyle = {
+    height: content.style.height,
+    overflow: content.style.overflow,
+    transition: content.style.transition,
+  }
+  content.style.height = `${Math.max(0, targetHeight)}px`
+  content.style.overflow = 'hidden'
+  content.style.transition = 'none'
+
+  const surfaceStyles = surfaces.map(item => ({
+    item,
+    height: item.element.style.height,
+    overflow: item.element.style.overflow,
+    transition: item.element.style.transition,
+  }))
+  surfaceStyles.forEach(({ item }) => {
+    if (!item.measure) return
+    item.element.style.height = 'auto'
+    item.element.style.overflow = 'visible'
+    item.element.style.transition = 'none'
+  })
+  void content.offsetHeight
+  surfaceStyles.forEach(({ item }) => {
+    if (!item.measure) return
+    targets.set(item.element, item.measure())
+  })
+  surfaceStyles.forEach(({ item, height, overflow, transition }) => {
+    item.element.style.height = height
+    item.element.style.overflow = overflow
+    item.element.style.transition = transition
+  })
+  content.style.height = contentStyle.height
+  content.style.overflow = contentStyle.overflow
+  content.style.transition = contentStyle.transition
+  return targets
 }
 
 interface GroupPresenceState { content: HTMLElement; elements: HTMLElement[]; token: string; duration: number }
 
 function prepareGroupPresence(content: HTMLElement, opening: boolean, duration = FLIP_DURATION, easing = FLIP_EASING): GroupPresenceState {
-  const elements = Array.from(content.querySelectorAll<HTMLElement>('.done-card-item'))
+  const elements = Array.from(content.querySelectorAll<HTMLElement>('[data-layout-role="card"], .done-card-item'))
   const token = String(Number(content.dataset.runtimePresenceToken ?? '0') + 1)
   content.dataset.runtimePresenceToken = token
   elements.forEach(element => {
@@ -541,14 +682,34 @@ function playGroupPresence(state: GroupPresenceState, opening: boolean): void {
 }
 
 /** 捕获会随卡片进出改变高度的 Surface；业务以 data-layout-surface 标注它们。 */
-export function captureSurfaceLayout(elements: readonly HTMLElement[], measurement?: LayoutMeasurement): SurfaceLayoutSnapshot[] {
-  return elements.map(element => ({
-    element,
-    rect: readRect(element, measurement),
+export function captureSurfaceLayout(
+  elements: readonly HTMLElement[],
+  measurement?: LayoutMeasurement,
+  surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
+): SurfaceLayoutSnapshot[] {
+  return elements.map(element => {
+    element.dataset.runtimeLayoutTransaction = 'true'
+    const rect = readRect(element, measurement)
+    const measure = surfaceMeasures?.get(element)
+    // 正在播放 resize 时，快照必须保存当前动画帧，而不是第一笔事务的
+    // baseStyle。否则下一次 capture/play 会把抽屉先恢复到旧高度，再重新收回。
+    const inlineStyle = readSurfaceInlineStyle(element)
+    // 在 Vue/React 等业务侧提交自然尺寸之前先冻结当前边框盒，
+    // 避免事务中间的响应式 height 更新把 Surface 提前撑到最终高度。
+    // playSurfaceResize 会沿用这份 inlineStyle，并在事务结束时恢复它。
+    if (measure && !surfaceResizeStates.has(element)) {
+      element.style.height = `${toCssHeight(element, rect.height)}px`
+      element.style.overflow = 'hidden'
+    }
+    return {
+      element,
+      rect,
+      measure,
     // 事务被打断时，当前 inline height 是 Runtime 上一笔动画写入的临时值，
     // 不能把它错当成业务样式保存，否则取消落点后会永久留下旧高度。
-    inlineStyle: surfaceResizeStates.get(element)?.baseStyle ?? readSurfaceInlineStyle(element),
-  }))
+      inlineStyle,
+    }
+  })
 }
 
 /**
@@ -565,7 +726,11 @@ export function playSurfaceResize(
   const plans = before
     .filter(item => item.element.isConnected)
     .map(item => {
-      const next = readRect(item.element, measurement)
+      const current = readRect(item.element, measurement)
+      const measured = item.targetMeasure !== undefined ? item.targetMeasure : item.measure?.()
+      const next = measured
+        ? { ...current, ...(measured.width === undefined ? {} : { width: measured.width }), height: measured.height }
+        : current
       const prof = resolveProfile()
       return {
         item, next,
@@ -576,7 +741,25 @@ export function playSurfaceResize(
     })
     .filter(({ item, next }) => Math.abs(item.rect.height - next.height) >= 0.5)
 
-  for (const { item, fromHeight } of plans) {
+  if (plans.length === 0) {
+    before.forEach(({ element, inlineStyle }) => {
+      restoreSurfaceInlineStyle(element, inlineStyle)
+      delete element.dataset.runtimeLayoutTransaction
+    })
+    return
+  }
+
+  const plannedElements = new Set(plans.map(({ item }) => item.element))
+  before.forEach(({ element }) => {
+    if (!plannedElements.has(element)) {
+      const item = before.find(entry => entry.element === element)
+      if (item) restoreSurfaceInlineStyle(element, item.inlineStyle)
+      delete element.dataset.runtimeLayoutTransaction
+    }
+  })
+
+  const planTokens = new Map<HTMLElement, string>()
+  for (const { item, fromHeight, toHeight } of plans) {
     const style = item.element.style
     const state = {
       baseStyle: surfaceResizeStates.get(item.element)?.baseStyle ?? item.inlineStyle,
@@ -585,6 +768,7 @@ export function playSurfaceResize(
       token: String(++surfaceResizeSequence),
     }
     surfaceResizeStates.set(item.element, state)
+    planTokens.set(item.element, state.token)
     style.overflow = 'hidden'
     style.transition = 'none'
     style.height = `${fromHeight}px`
@@ -596,7 +780,8 @@ export function playSurfaceResize(
     for (const { item, fromHeight, toHeight, profile } of plans) {
       const style = item.element.style
       const state = surfaceResizeStates.get(item.element)
-      if (!state || item.element.dataset.runtimeSurfaceResizeToken !== state.token) continue
+      const expectedToken = planTokens.get(item.element)
+      if (!state || !expectedToken || state.token !== expectedToken || item.element.dataset.runtimeSurfaceResizeToken !== expectedToken) continue
       const token = state.token
       style.transition = 'none'
       animateRafHeight(item.element, fromHeight, toHeight, profile.duration, profile.easing)
@@ -605,8 +790,10 @@ export function playSurfaceResize(
         const state = surfaceResizeStates.get(item.element)
         if (!state || state.token !== token) return
         restoreSurfaceInlineStyle(item.element, state.baseStyle)
+        if (item.measure) style.height = `${toHeight}px`
         surfaceResizeStates.delete(item.element)
         delete item.element.dataset.runtimeSurfaceResize
+        delete item.element.dataset.runtimeLayoutTransaction
       }, profile.duration + 40)
     }
   })
@@ -618,12 +805,17 @@ function resetActiveSurfaceResize(before: readonly SurfaceLayoutSnapshot[]): voi
   for (const { element } of active) {
     const state = surfaceResizeStates.get(element)
     if (!state) continue
-    // 先恢复自然高度再测量新布局；删 token 让旧 timeout 不能覆盖新事务。
+    // 取消旧 rAF 后保留它最后一帧的边框盒高度，作为新事务的起点。
+    // 不能恢复 state.baseStyle；那是第一笔事务的旧高度，会造成二次展开。
+    const currentHeight = readRect(element).height
     cancelRafHeight(element)
-    restoreSurfaceInlineStyle(element, state.baseStyle)
+    element.style.height = `${toCssHeight(element, currentHeight)}px`
+    element.style.overflow = 'hidden'
+    element.style.transition = 'none'
     surfaceResizeStates.delete(element)
     delete element.dataset.runtimeSurfaceResize
     delete element.dataset.runtimeSurfaceResizeToken
+    delete element.dataset.runtimeLayoutTransaction
   }
 }
 

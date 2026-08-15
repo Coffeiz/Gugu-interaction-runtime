@@ -1,4 +1,4 @@
-import type { VisualState, VisualSnapshot } from './VisualAdapterTypes'
+import type { ObjectAffordancesConfig, VisualState, VisualSnapshot } from './VisualAdapterTypes'
 import type { MotionProfile } from './MotionProfile'
 import type { GroupDragConfig } from './GroupDragProfile'
 import type { MotionState } from '../motion/CardMotionController'
@@ -16,12 +16,14 @@ import {
   isDefaultDraggingGlassEnabled,
   revealElement,
   clampLandingRectToBounds,
+  updateDragProxyContentScale,
   type LandingRect,
   type DragProxyLayoutConfig,
 } from './Visual'
 import { preserveProxyVisualContext } from './ProxyVisualContext'
 import { createCloneMoveFromAdapter, createDetachMoveFromAdapter } from '../runtime/move/MoveAdapter'
 import type { Runtime } from '../Runtime'
+import type { ResolvedObjectCameraConfig } from '../Runtime'
 import type { GroupObjectOffset } from '../session/GroupDragSession'
 
 export interface VisualGroupContext {
@@ -33,16 +35,21 @@ export interface VisualGroupContext {
 export interface VisualLifecycleContext {
   readonly objectId: string
   readonly sessionId: string
+  readonly sourceSurfaceId?: string
+  readonly destinationSurfaceId?: string
   readonly mode: string
   readonly destination?: unknown
   readonly sourceElement?: HTMLElement
   /** 抓取开始时冻结的内容快照；仅供视觉代理使用，不承载业务状态。 */
   readonly beforeContent?: HTMLElement
   readonly targetElement?: HTMLElement
+  readonly targetRect?: LandingRect
   /** 目标节点作为语义落点时保留其可见性，避免与源代理发生双重交接。 */
   readonly preserveTarget?: boolean
-  /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
-  readonly landingMode?: 'default' | 'target'
+  /** default 保持普通 landing；target 到达语义目标后追加缩小淡出；free 使用纯矩形。 */
+  readonly landingMode?: 'default' | 'target' | 'free'
+  /** 释放后的落地策略；physical 继承释放状态，normal 不继承释放速度。 */
+  readonly releaseMode?: 'normal' | 'physical'
   /** target landing 时跳过代理套上目标背景/圆角/内容的视觉 morph，只保留位置和缩小淡出。 */
   readonly disableTargetVisualMorph?: boolean
   readonly sourceRect?: DOMRect
@@ -56,12 +63,26 @@ export interface VisualLifecycleContext {
   readonly landingBounds?: () => DOMRect | null
   /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
   readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
+  /** 代理脱离缩放祖先后需要复现的当前视觉缩放。 */
+  readonly contentScale?: number | (() => number)
+  /** 目标 grid Surface 的视觉倍率；通常为 1，用于从画布倍率平滑回收。 */
+  readonly landingContentScale?: number | (() => number)
+  /** free Surface 的相机原点；由 Runtime 从 Surface.camera 注入。 */
+  readonly cameraOrigin?: () => { left: number; top: number }
+  /** landing 目标 Surface 的相机原点；独立于源对象是否声明 camera 能力。 */
+  readonly landingCameraOrigin?: () => { left: number; top: number }
+  /** landing 目标 Surface 的实时相机倍率；与抓取阶段冻结的 contentScale 分离。 */
+  readonly landingCameraScale?: number | (() => number)
+  /** 对象类型归一化后的 camera 能力；Phase 1A 仅供 adapter 观察，不改变既有行为。 */
+  readonly camera?: ResolvedObjectCameraConfig
   /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
   readonly proxyLayout?: DragProxyLayoutConfig
   /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
   readonly group?: VisualGroupContext
   /** 对象类型注册的多选叠牌视觉配置。 */
   readonly groupDrag?: GroupDragConfig
+  /** 对象类型注册的附加交互声明；自定义适配器可据此处理自己的附加层。 */
+  readonly affordances?: ObjectAffordancesConfig
 }
 
 export interface VisualProxy {
@@ -77,7 +98,7 @@ export interface VisualAdapter {
   applyState?(element: HTMLElement, state: VisualState): void
   createProxy?(context: VisualLifecycleContext): VisualProxy
   updateProxy?(proxy: VisualProxy, context: VisualLifecycleContext): void
-  land?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<{ completed: boolean; reason?: string }>
+  land?(proxy: VisualProxy, target: HTMLElement | LandingRect, context: VisualLifecycleContext): void | Promise<{ completed: boolean; reason?: string }>
   reveal?(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): void | Promise<void>
   /** 完整销毁代理；实现该回调后由 adapter 负责调用 proxy.dispose（如有）。 */
   dispose?(proxy: VisualProxy, context: VisualLifecycleContext): void
@@ -143,20 +164,25 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (!context.sourceElement || !context.sourceRect || !context.beforeContent) {
       throw new Error('visual proxy requires source snapshot')
     }
-    const proxy = createDragProxy(context.beforeContent, context.sourceRect, { layout: context.proxyLayout })
+    const proxy = createDragProxy(context.beforeContent, context.sourceRect, {
+      layout: context.proxyLayout,
+      contentScale: context.contentScale,
+      cameraShell: Boolean(context.camera?.enabled && context.camera.scale),
+      affordancesSelector: this.runtime?.getObjectAffordancesConfig(context.objectId)?.selector,
+    })
     const content = getProxyContent(proxy)
     const compact = Boolean(context.proxyLayout?.compact)
     preserveProxyVisualContext(context.sourceElement, content)
     const snapshot = context.visualSnapshot
     if (snapshot) {
-      content.style.boxShadow = snapshot.boxShadow
+      content.style.setProperty('box-shadow', snapshot.boxShadow, 'important')
       content.style.borderRadius = snapshot.borderRadius
       content.style.backgroundColor = snapshot.background
       if (snapshot.backgroundImage && snapshot.backgroundImage !== 'none') {
         content.style.backgroundImage = snapshot.backgroundImage
       }
       content.style.opacity = snapshot.opacity
-      getProxyAttitude(proxy).style.transform = `scale(${compact ? 1 : 1.03})`
+      proxy.style.transform = `scale(${compact ? 1 : 1.03})`
     }
     if (isDefaultDraggingGlassEnabled()) applyDraggingGlassStyle(content)
     // 业务卡片常把操作按钮做成默认 opacity:0、hover 时显示；proxy 是
@@ -172,27 +198,87 @@ export class DefaultVisualAdapter implements VisualAdapter {
     return { element: proxy }
   }
 
-  land(proxy: VisualProxy, target: HTMLElement, context: VisualLifecycleContext): Promise<{ completed: boolean; reason?: string }> {
+  updateProxy(proxy: VisualProxy, context: VisualLifecycleContext): void {
+    updateDragProxyContentScale(proxy.element, context.contentScale)
+  }
+
+  land(proxy: VisualProxy, target: HTMLElement | LandingRect, context: VisualLifecycleContext): Promise<{ completed: boolean; reason?: string }> {
     const el = proxy.element
-    if (!context.targetSnapshot?.rect && !target.isConnected) {
+    const content = getProxyContent(el)
+    const targetElement = 'getBoundingClientRect' in target ? target : undefined
+    const directTargetRect: LandingRect | undefined = targetElement ? undefined : target as LandingRect
+    if (!context.targetRect && !context.targetSnapshot?.rect && !directTargetRect && (!targetElement || !targetElement.isConnected)) {
       return Promise.resolve({ completed: false, reason: 'target-disconnected' })
     }
-    const rawTargetRect = context.targetSnapshot?.rect ?? target.getBoundingClientRect()
+    // 语义目标可能在 camera/布局交接期间发生位移；targetSnapshot 只用于
+    // 视觉样式和目标节点暂时断开时的兜底，不能覆盖仍连接节点的实时几何。
+    const liveTargetRect = targetElement?.isConnected ? targetElement.getBoundingClientRect() : undefined
+    const rawTargetRect = context.targetRect
+      ?? directTargetRect
+      ?? liveTargetRect
+      ?? context.targetSnapshot?.rect!
     const rawLandingRect = {
-      left: rawTargetRect.left ?? rawTargetRect.x,
-      top: rawTargetRect.top ?? rawTargetRect.y,
+      left: rawTargetRect.left,
+      top: rawTargetRect.top,
       width: rawTargetRect.width,
       height: rawTargetRect.height,
     }
     const clampTarget = (rect: LandingRect): LandingRect => {
+      // free landing 代表画布上的连续物理落点，允许代理沿惯性轨迹飞出
+      // viewport；viewport clamp 只适用于列表/抽屉等需要留在可视区域内的落地。
+      if (context.landingMode === 'free') return rect
       const bounds = context.landingBounds?.()
       return bounds ? clampLandingRectToBounds(rect, bounds) : rect
     }
     const targetRect = clampTarget(rawLandingRect)
-    if (!context.preserveTarget) concealElement(target, context.sessionId)
+    const hasUsableTargetRect = targetRect.width > 0 && targetRect.height > 0
+    if (!hasUsableTargetRect) {
+      return Promise.resolve({ completed: false, reason: 'target-zero-size' })
+    }
+    if (targetElement && !context.preserveTarget) {
+      concealElement(targetElement, context.sessionId)
+    }
+    // free landing 需要保留用户看到的 grabbing 中间帧，避免画布物理接管时
+    // 先跳回控制器终值；grid/default/target 则直接结束 grabbing transition，
+    // 让列表布局坐标负责接管，避免把 transition 中间帧带进网格落地。
+    if (context.landingMode === 'free') {
+      const computedTransformBeforeReset = getComputedStyle(el).transform
+      if (computedTransformBeforeReset && computedTransformBeforeReset !== 'none') {
+        el.style.transform = computedTransformBeforeReset
+      }
+    }
     el.style.transition = 'none'
+    const afterTransitionReset = el.getBoundingClientRect()
     const isTargetLanding = context.landingMode === 'target'
     const isCompactProxy = getProxyContent(el).dataset.runtimeCompact === 'true'
+    const isCrossSurfaceLanding = Boolean(
+      context.sourceSurfaceId
+      && context.destinationSurfaceId
+      && context.sourceSurfaceId !== context.destinationSurfaceId,
+    )
+    // landing 的位置、缩放和释放速度继续继承抓取状态。透视倾角也必须从
+    // 当前帧连续交给 motion controller 衰减；如果在这里直接清零，第一帧会
+    // 重新投影整张卡片，造成松手时的额外位移。rotation decay 会平滑消除
+    // rotateX/rotateZ，不把抓取态的倾角永久带入落地。
+    const landingMotionState = context.motionState
+      ? (() => {
+          const state = { ...context.motionState! }
+          // motionState 描述的是定位层的目标坐标，而浏览器此刻可能还在
+          // 播放 grabbing 的 transform transition。接管 landing 时必须以
+          // 已经绘制到屏幕上的矩形为位置种子，否则首帧会从 transition 的
+          // 中间帧跳回 inline transform 的终值。scale 的中心原点要换算回
+          // 定位层坐标，但速度和旋转保持原控制器状态，避免改变物理手感。
+          const baseWidth = parseFloat(el.style.width) || afterTransitionReset.width
+          const baseHeight = parseFloat(el.style.height) || afterTransitionReset.height
+          state.x = afterTransitionReset.left - (baseWidth * (1 - state.scaleX)) / 2
+          state.y = afterTransitionReset.top - (baseHeight * (1 - state.scaleY)) / 2
+          return state
+        })()
+      : context.motionState
+    // 跨 Surface 的项目卡仍应像看板换列一样交叉淡化到目标卡；只有文件/文件夹
+    // 这类明确声明 disableTargetVisualMorph 的语义目标需要保留源卡外观，避免
+    // 飞入文件夹时被替换成文件夹样式。
+    const suppressCrossSurfaceMorph = isCrossSurfaceLanding && context.disableTargetVisualMorph
     const targetSnapshot = context.targetSnapshot
     // disableTargetVisualMorph 只关掉"飞向语义目标（文件夹/面包屑）时代理套上目标样式"这段——
     // 无效落点走的是 landingMode:'default' 飞回原位，这时候的目标样式 morph 是另一回事：把
@@ -211,44 +297,115 @@ export class DefaultVisualAdapter implements VisualAdapter {
     // 样式”这段；默认落地（飞回对象自己在列表/网格里的原位）跟这个开关无关，即使目标静止态
     // 没有背景/阴影（比如列表行本来就是透明的），也必须把抓起态的玻璃/深阴影 morph 回它的
     // 真实（可能就是透明/none）样子，否则代理会一直糊到销毁揭示那一刻才突然切换。
-    const targetHasSurfaceStyle = !isTargetLanding
-      ? Boolean(targetSnapshot)
-      : !context.disableTargetVisualMorph && targetHasVisibleSurface
-    const landingProfile = context.landingMode === 'target'
-      ? context.motion?.target?.landing ?? context.motion?.landing
-      : context.motion?.landing
-    // 普通 landing 需要沿用目标 border box 的布局尺寸；语义目标不能在
+    const targetHasSurfaceStyle = !suppressCrossSurfaceMorph && (
+      !isTargetLanding
+        ? Boolean(targetSnapshot)
+        : !context.disableTargetVisualMorph && targetHasVisibleSurface
+    )
+    const shouldMorphTargetContent = !suppressCrossSurfaceMorph
+      && !context.disableTargetVisualMorph
+      && targetHasVisibleSurface
+      && !isCompactProxy
+      && Boolean(targetElement)
+    // 跨 Surface 时保留阴影这一项的过渡，但不恢复目标卡片的其它表面属性。
+    // 抓起态阴影是代理自身的悬浮反馈；完全关闭 target morph 会让它一直保持
+    // 到代理销毁，表现成没有落地/降落效果。
+    const landingTargetShadow = targetSnapshot?.boxShadow
+      ? targetSnapshot.boxShadow
+      : undefined
+    const landingTargetOpacity = isCrossSurfaceLanding && !isTargetLanding
+      ? '1'
+      : targetSnapshot?.opacity
+    const landingProfile = context.landingMode === 'free'
+      ? context.motion?.freeLanding ?? context.motion?.landing
+      : context.landingMode === 'target'
+        ? context.motion?.target?.landing ?? context.motion?.landing
+        : context.motion?.landing
+    const useLegacyLanding = context.motionEnabled === false || context.releaseMode === 'normal'
+    // 旧 CSS landing 需要沿用目标 border box 的布局尺寸；语义目标不能在
     // 松手瞬间切成面包屑/侧栏按钮的窄高度，否则源卡片会先被裁掉，视觉上
-    // 像是向目标下方跳了一段。语义目标的缩小由 target dismiss 的 scale
-    // 动画统一接管，代理在运动期间保留源卡片尺寸。
-    if (!isTargetLanding) {
+    // 像是向目标下方跳了一段。Motion landing 的尺寸收敛由 scaleShell 统一
+    // 接管，代理必须保留抓取阶段的源卡片尺寸；否则 Visual.ts 会把目标尺寸
+    // 误当成 landing 起点，缩放后的卡片会从左上角/右下角重新飞入。
+    if (!isTargetLanding && useLegacyLanding) {
       el.style.width = `${targetRect.width}px`
       el.style.height = `${targetRect.height}px`
     }
-    const land = context.motionEnabled === false ? landDragProxyLegacy : landDragProxyWithMotion
+    const land = useLegacyLanding
+      ? landDragProxyLegacy
+      : landDragProxyWithMotion
+    const destinationPoint = context.destination && typeof context.destination === 'object'
+      ? (context.destination as { point?: { x?: unknown; y?: unknown } }).point
+      : undefined
+    const pointerRelease = destinationPoint
+      && typeof destinationPoint.x === 'number'
+      && typeof destinationPoint.y === 'number'
+      ? { x: destinationPoint.x, y: destinationPoint.y }
+      : undefined
     const { finished, retarget } = land(el, targetRect, {
-      duration: landingProfile?.duration ?? DEFAULT_MOTION_PROFILE.landing.duration,
-      easing: landingProfile?.easing ?? DEFAULT_MOTION_PROFILE.landing.easing,
+      objectId: context.objectId,
+      sessionId: context.sessionId,
+      pointerRelease,
+      targetSnapshot,
+      sourceSurfaceId: context.sourceSurfaceId,
+      destinationSurfaceId: context.destinationSurfaceId,
+      duration: landingProfile?.duration ?? (context.landingMode === 'free'
+        ? DEFAULT_MOTION_PROFILE.freeLanding.duration
+        : DEFAULT_MOTION_PROFILE.landing.duration),
+      easing: landingProfile?.easing ?? (context.landingMode === 'free'
+        ? DEFAULT_MOTION_PROFILE.freeLanding.easing
+        : DEFAULT_MOTION_PROFILE.landing.easing),
+      stiffness: context.landingMode === 'free' ? context.motion?.freeLanding?.stiffness : undefined,
+      damping: context.landingMode === 'free' ? context.motion?.freeLanding?.damping : undefined,
+      rotationDecay: context.landingMode === 'free' ? context.motion?.freeLanding?.rotationDecay : undefined,
       // 面包屑是透明文本节点，只提供位置和消失时机，不能把它的透明表面
       // 样式覆盖到代理卡片；有可见表面的文件夹卡仍完整执行视觉 morph。
-      targetShadow: targetHasSurfaceStyle ? targetSnapshot?.boxShadow : undefined,
+      targetShadow: targetHasSurfaceStyle || suppressCrossSurfaceMorph
+        ? landingTargetShadow
+        : undefined,
       targetRadius: targetHasSurfaceStyle ? targetSnapshot?.borderRadius : undefined,
       targetBorder: targetHasSurfaceStyle ? targetSnapshot?.border : undefined,
       targetBackdropFilter: targetHasSurfaceStyle ? targetSnapshot?.backdropFilter : undefined,
       targetBackground: targetHasSurfaceStyle ? targetSnapshot?.background : undefined,
       targetBackgroundImage: targetHasSurfaceStyle ? targetSnapshot?.backgroundImage : undefined,
-      targetOpacity: targetHasSurfaceStyle ? targetSnapshot?.opacity : undefined,
+      targetOpacity: targetHasSurfaceStyle ? landingTargetOpacity : undefined,
       // 透明面包屑/列表行没有可复用的卡片式内容结构，不能参与 content morph——列表行是
       // grid 多列布局，套这套给卡片设计的结构级 morph 会把列挤错位（类型跑到文件名下面）。
       // compact 列表代理与目标卡结构相同，只需要让同一份内容跟随宽度恢复；如果再挂一层
       // 目标 Grid，右侧文件大小会因为 justify-self:end 在 landing 第一帧瞬间回到完整宽度。
       // 只有真正有背景/阴影且不是 compact 列表的目标才复用结构级 content morph。
-      targetContent: targetHasVisibleSurface && !isCompactProxy ? target : undefined,
+      targetContent: shouldMorphTargetContent ? targetElement ?? context.sourceElement : undefined,
       landingMode: context.landingMode,
       targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
       dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,
-      readTarget: () => clampTarget(target.getBoundingClientRect()),
-      motionState: context.motionState,
+      // camera landing 的目标会随画布相机移动而改变 viewport rect，但这不是
+      // 一次新的布局落点。若继续提供 readTarget，free motion 在快到旧目标时
+      // 会把相机变换后的 viewport 坐标当成新 motion target，表现为停顿后再
+      // 突然追目标；相机位移统一由 camera glue 处理。
+      readTarget: targetElement && !context.landingCameraOrigin
+        ? () => clampTarget(targetElement.getBoundingClientRect())
+        : undefined,
+      cameraOrigin: context.landingMode === 'free'
+        ? context.landingCameraOrigin ?? context.cameraOrigin
+        : undefined,
+      landingCameraScale: context.landingMode === 'free'
+        ? context.landingCameraScale
+        : undefined,
+      // contentScale 描述的是对象所在画布的视觉缩放，不是 free landing
+      // 专属配置。拖出 viewport 后会回到 default landing，但仍必须沿用
+      // 松手瞬间的画布比例，否则代理会按 100% 尺寸回飞。
+      contentScale: context.contentScale,
+      // free 跨 Surface landing 需要目标画布的 camera glue；camera 对象回到
+      // grid/default 时仍需要保留源对象的 camera shell，才能把抓取时的内容
+      // 倍率平滑还原到抽屉卡尺寸。两条能力不能互相覆盖。
+      cameraShell: Boolean(
+        (context.landingMode === 'free'
+          && (context.landingCameraOrigin ?? context.cameraOrigin))
+        || (context.camera?.enabled && context.camera.scale),
+      ),
+      landingContentScale: context.landingContentScale,
+      affordancesSelector: context.affordances?.selector,
+      motionState: context.releaseMode === 'normal' ? undefined : landingMotionState,
       coast: {
         duration: DEFAULT_RELEASE_PROFILE.coastSeconds,
         friction: DEFAULT_COAST_FRICTION,
@@ -257,14 +414,14 @@ export class DefaultVisualAdapter implements VisualAdapter {
       },
       releaseDamping: DEFAULT_RELEASE_PROFILE.dampingRatio,
     })
-    if (this.runtime) {
+    if (this.runtime && targetElement && !context.landingCameraOrigin) {
       // targetSnapshot 只用于代理的首帧样式和初始几何，不能作为后续
       // retarget 的位置来源。目标卡可能在另一个 landing 期间被兄弟
       // FLIP 移动，即使它不在 data-layout-surface 下，也必须跟随当前
       // 视觉 rect；否则代理会回到落地开始时的旧位置。
       const snapshotRect = context.targetSnapshot?.rect
       const readRetargetRect = (): LandingRect => {
-        const liveRect = target.getBoundingClientRect()
+        const liveRect = targetElement!.getBoundingClientRect()
         if (liveRect.width > 0 && liveRect.height > 0) return clampTarget(liveRect)
         // 目标节点短暂被框架隐藏或重挂载时，不要把代理 retarget 到
         // [0, 0, 0, 0]；沿用最后一个有效快照，等待下一帧恢复实时位置。
@@ -278,8 +435,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
         }
         return clampTarget(liveRect)
       }
-      this.runtime.trackLandingTarget(context.sessionId, target, () => {
-        retarget(readRetargetRect())
+      this.runtime.trackLandingTarget(context.sessionId, targetElement, () => {
+        const rect = readRetargetRect()
+        retarget(rect)
       })
     }
     return finished.then(() => ({ completed: true }))

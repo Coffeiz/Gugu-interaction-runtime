@@ -1,9 +1,10 @@
 import type { VisualContext } from './VisualAdapterTypes'
 import { DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { createCardMotionController } from '../motion/CardMotionController'
-import type { MotionState } from '../motion/CardMotionController'
+import type { CardMotionController, MotionState } from '../motion/CardMotionController'
+import { createFreeLandingMotion } from '../motion/FreeLandingMotion'
 import { LANDING_PROFILE, type MotionProfile } from '../motion/MotionProfile'
-
+import { preserveProxyVisualContext } from './ProxyVisualContext'
 
 /**
  * 从元素捕获 CSS 继承属性上下文。
@@ -81,6 +82,22 @@ export function setProxyInteractive(
   proxy.style.pointerEvents = enabled ? 'auto' : 'none'
 }
 
+export function setRuntimeAffordancesHidden(
+  root: HTMLElement,
+  hidden: boolean,
+  selector?: string | readonly string[],
+): void {
+  const selectors = selector ? (Array.isArray(selector) ? selector : [selector]) : ['.runtime-affordances-hidden']
+  const query = selectors.filter(Boolean).join(',')
+  if (!query) return
+  const nodes = [
+    ...(root.matches(query) ? [root] : []),
+    ...root.querySelectorAll<HTMLElement>(query),
+  ]
+  const affected = nodes.flatMap(node => [node, ...node.querySelectorAll<HTMLElement>('*')])
+  affected.forEach(node => node.classList.toggle('runtime-affordances-hidden', hidden))
+}
+
 /** 抓取代理的可选紧凑布局；尺寸和布局语义由业务声明，过渡由 Runtime 执行。 */
 export interface DragProxyLayoutConfig {
   compact?: {
@@ -106,6 +123,50 @@ export interface ProxyVisualState {
   transform: string
   boxShadow: string
   opacity: string
+}
+
+function setVisualBoxShadow(element: HTMLElement, value: string): void {
+  // 业务卡片可能通过 .glass-card !important 提供默认阴影；代理的抓取/落地
+  // 阴影属于 Runtime 视觉状态，必须能覆盖这条业务默认规则。
+  element.style.setProperty('box-shadow', value, 'important')
+}
+
+function copyLandingSurfaceState(source: HTMLElement, target: HTMLElement): void {
+  const style = getComputedStyle(source)
+  target.style.border = style.border
+  target.style.borderRadius = style.borderRadius
+  target.style.setProperty('box-shadow', style.boxShadow, 'important')
+  target.style.backgroundColor = style.backgroundColor
+  target.style.backgroundImage = style.backgroundImage
+  target.style.backdropFilter = style.backdropFilter
+  target.style.setProperty('-webkit-backdrop-filter', style.backdropFilter)
+}
+
+function clearLandingRuntimeState(element: HTMLElement): void {
+  element.classList.remove('is-grabbed', 'is-hovered')
+  setRuntimeAffordancesHidden(element, false)
+  delete element.dataset.runtimeProxy
+  delete element.dataset.runtimeProxyContent
+  delete element.dataset.runtimePhase
+  delete element.dataset.runtimeCompact
+}
+
+function prepareContentMorph(
+  layers: { contentRoot: HTMLElement; fromLayer: HTMLElement; toLayer: HTMLElement; targetScaleShell: HTMLElement },
+  duration: number,
+  easing: string,
+): void {
+  layers.fromLayer.style.opacity = '1'
+  layers.toLayer.style.opacity = '0'
+  void layers.contentRoot.offsetWidth
+  requestAnimationFrame(() => {
+    layers.fromLayer.style.transition = `opacity ${duration}ms ${easing}`
+    layers.toLayer.style.transition = `opacity ${duration}ms ${easing}`
+    requestAnimationFrame(() => {
+      layers.fromLayer.style.opacity = '0'
+      layers.toLayer.style.opacity = '1'
+    })
+  })
 }
 
 export function captureProxyVisualState(
@@ -134,20 +195,27 @@ export function restoreProxyVisualState(
 export function createDragProxy(
   source: HTMLElement,
   rect: DOMRect = source.getBoundingClientRect(),
-  options: { glass?: boolean; layout?: DragProxyLayoutConfig } = {},
+  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number); cameraShell?: boolean; affordancesSelector?: string | readonly string[] } = {},
 ): HTMLElement {
   const compact = options.layout?.compact
-  const pickupScale = compact ? 1 : 1.03
-  // 与 main 看板保持一致：定位壳只包一层缩放壳，卡片内容保留自己的布局。
-  // perspective/rotate 由定位壳统一承载，不额外引入业务侧不存在的姿态节点。
+  // 与 main 看板保持一致：定位壳、姿态层、缩放壳和卡片内容各自只承担一类
+  // 变换，避免 perspective/rotate 与 landing 位移在同一个矩阵里重新组合。
   const proxy = document.createElement('div')
+  const attitude = document.createElement('div')
   const scaleShell = document.createElement('div')
   const content = source.cloneNode(true) as HTMLElement
+  if (options.affordancesSelector) setRuntimeAffordancesHidden(content, true, options.affordancesSelector)
   scaleShell.dataset.runtimeProxyScaleShell = 'true'
+  if (options.cameraShell) scaleShell.dataset.runtimeCameraShell = 'true'
+  attitude.dataset.runtimeProxyAttitude = 'true'
   content.dataset.runtimeProxyContent = 'true'
   Object.assign(scaleShell.style, {
-    position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
+    position: 'absolute', left: '0', top: '0',
     transformOrigin: '0 0', pointerEvents: 'none',
+  })
+  Object.assign(attitude.style, {
+    position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
+    transformOrigin: '50% 50%', transform: 'none', pointerEvents: 'none',
   })
   Object.assign(content.style, {
     position: 'absolute', left: '0', top: '0', width: '100%', height: '100%',
@@ -157,7 +225,8 @@ export function createDragProxy(
   // 这样列表卡片会把信息压进窄卡片，而不是创建代理时瞬间变窄。
   content.dataset.runtimePhase = 'grab-start'
   scaleShell.appendChild(content)
-  proxy.appendChild(scaleShell)
+  attitude.appendChild(scaleShell)
+  proxy.appendChild(attitude)
   // 源节点在 clone 策略中会暂时使用隐藏类保留列表占位；代理必须是唯一可见
   // 的视觉主体，不能把源节点的隐藏状态一起复制过来。
   proxy.className = ''
@@ -170,8 +239,10 @@ export function createDragProxy(
   // 撑大，代理看起来比本体大一圈。这里强制代理自己用 border-box，不依赖
   // 业务样式约定。
   proxy.style.boxSizing = 'border-box'
+  proxy.style.transformOrigin = '50% 50%'
   proxy.style.width = `${rect.width}px`
   proxy.style.height = `${rect.height}px`
+  updateDragProxyContentScale(proxy, options.contentScale)
   proxy.style.margin = '0'
   // 之前经一个 data-runtime-overlay 中间容器（fixed + z-index 2147483647）来
   // 统一压 z-index，代理自己只需要 z-index:1。现在代理直接挂到 <html> 下，
@@ -200,9 +271,11 @@ export function createDragProxy(
   // 而不是"左上角钉住、右边甩得更远"。translate3d 是位置平移，不受
   // transform-origin 影响，只改这一个值不需要连带调整任何位置计算。
   proxy.style.transformOrigin = '50% 50%'
-  proxy.style.transform = `perspective(760px) rotateX(5deg) scale(${pickupScale})`
+  // 抓取启动的缩放由 applyFloatingStyle()/MotionController 统一驱动。
+  // 创建阶段必须保持本体尺寸，避免先以最终比例绘制一帧后再回到起点。
+  proxy.style.transform = 'scale(1)'
   if (defaultDraggingGlassEnabled && options.glass !== false) applyDraggingGlassStyle(content)
-  else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
+  else setVisualBoxShadow(content, '0 12px 24px rgba(0,0,0,.18)')
   if (compact) content.dataset.runtimeCompact = 'true'
   const compactDuration = compact?.duration ?? 200
   const compactEasing = compact?.easing ?? 'cubic-bezier(.22,1,.36,1)'
@@ -227,9 +300,108 @@ export function createDragProxy(
   return proxy
 }
 
+function resolveContentScale(value: number | (() => number) | undefined): number {
+  const scale = typeof value === 'function' ? value() : value
+  return typeof scale === 'number' && Number.isFinite(scale) && scale > 0 ? scale : 1
+}
+
+/**
+ * 代理挂到 documentElement 后不再继承画布的 transform: scale()。
+ * 用未缩放的布局尺寸承载内容，再在 scaleShell 上恢复当前视觉比例，避免
+ * 外框按屏幕 rect 缩放而文字/内边距仍按 100% 渲染。
+ */
+export function updateDragProxyContentScale(
+  proxy: HTMLElement,
+  value: number | (() => number) | undefined,
+): void {
+  const scale = resolveContentScale(value)
+  const rectWidth = parseFloat(proxy.style.width) || proxy.getBoundingClientRect().width
+  const rectHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
+  const baseWidth = Number(proxy.dataset.runtimeProxyBaseWidth) || rectWidth / scale
+  const baseHeight = Number(proxy.dataset.runtimeProxyBaseHeight) || rectHeight / scale
+  proxy.dataset.runtimeProxyBaseWidth = String(baseWidth)
+  proxy.dataset.runtimeProxyBaseHeight = String(baseHeight)
+  const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
+  if (!shell) return
+  shell.style.width = `${baseWidth}px`
+  shell.style.height = `${baseHeight}px`
+  // 跟旧版 holder + scaleShell 一样，定位壳尺寸保持抓取时的视觉尺寸；
+  // 只把内容层放到壳中心并实时缩放，避免相机变化反过来改写 MotionController
+  // 的坐标基准，导致代理每次缩放都重新贴回鼠标。
+  const proxyWidth = parseFloat(proxy.style.width) || rectWidth
+  const proxyHeight = parseFloat(proxy.style.height) || rectHeight
+  // 以缩放后的视觉尺寸居中，保证相机变化时内容中心仍锁在定位壳中心。
+  shell.style.left = `${(proxyWidth - baseWidth * scale) / 2}px`
+  shell.style.top = `${(proxyHeight - baseHeight * scale) / 2}px`
+  shell.style.transform = `scale(${scale})`
+}
+
+/** landing 已经由 MotionController 写入当前外框尺寸时，只同步相机 shell，不重置外框。 */
+export function updateDragProxyScaleShell(
+  proxy: HTMLElement,
+  value: number | (() => number) | undefined,
+): void {
+  const scale = resolveContentScale(value)
+  const rectWidth = parseFloat(proxy.style.width) || proxy.getBoundingClientRect().width
+  const rectHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
+  const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
+  if (!shell) return
+  // landing 已把定位壳改成当前视觉尺寸；缩放壳此时应从壳左上角重新计算，
+  // 不能继续沿用 grabbing 阶段为“固定壳 + 居中内容”写入的旧偏移，否则
+  // 松手后代理的视觉起点/终点会整体错开，最后揭示本体时出现一帧位移。
+  shell.style.left = '0px'
+  shell.style.top = '0px'
+  shell.style.width = `${rectWidth / scale}px`
+  shell.style.height = `${rectHeight / scale}px`
+  shell.style.transform = `scale(${scale})`
+}
+
+/**
+ * Landing 使用旧版的稳定分层：代理根节点是固定尺寸的 holder，
+ * 尺寸变化只写到 scaleShell 的 transform，不能在每帧改 holder 的宽高。
+ * 这样旋转、相机缩放和卡片内部布局不会互相触发重排。
+ */
+function prepareLandingScaleShell(
+  proxy: HTMLElement,
+  contentScale: number,
+): { shell: HTMLElement; baseWidth: number; baseHeight: number } | null {
+  const shell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
+  if (!shell) return null
+  const holderWidth = parseFloat(proxy.style.width) || proxy.getBoundingClientRect().width
+  const holderHeight = parseFloat(proxy.style.height) || proxy.getBoundingClientRect().height
+  const scale = contentScale > 0 ? contentScale : 1
+  // 抓取阶段已经记录了脱离 camera 后的世界尺寸。landing 不能用当前缩放
+  // 重新反推它，否则相机在抓取期间变化时会把实时视觉尺寸缩回抓取时的壳尺寸，
+  // 造成松手首帧从小尺寸重新放大。没有记录时才使用旧的尺寸推导作为普通代理
+  // 的兼容路径。
+  const baseWidth = Number(proxy.dataset.runtimeProxyBaseWidth) || holderWidth / scale
+  const baseHeight = Number(proxy.dataset.runtimeProxyBaseHeight) || holderHeight / scale
+  shell.style.width = `${baseWidth}px`
+  shell.style.height = `${baseHeight}px`
+  shell.style.left = `${(holderWidth - baseWidth * scale) / 2}px`
+  shell.style.top = `${(holderHeight - baseHeight * scale) / 2}px`
+  shell.style.transform = `scale(${scale})`
+  return { shell, baseWidth, baseHeight }
+}
+
+function applyLandingScale(
+  shellState: { shell: HTMLElement; baseWidth: number; baseHeight: number },
+  holderWidth: number,
+  holderHeight: number,
+  scale: number,
+): void {
+  const shellWidth = shellState.baseWidth * scale
+  const shellHeight = shellState.baseHeight * scale
+  // scaleShell 全程使用抓取阶段的 0 0 原点，避免相机缩放在松手首帧
+  // 重新解释同一个 shell 而造成位置跳跃。
+  shellState.shell.style.left = `${((holderWidth - shellWidth) / 2).toFixed(2)}px`
+  shellState.shell.style.top = `${((holderHeight - shellHeight) / 2).toFixed(2)}px`
+  shellState.shell.style.transform = `scale(${scale})`
+}
+
 
 export function getProxyAttitude(proxy: HTMLElement): HTMLElement {
-  return proxy
+  return proxy.querySelector<HTMLElement>('[data-runtime-proxy-attitude]') ?? proxy
 }
 
 export function getProxyContent(proxy: HTMLElement): HTMLElement {
@@ -246,8 +418,17 @@ export function moveDragProxy(proxy: HTMLElement, x: number, y: number, offsetX:
 }
 
 export interface LandingVisualOptions {
+  objectId?: string
+  sessionId?: string
+  pointerRelease?: { x: number; y: number }
+  targetSnapshot?: { rect?: DOMRect }
+  sourceSurfaceId?: string
+  destinationSurfaceId?: string
   duration?: number
   easing?: string
+  stiffness?: number
+  damping?: number
+  rotationDecay?: number
   targetShadow?: string
   targetRadius?: string
   targetBorder?: string
@@ -268,7 +449,7 @@ export interface LandingVisualOptions {
    */
   targetContent?: HTMLElement
   /** default 保持普通 landing；target 到达语义目标后追加缩小淡出。 */
-  landingMode?: 'default' | 'target'
+  landingMode?: 'default' | 'target' | 'free'
   /** target 模式的末段缩小淡出参数；默认沿用 landing 时长与缓动。 */
   dismiss?: { duration: number; easing: string; scale: number }
   /** target 模式独立的物理速度；不读取全局 landing 的弹簧。 */
@@ -278,156 +459,183 @@ export interface LandingVisualOptions {
   }
   /** retarget 执行时重新读取目标几何，避免使用布局变化前缓存的中间 rect。 */
   readTarget?: () => LandingRect
+  /** free 画布 landing 的相机原点；用于相机移动/缩放时变换整段代理动画。 */
+  cameraOrigin?: () => { left: number; top: number }
+  /** free 画布 landing 的实时相机比例。 */
+  contentScale?: number | (() => number)
+  /** free landing 目标 Surface 的实时相机比例；不继承抓取阶段冻结倍率。 */
+  landingCameraScale?: number | (() => number)
+  /** 当前代理是否由对象级 camera capability 启用 camera shell。 */
+  cameraShell?: boolean
+  /** 对象类型注册的附加交互选择器；landing 的源层和目标层都必须隐藏。 */
+  affordancesSelector?: string | readonly string[]
+  /** grid/list 目标的最终内容倍率；未提供时按目标视觉宽度与代理基准宽度推导。 */
+  landingContentScale?: number | (() => number)
   motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>
   coast?: { duration: number; friction: number; maxDistance: number; minVelocity: number }
   /** 有释放速度时降低位置阻尼，保留横向抛掷的越过感。 */
   releaseDamping?: number
 }
 
-/** 用元素的文字内容当一个粗粒度的"是不是同一个东西"签名——demo/多数卡片场景里
- * 徽章、按钮这类会增减的子元素文字内容本身就是区分度最高的信息，不需要真的做
- * 一整套 DOM diff。 */
-function childSignature(el: HTMLElement): string {
-  return `${el.tagName}:${(el.textContent ?? '').trim()}`
-}
-
 /**
- * 把一个容器的直接子节点统一整理成"每个可见内容都是一个可以单独设置 opacity
- * 的元素"——裸文本节点（比如卡片标题，模板里直接插值、没包元素）包一层 span
- * 才能像徽章那样单独控制显隐；纯空白文本节点和 Vue 的 v-if 占位注释节点直接
- * 丢弃，不参与后面的匹配。
+ * CSS box-shadow 只有阴影层数和类型顺序一致时才会做连续插值。不同卡片的
+ * 静止态顺序并不统一：文件卡通常是「inset 高光 + 外阴影」，活动卡可能是
+ * 「外阴影 + inset 高光」。因此补层时必须按 inset/外阴影类型配对，不能只按
+ * 数量追加，否则文件卡的外阴影会被错误匹配到 inset 层。
  */
-function normalizeToElements(container: HTMLElement): HTMLElement[] {
-  const result: HTMLElement[] = []
-  for (const node of Array.from(container.childNodes)) {
-    if (node.nodeType === Node.COMMENT_NODE) {
-      node.remove()
-      continue
+function splitBoxShadowLayers(value: string): string[] {
+  const layers: string[] = []
+  let start = 0
+  let depth = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]
+    if (char === '(') depth += 1
+    else if (char === ')') depth = Math.max(0, depth - 1)
+    else if (char === ',' && depth === 0) {
+      layers.push(value.slice(start, index).trim())
+      start = index + 1
     }
-    if (node.nodeType === Node.TEXT_NODE) {
-      if (!(node.textContent ?? '').trim()) { node.remove(); continue }
-      const span = document.createElement('span')
-      span.textContent = node.textContent
-      node.replaceWith(span)
-      result.push(span)
-      continue
-    }
-    if (node.nodeType === Node.ELEMENT_NODE) result.push(node as HTMLElement)
   }
-  return result
+  const last = value.slice(start).trim()
+  if (last) layers.push(last)
+  return layers
+}
+
+function normalizeBoxShadowTransition(source: string, target: string): string {
+  const sourceLayers = splitBoxShadowLayers(source)
+  const targetLayers = splitBoxShadowLayers(target)
+  if (sourceLayers.length >= targetLayers.length || sourceLayers.length === 0) return source
+  const sourceByType = new Map<'inset' | 'outer', string[]>()
+  sourceByType.set('inset', sourceLayers.filter(layer => /\binset\b/i.test(layer)))
+  sourceByType.set('outer', sourceLayers.filter(layer => !/\binset\b/i.test(layer)))
+  const transparentLayer = (targetLayer: string) => /\binset\b/i.test(targetLayer)
+    ? 'inset 0 0 0 0 rgba(0, 0, 0, 0)'
+    : '0 0 0 0 rgba(0, 0, 0, 0)'
+  const usedByType = new Map<'inset' | 'outer', number>([['inset', 0], ['outer', 0]])
+  return targetLayers.map(targetLayer => {
+    const type = /\binset\b/i.test(targetLayer) ? 'inset' : 'outer'
+    const candidates = sourceByType.get(type) ?? []
+    const used = usedByType.get(type) ?? 0
+    if (used < candidates.length) {
+      usedByType.set(type, used + 1)
+      return candidates[used]
+    }
+    return transparentLayer(targetLayer)
+  }).join(', ')
 }
 
 /**
- * 之前的做法是把源内容和目标内容各包一层完整克隆，整体做 opacity 交叉淡变——
- * 结果是没有变化的部分（比如标题文字）也被拆成两份各 50% 透明度叠在一起，两层
- * 半透明黑字叠加的视觉密度天然低于一份纯黑字（alpha 合成：0.5 叠 0.5 约等于
- * 0.75，不是 1），过渡途中共同内容会显得发虚、发浅。
+ * 统一提交 landing 的阴影起点。旧版 Gugu 的 landing clone 会先继承完整的
+ * grabbing 阴影，强制布局后才写入目标阴影；单代理 Runtime 也必须保持这个
+ * 顺序，否则浏览器会把起点和终点合并到同一帧，表现为阴影瞬间消失。
+ */
+function prepareBoxShadowMorph(
+  content: HTMLElement,
+  targetShadow: string | undefined,
+  transition: string,
+): void {
+  if (targetShadow == null) {
+    content.style.transition = transition
+    return
+  }
+  const sourceShadow = content.style.boxShadow || getComputedStyle(content).boxShadow
+  content.style.transition = 'none'
+  setVisualBoxShadow(content, normalizeBoxShadowTransition(sourceShadow, targetShadow))
+  void content.offsetWidth
+  content.style.transition = transition
+}
+
+/**
+ * 将抓取态和目标态分别保留为完整卡片快照，再放进一个纯承载层交叉淡化。
  *
- * 第一次改用"目标结构渲染一份 + 新增子元素单独淡入 + 消失的子元素单独摘进
- * 一个空容器淡出"的方案时，又踩了另一个坑：摘出来的"消失的子元素"（比如
- * 徽章）失去了原本靠"跟在标题文字后面"撑住的相对位置，脱离兄弟节点后独自
- * 摆在一个空 div 里，会缩到容器左上角（截图/录屏里的"内容全跑到左上角"）。
- *
- * 现在的做法：完整保留"抓起时的结构"作为一层（beforeLayer），把里面"落地
- * 后依然存在"的子节点隐藏（opacity:0，但保留占位，不从文档流摘除），只让
- * "落地后真的消失"的子节点保持可见并参与淡出——徽章依然靠着（视觉不可见
- * 但仍占位的）标题文字撑住正确的相对位置。目标结构整份渲染成另一层
- * （contentLayer，全程可见），新增的子节点在这一层里单独设 opacity:0 再
- * 淡入，同样靠自己在目标结构里的原生相对位置排布，不需要额外撑位。
+ * 不能只把两张卡片的 childNodes 搬进空 div：这样会丢掉源卡片自己的
+ * display/grid/flex/padding 布局上下文，landing 外壳一变宽，源内容就会被
+ * 目标卡片的布局规则提前重排。两层各自保留根节点样式，才能让抓取快照和
+ * 目标快照在同一个外壳里独立过渡。
  */
 function wrapContentForMorph(
-  proxy: HTMLElement,
+  source: HTMLElement,
   toContent: HTMLElement,
-): { enteringEls: HTMLElement[]; leavingEls: HTMLElement[] } {
-  // 读取目标卡的 padding，让 contentLayer/beforeLayer 从目标卡 content area
-  // （padding 内部）开始定位——否则 inset:0 定位到 padding box 边缘，子节点
-  // 会偏移到卡片的视觉左上角。从 toContent 读而不是从 proxy 读：源卡和
-  // 目标卡的 padding 可能不同，内容层展示的是目标结构，必须匹配目标。
-  const targetStyle = getComputedStyle(toContent)
-  const pt = parseFloat(targetStyle.paddingTop) || 0
-  const pr = parseFloat(targetStyle.paddingRight) || 0
-  const pb = parseFloat(targetStyle.paddingBottom) || 0
-  const pl = parseFloat(targetStyle.paddingLeft) || 0
-  const layerStyle = {
-    position: 'absolute' as const,
-    left: `${pl}px`,
-    top: `${pt}px`,
-    right: `${pr}px`,
-    bottom: `${pb}px`,
-    pointerEvents: 'none' as const,
-  }
+  affordancesSelector?: string | readonly string[],
+): { contentRoot: HTMLElement; fromLayer: HTMLElement; toLayer: HTMLElement; targetScaleShell: HTMLElement } {
+  const sourceLayer = source.cloneNode(true) as HTMLElement
+  const contentRoot = document.createElement('div')
+  contentRoot.dataset.runtimeProxyContent = 'true'
+  if (source.dataset.runtimePhase) contentRoot.dataset.runtimePhase = source.dataset.runtimePhase
+  if (source.dataset.runtimeCompact === 'true') contentRoot.dataset.runtimeCompact = 'true'
+  Object.assign(contentRoot.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box',
+    margin: '0',
+    pointerEvents: 'none',
+  })
+  delete sourceLayer.dataset.runtimeProxyContent
+  delete sourceLayer.dataset.runtimePhase
+  delete sourceLayer.dataset.runtimeCompact
+  Object.assign(sourceLayer.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box',
+    opacity: '1',
+    pointerEvents: 'none',
+  })
 
-  const beforeLayer = document.createElement('div')
-  Object.assign(beforeLayer.style, { ...layerStyle })
-  // beforeLayer 承载源卡片的子节点，同样需要源卡片的 flex 布局，否则
-  // flex 子项（右侧按钮）在 block 层里掉位。
-  const sourceStyle = getComputedStyle(proxy)
-  beforeLayer.style.display = sourceStyle.display
-  beforeLayer.style.flexDirection = sourceStyle.flexDirection
-  beforeLayer.style.flexWrap = sourceStyle.flexWrap
-  beforeLayer.style.alignItems = sourceStyle.alignItems
-  beforeLayer.style.justifyContent = sourceStyle.justifyContent
-  beforeLayer.style.gap = sourceStyle.gap
-  while (proxy.firstChild) beforeLayer.appendChild(proxy.firstChild)
-  const fromEls = normalizeToElements(beforeLayer)
-  const fromSignatures = new Set(fromEls.map(childSignature))
+  // 目标层必须来自真实落点节点。此前这里误用了 source clone，导致所谓的
+  // morph 实际只是两份源卡片互相淡化，跨 Surface 的目标字体、布局、徽章和
+  // 内容只能在 reveal 本体时突然切换。
+  const targetLayer = toContent.cloneNode(true) as HTMLElement
+  // 克隆节点脱离目标卡片原本的列/主题继承链后，浏览器会回退到 body 的
+  // 字体上下文（例如从 system-ui 变成 PingFang SC）。这会改变文字宽度、
+  // 换行和徽标排布，代理看起来像是整体 scale 放大，而不是按目标卡片
+  // 的内容布局自然重排。必须在仍能读取真实目标节点时，把目标的字形
+  // 渲染上下文写入目标层；源层则继续保留抓取时的上下文。
+  preserveProxyVisualContext(toContent, targetLayer)
+  clearLandingRuntimeState(targetLayer)
+  if (affordancesSelector) setRuntimeAffordancesHidden(targetLayer, true, affordancesSelector)
+  copyLandingSurfaceState(toContent, targetLayer)
+  delete targetLayer.dataset.runtimePhase
+  delete targetLayer.dataset.runtimeCompact
+  Object.assign(targetLayer.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box',
+    opacity: '0',
+    margin: '0',
+    pointerEvents: 'none',
+    visibility: 'visible',
+  })
+  const targetScaleShell = document.createElement('div')
+  targetScaleShell.dataset.runtimeProxyTargetContentScaleShell = 'true'
+  Object.assign(targetScaleShell.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box',
+    margin: '0',
+    pointerEvents: 'none',
+    transformOrigin: '50% 50%',
+    transform: 'scale(1)',
+    overflow: 'visible',
+  })
+  targetScaleShell.append(targetLayer)
+  contentRoot.append(sourceLayer, targetScaleShell)
+  source.replaceWith(contentRoot)
+  contentRoot.style.border = '0'
+  contentRoot.style.borderRadius = '0'
+  contentRoot.style.setProperty('box-shadow', 'none', 'important')
+  contentRoot.style.background = 'transparent'
+  contentRoot.style.backdropFilter = 'none'
+  contentRoot.style.setProperty('-webkit-backdrop-filter', 'none')
 
-  const contentLayer = document.createElement('div')
-  Object.assign(contentLayer.style, { ...layerStyle, pointerEvents: '' })
-  // contentLayer 是绝对定位层，但子节点（如右侧推进按钮）依赖目标卡片
-  // 的 flex 布局才排得正确——不带 display，子节点会退化成块级堆叠、
-  // flex 子项（align-self:stretch 的按钮）从右侧掉走。
-  contentLayer.style.display = targetStyle.display
-  // 列表行使用 CSS Grid。这里只复制 display 会让脱离原父级后的
-  // 内容层退化成隐式网格，文件名和大小会在 landing 阶段重新分配到
-  // 中间列。把网格轨道和对齐规则一并固化，保证代理与本体同构。
-  contentLayer.style.gridTemplateColumns = targetStyle.gridTemplateColumns
-  contentLayer.style.gridTemplateRows = targetStyle.gridTemplateRows
-  contentLayer.style.gridAutoColumns = targetStyle.gridAutoColumns
-  contentLayer.style.gridAutoRows = targetStyle.gridAutoRows
-  contentLayer.style.gridAutoFlow = targetStyle.gridAutoFlow
-  contentLayer.style.justifyItems = targetStyle.justifyItems
-  contentLayer.style.alignItems = targetStyle.alignItems
-  contentLayer.style.justifyContent = targetStyle.justifyContent
-  contentLayer.style.alignContent = targetStyle.alignContent
-  contentLayer.style.columnGap = targetStyle.columnGap
-  contentLayer.style.rowGap = targetStyle.rowGap
-  contentLayer.style.flexDirection = targetStyle.flexDirection
-  contentLayer.style.flexWrap = targetStyle.flexWrap
-  contentLayer.style.alignItems = targetStyle.alignItems
-  contentLayer.style.justifyContent = targetStyle.justifyContent
-  contentLayer.style.gap = targetStyle.gap
-  contentLayer.style.overflow = 'hidden'
-  // cloneNode 会带走 toContent 当下的内联样式——调用方传进来的目标节点常常
-  // 这一刻正被业务代码隐藏（等着落地动画接管），得先复位再搬子节点。
-  const toContentClone = toContent.cloneNode(true) as HTMLElement
-  toContentClone.style.visibility = 'visible'
-  toContentClone.style.display = ''
-  // 只搬运 toContent 的子节点，不带它自己的外壳（class/padding）——padding
-  // 已经在 contentLayer 的 left/top/right/bottom 里补偿了，contentLayer 如果
-  // 带上 toContent 自己那份 padding，内容会被缩进两次，跟 proxy 对不上。
-  while (toContentClone.firstChild) contentLayer.appendChild(toContentClone.firstChild)
-  // contentLayer 被挂到 overlay 下的 proxy 中，脱离了 toContent 的原始 DOM
-  // 上下文，字体/颜色等继承属性会丢失。从 toContent 捕获视觉上下文并固化到
-  // contentLayer，确保文本渲染一致。
-  const visualContext = captureInheritedStyleContext(toContent)
-  applyInheritedStyleContext(contentLayer, visualContext)
-  const toEls = normalizeToElements(contentLayer)
-  const toSignatures = new Set(toEls.map(childSignature))
-
-  const enteringEls = toEls.filter(el => !fromSignatures.has(childSignature(el)))
-  for (const el of enteringEls) el.style.opacity = '0'
-
-  const leavingEls = fromEls.filter(el => !toSignatures.has(childSignature(el)))
-  const leavingSet = new Set(leavingEls)
-  for (const el of fromEls) {
-    if (!leavingSet.has(el)) el.style.opacity = '0'
-  }
-
-  proxy.appendChild(contentLayer)
-  if (leavingEls.length > 0) proxy.appendChild(beforeLayer)
-
-  return { enteringEls, leavingEls }
+  return { contentRoot, fromLayer: sourceLayer, toLayer: targetLayer, targetScaleShell }
 }
 
 export type LandingRect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
@@ -477,15 +685,19 @@ export function landDragProxyLegacy(
   const targetBackdropFilter = options.targetBackdropFilter
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
-  const content = getProxyContent(proxy)
-  const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
+  let content = getProxyContent(proxy)
+  const attitude = getProxyAttitude(proxy)
+  const contentLayers = options.targetContent
+    ? wrapContentForMorph(content, options.targetContent, options.affordancesSelector)
+    : null
+  if (contentLayers) content = contentLayers.contentRoot
+  const sourceSurface = contentLayers?.fromLayer ?? content
+  const targetSurface = contentLayers?.toLayer ?? content
   if (contentLayers) {
-    // 缓动曲线必须跟下面容器 transform 用的是同一条（easing，不是硬编码 ease）——
-    // 两条速度曲线不一致时，中途会出现"容器已经飞到大半、新增内容才淡了不到
-    // 三分之一"这种视觉上的运动不同步（探针测过，delta 峰值能到 0.38）。
-    for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
-    for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
+    contentLayers.fromLayer.style.transition = 'none'
+    contentLayers.toLayer.style.transition = 'none'
   }
+  const initialContentScale = resolveContentScale(options.contentScale)
 
   // 位置用 transform（translate），尺寸用真实 width/height——两者分开处理：
   // 位置纯粹是视觉位移，跟内容排版无关，走 transform 不触发重排最省；但尺寸
@@ -555,17 +767,22 @@ export function landDragProxyLegacy(
     currentTarget = nextTarget
     const startRect = proxy.getBoundingClientRect()
     proxy.style.transition = 'none'
+    const currentAttitudeTransform = getComputedStyle(attitude).transform
+    attitude.style.transition = 'none'
+    attitude.style.transform = currentAttitudeTransform
     proxy.style.width = `${startRect.width.toFixed(2)}px`
     proxy.style.height = `${startRect.height.toFixed(2)}px`
     proxy.style.transform =
       `translate3d(${(startRect.left - layoutLeft).toFixed(2)}px, ${(startRect.top - layoutTop).toFixed(2)}px, 0)`
-    proxy.style.transform = 'none'
+    // 保留当前视觉位移作为 landing 起点。清成 none 会让代理瞬间回到
+    // style.left/top 的原始位置，普通模式因此会从抓取前的位置飞出。
     void proxy.offsetWidth
     const targetTransform =
       `translate3d(${(nextTarget.left - layoutLeft).toFixed(2)}px, ${(nextTarget.top - layoutTop).toFixed(2)}px, 0)`
 
     proxy.style.transition = `transform ${animDuration}ms ${easing}, width ${animDuration}ms ${easing}, height ${animDuration}ms ${easing}`
-    content.style.transition = [
+    attitude.style.transition = `transform ${animDuration}ms ${easing}`
+    const visualTransition = [
       `box-shadow ${animDuration}ms ease`,
       `border-radius ${animDuration}ms ease`,
       `border-color ${animDuration}ms ease`,
@@ -575,6 +792,10 @@ export function landDragProxyLegacy(
       `background-image ${animDuration}ms ease`,
       `opacity ${animDuration}ms ease`,
     ].join(', ')
+    // 双层 morph 时两层已经分别携带了抓取态/目标态阴影。再把源层也改成目标阴影
+    // 会在 opacity 交叉期间叠出两份本体阴影，尤其是项目卡会明显变成“多一层阴影”。
+    // 单层代理仍沿用原来的阴影属性过渡。
+    if (!contentLayers) prepareBoxShadowMorph(sourceSurface, targetShadow, visualTransition)
     // box-shadow/border-radius/background/opacity 起点值（dragSnapshot）是调用方在这个
     // proxy 刚创建、还没被浏览器画过一帧的时候同步写上去的——如果在这里（设置 transition
     // 的同一个同步块里）就把它们改成目标值，浏览器压根没机会先画一帧"起点样子"，只会在
@@ -583,31 +804,31 @@ export function landDragProxyLegacy(
     // 再改成目标值，过渡才有起点可插值。
     requestAnimationFrame(() => {
       proxy.style.transform = targetTransform
+      attitude.style.transform = 'none'
       proxy.style.width = `${nextTarget.width.toFixed(2)}px`
       proxy.style.height = `${nextTarget.height.toFixed(2)}px`
-      if (targetShadow != null) content.style.boxShadow = targetShadow
-      if (targetRadius != null) content.style.borderRadius = targetRadius
+      // morph 根壳是透明的定位容器，不能承载目标阴影；否则它的 0 圆角会
+      // 在真实卡片外再生成一个直角阴影。没有分层时 targetSurface 就是 content。
+      if (targetShadow != null) setVisualBoxShadow(targetSurface, targetShadow)
+      if (targetRadius != null) targetSurface.style.borderRadius = targetRadius
       // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
       // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
       // 不清掉这份抓起态残留会导致代理揭示前一直带着四边高光，跟本体明显不一样。
-      if (targetBorder != null) content.style.border = targetBorder
+      if (targetBorder != null) targetSurface.style.border = targetBorder
       // 同上：backdrop-filter 也是抓起态才有的玻璃模糊，本体基本是 none，
       // 同样得纳入 morph，否则代理全程糊着，揭示瞬间才"唰"地变清晰。
       if (targetBackdropFilter != null) {
-        content.style.backdropFilter = targetBackdropFilter
-        content.style.setProperty('-webkit-backdrop-filter', targetBackdropFilter)
+        targetSurface.style.backdropFilter = targetBackdropFilter
+        targetSurface.style.setProperty('-webkit-backdrop-filter', targetBackdropFilter)
       }
       if (targetBackground != null) {
-        content.style.backgroundColor = targetBackground
+        targetSurface.style.backgroundColor = targetBackground
         if (options.targetBackgroundImage) {
-          content.style.backgroundImage = options.targetBackgroundImage
+          targetSurface.style.backgroundImage = options.targetBackgroundImage
         }
       }
-      if (targetOpacity != null) content.style.opacity = targetOpacity
-      if (contentLayers) {
-        for (const el of contentLayers.enteringEls) el.style.opacity = '1'
-        for (const el of contentLayers.leavingEls) el.style.opacity = '0'
-      }
+      if (targetOpacity != null) targetSurface.style.opacity = targetOpacity
+      if (contentLayers) prepareContentMorph(contentLayers, animDuration, easing)
     })
   }
 
@@ -674,29 +895,92 @@ export function landDragProxyWithMotion(
   const targetBackdropFilter = options.targetBackdropFilter
   const targetBackground = options.targetBackground
   const targetOpacity = options.targetOpacity
-  const content = getProxyContent(proxy)
+  let content = getProxyContent(proxy)
   const scaleShell = proxy.querySelector<HTMLElement>('[data-runtime-proxy-scale-shell]')
-  const contentLayers = options.targetContent ? wrapContentForMorph(content, options.targetContent) : null
+  const contentLayers = options.targetContent
+    ? wrapContentForMorph(content, options.targetContent, options.affordancesSelector)
+    : null
+  if (contentLayers) content = contentLayers.contentRoot
+  const sourceSurface = contentLayers?.fromLayer ?? content
+  const targetSurface = contentLayers?.toLayer ?? content
   if (contentLayers) {
-    for (const el of contentLayers.enteringEls) el.style.transition = `opacity ${duration}ms ${easing}`
-    for (const el of contentLayers.leavingEls) el.style.transition = `opacity ${duration}ms ${easing}`
+    contentLayers.fromLayer.style.transition = 'none'
+    contentLayers.toLayer.style.transition = 'none'
   }
 
-  // proxy 创建时仍使用 source snapshot；landing 必须在启动控制器前切到
-  // grabbing 的最后一帧，否则第一帧会从鼠标/旧 source 位置直接跳入。
-  if (options.motionState) {
-    proxy.style.left = `${options.motionState.x}px`
-    proxy.style.top = `${options.motionState.y}px`
-    // 保留 grabbing 的倾斜（rotateX/rotateZ），避免 transform:none 让
-    // proxy 在松手瞬间突然变平造成视觉卡顿；后续 spring 每帧都会用
-    // rotateX/rotateZ 覆盖 transform，这里只需一个合法的 transform 初始值。
-    proxy.style.transform = 'translate3d(0px, 0px, 0)'
+  if (contentLayers) {
+    contentLayers.targetScaleShell.style.transformOrigin = '50% 50%'
+    contentLayers.targetScaleShell.style.transition = 'none'
+    // camera scale 已由代理唯一的 scaleShell 承担。目标内容不能再次套用
+    // contentScale，否则跨 Surface 时会得到 cameraScale^2，文字和间距会被
+    // 放大后再突然归一。
+    contentLayers.targetScaleShell.style.transform = 'scale(1)'
   }
+  const initialContentScale = resolveContentScale(options.contentScale)
+
+  // proxy 创建时已经保留了抓取阶段的布局原点和 transform。MotionState 只
+  // 作为控制器的初始状态，不能直接写回 left/top：跟手阶段的 translate3d
+  // 仍然承载“布局原点 -> 最后一帧视觉位置”的位移。这里覆盖 left/top 会
+  // 和旧 translate 叠加，且相机倍率越偏离 1，首帧跳跃越明显。
   const layoutLeft = parseFloat(proxy.style.left) || proxy.getBoundingClientRect().left
   const layoutTop = parseFloat(proxy.style.top) || proxy.getBoundingClientRect().top
   const startRect = proxy.getBoundingClientRect()
-  const startWidth = startRect.width || target.width
-  const startHeight = startRect.height || target.height
+  // getBoundingClientRect() 包含 grabbing 阶段的 rotate/scale，会返回旋转后的
+  // 外接矩形。它只能作为当前位置来源，不能作为内容布局尺寸；否则 landing
+  // 的第一帧会把旋转外接高度写回代理，跨列时卡片会突然变高。
+  const startWidth = parseFloat(proxy.style.width) || startRect.width || target.width
+  const startHeight = parseFloat(proxy.style.height) || startRect.height || target.height
+  const landingShell = prepareLandingScaleShell(proxy, initialContentScale)
+  let landingTargetContentScale = landingShell && options.landingContentScale !== undefined
+    ? resolveContentScale(options.landingContentScale)
+    : initialContentScale
+  const cameraOrigin = options.cameraOrigin?.()
+  const initialCameraScale = resolveContentScale(options.landingCameraScale ?? options.contentScale)
+  const hasCameraAnchor = Boolean(
+    options.cameraShell
+    && options.landingMode === 'free'
+    && cameraOrigin
+    && Number.isFinite(cameraOrigin.left)
+    && Number.isFinite(cameraOrigin.top),
+  )
+  let camGlue: HTMLElement | null = null
+  let cameraTrackRaf: number | null = null
+  if (hasCameraAnchor && cameraOrigin) {
+    // 代理已经挂到 html 下，不能把相机 transform 直接写到代理自身：那会和
+    // free landing 的位移、旋转、scale 共用同一个 transform，缩放过程中会
+    // 改变 landing 的坐标系。单独的全屏 fixed 外壳只承接相机变化，代理自身
+    // 继续运行从释放位置到落点的原始动画。
+    camGlue = document.createElement('div')
+    camGlue.dataset.runtimeCameraGlue = 'true'
+    Object.assign(camGlue.style, {
+      position: 'fixed',
+      left: '0',
+      top: '0',
+      right: '0',
+      bottom: '0',
+      transition: 'none',
+      transform: 'translate3d(0, 0, 0)',
+      transformOrigin: `${cameraOrigin.left}px ${cameraOrigin.top}px`,
+      pointerEvents: 'none',
+      zIndex: proxy.style.zIndex,
+      willChange: 'transform',
+    })
+    proxy.parentElement?.appendChild(camGlue)
+    camGlue.appendChild(proxy)
+
+    const trackCamera = () => {
+      if (!camGlue?.isConnected) return
+      const liveOrigin = options.cameraOrigin?.()
+      if (liveOrigin && Number.isFinite(liveOrigin.left) && Number.isFinite(liveOrigin.top)) {
+        const liveScale = resolveContentScale(options.landingCameraScale ?? options.contentScale)
+        const scaleRatio = initialCameraScale > 0.01 ? liveScale / initialCameraScale : 1
+        camGlue.style.transform =
+          `translate3d(${(liveOrigin.left - cameraOrigin.left).toFixed(2)}px, ${(liveOrigin.top - cameraOrigin.top).toFixed(2)}px, 0) scale(${scaleRatio.toFixed(4)})`
+      }
+      cameraTrackRaf = window.requestAnimationFrame(trackCamera)
+    }
+    cameraTrackRaf = window.requestAnimationFrame(trackCamera)
+  }
   // 宽高过渡不能把左上角当作唯一锚点：源卡与目标卡尺寸不同时，左边会先
   // 对齐而右边在收缩期间继续漂移。让控制器追踪中心点，帧内再换算回左上角，
   // 最终仍精确落到目标 rect。
@@ -707,12 +991,14 @@ export function landDragProxyWithMotion(
     height: next.height,
   })
   let currentTarget = target
+  const landingStartedAt = performance.now()
   let settled = false
   const hasTargetDismiss = options.landingMode === 'target' && Boolean(scaleShell)
   const dismissDuration = hasTargetDismiss
     ? options.dismiss?.duration ?? duration
     : 0
   let motionArrived = false
+  let settleCheckRaf: number | null = null
   let dismissFinished = !hasTargetDismiss
   let timeoutId: number | null = null
   let dismissTimeoutId: number | null = null
@@ -728,6 +1014,12 @@ export function landDragProxyWithMotion(
     if (dismissTimeoutId !== null) window.clearTimeout(dismissTimeoutId)
     timeoutId = null
     dismissTimeoutId = null
+    if (cameraTrackRaf !== null) window.cancelAnimationFrame(cameraTrackRaf)
+    cameraTrackRaf = null
+    if (settleCheckRaf !== null) window.cancelAnimationFrame(settleCheckRaf)
+    settleCheckRaf = null
+    camGlue?.remove()
+    camGlue = null
     resolveFinished()
   }
 
@@ -737,23 +1029,116 @@ export function landDragProxyWithMotion(
 
   const settle = () => {
     if (settled) return
-    motionArrived = true
-    finishWhenVisualsSettled()
+    if (settleCheckRaf !== null) return
+    settleCheckRaf = window.requestAnimationFrame(() => {
+      settleCheckRaf = null
+      if (settled) return
+      const liveTarget = options.readTarget?.()
+      if (liveTarget && liveTarget.width > 0 && liveTarget.height > 0) {
+        const changed = Math.abs(liveTarget.left - currentTarget.left) >= 0.5
+          || Math.abs(liveTarget.top - currentTarget.top) >= 0.5
+          || Math.abs(liveTarget.width - currentTarget.width) >= 0.5
+          || Math.abs(liveTarget.height - currentTarget.height) >= 0.5
+        if (changed) {
+          currentTarget = liveTarget
+          const next = centeredTarget(liveTarget)
+          const nextScaleX = options.landingMode === 'target' ? 1
+            : next.width / (options.landingMode === 'free' ? visualStartWidth : startWidth)
+          const nextScaleY = options.landingMode === 'target' ? 1
+            : next.height / (options.landingMode === 'free' ? visualStartHeight : startHeight)
+          motion.retarget({ x: next.left, y: next.top, scaleX: nextScaleX, scaleY: nextScaleY })
+          motion.start()
+          return
+        }
+      }
+      motionArrived = true
+      finishWhenVisualsSettled()
+    })
   }
-
-  const motion = createCardMotionController({
-    mode: 'settle',
-    onFrame: frame => {
-      const width = startWidth * frame.scaleX
-      const height = startHeight * frame.scaleY
-      const left = frame.x + (startWidth - width) / 2
-      const top = frame.y + (startHeight - height) / 2
-      proxy.style.transform = `perspective(760px) translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
-      proxy.style.width = `${width.toFixed(2)}px`
-      proxy.style.height = `${height.toFixed(2)}px`
-    },
-    onArrived: settle,
-  })
+  const onMotionFrame = (frame: { x: number; y: number; scaleX: number; scaleY: number; rotateX: number; rotateZ: number }) => {
+      const left = frame.x
+      const top = frame.y
+      proxy.style.transform = `translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
+      getProxyAttitude(proxy).style.transform =
+        `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
+      if (options.landingMode === 'free' && landingShell && options.cameraShell) {
+        // free 的 holder 负责从源视觉尺寸收敛到目标视觉尺寸，scaleShell 只
+        // 保留抓取瞬间的相机倍率。把 frame.scale 再写进 scaleShell 会让同一
+        // 个落地比例同时作用于 holder 和内容，造成代理先缩小/放大一遍再跳到
+        // target；摄像机在动画期间的变化由外层 camGlue 单独跟随。
+        applyLandingScale(
+          landingShell,
+          startWidth,
+          startHeight,
+          initialContentScale,
+        )
+      } else {
+        // 普通列表/看板的列宽差是布局变化，不是整体视觉缩放。尤其是有无滚动条
+        // 的两列，targetScale 可能达到 1.1；写入 scaleShell 会连字体和内边距一起
+        // 放大，落地揭示本体时就会出现尺寸跳变。恢复旧版的布局 landing：让代理
+        // width/height 过渡，内容按目标宽度自然重排，交叉淡化仍由 contentLayers 保留。
+        const width = startWidth * frame.scaleX
+        const height = startHeight * frame.scaleY
+        const layoutLeftForSize = frame.x + (startWidth - width) / 2
+        const layoutTopForSize = frame.y + (startHeight - height) / 2
+        proxy.style.width = `${width.toFixed(2)}px`
+        proxy.style.height = `${height.toFixed(2)}px`
+        proxy.style.transform = `translate3d(${(layoutLeftForSize - layoutLeft).toFixed(2)}px, ${(layoutTopForSize - layoutTop).toFixed(2)}px, 0)`
+        getProxyAttitude(proxy).style.transform =
+          `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
+        // 抓起阶段已经把相机倍率写入 scaleShell；落地的尺寸收敛不能把它
+        // 重置为 1，否则松手时会再播放一遍相机缩放。
+        if (options.landingMode === 'target' && hasTargetDismiss) {
+          // 语义目标的 scaleShell 由 target dismiss 独占。若在这里继续按
+          // 相机倍率同步，会把第一帧写入的缩小比例覆盖回 1，导致文件拖入
+          // 文件夹时只有淡出、没有旧版的缩小动画。
+        } else if (landingShell) {
+          // 外框收敛的是目标列的屏幕尺寸；scaleShell 保留抓取时的相机
+          // 倍率，并同步调整其基准布局尺寸。这样画布放大/缩小时内容仍按
+          // 世界尺寸排版，跨列时又不会把文字额外放大一遍。
+          const elapsed = Math.max(0, performance.now() - landingStartedAt)
+          const progress = Math.min(1, elapsed / Math.max(1, duration))
+          const easedProgress = 1 - (1 - progress) ** 3
+          const cameraScale = initialContentScale
+            + (landingTargetContentScale - initialContentScale) * easedProgress
+          if (options.cameraShell) {
+            applyLandingScale(
+              landingShell,
+              width,
+              height,
+              options.landingContentScale !== undefined
+                ? cameraScale
+                : frame.scaleX * cameraScale,
+            )
+          } else {
+            landingShell.shell.style.left = '0px'
+            landingShell.shell.style.top = '0px'
+            landingShell.shell.style.width = `${width}px`
+            landingShell.shell.style.height = `${height}px`
+            landingShell.shell.style.transform = 'scale(1)'
+          }
+        }
+      }
+  }
+  // 同一 free Surface 内的落地使用单调缓出，避免重复注入已经在释放阶段
+  // 计算过的惯性落点。跨 Surface 时则必须沿用卡片物理 settle：抽屉卡片
+  // 的内容已经从 grid 脱离，位移、尺寸和倾斜要由同一个 MotionController
+  // 连续接管，否则看起来会像代理自身直接变形。
+  const motion = options.landingMode === 'free'
+    ? createFreeLandingMotion({
+        duration,
+        easing,
+        stiffness: options.stiffness,
+        damping: options.damping,
+        rotationDecay: options.rotationDecay,
+        onFrame: onMotionFrame,
+        onArrived: settle,
+      })
+    : createCardMotionController({
+        mode: 'settle',
+        onFrame: onMotionFrame,
+        onArrived: settle,
+      })
   const releaseSpeed = Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0)
   const releaseDamping = options.releaseDamping ?? 0.78
   const baseProfile = options.targetMotion
@@ -762,47 +1147,113 @@ export function landDragProxyWithMotion(
         scale: { ...LANDING_PROFILE.scale, ...options.targetMotion.scale },
       }
     : LANDING_PROFILE
-  motion.setProfile(releaseSpeed > 30
-    ? {
-        ...baseProfile,
-        position: {
-          ...baseProfile.position,
-          damping: baseProfile.position.damping * releaseDamping,
-        },
-      }
-    : baseProfile)
-  motion.seed({
+  if (options.landingMode !== 'free') {
+    const springMotion = motion as CardMotionController
+    springMotion.setProfile(releaseSpeed > 30
+      ? {
+          ...baseProfile,
+          position: {
+            ...baseProfile.position,
+            damping: baseProfile.position.damping * releaseDamping,
+          },
+        }
+      : baseProfile)
+  }
+  const seededFrame = {
     // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
     // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
     x: options.motionState?.x ?? startRect.left,
     y: options.motionState?.y ?? startRect.top,
     vx: options.motionState?.vx ?? 0,
     vy: options.motionState?.vy ?? 0,
-    // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)。
-    // 不能在 landing 起点把它重置为 1，否则目标位置相同的回放会被
-    // MotionController 判定为已到达，代理瞬间消失。
+    // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)；旋转也必须
+    // 在 handoff 前保留，否则第一帧会先回正再开始 landing。
     scaleX: options.motionState?.scaleX ?? 1,
     scaleY: options.motionState?.scaleY ?? 1,
     rotateX: options.motionState?.rotateX ?? 0,
     rotateZ: options.motionState?.rotateZ ?? 0,
+  }
+  motion.seed({
+    // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
+    // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
+    x: seededFrame.x,
+    y: seededFrame.y,
+    vx: seededFrame.vx,
+    vy: seededFrame.vy,
+    // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)。
+    // 不能在 landing 起点把它重置为 1，否则目标位置相同的回放会被
+    // MotionController 判定为已到达，代理瞬间消失。
+    scaleX: seededFrame.scaleX,
+    scaleY: seededFrame.scaleY,
+    rotateX: seededFrame.rotateX,
+    rotateZ: seededFrame.rotateZ,
   })
+  // seed() 只更新控制器状态，首个 RAF 之前不会触发 onFrame。同步提交同一
+  // 个 seeded frame，确保 handoff 从抓取代理的最后视觉尺寸/姿态开始，避免
+  // 第一帧仍停在旧尺寸后再突然追上 motionState。
+  onMotionFrame(seededFrame)
+  // 代理定位壳的运动坐标是外壳左上角，而相机/尺寸缩放由内部 shell 居中承载。
+  // 因此 free landing 也要把外壳移动到能让缩放后的 shell 对齐目标矩形的位置；
+  // 直接使用 target.left/top 会在缩小时向右下、放大时向左上偏移。
   const initialTarget = centeredTarget(target)
   // 语义目标（文件夹卡、面包屑）统一以目标中心作为落点，尺寸收缩交给
   // target dismiss 负责。若再把代理缩到面包屑文字按钮的尺寸，会先发生一
   // 次目标尺寸缩放、再发生一次 dismiss 缩放，导致面包屑动画明显快于文件夹卡。
+  const landingBaseWidth = landingShell?.baseWidth ?? startWidth
+  const landingBaseHeight = landingShell?.baseHeight ?? startHeight
+  if (landingShell && options.landingMode !== 'free' && options.landingMode !== 'target') {
+    if (!(landingTargetContentScale > 0)) {
+      landingTargetContentScale = landingBaseWidth > 0
+        ? initialTarget.width / landingBaseWidth
+        : 1
+    }
+    // 抽屉回收和普通 grid 落地都需要把抓取时的相机倍率平滑还原到目标
+    // Surface 的视觉倍率；不能把它混进 Motion 的外框 scale，否则会二次放大。
+    landingShell.shell.style.transformOrigin = '0 0'
+    if (options.cameraShell) {
+      landingShell.shell.style.left = `${((startWidth - landingBaseWidth * initialContentScale) / 2).toFixed(2)}px`
+      landingShell.shell.style.top = `${((startHeight - landingBaseHeight * initialContentScale) / 2).toFixed(2)}px`
+      landingShell.shell.style.transform = initialContentScale === 1
+        ? 'scale(1)'
+        : `scale(${initialContentScale}, ${initialContentScale})`
+    } else {
+      landingShell.shell.style.left = '0px'
+      landingShell.shell.style.top = '0px'
+      landingShell.shell.style.width = `${startWidth}px`
+      landingShell.shell.style.height = `${startHeight}px`
+      landingShell.shell.style.transform = 'scale(1)'
+    }
+    // Camera shell 的归一化只是把当前视觉尺寸转换为 landing 外壳尺寸，
+    // 不应再单独播放一段缩放过渡；真正的尺寸动画由代理外壳统一承载。
+    landingShell.shell.style.transition = 'none'
+  }
+  // Motion 的 scale 是相对于 landing shell 基准尺寸的。相机缩放已经由
+  // initialContentScale 应用到 shell，因此目标比例必须以松手瞬间的视觉尺寸
+  // 为分母，不能再直接用 holder 的固定宽高，否则 camera scale 会被计算两次。
+  const visualStartWidth = landingBaseWidth * initialContentScale
+  const visualStartHeight = landingBaseHeight * initialContentScale
   const targetScale = options.landingMode === 'target'
     ? { scaleX: 1, scaleY: 1 }
-    : { scaleX: initialTarget.width / startWidth, scaleY: initialTarget.height / startHeight }
+    : options.landingMode === 'free'
+      ? {
+          scaleX: visualStartWidth > 0 ? initialTarget.width / visualStartWidth : 1,
+          scaleY: visualStartHeight > 0 ? initialTarget.height / visualStartHeight : 1,
+        }
+      : {
+          // Motion 负责代理外框从抓取尺寸到目标尺寸的布局收敛；相机
+          // 倍率只由 scaleShell 负责，不能再混进这里的尺寸基准。
+          scaleX: startWidth > 0 ? initialTarget.width / startWidth : 1,
+          scaleY: startHeight > 0 ? initialTarget.height / startHeight : 1,
+        }
   motion.setTarget({
     x: initialTarget.left,
     y: initialTarget.top,
     scaleX: targetScale.scaleX,
     scaleY: targetScale.scaleY,
   })
-
   // 视觉属性仍然隔一帧切换，确保起始阴影/圆角/背景有机会先被绘制。
   proxy.style.transition = ''
-  content.style.transition = [
+  const visualTransition = [
     ...(options.landingMode !== 'target'
       ? [
           `left ${duration}ms ${easing}`,
@@ -820,6 +1271,9 @@ export function landDragProxyWithMotion(
     `background-image ${duration}ms ${easing}`,
     `opacity ${duration}ms ${easing}`,
   ].join(', ')
+  // 双层 morph 的 fromLayer 保留玻璃抓取阴影并随 opacity 淡出，toLayer 保留本体阴影；
+  // 只在没有内容分层时对单一代理做阴影插值，避免两层目标阴影叠加。
+  if (!contentLayers) prepareBoxShadowMorph(sourceSurface, targetShadow, visualTransition)
   requestAnimationFrame(() => {
     if (settled) return
     // 列表代理在抓取阶段是紧凑宽度；回到本体行时让内容层先平滑恢复
@@ -834,34 +1288,46 @@ export function landDragProxyWithMotion(
         // 态的 0px 平滑插值回真实值，字段落回它们在本体行里原本的准确位置，不是
         // 换一套布局瞬间跳变。
         content.style.gridTemplateColumns = ''
-        // compact 专用的列表规则只应存在于紧凑跟手阶段。列轨道恢复后
-        // 继续保留标记会让 landing 代理的项目/阶段字段比真实行向右偏移，
-        // 直到代理销毁才恢复。
-        delete content.dataset.runtimeCompact
+        // 有内容双层时，源层是 grabbing 阶段的完整快照，必须保留到交叉
+        // 淡化结束。这里若把源层恢复成普通布局，文字、列轨道和间距会在
+        // landing 首帧直接跳到目标排布。
+        if (!contentLayers) {
+          content.style.gridTemplateColumns = ''
+          delete content.dataset.runtimeCompact
+        }
       }
     }
-    if (targetShadow != null) content.style.boxShadow = targetShadow
-    if (targetRadius != null) content.style.borderRadius = targetRadius
+    // 抓取态和 landing 态可能在同一个 rAF 内交接（静止鼠标松手尤其容易发生）。
+    // 先提交抓取态的阴影与 transition，再写入目标阴影，否则浏览器会把两次写入
+    // 合并成一次样式计算，文件卡看起来就像阴影瞬间消失。旧版 landing clone
+    // 在交接前也通过强制布局读取保留了这一帧。
+    if (targetShadow != null) {
+      void content.offsetWidth
+      // 目标阴影必须落在真实目标内容层，不能写到透明的 morph 根壳上；根壳
+      // border-radius 为 0，否则会出现画布拖入时的直角方形残影。
+      setVisualBoxShadow(targetSurface, targetShadow)
+    }
+    if (targetRadius != null) targetSurface.style.borderRadius = targetRadius
     // 抓起时 applyDraggingGlassStyle 给了四边一圈白边（玻璃态），落地要 morph 回
     // 目标本体真实的 border——本体大多只在顶部有一条 inset 高光、没有四边描边，
     // 不清掉这份抓起态残留会导致代理揭示前一直带着四边高光，跟本体明显不一样。
-    if (targetBorder != null) content.style.border = targetBorder
+    if (targetBorder != null) targetSurface.style.border = targetBorder
     // 同上：backdrop-filter 也是抓起态才有的玻璃模糊，本体基本是 none，
     // 同样得纳入 morph，否则代理全程糊着，揭示瞬间才"唰"地变清晰。
     if (targetBackdropFilter != null) {
-      content.style.backdropFilter = targetBackdropFilter
-      content.style.setProperty('-webkit-backdrop-filter', targetBackdropFilter)
+      targetSurface.style.backdropFilter = targetBackdropFilter
+      targetSurface.style.setProperty('-webkit-backdrop-filter', targetBackdropFilter)
     }
     if (targetBackground != null) {
       // 分开设置：background 简写会重置 background-image，业务卡片常用
       // linear-gradient（在 backgroundImage），渐变会被 backgroundColor
       // 覆盖丢失（透明底）。先设 backgroundColor，再设 backgroundImage。
-      content.style.backgroundColor = targetBackground
+      targetSurface.style.backgroundColor = targetBackground
       if (options.targetBackgroundImage) {
-        content.style.backgroundImage = options.targetBackgroundImage
+        targetSurface.style.backgroundImage = options.targetBackgroundImage
       }
     }
-    if (targetOpacity != null) content.style.opacity = targetOpacity
+      if (targetOpacity != null) targetSurface.style.opacity = targetOpacity
     if (hasTargetDismiss && scaleShell) {
       // 语义目标的缩小淡出从 landing 第一帧开始，与位置/旋转运动同步；
       // 不能等 onArrived，否则会变成飞完后突然缩小。
@@ -869,9 +1335,9 @@ export function landDragProxyWithMotion(
       const dismissScale = options.dismiss?.scale ?? 0.72
       scaleShell.style.transformOrigin = '50% 50%'
       scaleShell.style.transition = `transform ${dismissDuration}ms ${dismissEasing}`
-      content.style.transition = `opacity ${dismissDuration}ms ${dismissEasing}`
+      targetSurface.style.transition = `opacity ${dismissDuration}ms ${dismissEasing}`
       scaleShell.style.transform = `scale(${dismissScale})`
-      content.style.opacity = '0'
+      targetSurface.style.opacity = '0'
       dismissTimeoutId = window.setTimeout(() => {
         dismissTimeoutId = null
         dismissFinished = true
@@ -879,8 +1345,7 @@ export function landDragProxyWithMotion(
       }, dismissDuration + 40)
     }
     if (contentLayers) {
-      for (const el of contentLayers.enteringEls) el.style.opacity = '1'
-      for (const el of contentLayers.leavingEls) el.style.opacity = '0'
+      prepareContentMorph(contentLayers, duration, easing)
     }
   })
   const scheduleMotionTimeout = (extraMs = 0) => {
@@ -894,8 +1359,10 @@ export function landDragProxyWithMotion(
   }
   scheduleMotionTimeout()
   const coast = options.coast
-  if (coast && coast.maxDistance > 0 && Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0) > coast.minVelocity) {
-    motion.startCoastThenSettle(coast)
+  if (options.landingMode === 'free') {
+    motion.start()
+  } else if (coast && coast.maxDistance > 0 && Math.hypot(options.motionState?.vx ?? 0, options.motionState?.vy ?? 0) > coast.minVelocity) {
+    ;(motion as CardMotionController).startCoastThenSettle(coast)
   } else {
     motion.start()
   }
@@ -909,11 +1376,23 @@ export function landDragProxyWithMotion(
       // 到期后提前 reveal，造成“移动到一半瞬间到目标”的假跳变。
       scheduleMotionTimeout(1000)
       const next = centeredTarget(currentTarget)
+      const nextScaleX = options.landingMode === 'target' ? 1 : options.landingMode === 'free'
+        ? next.width / visualStartWidth
+        : next.width / startWidth
+      const nextScaleY = options.landingMode === 'target' ? 1 : options.landingMode === 'free'
+        ? next.height / visualStartHeight
+        : next.height / startHeight
+      if (landingShell && options.landingMode !== 'free' && options.landingMode !== 'target'
+        && options.landingContentScale === undefined) {
+        landingTargetContentScale = landingBaseWidth > 0
+          ? next.width / landingBaseWidth
+          : landingTargetContentScale
+      }
       motion.setTarget({
         x: next.left,
         y: next.top,
-        scaleX: options.landingMode === 'target' ? 1 : next.width / startWidth,
-        scaleY: options.landingMode === 'target' ? 1 : next.height / startHeight,
+        scaleX: nextScaleX,
+        scaleY: nextScaleY,
       })
     },
   }
@@ -922,7 +1401,11 @@ export function landDragProxyWithMotion(
 export function destroyDragProxy(proxy: HTMLElement) {
   if (!activeDragProxies.has(proxy)) return
   activeDragProxies.delete(proxy)
-  proxy.remove()
+  const cameraGlue = proxy.parentElement?.dataset.runtimeCameraGlue === 'true'
+    ? proxy.parentElement
+    : null
+  cameraGlue?.remove()
+  if (!cameraGlue) proxy.remove()
 }
 
 /** 清理 demo 中上一次异常中断留下的代理节点。 */
@@ -930,6 +1413,7 @@ export function destroyAllDragProxies(): void {
   for (const proxy of activeDragProxies) proxy.remove()
   activeDragProxies.clear()
   document.querySelectorAll<HTMLElement>('[data-runtime-proxy="true"]').forEach(proxy => proxy.remove())
+  document.querySelectorAll<HTMLElement>('[data-runtime-camera-glue="true"]').forEach(glue => glue.remove())
 }
 
 export function destroyDragProxiesByCardId(cardId: string): void {
@@ -951,6 +1435,17 @@ export function destroyDragProxiesByCardId(cardId: string): void {
  * docs/DESIGN.md 对"手工挪动 Vue 追踪的节点"的风险提示）。
  */
 const floatingSnapshots = new WeakMap<HTMLElement, { style: string }>()
+const LIVE_LAYOUT_PROPERTIES = ['left', 'top', 'right', 'bottom', 'width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight', 'zIndex'] as const
+
+function restoreFloatingStyle(element: HTMLElement, cssText: string): void {
+  const liveLayout = Object.fromEntries(
+    LIVE_LAYOUT_PROPERTIES.map(property => [property, element.style[property]]),
+  ) as Record<typeof LIVE_LAYOUT_PROPERTIES[number], string>
+  element.style.cssText = cssText
+  for (const property of LIVE_LAYOUT_PROPERTIES) {
+    if (liveLayout[property] !== '') element.style[property] = liveLayout[property]
+  }
+}
 /** source 节点 ↔ 抓取阶段独立 proxy 的映射。proxy 挂在 <html> 下，避免
  *  .glass-card 祖先的 backdrop-filter 创建 containing block 拦截 fixed
  *  坐标系，同时不 reparent 业务 DOM，Vue 追踪不受影响。 */
@@ -960,15 +1455,41 @@ const pickupHandoffPending = new WeakSet<HTMLElement>()
 export function applyFloatingStyle(
   el: HTMLElement,
   rect: DOMRect,
-  options: { layout?: DragProxyLayoutConfig; keepSourceVisible?: boolean } = {},
+  options: {
+    layout?: DragProxyLayoutConfig
+    keepSourceVisible?: boolean
+    contentScale?: number | (() => number)
+    cameraShell?: boolean
+    affordancesSelector?: string | readonly string[]
+  } = {},
 ) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
   // 抓取阶段的视觉交给独立 proxy：挂在 <html> 下，containing block 是 viewport，
   // 不会被 .glass-card 祖先的 backdrop-filter / overflow:hidden 裁切，pointer
   // 坐标也能直接对齐。source 节点保持原 DOM 位置，仅 visibility:hidden，Vue 重渲染
   // 时仍然能正确识别这个节点，不会出现"新旧两张卡片同时存在"。
-  const proxy = createDragProxy(el, rect, { glass: false, layout: options.layout })
+  // 抓取态阴影必须从零开始，不能继承本体当前阴影作为起点；否则卡片还没
+  // 浮起就已经带着一层深阴影。下一帧由 beginFloatingPickup() 统一提交浮起
+  // 阴影，让阴影和卡片的启动变换同时进入过渡。
+  const proxy = createDragProxy(el, rect, {
+    glass: false,
+    layout: options.layout,
+    contentScale: options.contentScale,
+    cameraShell: options.cameraShell,
+    affordancesSelector: options.affordancesSelector,
+  })
   const content = getProxyContent(proxy)
+  // 抓起 proxy 同样脱离了 source 的 DOM 继承链；landing 入口由
+  // VisualAdapter 处理，这里补齐 grabbing 入口，避免代理回退到 body 字体。
+  preserveProxyVisualContext(el, content)
+  const pickupTransition = content.style.transition
+  // createDragProxy() 为后续视觉过渡预先设置了 box-shadow transition；如果直接
+  // 把初始阴影改成 none，浏览器会把创建时的深阴影也纳入过渡，首帧读到的仍是
+  // 深阴影。先冻结、提交零阴影，再恢复 transition，下一帧才开始真正的 0 -> 浮起。
+  content.style.transition = 'none'
+  setVisualBoxShadow(content, 'none')
+  void content.offsetWidth
+  content.style.transition = pickupTransition
   const compact = Boolean(options.layout?.compact)
   proxy.style.zIndex = '1000'
   // 首帧保留源卡片样式；下一帧才进入 grabbing 视觉，形成从原位被拎起的过渡。
@@ -978,11 +1499,24 @@ export function applyFloatingStyle(
   floatingProxies.set(el, proxy)
   if (!options.keepSourceVisible) el.style.visibility = 'hidden'
   requestAnimationFrame(() => {
-    if (!proxy.isConnected) return
-    if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
-    else content.style.boxShadow = '0 12px 24px rgba(0,0,0,.18)'
-    proxy.style.transform = `scale(${compact ? 1 : 1.03})`
+    // landing 可能在首次抓取帧绘制前就接管代理（静止松手时尤其容易发生）。
+    // 一旦 takeFloatingProxy() 清掉了 handoff 标记，抓取态玻璃样式就不能再
+    // 写回，否则会覆盖 landing 已经提交的阴影/背景，表现为画布文件卡落地
+    // 时阴影瞬间消失或在下一帧又被抓取态覆盖。
+    if (!proxy.isConnected || !pickupHandoffPending.has(proxy)) {
+      return
+    }
+    beginFloatingPickup(proxy, compact)
   })
+}
+
+/** 在抓取动画首帧提交抓取态视觉；快速 pointermove 会复用同一入口。 */
+function beginFloatingPickup(proxy: HTMLElement, compact = false, applyScale = true): void {
+  if (!proxy.isConnected) return
+  const content = getProxyContent(proxy)
+  if (defaultDraggingGlassEnabled) applyDraggingGlassStyle(content)
+  else setVisualBoxShadow(content, '0 12px 24px rgba(0,0,0,.18)')
+  if (applyScale) proxy.style.transform = `scale(${compact ? 1 : 1.03})`
 }
 
 export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
@@ -993,6 +1527,13 @@ export function getFloatingProxy(el: HTMLElement): HTMLElement | undefined {
 export function takeFloatingProxy(el: HTMLElement): HTMLElement | undefined {
   const proxy = floatingProxies.get(el)
   if (!proxy) return undefined
+  // MoveAdapter 会在创建代理后立即接管它。不能在这里同步写入最终阴影，
+  // 否则浏览器还没绘制起点就会直接显示终点；延后一帧让阴影与控制器的
+  // 1 -> 1.03 缩放拥有同一个视觉起点。
+  requestAnimationFrame(() => {
+    if (!proxy.isConnected || getProxyContent(proxy).dataset.runtimePhase === 'landing') return
+    beginFloatingPickup(proxy, getProxyContent(proxy).dataset.runtimeCompact === 'true', false)
+  })
   pickupHandoffPending.delete(proxy)
   floatingProxies.delete(el)
   floatingSnapshots.delete(el)
@@ -1006,6 +1547,7 @@ export function moveFloating(el: HTMLElement, x: number, y: number, offsetX: num
   const top = `${y - offsetY}px`
   if (pickupHandoffPending.has(target)) {
     pickupHandoffPending.delete(target)
+    beginFloatingPickup(target, getProxyContent(target).dataset.runtimeCompact === 'true')
     target.style.transition = 'left 120ms cubic-bezier(.22,1,.36,1), top 120ms cubic-bezier(.22,1,.36,1), transform 120ms cubic-bezier(.22,1,.36,1), box-shadow 120ms ease'
     requestAnimationFrame(() => {
       target.style.left = left
@@ -1029,7 +1571,7 @@ export function clearFloatingStyle(el: HTMLElement) {
     floatingProxies.delete(el)
   }
   const snapshot = floatingSnapshots.get(el)
-  el.setAttribute('style', snapshot?.style ?? '')
+  if (snapshot) restoreFloatingStyle(el, snapshot.style)
   floatingSnapshots.delete(el)
 }
 
@@ -1070,7 +1612,7 @@ export function applyDraggingGlassStyle(element: HTMLElement): void {
   element.style.backdropFilter = 'blur(12px) saturate(1.15)'
   element.style.setProperty('-webkit-backdrop-filter', 'blur(12px) saturate(1.15)')
   element.style.border = '1px solid rgba(255, 255, 255, 0.72)'
-  element.style.boxShadow = '0 22px 50px rgba(30, 35, 60, 0.30)'
+  setVisualBoxShadow(element, '0 22px 50px rgba(30, 35, 60, 0.30)')
   element.style.opacity = '0.97'
 }
 

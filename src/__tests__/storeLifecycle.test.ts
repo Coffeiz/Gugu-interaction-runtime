@@ -29,7 +29,7 @@ describe('Runtime 注册表生命周期', () => {
   it('SurfaceStore 和 TargetStore 同样保护 generation 并支持增量更新', () => {
     const surfaces = new SurfaceStore()
     const targets = new TargetStore()
-    const surfaceGeneration = surfaces.register({ id: 'surface:a', type: 'list', element: null, accepts: ['card'] })
+    const surfaceGeneration = surfaces.register({ id: 'surface:a', type: 'list', layout: 'grid', element: null, accepts: ['card'] })
     const targetGeneration = targets.register({ id: 'target:a', surfaceId: 'surface:a', element: null, accepts: ['card'], priority: 1 })
 
     expect(surfaces.update('surface:a', { accepts: ['card', 'folder'] })).toBe(true)

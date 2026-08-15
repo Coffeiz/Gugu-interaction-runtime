@@ -3,6 +3,7 @@ import type { VisualState } from '../dom/VisualAdapterTypes'
 import { trackLandingTarget, type LandingTargetTrackerOptions } from '../dom/LandingTargetTracker'
 import type { Cleanup } from '../cleanup/Cleanup'
 import type { Session } from '../session/Session'
+import type { LandingRect } from '../dom/Visual'
 
 export interface VisualStatePort { getAdapter(objectId: string): VisualAdapter }
 
@@ -44,7 +45,7 @@ export interface VisualMotionPort {
   getSession(id: string): Session | undefined
   getAdapter(objectId: string): VisualAdapter
   getGroupAdapter?(objectId: string): VisualAdapter | undefined
-  createContext(id: string, destination?: unknown, target?: HTMLElement): VisualLifecycleContext
+  createContext(id: string, destination?: unknown, target?: HTMLElement | LandingRect): VisualLifecycleContext
 }
 
 export class VisualMotionCoordinator {
@@ -63,7 +64,7 @@ export class VisualMotionCoordinator {
   }
   async land(
     sessionId: string,
-    target: HTMLElement,
+    target: HTMLElement | LandingRect,
     context?: VisualLifecycleContext,
   ): Promise<{ completed: boolean; reason?: string }> {
     const session = this.port.getSession(sessionId)

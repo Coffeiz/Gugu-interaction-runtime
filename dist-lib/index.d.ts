@@ -3,7 +3,7 @@
  * 接入方不需要了解 src 下的目录结构，也不应直接依赖 demo 实现。
  */
 export { Runtime, runtime } from './Runtime';
-export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, GrabAlignConfig, GroupVisualOption } from './Runtime';
+export type { RuntimeEvent, RuntimeLandingTargetOptions, ObjectTypeRegistration, ObjectCameraConfig, ResolvedObjectCameraConfig, GrabAlignConfig, GroupVisualOption, } from './Runtime';
 export { RuntimeRegistry } from './runtime/RuntimeRegistry';
 export { createVueRuntimeAdapter } from './adapters/vue';
 export { createReactRuntimeAdapter } from './adapters/react';
@@ -29,11 +29,12 @@ export type { MoveContext, MoveBehaviorDriver, MoveVisualLifecycle, MoveVisualSt
 export type { Behavior, BehaviorContext } from './behavior/Behavior';
 export { ObjectStore } from './object/ObjectStore';
 export { SurfaceStore } from './surface/SurfaceStore';
+export type { Surface, SurfaceCamera, SurfaceUpdate } from './surface/Surface';
 export { TargetStore } from './target/TargetStore';
 export type { TargetItem } from './target/Target';
 export type { VisualAdapter, GroupVisualAdapter, VisualAdapterRegistry } from './dom/VisualAdapter';
 export { DEFAULT_GROUP_DRAG_CONFIG, resolveGroupDragConfig, type GroupDragConfig, type GroupDragStackTransform, type ResolvedGroupDragConfig, } from './dom/GroupDragProfile';
-export type { DragProxyLayoutConfig } from './dom/Visual';
+export type { DragProxyLayoutConfig, LandingRect } from './dom/Visual';
 export { DefaultVisualAdapter, VisualAdapters } from './dom/VisualAdapter';
 export type { VisualPhase, VisualState, VisualSnapshot } from './dom/VisualAdapterTypes';
 export { createGroupVisualAdapter } from './dom/GroupVisual';
@@ -50,15 +51,22 @@ export { setLayoutPresenceEnabled } from './dom/GroupLayout';
 export type { GroupToggleOptions } from './dom/GroupLayout';
 export { captureLayoutFlip, playLayoutFlip } from './dom/GroupLayout';
 export { cancelLayoutAnimations } from './dom/GroupLayout';
+export { LayoutCache } from './dom/LayoutCache';
+export type { CachedGroupLayout, CachedLayoutSize } from './dom/LayoutCache';
+export { LayoutTransactionCoordinator } from './dom/LayoutTransaction';
+export type { LayoutPlan, LayoutPlanSnapshot, LayoutPlanStatus } from './dom/LayoutTransaction';
+export type { LayoutMutation, LayoutTransactionPriority, LayoutTransactionReason, LayoutTransactionSnapshot, } from './dom/LayoutTransaction';
 export type { LayoutFlipSnapshot } from './dom/GroupLayout';
 export { captureCollectionPresence, playCollectionPresence } from './dom/CollectionPresence';
 export type { CollectionPresenceSnapshot, CollectionPresenceOptions } from './dom/CollectionPresence';
 export { bindPointerSessionInput } from './input/PointerSessionInput';
 export type { PointerSessionInputOptions, PointerSessionInputRuntime, } from './input/PointerSessionInput';
-export type { Action, MoveAction, MoveGroupAction, TransferAction, SortAction, ResizeAction, LinkAction } from './action/Action';
+export type { Action, MoveAction, MoveGroupAction, TransferAction, SortAction, ResizeAction, LinkAction, ConnectionCreateAction, ConnectionDeleteAction, ConnectionCancelAction, } from './action/Action';
+export type { NodeConfig, NodePortConfig, NodePortSide, NodePortSnapshot, NodeConnectionEndpoint, NodeConnectionState } from './node/Node';
 export type { RuntimeInput, StartRequest, SessionHandle } from './core/Interaction';
 export { createCardMotionController, type CardMotionController, type CardMotionControllerOptions, type MotionState, type MotionTarget, type MotionFrame, type FollowRotationConfig, type ArriveThreshold, } from './motion/CardMotionController';
 export { LANDING_PROFILE, FOLLOW_PROFILE, FOLLOW_ROTATION, type MotionProfile as CardMotionProfile, type SpringParams } from './motion/MotionProfile';
 export type { MotionControllerConfig } from './motion/MotionProfile';
 export { integrateSpring, type PhysicsVector, type SpringState } from './motion/physics';
 export { DEFAULT_RELEASE_PROFILE, shapeReleaseVelocity, coastOffset, type ReleaseMotionProfile } from './motion/ReleaseMotion';
+export { createFreeLandingMotion, createCubicBezierEasing, resolveFreeLandingEasing, type FreeLandingMotion, type FreeLandingMotionOptions, } from './motion/FreeLandingMotion';

@@ -20,6 +20,7 @@ const emit = defineEmits<{ element: [element: HTMLElement | null] }>()
 const { elementRef } = useSurface({
   id: `column:${props.columnId}`,
   type: 'kanban-column',
+  layout: 'grid',
   accepts: ['kanban-card', 'kanban-card-clone'],
 })
 const { controlled } = useRuntimeTransition(`column:${props.columnId}`)

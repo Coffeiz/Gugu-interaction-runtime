@@ -33,8 +33,8 @@ describe('注册表默认命中', () => {
     setRect(doneFirst, 250, 30, 180, 50)
     setRect(doneSecond, 250, 100, 180, 50)
 
-    surfaces.register({ id: 'todo', type: 'list', element: todo, accepts: ['project-card'] })
-    surfaces.register({ id: 'done', type: 'list', element: done, accepts: ['project-card'] })
+    surfaces.register({ id: 'todo', type: 'list', layout: 'grid', element: todo, accepts: ['project-card'] })
+    surfaces.register({ id: 'done', type: 'list', layout: 'grid', element: done, accepts: ['project-card'] })
     objects.register({ id: 'moving', type: 'project-card', surfaceId: 'todo', element: document.createElement('article'), abilities: ['move'] })
     objects.register({ id: 'first', type: 'project-card', surfaceId: 'done', element: doneFirst, abilities: ['move'] })
     objects.register({ id: 'second', type: 'project-card', surfaceId: 'done', element: doneSecond, abilities: ['move'] })
@@ -60,7 +60,7 @@ describe('注册表默认命中', () => {
     setRect(browser, 0, 0, 200, 500)
     setRect(folderCard, 240, 30, 180, 80)
 
-    surfaces.register({ id: 'file:surface:folder:references', type: 'folder', element: browser, accepts: ['file-item'] })
+    surfaces.register({ id: 'file:surface:folder:references', type: 'folder', layout: 'grid', element: browser, accepts: ['file-item'] })
     objects.register({ id: 'file:readme', type: 'file-item', surfaceId: 'file:surface:browser', element: document.createElement('article'), abilities: ['move'] })
     targets.register({ id: 'folder-target', surfaceId: 'file:surface:folder:references', element: folderCard, accepts: ['file-item'], priority: 2 })
 

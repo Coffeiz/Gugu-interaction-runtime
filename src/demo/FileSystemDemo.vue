@@ -339,14 +339,24 @@ function moveGroup(action: MoveGroupAction): void {
 }
 
 const listProxyLayout = { compact: { selector: '[data-demo-list-layout="true"]', width: 'min(320px, calc(100vw - 48px))' } }
+const targetMotionProfile = {
+  motion: {
+    position: { stiffness: 200, damping: 25 },
+    scale: { stiffness: 200, damping: 25 },
+  },
+  landing: { duration: 300, easing: 'ease-out' },
+  dismiss: { duration: 300, easing: 'ease-out', scale: 0.72 },
+}
 
 for (const type of ['file-item', 'file-item-clone', 'folder-item', 'folder-item-clone']) {
   runtime.registerObjectType(type, {
     defaultVisualMode: type.endsWith('-clone') ? 'clone' : 'detach',
     groupVisual: 'default',
-    landingMode: 'target',
-    motion: { enabled: true },
+    motion: { enabled: true, profile: { target: targetMotionProfile } },
     preserveMoveTarget: true,
+    // 文件卡进入文件夹或透明面包屑时保留自己的内容和表面，只做位置飞入与缩小淡出；
+    // 否则目标边框/透明背景会在 landing 中途覆盖代理，和业务侧文件交互不一致。
+    disableTargetVisualMorph: true,
     proxyLayout: listProxyLayout,
   })
 }

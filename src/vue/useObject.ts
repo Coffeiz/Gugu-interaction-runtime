@@ -1,6 +1,7 @@
 import { onUnmounted, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import type { ObjectItem, ObjectUpdate } from '../object/ObjectItem'
 import type { TargetItem } from '../target/Target'
+import type { NodeConfig } from '../node/Node'
 import { useRuntime } from './context'
 
 export type ObjectTargetOptions = Omit<TargetItem, 'id' | 'element' | 'generation'> & {
@@ -17,11 +18,14 @@ export interface UseObjectOptions {
   visual?: MaybeRefOrGetter<string | undefined>
   visualMode?: MaybeRefOrGetter<string | undefined>
   target?: MaybeRefOrGetter<ObjectTargetOptions | undefined>
+  node?: MaybeRefOrGetter<NodeConfig | undefined>
 }
 
 export interface UseObjectResult {
   elementRef: Ref<HTMLElement | null>
   generation: number
+  /** 清理当前对象与目标对象之间的 Runtime 连接；关系数据仍由业务层删除。 */
+  disconnectFrom: (targetObjectId: string) => number
 }
 
 function readObject(options: UseObjectOptions): ObjectUpdate & Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities'> {
@@ -33,6 +37,7 @@ function readObject(options: UseObjectOptions): ObjectUpdate & Pick<ObjectItem, 
     visual: options.visual === undefined ? undefined : toValue(options.visual),
     visualMode: options.visualMode === undefined ? undefined : toValue(options.visualMode),
     target: options.target === undefined ? undefined : toValue(options.target),
+    node: options.node === undefined ? undefined : toValue(options.node),
   }
 }
 
@@ -63,5 +68,9 @@ export function useObject(options: UseObjectOptions): UseObjectResult {
     runtime.unregisterObjectWhenIdle(options.id, generation)
   })
 
-  return { elementRef, generation }
+  return {
+    elementRef,
+    generation,
+    disconnectFrom: targetObjectId => runtime.deleteNodeConnectionsBetween(options.id, targetObjectId),
+  }
 }

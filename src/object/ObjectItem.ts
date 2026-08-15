@@ -3,6 +3,7 @@
  * 能参与哪些 Session 类型"，不持有业务数据本身。见 docs/DESIGN.md 原则 4。
  */
 import type { TargetItem } from '../target/Target'
+import type { NodeConfig } from '../node/Node'
 
 export interface ObjectItem {
   id: string
@@ -21,6 +22,8 @@ export interface ObjectItem {
   visualMode?: string
   /** Object 同时作为接收目标时的声明；Runtime 会自动同步到 TargetStore。 */
   target?: Omit<TargetItem, 'id' | 'element' | 'generation'> & { id?: string; element?: HTMLElement | null }
+  /** 可选的画布节点端口声明；端点位置由 Runtime 按实时 DOMRect 计算。 */
+  node?: NodeConfig
   /**
    * 注册代次（register 时自增）。同一 id 被新实例重新 register 后，
    * 旧实例卸载时凭 generation 判断"当前 item 是否还是自己注册的"，
@@ -29,4 +32,4 @@ export interface ObjectItem {
   generation?: number
 }
 
-export type ObjectUpdate = Partial<Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities' | 'selected' | 'visual' | 'visualMode' | 'target'>>
+export type ObjectUpdate = Partial<Pick<ObjectItem, 'type' | 'surfaceId' | 'abilities' | 'selected' | 'visual' | 'visualMode' | 'target' | 'node'>>
