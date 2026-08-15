@@ -319,6 +319,32 @@ describe('Runtime move orchestration', () => {
     source.remove()
   })
 
+  it('free landing 分离抓取倍率与目标画布实时倍率', () => {
+    const runtime = new Runtime()
+    const sourceScale = { value: 1.5 }
+    const canvasScale = { value: 1.2 }
+    runtime.surfaces.register({
+      id: 'drawer', type: 'drawer', layout: 'grid', element: null, accepts: ['drawer-card'],
+      camera: { scale: () => sourceScale.value },
+    })
+    runtime.surfaces.register({
+      id: 'canvas', type: 'canvas', layout: 'free', element: null, accepts: ['drawer-card'],
+      camera: { scale: () => canvasScale.value, origin: () => ({ left: 0, top: 0 }) },
+    })
+    runtime.registerObjectType('drawer-card', { defaultVisualMode: 'detach', camera: { enabled: true } })
+    runtime.objects.register({ id: 'drawer:1', type: 'drawer-card', surfaceId: 'drawer', element: null, abilities: ['move'] })
+
+    const session = runtime.startSession('move', 'drawer:1')
+    const context = runtime.createVisualLifecycleContext(session.id, { toSurfaceId: 'canvas' })
+
+    expect(typeof context.contentScale === 'function' ? context.contentScale() : context.contentScale).toBe(1.5)
+    expect(typeof context.landingCameraScale === 'function' ? context.landingCameraScale() : context.landingCameraScale).toBe(canvasScale.value)
+    canvasScale.value = 1.7
+    expect(typeof context.landingCameraScale === 'function' ? context.landingCameraScale() : context.landingCameraScale).toBe(1.7)
+    sourceScale.value = 1.8
+    expect(typeof context.contentScale === 'function' ? context.contentScale() : context.contentScale).toBe(1.8)
+  })
+
   it('Phase 1B：对象 camera 配置隔离未声明对象', () => {
     const runtime = new Runtime()
     runtime.surfaces.register({

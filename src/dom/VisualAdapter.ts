@@ -71,6 +71,8 @@ export interface VisualLifecycleContext {
   readonly cameraOrigin?: () => { left: number; top: number }
   /** landing 目标 Surface 的相机原点；独立于源对象是否声明 camera 能力。 */
   readonly landingCameraOrigin?: () => { left: number; top: number }
+  /** landing 目标 Surface 的实时相机倍率；与抓取阶段冻结的 contentScale 分离。 */
+  readonly landingCameraScale?: number | (() => number)
   /** 对象类型归一化后的 camera 能力；Phase 1A 仅供 adapter 观察，不改变既有行为。 */
   readonly camera?: ResolvedObjectCameraConfig
   /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
@@ -382,6 +384,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
         : undefined,
       cameraOrigin: context.landingMode === 'free'
         ? context.landingCameraOrigin ?? context.cameraOrigin
+        : undefined,
+      landingCameraScale: context.landingMode === 'free'
+        ? context.landingCameraScale
         : undefined,
       // contentScale 描述的是对象所在画布的视觉缩放，不是 free landing
       // 专属配置。拖出 viewport 后会回到 default landing，但仍必须沿用

@@ -460,6 +460,8 @@ export interface LandingVisualOptions {
   cameraOrigin?: () => { left: number; top: number }
   /** free 画布 landing 的实时相机比例。 */
   contentScale?: number | (() => number)
+  /** free landing 目标 Surface 的实时相机比例；不继承抓取阶段冻结倍率。 */
+  landingCameraScale?: number | (() => number)
   /** 当前代理是否由对象级 camera capability 启用 camera shell。 */
   cameraShell?: boolean
   /** 对象类型注册的附加交互选择器；landing 的源层和目标层都必须隐藏。 */
@@ -930,6 +932,7 @@ export function landDragProxyWithMotion(
     ? resolveContentScale(options.landingContentScale)
     : initialContentScale
   const cameraOrigin = options.cameraOrigin?.()
+  const initialCameraScale = resolveContentScale(options.landingCameraScale ?? options.contentScale)
   const hasCameraAnchor = Boolean(
     options.cameraShell
     && options.landingMode === 'free'
@@ -966,8 +969,8 @@ export function landDragProxyWithMotion(
       if (!camGlue?.isConnected) return
       const liveOrigin = options.cameraOrigin?.()
       if (liveOrigin && Number.isFinite(liveOrigin.left) && Number.isFinite(liveOrigin.top)) {
-        const liveScale = resolveContentScale(options.contentScale)
-        const scaleRatio = initialContentScale > 0.01 ? liveScale / initialContentScale : 1
+        const liveScale = resolveContentScale(options.landingCameraScale ?? options.contentScale)
+        const scaleRatio = initialCameraScale > 0.01 ? liveScale / initialCameraScale : 1
         camGlue.style.transform =
           `translate3d(${(liveOrigin.left - cameraOrigin.left).toFixed(2)}px, ${(liveOrigin.top - cameraOrigin.top).toFixed(2)}px, 0) scale(${scaleRatio.toFixed(4)})`
       }

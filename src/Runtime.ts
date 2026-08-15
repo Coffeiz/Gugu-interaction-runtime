@@ -834,6 +834,9 @@ setMotionProfiles(this.registry.motionProfile)
       landingCameraOrigin: effectiveLandingMode === 'free'
         ? this.getSurfaceCameraOrigin(destinationSurfaceId ?? undefined)
         : undefined,
+      landingCameraScale: effectiveLandingMode === 'free'
+        ? this.getSurfaceCameraScale(destinationSurfaceId ?? undefined)
+        : undefined,
       camera: cameraConfig,
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {
