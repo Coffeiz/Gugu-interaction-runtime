@@ -1,6 +1,6 @@
 <template>
   <button
-    :ref="bindElement"
+    :ref="target.elementRef"
     class="folder-entry"
     :data-file-id="folder.id"
     :class="{ selected }"
@@ -12,7 +12,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useSurface, useTarget } from '../vue'
 import type { FileItem } from './fileTypes'
 
@@ -25,13 +24,6 @@ const props = defineProps<{
 }>()
 defineEmits<{ open: [id: string] }>()
 
-const surface = useSurface({ id: `file:surface:${props.folder.id}`, type: 'file-folder', layout: 'grid', accepts: props.accepts })
+useSurface({ id: `file:surface:${props.folder.id}`, type: 'file-folder', layout: 'grid', accepts: props.accepts })
 const target = useTarget({ id: `sidebar:${props.folder.id}`, surfaceId: `file:surface:${props.folder.id}`, accepts: props.accepts, priority: 1 })
-const elementRef = ref<HTMLElement | null>(null)
-
-function bindElement(element: unknown): void {
-  const htmlElement = element as HTMLElement | null
-  surface.elementRef.value = htmlElement
-  target.elementRef.value = htmlElement
-}
 </script>
