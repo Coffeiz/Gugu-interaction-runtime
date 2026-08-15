@@ -546,10 +546,10 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
       const rect = element.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0
     })
+  const currentHeight = options.content.getBoundingClientRect().height
   const snapshot = captureLayoutFlip(cards, options.root, false, undefined, {
     surfaceMeasures: options.surfaceMeasures,
   })
-  const currentHeight = options.content.getBoundingClientRect().height
   if (!options.opening && currentHeight > 0) {
     // 业务的 closed 样式会在 mutate 后立即把组压成 0；先冻结起点，
     // 让 Runtime 在 nextTick 后仍能从真实高度启动收起过渡。
@@ -576,7 +576,7 @@ export async function runGroupToggle(options: GroupToggleOptions): Promise<void>
   const liveScrollHeight = options.content.scrollHeight
   const targetHeight = options.opening ? liveScrollHeight : 0
   // 子组开合会改变父组的自然高度，不能直接复用旧的展开高度。
-  const reusableTarget = cachedTarget && cachedTarget.height === targetHeight
+  const reusableTarget = options.opening && cachedTarget && cachedTarget.height === targetHeight
     ? cachedTarget
     : undefined
   transitionGroupHeight(options.content, targetHeight, options.duration, options.easing, currentHeight)
