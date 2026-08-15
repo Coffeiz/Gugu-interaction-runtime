@@ -815,6 +815,11 @@ setMotionProfiles(this.registry.motionProfile)
         && cameraConfig.landing
         ? this.getSurfaceCameraOrigin(object?.surfaceId)
         : undefined,
+      // landing 的相机属于目标 Surface，不应受源对象类型的 camera 能力限制。
+      // 例如抽屉项目卡本身不消费 camera，但落到画布后仍必须跟随画布平移/缩放。
+      landingCameraOrigin: effectiveLandingMode === 'free'
+        ? this.getSurfaceCameraOrigin(destinationSurfaceId ?? undefined)
+        : undefined,
       camera: cameraConfig,
       disableTargetVisualMorph: registration?.disableTargetVisualMorph ?? false,
       landingBounds: () => {

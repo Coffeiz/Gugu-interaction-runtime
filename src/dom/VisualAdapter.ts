@@ -69,6 +69,8 @@ export interface VisualLifecycleContext {
   readonly landingContentScale?: number | (() => number)
   /** free Surface 的相机原点；由 Runtime 从 Surface.camera 注入。 */
   readonly cameraOrigin?: () => { left: number; top: number }
+  /** landing 目标 Surface 的相机原点；独立于源对象是否声明 camera 能力。 */
+  readonly landingCameraOrigin?: () => { left: number; top: number }
   /** 对象类型归一化后的 camera 能力；Phase 1A 仅供 adapter 观察，不改变既有行为。 */
   readonly camera?: ResolvedObjectCameraConfig
   /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
@@ -245,38 +247,6 @@ export class DefaultVisualAdapter implements VisualAdapter {
     }
     el.style.transition = 'none'
     const afterTransitionReset = el.getBoundingClientRect()
-    el.dataset.runtimeHandoffProbeFrame = '0'
-    el.dataset.runtimeHandoffTime = String(performance.now())
-    el.dataset.runtimeHandoffLeft = String(afterTransitionReset.left)
-    el.dataset.runtimeHandoffTop = String(afterTransitionReset.top)
-    el.dataset.runtimeHandoffWidth = String(afterTransitionReset.width)
-    el.dataset.runtimeHandoffHeight = String(afterTransitionReset.height)
-    console.log('[runtime-landing-handoff-probe]', JSON.stringify({
-      phase: 'handoff',
-      objectId: context.objectId,
-      sessionId: context.sessionId,
-      time: performance.now(),
-      beforeRect: {
-        left: afterTransitionReset.left,
-        top: afterTransitionReset.top,
-        width: afterTransitionReset.width,
-        height: afterTransitionReset.height,
-      },
-      grabbingCardRect: {
-        left: Number(el.dataset.runtimeHandoffPointerupLeft),
-        top: Number(el.dataset.runtimeHandoffPointerupTop),
-        width: Number(el.dataset.runtimeHandoffPointerupWidth),
-        height: Number(el.dataset.runtimeHandoffPointerupHeight),
-      },
-      motionState: context.motionState
-        ? { x: context.motionState.x, y: context.motionState.y, vx: context.motionState.vx, vy: context.motionState.vy }
-        : null,
-      deltaFromPointerup: {
-        elapsed: performance.now() - Number(el.dataset.runtimeHandoffPointerupTime),
-        left: afterTransitionReset.left - Number(el.dataset.runtimeHandoffPointerupLeft),
-        top: afterTransitionReset.top - Number(el.dataset.runtimeHandoffPointerupTop),
-      },
-    }))
     const isTargetLanding = context.landingMode === 'target'
     const isCompactProxy = getProxyContent(el).dataset.runtimeCompact === 'true'
     const isCrossSurfaceLanding = Boolean(
@@ -402,13 +372,28 @@ export class DefaultVisualAdapter implements VisualAdapter {
       landingMode: context.landingMode,
       targetMotion: isTargetLanding ? context.motion?.target?.motion : undefined,
       dismiss: isTargetLanding ? context.motion?.target?.dismiss : undefined,
-      readTarget: targetElement ? () => clampTarget(targetElement.getBoundingClientRect()) : undefined,
-      cameraOrigin: context.landingMode === 'free' ? context.cameraOrigin : undefined,
+      // camera landing 的目标会随画布相机移动而改变 viewport rect，但这不是
+      // 一次新的布局落点。若继续提供 readTarget，free motion 在快到旧目标时
+      // 会把相机变换后的 viewport 坐标当成新 motion target，表现为停顿后再
+      // 突然追目标；相机位移统一由 camera glue 处理。
+      readTarget: targetElement && !context.landingCameraOrigin
+        ? () => clampTarget(targetElement.getBoundingClientRect())
+        : undefined,
+      cameraOrigin: context.landingMode === 'free'
+        ? context.landingCameraOrigin ?? context.cameraOrigin
+        : undefined,
       // contentScale 描述的是对象所在画布的视觉缩放，不是 free landing
       // 专属配置。拖出 viewport 后会回到 default landing，但仍必须沿用
       // 松手瞬间的画布比例，否则代理会按 100% 尺寸回飞。
       contentScale: context.contentScale,
-      cameraShell: Boolean(context.camera?.enabled && context.camera.scale),
+      // free 跨 Surface landing 需要目标画布的 camera glue；camera 对象回到
+      // grid/default 时仍需要保留源对象的 camera shell，才能把抓取时的内容
+      // 倍率平滑还原到抽屉卡尺寸。两条能力不能互相覆盖。
+      cameraShell: Boolean(
+        (context.landingMode === 'free'
+          && (context.landingCameraOrigin ?? context.cameraOrigin))
+        || (context.camera?.enabled && context.camera.scale),
+      ),
       landingContentScale: context.landingContentScale,
       affordancesSelector: context.affordances?.selector,
       motionState: context.releaseMode === 'normal' ? undefined : landingMotionState,
@@ -420,7 +405,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       },
       releaseDamping: DEFAULT_RELEASE_PROFILE.dampingRatio,
     })
-    if (this.runtime && targetElement) {
+    if (this.runtime && targetElement && !context.landingCameraOrigin) {
       // targetSnapshot 只用于代理的首帧样式和初始几何，不能作为后续
       // retarget 的位置来源。目标卡可能在另一个 landing 期间被兄弟
       // FLIP 移动，即使它不在 data-layout-surface 下，也必须跟随当前
@@ -442,7 +427,8 @@ export class DefaultVisualAdapter implements VisualAdapter {
         return clampTarget(liveRect)
       }
       this.runtime.trackLandingTarget(context.sessionId, targetElement, () => {
-        retarget(readRetargetRect())
+        const rect = readRetargetRect()
+        retarget(rect)
       })
     }
     return finished.then(() => ({ completed: true }))

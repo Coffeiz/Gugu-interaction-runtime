@@ -1053,49 +1053,6 @@ export function landDragProxyWithMotion(
       proxy.style.transform = `translate3d(${(left - layoutLeft).toFixed(2)}px, ${(top - layoutTop).toFixed(2)}px, 0) scale(${frame.scaleX.toFixed(4)}, ${frame.scaleY.toFixed(4)})`
       getProxyAttitude(proxy).style.transform =
         `perspective(760px) rotateX(${frame.rotateX.toFixed(2)}deg) rotateZ(${frame.rotateZ.toFixed(2)}deg)`
-      const probeFrame = (proxy.dataset.runtimeHandoffProbeFrame ? Number(proxy.dataset.runtimeHandoffProbeFrame) : 0) + 1
-      if (probeFrame <= 2) {
-        const rect = proxy.getBoundingClientRect()
-        const now = performance.now()
-        const previousLeft = Number(proxy.dataset.runtimeHandoffProbeLeft)
-        const previousTop = Number(proxy.dataset.runtimeHandoffProbeTop)
-        const previousTime = Number(proxy.dataset.runtimeHandoffProbeTime)
-        const elapsedFromHandoff = now - Number(proxy.dataset.runtimeHandoffTime)
-        const handoff = {
-          left: Number(proxy.dataset.runtimeHandoffLeft),
-          top: Number(proxy.dataset.runtimeHandoffTop),
-          width: Number(proxy.dataset.runtimeHandoffWidth),
-          height: Number(proxy.dataset.runtimeHandoffHeight),
-        }
-        console.log('[runtime-landing-handoff-probe]', JSON.stringify({
-          phase: 'landing-frame',
-          objectId: options.objectId,
-          sessionId: options.sessionId,
-          time: now,
-          frame: probeFrame,
-          handoff,
-          landingCardRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-          frameRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-          deltaFromHandoff: { left: rect.left - handoff.left, top: rect.top - handoff.top },
-          deltaFromPrevious: probeFrame === 1 ? null : {
-            elapsed: now - previousTime,
-            left: rect.left - previousLeft,
-            top: rect.top - previousTop,
-          },
-          elapsedFromHandoff,
-          expectedFromReleaseVelocity: options.motionState
-            ? {
-                left: options.motionState.vx * elapsedFromHandoff / 1000,
-                top: options.motionState.vy * elapsedFromHandoff / 1000,
-              }
-            : null,
-          motion: { x: frame.x, y: frame.y, rotateX: frame.rotateX, rotateZ: frame.rotateZ },
-        }))
-        proxy.dataset.runtimeHandoffProbeFrame = String(probeFrame)
-        proxy.dataset.runtimeHandoffProbeLeft = String(rect.left)
-        proxy.dataset.runtimeHandoffProbeTop = String(rect.top)
-        proxy.dataset.runtimeHandoffProbeTime = String(now)
-      }
       if (options.landingMode === 'free' && landingShell && options.cameraShell) {
         // free 的 holder 负责从源视觉尺寸收敛到目标视觉尺寸，scaleShell 只
         // 保留抓取瞬间的相机倍率。把 frame.scale 再写进 scaleShell 会让同一

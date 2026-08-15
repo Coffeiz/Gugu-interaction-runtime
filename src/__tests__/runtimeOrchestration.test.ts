@@ -340,6 +340,7 @@ describe('Runtime move orchestration', () => {
     const cameraContext = runtime.createVisualLifecycleContext(cameraSession.id, { toSurfaceId: 'canvas' })
     expect(plainContext.contentScale).toBeUndefined()
     expect(plainContext.cameraOrigin).toBeUndefined()
+    expect(plainContext.landingCameraOrigin?.()).toEqual({ left: 10, top: 20 })
     expect(cameraContext.contentScale).toBe(1.5)
     expect(cameraContext.cameraOrigin?.()).toEqual({ left: 10, top: 20 })
   })
