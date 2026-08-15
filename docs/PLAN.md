@@ -1,6 +1,6 @@
 # Interaction Runtime · 分层结构与执行计划
 
-> 当前稳定版本：2.0.2。Runtime 2.0.2 已以 Gugu-web 的真实看板和文件系统接入作为回归场景，
+> 当前稳定版本：3.0.0。Runtime 3.0.0 已以 Gugu-web 的真实看板和文件系统接入作为回归场景，
 > 验证“只注册 Object、Surface、Target 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
 > 直接编译本仓库 `src/`，不经 npm 包或构建产物。
 
@@ -119,7 +119,7 @@ src/
 
 ### 当前稳定基线
 
-Runtime 2.0.2 当前分支基线为提交 `f908d65`（文件系统与画布接入回归完成）；当前工作树另有
+Runtime 3.0.0 当前分支基线为提交 `f908d65`（文件系统与画布接入回归完成）；当前工作树另有
 收起抽屉落点和 Surface accepts 响应式更新修改，待进入下一次发布记录。
 Session、MoveBehavior、Action、MotionController、landing/reveal、regrab、FLIP、
 Vue/React DOM 适配器、文件系统 Demo 和 `proxyLayout` API 均已进入稳定实现。
