@@ -77,6 +77,10 @@ export interface VisualLifecycleContext {
   readonly camera?: ResolvedObjectCameraConfig
   /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
   readonly proxyLayout?: DragProxyLayoutConfig
+  /** 抓取阶段临时代理页面层级。 */
+  readonly proxyZIndex?: number
+  /** landing 阶段临时代理页面层级。 */
+  readonly landingProxyZIndex?: number
   /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
   readonly group?: VisualGroupContext
   /** 对象类型注册的多选叠牌视觉配置。 */
@@ -166,6 +170,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     }
     const proxy = createDragProxy(context.beforeContent, context.sourceRect, {
       layout: context.proxyLayout,
+      proxyZIndex: context.landingProxyZIndex ?? context.proxyZIndex,
       contentScale: context.contentScale,
       cameraShell: Boolean(context.camera?.enabled && context.camera.scale),
       affordancesSelector: this.runtime?.getObjectAffordancesConfig(context.objectId)?.selector,

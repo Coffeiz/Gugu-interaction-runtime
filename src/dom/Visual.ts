@@ -195,7 +195,7 @@ export function restoreProxyVisualState(
 export function createDragProxy(
   source: HTMLElement,
   rect: DOMRect = source.getBoundingClientRect(),
-  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number); cameraShell?: boolean; affordancesSelector?: string | readonly string[] } = {},
+  options: { glass?: boolean; layout?: DragProxyLayoutConfig; contentScale?: number | (() => number); landingContentScale?: number | (() => number); cameraShell?: boolean; affordancesSelector?: string | readonly string[]; proxyZIndex?: number } = {},
 ): HTMLElement {
   const compact = options.layout?.compact
   // 与 main 看板保持一致：定位壳、姿态层、缩放壳和卡片内容各自只承担一类
@@ -249,7 +249,7 @@ export function createDragProxy(
   // 逃出玻璃裁切靠的是"脱离被裁切祖先的 DOM 子树"这件事本身（重新挂载到
   // document.documentElement），不是那层 overlay 容器；容器唯一的另一个作用
   // 是集中管理 z-index，去掉之后这个值要留在代理自己身上，直接顶到最高层。
-  proxy.style.zIndex = '2147483647'
+  proxy.style.zIndex = String(options.proxyZIndex ?? 2147483647)
   proxy.style.pointerEvents = 'none'
   proxy.style.visibility = 'visible'
   // 提示浏览器把代理单独提到自己的合成层：这个函数同时是 grabbing 浮动本体
@@ -1461,6 +1461,7 @@ export function applyFloatingStyle(
     contentScale?: number | (() => number)
     cameraShell?: boolean
     affordancesSelector?: string | readonly string[]
+    proxyZIndex?: number
   } = {},
 ) {
   floatingSnapshots.set(el, { style: el.getAttribute('style') ?? '' })
@@ -1477,6 +1478,7 @@ export function applyFloatingStyle(
     contentScale: options.contentScale,
     cameraShell: options.cameraShell,
     affordancesSelector: options.affordancesSelector,
+    proxyZIndex: options.proxyZIndex,
   })
   const content = getProxyContent(proxy)
   // 抓起 proxy 同样脱离了 source 的 DOM 继承链；landing 入口由
@@ -1491,7 +1493,7 @@ export function applyFloatingStyle(
   void content.offsetWidth
   content.style.transition = pickupTransition
   const compact = Boolean(options.layout?.compact)
-  proxy.style.zIndex = '1000'
+  proxy.style.zIndex = String(options.proxyZIndex ?? 1000)
   // 首帧保留源卡片样式；下一帧才进入 grabbing 视觉，形成从原位被拎起的过渡。
   proxy.style.transform = 'scale(1)'
   proxy.style.transition = 'transform 150ms cubic-bezier(.22,1,.36,1), box-shadow 150ms ease, background 150ms ease, opacity 150ms ease'
@@ -1537,7 +1539,6 @@ export function takeFloatingProxy(el: HTMLElement): HTMLElement | undefined {
   pickupHandoffPending.delete(proxy)
   floatingProxies.delete(el)
   floatingSnapshots.delete(el)
-  proxy.style.zIndex = '2147483647'
   return proxy
 }
 

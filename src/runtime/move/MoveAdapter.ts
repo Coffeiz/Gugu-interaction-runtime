@@ -257,6 +257,7 @@ export function createDetachMoveFromAdapter(config: {
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,
         motionState: releaseMotionState,
       })
+      runtime.setVisualProxyZIndex(sid, visualContext.landingProxyZIndex)
       landingProxy = startDetachLandingVisual({
         // 抓取阶段已登记统一 proxy，landing 直接接管它；getVisualProxy 缺失时
         // 才在这里补建，覆盖异常中断或 regrab 后代理已被清理的情况。
@@ -444,6 +445,7 @@ export function createDetachMoveFromAdapter(config: {
         // 多选时源卡是布局幽灵，不能像单卡 detach 一样整张隐藏；主代理
         // 负责跟手，源节点保留在原位并由 group visual 降低透明度。
         keepSourceVisible: Boolean(group && group.objectIds.length > 1),
+        proxyZIndex: runtime.getObjectProxyZIndex(objectId),
       })
       // regrab 的 source 会在 applyFloatingStyle() 中再次隐藏；如果旧 Session
       // 的 ownership 已被释放，preserveTarget 的 reveal 将无法恢复它。此时在

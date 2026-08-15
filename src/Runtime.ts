@@ -159,6 +159,10 @@ export interface ObjectTypeRegistration {
   grabAlign?: GrabAlignConfig
   /** 抓取代理的可选紧凑布局；Runtime 负责尺寸和位置过渡。 */
   proxyLayout?: DragProxyLayoutConfig
+  /** 抓取阶段临时代理的页面层级；未设置时使用 Runtime 默认层级。 */
+  proxyZIndex?: number
+  /** landing 阶段临时代理的页面层级；可按来源/目标 Surface 动态解析。 */
+  landingProxyZIndex?: number | ((context: { sourceSurfaceId?: string; destinationSurfaceId?: string }) => number)
   /** 多选拖拽的叠牌与 modifier 淡出配置；未设置时使用 Runtime 默认值。 */
   groupDrag?: GroupDragConfig
   /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
@@ -692,6 +696,29 @@ setMotionProfiles(this.registry.motionProfile)
     return undefined
   }
 
+  getObjectProxyZIndex(objectId: string): number | undefined {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const value = registration?.proxyZIndex
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  }
+
+  getObjectLandingProxyZIndex(objectId: string, sourceSurfaceId?: string, destinationSurfaceId?: string): number | undefined {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    const configured = registration?.landingProxyZIndex
+    const value = typeof configured === 'function'
+      ? configured({ sourceSurfaceId, destinationSurfaceId })
+      : configured
+    return typeof value === 'number' && Number.isFinite(value) ? value : this.getObjectProxyZIndex(objectId)
+  }
+
+  setVisualProxyZIndex(sessionId: string, zIndex: number | undefined): void {
+    if (typeof zIndex !== 'number' || !Number.isFinite(zIndex)) return
+    const proxy = this.visualProxyCoordinator.get(sessionId)?.element
+    if (proxy?.isConnected) proxy.style.zIndex = String(zIndex)
+  }
+
   getObjectVisualAdapter(objectId: string): VisualAdapter {
     const object = this.objects.get(objectId)
     const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
@@ -851,6 +878,8 @@ setMotionProfiles(this.registry.motionProfile)
       motion: motionProfile,
       motionEnabled: registration?.motion?.enabled,
       proxyLayout,
+      proxyZIndex: this.getObjectProxyZIndex(object?.id ?? ''),
+      landingProxyZIndex: this.getObjectLandingProxyZIndex(object?.id ?? '', object?.surfaceId, destinationSurfaceId),
       affordances: registration?.affordances,
       groupDrag: registration?.groupDrag,
       group: session instanceof GroupDragSession
