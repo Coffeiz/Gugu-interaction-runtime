@@ -1150,21 +1150,39 @@ export function landDragProxyWithMotion(
         }
       : baseProfile)
   }
-  motion.seed({
+  const seededFrame = {
     // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
     // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
     x: options.motionState?.x ?? startRect.left,
     y: options.motionState?.y ?? startRect.top,
     vx: options.motionState?.vx ?? 0,
     vy: options.motionState?.vy ?? 0,
-    // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)。
-    // 不能在 landing 起点把它重置为 1，否则目标位置相同的回放会被
-    // MotionController 判定为已到达，代理瞬间消失。
+    // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)；旋转也必须
+    // 在 handoff 前保留，否则第一帧会先回正再开始 landing。
     scaleX: options.motionState?.scaleX ?? 1,
     scaleY: options.motionState?.scaleY ?? 1,
     rotateX: options.motionState?.rotateX ?? 0,
     rotateZ: options.motionState?.rotateZ ?? 0,
+  }
+  motion.seed({
+    // grabbing 是弹簧跟手，松手指针位置和卡片最后视觉位置可能不同。
+    // 有 MotionState 时必须从 controller 的最后一帧开始，sourceRect 只作为旧流程兜底。
+    x: seededFrame.x,
+    y: seededFrame.y,
+    vx: seededFrame.vx,
+    vy: seededFrame.vy,
+    // 即使 pointerdown 后没有产生位移，抓取态仍有 scale(1.03)。
+    // 不能在 landing 起点把它重置为 1，否则目标位置相同的回放会被
+    // MotionController 判定为已到达，代理瞬间消失。
+    scaleX: seededFrame.scaleX,
+    scaleY: seededFrame.scaleY,
+    rotateX: seededFrame.rotateX,
+    rotateZ: seededFrame.rotateZ,
   })
+  // seed() 只更新控制器状态，首个 RAF 之前不会触发 onFrame。同步提交同一
+  // 个 seeded frame，确保 handoff 从抓取代理的最后视觉尺寸/姿态开始，避免
+  // 第一帧仍停在旧尺寸后再突然追上 motionState。
+  onMotionFrame(seededFrame)
   // 代理定位壳的运动坐标是外壳左上角，而相机/尺寸缩放由内部 shell 居中承载。
   // 因此 free landing 也要把外壳移动到能让缩放后的 shell 对齐目标矩形的位置；
   // 直接使用 target.left/top 会在缩小时向右下、放大时向左上偏移。
