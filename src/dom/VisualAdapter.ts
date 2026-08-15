@@ -290,10 +290,6 @@ export class DefaultVisualAdapter implements VisualAdapter {
       || (targetSnapshot.backgroundImage && targetSnapshot.backgroundImage !== 'none')
       || (targetSnapshot.boxShadow && targetSnapshot.boxShadow !== 'none')
     ))
-    const isFreeRectLanding = context.landingMode === 'free' && !targetElement
-    const targetHasBackgroundImage = Boolean(
-      targetSnapshot?.backgroundImage && targetSnapshot.backgroundImage !== 'none',
-    )
     // 表面视觉属性（阴影/圆角/边框/玻璃模糊/背景/透明度）要不要 morph 回目标真实值，判断
     // 更宽松：disableTargetVisualMorph 只关掉“飞向语义目标（文件夹/面包屑）时代理套上目标
     // 样式”这段；默认落地（飞回对象自己在列表/网格里的原位）跟这个开关无关，即使目标静止态
@@ -308,7 +304,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       && !context.disableTargetVisualMorph
       && targetHasVisibleSurface
       && !isCompactProxy
-      && Boolean(targetElement || (isFreeRectLanding && context.sourceElement && targetHasBackgroundImage))
+      && Boolean(targetElement)
     // 跨 Surface 时保留阴影这一项的过渡，但不恢复目标卡片的其它表面属性。
     // 抓起态阴影是代理自身的悬浮反馈；完全关闭 target morph 会让它一直保持
     // 到代理销毁，表现成没有落地/降落效果。

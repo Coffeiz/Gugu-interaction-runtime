@@ -364,67 +364,6 @@ describe('motion.enabled 契约：landing 阶段（DefaultVisualAdapter.land）'
     destroyDragProxy(proxy)
   })
 
-  it('free 矩形落点使用源卡快照交叉淡化背景', async () => {
-    const { source, proxy } = landingFixture()
-    const adapter = new DefaultVisualAdapter()
-    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
-      finished: Promise.resolve(),
-      retarget: () => undefined,
-    })
-
-    await adapter.land({ element: proxy }, rect(200, 200, 240, 96), {
-      objectId: 'project:free-rect', sessionId: 's', mode: 'detach', landingMode: 'free',
-      sourceElement: source,
-      targetRect: rect(200, 200, 240, 96),
-      targetSnapshot: {
-        rect: rect(200, 200, 240, 96),
-        borderRadius: '14px', boxShadow: 'rgba(0,0,0,.12) 0 6px 18px',
-        border: '1px solid white', backdropFilter: 'none',
-        background: 'rgba(0,0,0,0)',
-        backgroundImage: 'linear-gradient(135deg, #7b7fb2, #c4afc8)',
-        opacity: '1', transform: 'none',
-      },
-    } as never)
-
-    expect(motionSpy).toHaveBeenCalledWith(
-      proxy,
-      expect.anything(),
-      expect.objectContaining({ targetContent: source }),
-    )
-    motionSpy.mockRestore()
-    destroyDragProxy(proxy)
-  })
-
-  it('free 矩形便签保持单层视觉过渡', async () => {
-    const { source, proxy } = landingFixture()
-    const adapter = new DefaultVisualAdapter()
-    const motionSpy = vi.spyOn(VisualModule, 'landDragProxyWithMotion').mockReturnValue({
-      finished: Promise.resolve(),
-      retarget: () => undefined,
-    })
-
-    await adapter.land({ element: proxy }, rect(200, 200, 240, 96), {
-      objectId: 'note:free-rect', sessionId: 's', mode: 'detach', landingMode: 'free',
-      sourceElement: source,
-      targetRect: rect(200, 200, 240, 96),
-      targetSnapshot: {
-        rect: rect(200, 200, 240, 96),
-        borderRadius: '14px', boxShadow: 'rgba(0,0,0,.07) 0 2px 8px',
-        border: '1px solid white', backdropFilter: 'none',
-        background: 'rgb(255,246,231)', backgroundImage: 'none',
-        opacity: '1', transform: 'none',
-      },
-    } as never)
-
-    expect(motionSpy).toHaveBeenCalledWith(
-      proxy,
-      expect.anything(),
-      expect.objectContaining({ targetContent: undefined }),
-    )
-    motionSpy.mockRestore()
-    destroyDragProxy(proxy)
-  })
-
   it('landing 继承当前姿态并交给落地控制器平滑衰减', async () => {
     const { target, proxy } = landingFixture()
     const adapter = new DefaultVisualAdapter()
