@@ -787,8 +787,10 @@ export function landDragProxyLegacy(
       `background-image ${animDuration}ms ease`,
       `opacity ${animDuration}ms ease`,
     ].join(', ')
-    prepareBoxShadowMorph(sourceSurface, targetShadow, visualTransition)
-    if (contentLayers) prepareBoxShadowMorph(targetSurface, targetShadow, visualTransition)
+    // 双层 morph 时两层已经分别携带了抓取态/目标态阴影。再把源层也改成目标阴影
+    // 会在 opacity 交叉期间叠出两份本体阴影，尤其是项目卡会明显变成“多一层阴影”。
+    // 单层代理仍沿用原来的阴影属性过渡。
+    if (!contentLayers) prepareBoxShadowMorph(sourceSurface, targetShadow, visualTransition)
     // box-shadow/border-radius/background/opacity 起点值（dragSnapshot）是调用方在这个
     // proxy 刚创建、还没被浏览器画过一帧的时候同步写上去的——如果在这里（设置 transition
     // 的同一个同步块里）就把它们改成目标值，浏览器压根没机会先画一帧"起点样子"，只会在
@@ -1242,8 +1244,9 @@ export function landDragProxyWithMotion(
     `background-image ${duration}ms ${easing}`,
     `opacity ${duration}ms ${easing}`,
   ].join(', ')
-  prepareBoxShadowMorph(sourceSurface, targetShadow, visualTransition)
-  if (contentLayers) prepareBoxShadowMorph(targetSurface, targetShadow, visualTransition)
+  // 双层 morph 的 fromLayer 保留玻璃抓取阴影并随 opacity 淡出，toLayer 保留本体阴影；
+  // 只在没有内容分层时对单一代理做阴影插值，避免两层目标阴影叠加。
+  if (!contentLayers) prepareBoxShadowMorph(sourceSurface, targetShadow, visualTransition)
   requestAnimationFrame(() => {
     if (settled) return
     // 列表代理在抓取阶段是紧凑宽度；回到本体行时让内容层先平滑恢复
