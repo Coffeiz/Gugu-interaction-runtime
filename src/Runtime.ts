@@ -879,7 +879,7 @@ setMotionProfiles(this.registry.motionProfile)
       motionEnabled: registration?.motion?.enabled,
       proxyLayout,
       proxyZIndex: this.getObjectProxyZIndex(object?.id ?? ''),
-      landingProxyZIndex: this.getObjectLandingProxyZIndex(object?.id ?? '', object?.surfaceId, destinationSurfaceId),
+      landingProxyZIndex: this.getObjectLandingProxyZIndex(object?.id ?? '', object?.surfaceId ?? undefined, destinationSurfaceId ?? undefined),
       affordances: registration?.affordances,
       groupDrag: registration?.groupDrag,
       group: session instanceof GroupDragSession
