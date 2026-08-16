@@ -61,10 +61,30 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     return floating === true ? {} : (floating || {})
   }
   const resolveFloating = () => resolveFloatingSurfaceDom(root(), floatingOptions())
+  let measuredFloatingRoot: HTMLElement | null = null
+  let hasMeasuredFloatingRoot = false
+  let measuredFloatingResult: { height: number } | null = null
+  let measuredFloatingResetFrame: number | null = null
+  const measureFloatingLayout = (): { height: number } | null => {
+    const currentRoot = root()
+    if (hasMeasuredFloatingRoot && currentRoot === measuredFloatingRoot) return measuredFloatingResult
+    measuredFloatingRoot = currentRoot
+    hasMeasuredFloatingRoot = true
+    measuredFloatingResult = resolveFloating().measureLayout()
+    if (measuredFloatingResetFrame === null && typeof requestAnimationFrame !== 'undefined') {
+      measuredFloatingResetFrame = requestAnimationFrame(() => {
+        measuredFloatingRoot = null
+        hasMeasuredFloatingRoot = false
+        measuredFloatingResult = null
+        measuredFloatingResetFrame = null
+      })
+    }
+    return measuredFloatingResult
+  }
   const floatingResolvers: FloatingResolvers = {
     viewport: () => resolveFloating().viewport,
     layoutElement: () => resolveFloating().layoutElement,
-    measureLayout: () => resolveFloating().measureLayout(),
+    measureLayout: measureFloatingLayout,
   }
   const descriptor = readSurface(options, root, floatingResolvers)
   const generation = runtime.surfaces.register({
@@ -313,6 +333,13 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     clearFloatingAnimation()
     restoreFloatingScrollLayout()
     if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
+    if (measuredFloatingResetFrame !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(measuredFloatingResetFrame)
+    }
+    measuredFloatingResetFrame = null
+    measuredFloatingRoot = null
+    hasMeasuredFloatingRoot = false
+    measuredFloatingResult = null
     stopFloatingObservers()
     runtime.surfaces.unregister(options.id, generation)
   })
