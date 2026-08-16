@@ -76,10 +76,15 @@ export function setProxyInteractive(
   proxy: HTMLElement,
   enabled: boolean,
 ): void {
-  // 只控制 proxy 本身的 pointerEvents，不碰 overlay。
-  // overlay pointerEvents 保持 none，让事件穿透到下方 DOM，
-  // 其他卡片的拖拽不受影响。只有当前 proxy 可点击。
-  proxy.style.pointerEvents = enabled ? 'auto' : 'none'
+  // landing proxy 永远不参与 hover；regrab 由 Runtime 在 document 捕获阶段
+  // 按代理实时矩形判断，不在代理内部放命中子层。
+  proxy.style.pointerEvents = 'none'
+  // 代理可能由 grabbing 节点接管而来，不能把源节点遗留的 hover class
+  // 带进 landing。pointer-events:none 只能阻止 CSS :hover，不能清理
+  // Runtime 写入的 is-hovered；两者都要在代理边界主动移除。
+  for (const node of [proxy, ...proxy.querySelectorAll<HTMLElement>('*')]) {
+    node.classList.remove('is-hovered')
+  }
 }
 
 export function setRuntimeAffordancesHidden(

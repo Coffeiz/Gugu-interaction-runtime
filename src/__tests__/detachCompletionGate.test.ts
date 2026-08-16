@@ -28,6 +28,44 @@ describe('detach landing completion gate', () => {
     element.remove()
   })
 
+  it('读取交接目标快照时使用移出命中的同父级克隆，避免带入原节点 hover 样式', () => {
+    const parent = document.createElement('section')
+    const element = document.createElement('div')
+    parent.append(element)
+    document.body.append(parent)
+
+    let captured: HTMLElement | undefined
+    let capturedParent: HTMLElement | null = null
+    let capturedDataset = ''
+    let capturedPointerEvents = ''
+    let capturedLeft = ''
+    captureDetachTargetSnapshot(target => {
+      captured = target
+      capturedParent = target.parentElement
+      capturedDataset = target.dataset.runtimeLandingSnapshot ?? ''
+      capturedPointerEvents = target.style.pointerEvents
+      capturedLeft = target.style.left
+      return {
+        rect: target.getBoundingClientRect(),
+        borderRadius: '',
+        boxShadow: '',
+        border: '',
+        backdropFilter: '',
+        background: '',
+        opacity: '1',
+        transform: 'none',
+      }
+    }, element)
+
+    expect(captured).not.toBe(element)
+    expect(capturedParent).toBe(parent)
+    expect(capturedDataset).toBe('true')
+    expect(capturedPointerEvents).toBe('none')
+    expect(capturedLeft).toBe('-100000px')
+    expect(parent.contains(captured as Node)).toBe(false)
+    parent.remove()
+  })
+
   it('只有 landing 成功才携带 reveal', () => {
     const complete = vi.fn()
     const reveal = vi.fn()

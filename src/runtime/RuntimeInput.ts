@@ -97,11 +97,20 @@ export class RuntimeInputCoordinator {
     handler: (event: PointerEvent) => void,
   ): void {
     this.port.registerRegrab(objectId, handler)
+    // landing proxy 永远保持 pointer-events:none，避免代理或其内容参与 hover。
+    // regrab 使用 document 捕获阶段判断当前指针是否落在代理实时矩形内，
+    // 不再向代理内部添加命中子层，否则代理会因命中层是子节点重新匹配 :hover。
     const listener = (event: Event) => {
-      if (event instanceof PointerEvent) this.port.regrab(objectId, event)
+      if (!(event instanceof PointerEvent)) return
+      const rect = target.getBoundingClientRect()
+      const inside = event.clientX >= rect.left
+        && event.clientX <= rect.right
+        && event.clientY >= rect.top
+        && event.clientY <= rect.bottom
+      if (inside) this.port.regrab(objectId, event)
     }
-    target.addEventListener('pointerdown', listener)
-    session.cleanup.trackTargetListener(target, 'pointerdown', listener)
+    document.addEventListener('pointerdown', listener, true)
+    session.cleanup.trackTargetListener(document, 'pointerdown', listener, { capture: true })
   }
 
   bindSession(session: Session, options: PointerSessionInputOptions = {}): () => void {

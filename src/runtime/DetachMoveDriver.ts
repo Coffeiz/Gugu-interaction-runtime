@@ -243,36 +243,42 @@ export function captureDetachTargetSnapshot(
   element: HTMLElement,
   options: { ignoreTemporaryOpacity?: boolean } = {},
 ): VisualSnapshot {
-  const transition = element.style.transition
+  const rect = element.getBoundingClientRect()
   const opacity = element.style.opacity
-  const pointerEvents = element.style.pointerEvents
   const computedOpacity = getComputedStyle(element).opacity
-  element.dataset.runtimeLandingCapture = 'true'
-  element.style.transition = 'none'
-  // pointerup 发生在源卡片上时，目标节点可能仍被浏览器视为 hover 命中。
-  // 暂时移出命中测试，读取目标的静态视觉，而不是把 hover 阴影当成落地终态。
-  element.style.pointerEvents = 'none'
-  // 跨 Surface 交接时，业务侧会先把目标本体设为 opacity:0，等待代理
-  // 落地完成后再 reveal。这个状态只属于交接过程，不能被当成目标的
-  // 静态视觉样式，否则代理会沿着 opacity:0 淡出。
+  // pointerup 发生在目标卡片上时，真实节点即使被设为 pointer-events:none
+  // 仍可能在当前指针帧保持 :hover。直接读取它会把 hover 阴影/位移带进
+  // landing 快照。克隆到同一父节点、移出视口后读取，既保留继承的主题变量，
+  // 又确保快照节点不会命中 :hover；真实目标的 rect 仍以原节点为准。
+  const snapshotNode = element.cloneNode(true) as HTMLElement
+  snapshotNode.dataset.runtimeLandingSnapshot = 'true'
+  snapshotNode.style.position = 'fixed'
+  snapshotNode.style.left = '-100000px'
+  snapshotNode.style.top = '-100000px'
+  snapshotNode.style.width = `${rect.width}px`
+  snapshotNode.style.height = `${rect.height}px`
+  snapshotNode.style.visibility = 'visible'
+  snapshotNode.style.pointerEvents = 'none'
+  snapshotNode.style.transition = 'none'
+  // 跨 Surface 交接时，业务侧可能暂时把目标设为 opacity:0；这个状态
+  // 不属于目标静态视觉，快照应按可见本体读取。
   if (options.ignoreTemporaryOpacity && (opacity === '0' || computedOpacity === '0')) {
-    element.style.opacity = '1'
+    snapshotNode.style.opacity = '1'
   }
+  const parent = element.parentElement ?? element.ownerDocument.body
+  parent.appendChild(snapshotNode)
   try {
-    void element.offsetWidth
-    const snapshot = capture(element)
+    void snapshotNode.offsetWidth
+    const snapshot = capture(snapshotNode)
     // CSS animation 或祖先交接状态可能继续让 computedStyle 返回 0，
     // 即使上面的临时 inline 覆盖已经生效。这里仍要把这个明确的
     // 交接态从目标静态快照中剔除，否则代理会按 opacity:0 淡出。
     return options.ignoreTemporaryOpacity
       && (opacity === '0' || computedOpacity === '0' || snapshot.opacity === '0')
-      ? { ...snapshot, opacity: '1' }
-      : snapshot
+      ? { ...snapshot, rect, opacity: '1' }
+      : { ...snapshot, rect }
   } finally {
-    element.style.opacity = opacity
-    element.style.pointerEvents = pointerEvents
-    element.style.transition = transition
-    delete element.dataset.runtimeLandingCapture
+    snapshotNode.remove()
   }
 }
 
