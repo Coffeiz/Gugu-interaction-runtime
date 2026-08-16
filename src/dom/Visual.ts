@@ -166,7 +166,11 @@ function prepareContentMorph(
   void layers.contentRoot.offsetWidth
   requestAnimationFrame(() => {
     layers.fromLayer.style.transition = `opacity ${duration}ms ${easing}`
-    layers.toLayer.style.transition = `opacity ${duration}ms ${easing}`
+    // target layer 在上一帧已经开始执行表面属性过渡；保留它，不要把
+    // background/blur transition 覆盖成只剩 opacity。
+    if (!layers.toLayer.style.transition) {
+      layers.toLayer.style.transition = `opacity ${duration}ms ${easing}`
+    }
     requestAnimationFrame(() => {
       layers.fromLayer.style.opacity = '0'
       layers.toLayer.style.opacity = '1'
@@ -602,7 +606,10 @@ function wrapContentForMorph(
   preserveProxyVisualContext(toContent, targetLayer)
   clearLandingRuntimeState(targetLayer)
   if (affordancesSelector) setRuntimeAffordancesHidden(targetLayer, true, affordancesSelector)
-  copyLandingSurfaceState(toContent, targetLayer)
+  // 目标层先继承抓取代理的表面状态。landing 开始后再在同一条视觉
+  // transition 上写入目标状态，避免目标层一出现就带着清晰本体覆盖掉 source
+  // 的毛玻璃；内容仍然通过两层 opacity 交叉，背景/blur 则连续收敛。
+  copyLandingSurfaceState(source, targetLayer)
   delete targetLayer.dataset.runtimePhase
   delete targetLayer.dataset.runtimeCompact
   Object.assign(targetLayer.style, {
@@ -797,6 +804,7 @@ export function landDragProxyLegacy(
       `background-image ${animDuration}ms ease`,
       `opacity ${animDuration}ms ease`,
     ].join(', ')
+    if (contentLayers) contentLayers.toLayer.style.transition = visualTransition
     // 双层 morph 时两层已经分别携带了抓取态/目标态阴影。再把源层也改成目标阴影
     // 会在 opacity 交叉期间叠出两份本体阴影，尤其是项目卡会明显变成“多一层阴影”。
     // 单层代理仍沿用原来的阴影属性过渡。
@@ -1276,6 +1284,7 @@ export function landDragProxyWithMotion(
     `background-image ${duration}ms ${easing}`,
     `opacity ${duration}ms ${easing}`,
   ].join(', ')
+  if (contentLayers) contentLayers.toLayer.style.transition = visualTransition
   // 双层 morph 的 fromLayer 保留玻璃抓取阴影并随 opacity 淡出，toLayer 保留本体阴影；
   // 只在没有内容分层时对单一代理做阴影插值，避免两层目标阴影叠加。
   if (!contentLayers) prepareBoxShadowMorph(sourceSurface, targetShadow, visualTransition)
