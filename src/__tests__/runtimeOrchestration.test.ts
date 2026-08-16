@@ -339,6 +339,22 @@ describe('Runtime move orchestration', () => {
     source.remove()
   })
 
+  it('自由画布不参与拖拽自动滚动', () => {
+    const runtime = new Runtime()
+    const canvas = document.createElement('section')
+    document.body.append(canvas)
+    canvas.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 400, height: 300, right: 400, bottom: 300,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect)
+    runtime.surfaces.register({ id: 'canvas', type: 'canvas', layout: 'free', element: canvas, accepts: ['canvas-card'] })
+    runtime.objects.register({ id: 'canvas:1', type: 'canvas-card', surfaceId: 'canvas', element: null, abilities: ['move'] })
+
+    expect(runtime.resolveMoveSurfaceElement('canvas:1', 200, 299)).toBeNull()
+
+    canvas.remove()
+  })
+
   it('free landing 分离抓取倍率与目标画布实时倍率', () => {
     const runtime = new Runtime()
     const sourceScale = { value: 1.5 }

@@ -1048,6 +1048,9 @@ setMotionProfiles(this.registry.motionProfile)
   resolveMoveSurfaceElement(objectId: string, x: number, y: number): HTMLElement | null {
     if (this.hitResolver) return this.hitResolver.findSurface({ x, y })
     const surface = this.createRegisteredHitResolver(objectId).findSurface({ x, y })
+    // 自由画布的内容坐标由 camera 管理，不是可滚动列表。即使其内容高度
+    // 超出 viewport，修改 scrollTop 也会让世界层移动而点阵背景保持不动。
+    if (surface?.layout === 'free') return null
     return surface?.viewport?.() ?? surface?.element ?? null
   }
 
