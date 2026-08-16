@@ -66,8 +66,15 @@ export declare function resolveDetachLandingTarget<TDestination>(args: {
     resolve: () => HTMLElement | null;
     applyState: (element: HTMLElement) => void;
 }): HTMLElement | null;
-export declare function captureDetachTargetSnapshot(capture: (element: HTMLElement) => VisualSnapshot, element: HTMLElement, options?: {
+export declare function captureDetachTargetSnapshot(capture: (element: HTMLElement, rect?: DOMRect) => VisualSnapshot, element: HTMLElement, options?: {
     ignoreTemporaryOpacity?: boolean;
+    /** 已在同一 landing 事务中读取过的目标几何，避免重复触发布局。 */
+    rect?: {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+    };
 }): VisualSnapshot;
 export declare function createDetachVisualContext<TContext extends object>(args: {
     createContext: () => TContext;

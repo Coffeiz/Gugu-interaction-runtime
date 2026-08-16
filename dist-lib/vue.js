@@ -1,4 +1,4 @@
-import { l as e } from "./GroupLayout-Dl0w6ktt.js";
+import { l as e } from "./GroupLayout-D24blyI_.js";
 import { inject as t, nextTick as n, onUnmounted as r, provide as i, ref as a, toValue as o, watch as s } from "vue";
 //#region src/vue/context.ts
 var c = Symbol("gugu-interaction-runtime");
@@ -37,7 +37,8 @@ function f(e) {
 		t.unregisterObjectWhenIdle(e.id, o);
 	}), {
 		elementRef: n,
-		generation: o
+		generation: o,
+		disconnectFrom: (n) => t.deleteNodeConnectionsBetween(e.id, n)
 	};
 }
 //#endregion
@@ -131,31 +132,36 @@ function b(t) {
 	let i = u(), c = a(null), l = () => c.value, d = () => {
 		let e = t.floating !== void 0 && o(t.floating);
 		return e === !0 ? {} : e || {};
-	}, f = () => v(l(), d()), p = {
+	}, f = () => v(l(), d()), p = null, m = !1, h = null, g = null, _ = {
 		viewport: () => f().viewport,
 		layoutElement: () => f().layoutElement,
-		measureLayout: () => f().measureLayout()
-	}, m = y(t, l, p), h = i.surfaces.register({
-		id: t.id,
-		...m,
-		element: null
-	}), g = a(!1), _ = null, b = null, x = null, S = null, C = () => d(), w = () => !!(t.floating !== void 0 && o(t.floating)), T = () => {
-		let e = C().open;
-		return typeof e == "function" ? e() : e !== !1;
-	}, E = () => {
-		let e = C().scrollKey;
-		return typeof e == "function" ? e() : e ?? null;
-	}, D = () => (t.motion === void 0 ? void 0 : o(t.motion))?.resize, O = () => {
-		if (x) {
-			for (let { element: e, values: t } of x) for (let [n, r] of Object.entries(t)) e.style.setProperty(n, r);
-			x = null;
+		measureLayout: () => {
+			let e = l();
+			return m && e === p ? h : (p = e, m = !0, h = f().measureLayout(), g === null && typeof requestAnimationFrame < "u" && (g = requestAnimationFrame(() => {
+				p = null, m = !1, h = null, g = null;
+			})), h);
 		}
-	}, k = (e, t) => {
+	}, b = y(t, l, _), x = i.surfaces.register({
+		id: t.id,
+		...b,
+		element: null
+	}), S = a(!1), C = null, w = null, T = null, E = null, D = () => d(), O = () => !!(t.floating !== void 0 && o(t.floating)), k = () => {
+		let e = D().open;
+		return typeof e == "function" ? e() : e !== !1;
+	}, A = () => {
+		let e = D().scrollKey;
+		return typeof e == "function" ? e() : e ?? null;
+	}, j = () => (t.motion === void 0 ? void 0 : o(t.motion))?.resize, M = () => {
+		if (T) {
+			for (let { element: e, values: t } of T) for (let [n, r] of Object.entries(t)) e.style.setProperty(n, r);
+			T = null;
+		}
+	}, N = (e, t) => {
 		if (!t || !e.contains(t)) return;
 		let n = [], r = t;
 		for (; r && (n.push(r), r !== e);) r = r.parentElement;
 		if (n[n.length - 1] === e) {
-			x ||= n.map((e) => ({
+			T ||= n.map((e) => ({
 				element: e,
 				values: {
 					display: e.style.display,
@@ -170,33 +176,33 @@ function b(t) {
 			for (let t of n) t.style.minHeight = "0", t !== e && (t.style.flex = "1 1 auto");
 			t.style.overflowX = "hidden", t.style.overflowY = "auto", t.style.minHeight = "0", t.style.flex = "1 1 auto";
 		}
-	}, A = () => {
-		_ !== null && window.clearTimeout(_), _ = null, g.value = !1, S = null;
-	}, j = () => {
+	}, P = () => {
+		C !== null && window.clearTimeout(C), C = null, S.value = !1, E = null;
+	}, F = () => {
 		let t = c.value;
-		if (!w() || !t?.isConnected) return;
-		let n = v(t, C()), r = n.layoutElement;
+		if (!O() || !t?.isConnected) return;
+		let n = v(t, D()), r = n.layoutElement;
 		if (!r) return;
-		T() && k(r, n.viewport);
-		let i = r.getBoundingClientRect().height, a = g.value && S !== null ? S : null, o = a === null && T() ? n.measureLayout() : null, s = a ?? o?.height ?? 0;
-		if (g.value && S !== null && Math.abs(S - s) < .5) return;
+		k() && N(r, n.viewport);
+		let i = r.getBoundingClientRect().height, a = S.value && E !== null ? E : null, o = a === null && k() ? n.measureLayout() : null, s = a ?? o?.height ?? 0;
+		if (S.value && E !== null && Math.abs(E - s) < .5) return;
 		if (Math.abs(i - s) < .5) {
-			A(), s === 0 && (r.style.height = "0px");
+			P(), s === 0 && (r.style.height = "0px");
 			return;
 		}
-		let l = E(), u = l ? t.querySelector(`[data-drawer-scroll="${l.replace(/"/g, "\\\"")}"]`) : n.viewport, d = u?.scrollTop ?? 0;
-		A(), g.value = !0, S = s;
-		let f = D();
+		let l = A(), u = l ? t.querySelector(`[data-drawer-scroll="${l.replace(/"/g, "\\\"")}"]`) : n.viewport, d = u?.scrollTop ?? 0;
+		P(), S.value = !0, E = s;
+		let f = j();
 		if (!e(r, s, f?.duration, f?.easing, void 0, !0, !0)) {
-			A();
+			P();
 			return;
 		}
 		let p = f?.duration ?? 250;
-		_ = window.setTimeout(() => {
-			_ = null, g.value = !1, u && (u.scrollTop = d), T() || O();
+		C = window.setTimeout(() => {
+			C = null, S.value = !1, u && (u.scrollTop = d), k() || M();
 		}, p + 80);
-	}, M = () => {
-		if (!w()) return;
+	}, I = () => {
+		if (!O()) return;
 		let e = c.value?.ownerDocument ?? document, n = i.layout.begin(e, "surface-observer", "observer");
 		if (i.layout.request(e, {
 			type: "surface-natural-size",
@@ -206,25 +212,23 @@ function b(t) {
 			return;
 		}
 		let r = (e) => {
-			e && !e.isCurrent() || j();
+			e && !e.isCurrent() || F();
 		};
 		i.layout.defer(e, n.participantId, (e) => r(e), "surface-resize") || r(), i.layout.commit(e, n.participantId);
-	}, N = () => {
-		b !== null && cancelAnimationFrame(b), b = requestAnimationFrame(() => {
-			b = null, M();
+	}, L = () => {
+		w !== null && cancelAnimationFrame(w), w = requestAnimationFrame(() => {
+			w = null, I();
 		});
-	}, P = null, F = null, I = () => {
-		P?.disconnect(), F?.disconnect(), P = null, F = null;
-	}, L = (e) => {
-		I();
+	}, R = null, z = null, B = null, V = () => {
+		R?.disconnect(), z?.disconnect(), B && window.removeEventListener("resize", B), R = null, z = null, B = null;
+	}, H = (e) => {
+		V();
 		let n = t.floating !== void 0 && o(t.floating);
-		if (!n || !e || typeof ResizeObserver > "u") return;
+		if (!n || !e) return;
 		let r = () => {
-			i.surfaces.get(t.id)?.generation === h && (i.surfaces.update(t.id, y(t, l, p)), N());
-		};
-		P = new ResizeObserver(r), P.observe(e);
-		let a = v(e, n === !0 ? {} : n).layoutElement, s = v(e, n === !0 ? {} : n).viewport;
-		a && a !== e && P.observe(a), s && s !== e && s !== a && P.observe(s), typeof MutationObserver < "u" && (F = new MutationObserver(r), F.observe(e, {
+			i.surfaces.get(t.id)?.generation === x && (i.surfaces.update(t.id, y(t, l, _)), L());
+		}, a = v(e, n === !0 ? {} : n).layoutElement, s = v(e, n === !0 ? {} : n).viewport;
+		typeof ResizeObserver < "u" && (R = new ResizeObserver(r), R.observe(e), a && a !== e && R.observe(a), s && s !== e && s !== a && R.observe(s)), typeof MutationObserver < "u" && (z = new MutationObserver(r), z.observe(e, {
 			childList: !0,
 			subtree: !0,
 			attributes: !0,
@@ -233,27 +237,29 @@ function b(t) {
 				"data-drawer-scroll",
 				"data-scroll-viewport"
 			]
-		})), r(), N();
+		})), typeof window < "u" && (B = () => {
+			E = null, L();
+		}, window.addEventListener("resize", B)), r(), L();
 	};
-	return s(() => y(t, l, p), (e) => i.surfaces.update(t.id, e), { deep: !0 }), s(c, (e, n) => {
+	return s(() => y(t, l, _), (e) => i.surfaces.update(t.id, e), { deep: !0 }), s(c, (e, n) => {
 		let r = i.surfaces.get(t.id);
-		r?.generation === h && (e === null && r.element && r.element !== n || (i.surfaces.setElement(t.id, e), L(e)));
+		r?.generation === x && (e === null && r.element && r.element !== n || (i.surfaces.setElement(t.id, e), H(e)));
 	}), s(() => t.floating !== void 0 && o(t.floating), () => {
-		L(c.value);
+		H(c.value);
 	}, { deep: !0 }), s(() => {
-		let e = C();
-		return [T(), typeof e.scrollKey == "function" ? e.scrollKey() : e.scrollKey ?? null];
+		let e = D();
+		return [k(), typeof e.scrollKey == "function" ? e.scrollKey() : e.scrollKey ?? null];
 	}, () => {
-		n(() => j());
+		n(() => F());
 	}, {
 		flush: "post",
 		immediate: !0
 	}), r(() => {
-		A(), O(), b !== null && cancelAnimationFrame(b), I(), i.surfaces.unregister(t.id, h);
+		P(), M(), w !== null && cancelAnimationFrame(w), g !== null && typeof cancelAnimationFrame < "u" && cancelAnimationFrame(g), g = null, p = null, m = !1, h = null, V(), i.surfaces.unregister(t.id, x);
 	}), {
 		elementRef: c,
-		generation: h,
-		isAnimating: g
+		generation: x,
+		isAnimating: S
 	};
 }
 //#endregion

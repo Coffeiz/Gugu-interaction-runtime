@@ -12,7 +12,7 @@ export declare class VisualStateCoordinator {
     constructor(port: VisualStatePort);
     resolveTarget(objectId: string, destination: unknown): HTMLElement | null;
     apply(objectId: string, element: HTMLElement, state: VisualState): void;
-    capture(objectId: string, element: HTMLElement): import('..').VisualSnapshot;
+    capture(objectId: string, element: HTMLElement, rect?: DOMRect): import('..').VisualSnapshot;
     trackTarget(cleanup: Cleanup, target: HTMLElement, retarget: (rect: DOMRect) => void, options?: Omit<LandingTargetTrackerOptions, 'cleanup' | 'target' | 'retarget'>): () => void;
 }
 export declare class VisualProxyCoordinator {

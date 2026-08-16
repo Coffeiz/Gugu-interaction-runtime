@@ -16,6 +16,7 @@ export declare function applyInheritedStyleContext(target: HTMLElement, context:
  */
 export declare function verifyVisualContextConsistency(source: HTMLElement, proxy: HTMLElement): string[];
 export declare function setProxyInteractive(proxy: HTMLElement, enabled: boolean): void;
+export declare function setRuntimeAffordancesHidden(root: HTMLElement, hidden: boolean, selector?: string | readonly string[]): void;
 /** 抓取代理的可选紧凑布局；尺寸和布局语义由业务声明，过渡由 Runtime 执行。 */
 export interface DragProxyLayoutConfig {
     compact?: {
@@ -53,6 +54,8 @@ export declare function createDragProxy(source: HTMLElement, rect?: DOMRect, opt
     contentScale?: number | (() => number);
     landingContentScale?: number | (() => number);
     cameraShell?: boolean;
+    affordancesSelector?: string | readonly string[];
+    proxyZIndex?: number;
 }): HTMLElement;
 /**
  * 代理挂到 documentElement 后不再继承画布的 transform: scale()。
@@ -79,6 +82,9 @@ export interface LandingVisualOptions {
     destinationSurfaceId?: string;
     duration?: number;
     easing?: string;
+    stiffness?: number;
+    damping?: number;
+    rotationDecay?: number;
     targetShadow?: string;
     targetRadius?: string;
     targetBorder?: string;
@@ -126,8 +132,12 @@ export interface LandingVisualOptions {
     };
     /** free 画布 landing 的实时相机比例。 */
     contentScale?: number | (() => number);
+    /** free landing 目标 Surface 的实时相机比例；不继承抓取阶段冻结倍率。 */
+    landingCameraScale?: number | (() => number);
     /** 当前代理是否由对象级 camera capability 启用 camera shell。 */
     cameraShell?: boolean;
+    /** 对象类型注册的附加交互选择器；landing 的源层和目标层都必须隐藏。 */
+    affordancesSelector?: string | readonly string[];
     /** grid/list 目标的最终内容倍率；未提供时按目标视觉宽度与代理基准宽度推导。 */
     landingContentScale?: number | (() => number);
     motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
@@ -180,6 +190,8 @@ export declare function applyFloatingStyle(el: HTMLElement, rect: DOMRect, optio
     keepSourceVisible?: boolean;
     contentScale?: number | (() => number);
     cameraShell?: boolean;
+    affordancesSelector?: string | readonly string[];
+    proxyZIndex?: number;
 }): void;
 export declare function getFloatingProxy(el: HTMLElement): HTMLElement | undefined;
 /** 将抓取阶段的 proxy 转交给 Runtime 的统一 landing 生命周期，不移除节点。 */

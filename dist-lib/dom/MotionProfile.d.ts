@@ -25,6 +25,12 @@ export interface MotionProfile {
         duration: number;
         /** 画布 landing 的缓动曲线。 */
         easing: string;
+        /** 画布 free landing 的位置弹簧刚度。 */
+        stiffness?: number;
+        /** 画布 free landing 的位置弹簧阻尼。 */
+        damping?: number;
+        /** 画布 free landing 的摆动回正衰减。 */
+        rotationDecay?: number;
         /** 物理释放时的惯性外推时间，秒。 */
         coastSeconds: number;
         /** 物理释放时的最大惯性距离，像素。 */

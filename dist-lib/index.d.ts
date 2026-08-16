@@ -36,7 +36,7 @@ export type { VisualAdapter, GroupVisualAdapter, VisualAdapterRegistry } from '.
 export { DEFAULT_GROUP_DRAG_CONFIG, resolveGroupDragConfig, type GroupDragConfig, type GroupDragStackTransform, type ResolvedGroupDragConfig, } from './dom/GroupDragProfile';
 export type { DragProxyLayoutConfig, LandingRect } from './dom/Visual';
 export { DefaultVisualAdapter, VisualAdapters } from './dom/VisualAdapter';
-export type { VisualPhase, VisualState, VisualSnapshot } from './dom/VisualAdapterTypes';
+export type { ObjectAffordancesConfig, VisualPhase, VisualState, VisualSnapshot } from './dom/VisualAdapterTypes';
 export { createGroupVisualAdapter } from './dom/GroupVisual';
 export { createDetachMoveFromAdapter } from './runtime/move/MoveAdapter';
 export type { HitResolver, HitResult } from './dom/Hit';

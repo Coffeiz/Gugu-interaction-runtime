@@ -50,5 +50,6 @@ export declare class LayoutTransactionCoordinator {
     getSnapshot(root: ParentNode): LayoutTransactionSnapshot | null;
     defer(root: ParentNode, participantId: string, plan: (plan: LayoutPlan) => void, type?: string): LayoutPlan | null;
     private mergeReason;
+    private finalizeIfComplete;
     private snapshot;
 }

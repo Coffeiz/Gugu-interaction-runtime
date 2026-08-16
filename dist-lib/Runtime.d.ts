@@ -9,7 +9,7 @@ import { Behavior } from './behavior/Behavior';
 import { BehaviorStore } from './behavior/BehaviorStore';
 import { MoveBehaviorDriver, MoveContext, MoveVisualLifecycle, MoveVisualStrategy } from './behavior/MoveBehavior';
 import { GroupVisualAdapter, VisualAdapter, VisualLifecycleContext, VisualProxy } from './dom/VisualAdapter';
-import { VisualState } from './dom/VisualAdapterTypes';
+import { ObjectAffordancesConfig, VisualState } from './dom/VisualAdapterTypes';
 import { MotionProfile } from './dom/MotionProfile';
 import { GroupDragConfig } from './dom/GroupDragProfile';
 import { DragProxyLayoutConfig, LandingRect } from './dom/Visual';
@@ -128,6 +128,8 @@ export interface ObjectTypeRegistration {
     camera?: boolean | ObjectCameraConfig;
     /** 类型级视觉适配器；每个对象只复用这一份适配器定义。 */
     visual?: ObjectVisualAdapter;
+    /** 附加交互的 DOM 标记；Runtime 只在拖拽生命周期内切换其隐藏状态。 */
+    affordances?: ObjectAffordancesConfig;
     /** 多对象叠卡视觉；默认使用 Runtime 内置效果，也可传入自定义适配器或显式关闭。 */
     groupVisual?: GroupVisualOption;
     /** 运动实现与参数；默认启用 Runtime MotionController。 */
@@ -147,6 +149,13 @@ export interface ObjectTypeRegistration {
     grabAlign?: GrabAlignConfig;
     /** 抓取代理的可选紧凑布局；Runtime 负责尺寸和位置过渡。 */
     proxyLayout?: DragProxyLayoutConfig;
+    /** 抓取阶段临时代理的页面层级；未设置时使用 Runtime 默认层级。 */
+    proxyZIndex?: number;
+    /** landing 阶段临时代理的页面层级；可按来源/目标 Surface 动态解析。 */
+    landingProxyZIndex?: number | ((context: {
+        sourceSurfaceId?: string;
+        destinationSurfaceId?: string;
+    }) => number);
     /** 多选拖拽的叠牌与 modifier 淡出配置；未设置时使用 Runtime 默认值。 */
     groupDrag?: GroupDragConfig;
     /** 类型级 pointer 输入配置；业务无需自行绑定 pointer listener。 */
@@ -285,6 +294,12 @@ export declare class Runtime {
     /** Surface 可选择让抓取代理从 1x 平滑过渡到当前相机倍率。 */
     getSurfaceCameraPickupScale(surfaceId?: string, sessionId?: string): number | (() => number) | undefined;
     private getSessionContentScale;
+    /**
+     * pointerup 把抓取阶段的 camera pickup scale 交给 landing 时，必须冻结在
+     * 释放瞬间的值。否则 landing 继续读取 pickup 函数，缩放动画会跨越两个
+     * 生命周期，代理的视觉尺寸与 landing 的初始尺寸不一致。
+     */
+    freezeSessionContentScale(sessionId: string): number | undefined;
     private clearSessionContentScale;
     getSurfaceCameraOrigin(surfaceId?: string): (() => {
         left: number;
@@ -320,7 +335,12 @@ export declare class Runtime {
     getObjectMotionEnabled(objectId: string): boolean;
     /** 按对象注册解析抓取代理布局，供 detach 浮动入口与生命周期入口共用。 */
     getObjectProxyLayout(objectId: string, sourceElement?: HTMLElement): DragProxyLayoutConfig | undefined;
+    getObjectProxyZIndex(objectId: string): number | undefined;
+    getObjectLandingProxyZIndex(objectId: string, sourceSurfaceId?: string, destinationSurfaceId?: string): number | undefined;
+    setVisualProxyZIndex(sessionId: string, zIndex: number | undefined): void;
     getObjectVisualAdapter(objectId: string): VisualAdapter;
+    /** 读取对象类型声明的附加交互选择器；未声明时不干预业务 DOM。 */
+    getObjectAffordancesConfig(objectId: string): ObjectAffordancesConfig | undefined;
     getObjectGroupVisualAdapter(objectId: string): VisualAdapter | undefined;
     createVisualLifecycleContext(sessionId: string, destination?: unknown, target?: HTMLElement | LandingRect, beforeContent?: HTMLElement): VisualLifecycleContext;
     /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
@@ -339,7 +359,7 @@ export declare class Runtime {
     /** 将对象的生命周期视觉状态交给其适配器写入。 */
     applyVisualState(objectId: string, element: HTMLElement, state: VisualState): void;
     /** 获取对象当前视觉快照；未覆盖时使用默认 DOM 样式快照。 */
-    captureVisualState(objectId: string, element: HTMLElement): import('.').VisualSnapshot;
+    captureVisualState(objectId: string, element: HTMLElement, rect?: DOMRect): import('.').VisualSnapshot;
     /** 调用当前对象适配器的 reveal；交接只允许由 Runtime 触发。 */
     revealVisualProxy(sessionId: string, target: HTMLElement, context?: VisualLifecycleContext): Promise<void>;
     registerVisualProxy(sessionId: string, proxy: VisualProxy): void;
@@ -356,6 +376,13 @@ export declare class Runtime {
     resolveMoveSurfaceElement(objectId: string, x: number, y: number): HTMLElement | null;
     /** 取得指定 Surface 的滚动视口，不让视觉 driver 探查业务 DOM 结构。 */
     resolveMoveSurfaceViewport(surfaceId: string): HTMLElement | null;
+    /**
+     * 自由 Surface 的落点坐标使用 viewport 外框坐标，而卡片实际位于其内容盒。
+     * viewport 存在 border 时，业务用 getBoundingClientRect() 计算的卡片位置会
+     * 比外框原点多出 clientLeft/clientTop；这里统一把纯矩形落点转换到内容原点。
+     * 同时按 viewport 的屏幕/CSS 比例换算，兼容 viewport 自身被 transform 缩放的场景。
+     */
+    private normalizeFreeLandingRect;
     /** 创建绑定当前 Session 的自动滚动控制器；滚动资源随 Session 自动清理。 */
     createAutoScroller(sessionId: string, options?: AutoScrollOptions): AutoScrollController | null;
     /**
@@ -366,6 +393,12 @@ export declare class Runtime {
      * 容器滚动不会比代理慢一大截，避免代理先完成并被销毁而容器仍在滚动。
      */
     keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void;
+    /**
+     * 矩形落点也可能已经对应一个刚由业务插入的真实目标节点（典型是 free
+     * canvas 的乐观插入）。先登记 visibility owner，等 landing 完成后统一 reveal，
+     * 避免目标本体与 proxy 同时出现。
+     */
+    concealVisualTarget(sessionId: string, target: HTMLElement): void;
     /** 已注册对象按屏幕布局排序后的索引，不依赖业务 DOM 的 data 属性。 */
     getObjectSurfaceIndex(objectId: string, surfaceId?: string): number;
     subscribe(listener: (event: RuntimeEvent) => void): () => void;
@@ -380,6 +413,7 @@ export declare class Runtime {
     }, options?: {
         objectId?: string;
         objectType?: string;
+        snapToObject?: boolean;
     }): NodePortSnapshot | null;
     beginNodeConnection(objectId: string, portId: string): NodeConnectionState | null;
     updateNodeConnection(point: {
@@ -392,6 +426,8 @@ export declare class Runtime {
     get activeConnection(): NodeConnectionState | null;
     /** 注册宿主已经持久化的连接，避免首次连接时只校验当前 Runtime 会话。 */
     registerNodeConnection(connection: NodeConnectionEndpoint): string;
+    /** 按对象对清理连接；画布等无向关系无需暴露 Runtime 内部端点或外部关系 ID。 */
+    deleteNodeConnectionsBetween(objectId: string, targetObjectId: string): number;
     unregisterNodeConnection(connection: NodeConnectionEndpoint | string): boolean;
     hasNodeConnection(connection: NodeConnectionEndpoint): boolean;
     private nodeConnectionId;

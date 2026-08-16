@@ -1,4 +1,4 @@
-import { VisualState, VisualSnapshot } from './VisualAdapterTypes';
+import { ObjectAffordancesConfig, VisualState, VisualSnapshot } from './VisualAdapterTypes';
 import { MotionProfile } from './MotionProfile';
 import { GroupDragConfig } from './GroupDragProfile';
 import { MotionState } from '../motion/CardMotionController';
@@ -39,7 +39,7 @@ export interface VisualLifecycleContext {
     readonly motionEnabled?: boolean;
     /** landing 视觉目标所在 Surface 的 viewport 边界。 */
     readonly landingBounds?: () => DOMRect | null;
-    /** grabbing 结束时冻结的运动状态，用于 landing 继承释放速度。 */
+    /** grabbing 控制器最后一次提交的运动状态；landing 直接从同一状态继续。 */
     readonly motionState?: Pick<MotionState, 'x' | 'y' | 'vx' | 'vy' | 'scaleX' | 'scaleY' | 'rotateX' | 'rotateZ'>;
     /** 代理脱离缩放祖先后需要复现的当前视觉缩放。 */
     readonly contentScale?: number | (() => number);
@@ -50,14 +50,27 @@ export interface VisualLifecycleContext {
         left: number;
         top: number;
     };
+    /** landing 目标 Surface 的相机原点；独立于源对象是否声明 camera 能力。 */
+    readonly landingCameraOrigin?: () => {
+        left: number;
+        top: number;
+    };
+    /** landing 目标 Surface 的实时相机倍率；与抓取阶段冻结的 contentScale 分离。 */
+    readonly landingCameraScale?: number | (() => number);
     /** 对象类型归一化后的 camera 能力；Phase 1A 仅供 adapter 观察，不改变既有行为。 */
     readonly camera?: ResolvedObjectCameraConfig;
     /** 类型级抓取代理布局；Runtime 负责紧凑布局的过渡时序。 */
     readonly proxyLayout?: DragProxyLayoutConfig;
+    /** 抓取阶段临时代理页面层级。 */
+    readonly proxyZIndex?: number;
+    /** landing 阶段临时代理页面层级。 */
+    readonly landingProxyZIndex?: number;
     /** 多对象移动时由 Runtime 会话提供的主卡与附属卡相对布局。 */
     readonly group?: VisualGroupContext;
     /** 对象类型注册的多选叠牌视觉配置。 */
     readonly groupDrag?: GroupDragConfig;
+    /** 对象类型注册的附加交互声明；自定义适配器可据此处理自己的附加层。 */
+    readonly affordances?: ObjectAffordancesConfig;
 }
 export interface VisualProxy {
     readonly element: HTMLElement;
@@ -67,7 +80,7 @@ export interface VisualProxy {
 export interface VisualAdapter {
     resolveSource?(objectId: string): HTMLElement | null;
     resolveTarget?(objectId: string, destination: unknown): HTMLElement | null;
-    captureVisualState?(element: HTMLElement): VisualSnapshot;
+    captureVisualState?(element: HTMLElement, rect?: DOMRect): VisualSnapshot;
     applyState?(element: HTMLElement, state: VisualState): void;
     createProxy?(context: VisualLifecycleContext): VisualProxy;
     updateProxy?(proxy: VisualProxy, context: VisualLifecycleContext): void;
@@ -93,7 +106,7 @@ export declare class DefaultVisualAdapter implements VisualAdapter {
     setRuntime(runtime: Runtime): void;
     resolveSource(objectId: string): HTMLElement | null;
     resolveTarget(objectId: string): HTMLElement | null;
-    captureVisualState(element: HTMLElement): VisualSnapshot;
+    captureVisualState(element: HTMLElement, rect?: DOMRect): VisualSnapshot;
     applyState(element: HTMLElement, state: VisualState): void;
     createProxy(context: VisualLifecycleContext): VisualProxy;
     updateProxy(proxy: VisualProxy, context: VisualLifecycleContext): void;

@@ -193,13 +193,14 @@ function y(e, t, n = p, r, i, a) {
 			let c = a?.rect(e) ?? e.getBoundingClientRect();
 			return o.set(s, t.collectionId), {
 				key: s,
+				element: e,
 				rect: {
 					left: c.left,
 					top: c.top,
 					width: c.width,
 					height: c.height
 				},
-				element: e
+				contentHTML: e.outerHTML
 			};
 		}).filter((e) => e !== null),
 		ignore: r,
@@ -232,7 +233,7 @@ function b(e, t = {}, n) {
 	}), e.entries.forEach((e) => {
 		if (o.has(e.key)) return;
 		let t = document.createElement("template");
-		t.innerHTML = e.element.outerHTML;
+		t.innerHTML = e.contentHTML;
 		let n = t.content.firstElementChild;
 		if (!n) return;
 		n.removeAttribute("data-file-id"), n.removeAttribute("data-layout-key"), n.removeAttribute("data-layout-role"), n.dataset.runtimePresenceGhost = "true";
@@ -284,23 +285,23 @@ function k(e, t = document, n = !0, r, i = {}) {
 	let a = (e) => {
 		let t = i.scopeSurfaces;
 		return !t || t.length === 0 || t.some((t) => t === e || t.contains(e));
-	}, o = i.scopeSurfaces && i.scopeSurfaces.length > 0 ? i.scopeSurfaces : null, s = o ? Array.from(new Set(o.flatMap((e) => [...e.matches("[data-layout-surface]") ? [e] : [], ...Array.from(e.querySelectorAll("[data-layout-surface]"))]))).filter(a) : [...t instanceof HTMLElement && t.matches("[data-layout-surface]") ? [t] : [], ...Array.from(t.querySelectorAll("[data-layout-surface]"))].filter(a), c = x(), { groups: l, groupLeaves: d, flatCards: f } = O(e, t, i.scopeSurfaces), p = oe(s, c, i.surfaceMeasures), m = (i.scopeSurfaces ?? [t]).some((e) => e instanceof HTMLElement ? e.matches("[data-layout-collection]") || e.querySelector("[data-layout-collection]") !== null : t.querySelector("[data-layout-collection]") !== null);
-	return ne(t, {
+	}, o = [...t instanceof HTMLElement && t.matches("[data-layout-surface]") ? [t] : [], ...Array.from(t.querySelectorAll("[data-layout-surface]"))].filter(a), s = x(), { groups: c, groupLeaves: l, flatCards: d } = O(e, t, i.scopeSurfaces), f = oe(o, s, i.surfaceMeasures), p = (i.scopeSurfaces ?? [t]).some((e) => e instanceof HTMLElement ? e.matches("[data-layout-collection]") || e.querySelector("[data-layout-collection]") !== null : t.querySelector("[data-layout-collection]") !== null);
+	return te(t, {
 		root: t,
-		group: l.length > 0 ? { before: H([...l, ...d], c) } : void 0,
-		flat: f.length > 0 ? {
-			elements: f,
-			before: u(f, c)
+		group: c.length > 0 ? { before: U([...c, ...l], s) } : void 0,
+		flat: d.length > 0 ? {
+			elements: d,
+			before: u(d, s)
 		} : void 0,
-		surfaces: p,
-		presence: n && m ? y(t, "[data-layout-role=\"card\"]", void 0, r, i.scopeSurfaces, c) : void 0
+		surfaces: f,
+		presence: n && p ? y(t, "[data-layout-role=\"card\"]", void 0, r, i.scopeSurfaces, s) : void 0
 	});
 }
 function A(e) {
 	let t = x(), n = D();
 	se(e.surfaces, n.resize.duration, n.resize.easing, t);
 	let r = e.group ? N(e.group.before) : null;
-	e.group && W(e.group.before, n.flip.duration, n.flip.easing, t), e.flat && f(e.flat.elements, e.flat.before, n.flip.duration, n.flip.easing, t), e.presence && b(e.presence, {
+	e.group && G(e.group.before, n.flip.duration, n.flip.easing, t), e.flat && f(e.flat.elements, e.flat.before, n.flip.duration, n.flip.easing, t), e.presence && b(e.presence, {
 		duration: n.flip.duration,
 		easing: n.flip.easing
 	}, t), r && P(r, n.flip.duration + 50);
@@ -332,20 +333,20 @@ function P(e, t) {
 		}), j.delete(n));
 	}, t));
 }
+function F(e) {
+	R.set(e.root, e), queueMicrotask(() => {
+		R.get(e.root) === e && (R.delete(e.root), A(e));
+	});
+}
 function ee(e) {
-	L.set(e.root, e), queueMicrotask(() => {
-		L.get(e.root) === e && (L.delete(e.root), A(e));
+	R.set(e.root, e), requestAnimationFrame(() => {
+		R.get(e.root) === e && (R.delete(e.root), A(e));
 	});
 }
-function te(e) {
-	L.set(e.root, e), requestAnimationFrame(() => {
-		L.get(e.root) === e && (L.delete(e.root), A(e));
-	});
-}
-function ne(e, t) {
-	let n = L.get(e);
+function te(e, t) {
+	let n = R.get(e);
 	if (!n) return t;
-	let r = I(t.surfaces, n.surfaces), i = re(t.flat, n.flat), a = F(t.group, n.group);
+	let r = L(t.surfaces, n.surfaces), i = ne(t.flat, n.flat), a = I(t.group, n.group);
 	return {
 		...t,
 		flat: i,
@@ -353,7 +354,7 @@ function ne(e, t) {
 		surfaces: r
 	};
 }
-function re(e, t) {
+function ne(e, t) {
 	if (!e || !t) return e;
 	let n = new Map(e.before);
 	for (let r of e.elements) {
@@ -365,7 +366,7 @@ function re(e, t) {
 		before: n
 	};
 }
-function F(e, t) {
+function I(e, t) {
 	if (!e || !t) return e;
 	let n = new Map(t.before.map((e) => [e.element, e.rect]));
 	return { before: e.before.map((e) => ({
@@ -373,7 +374,7 @@ function F(e, t) {
 		rect: n.get(e.element) ?? e.rect
 	})) };
 }
-function I(e, t) {
+function L(e, t) {
 	let n = new Map(t.map((e) => [e.element, e]));
 	return e.map((e) => {
 		let t = n.get(e.element);
@@ -384,8 +385,8 @@ function I(e, t) {
 		} : e;
 	});
 }
-var L = /* @__PURE__ */ new WeakMap(), R = /* @__PURE__ */ new WeakMap(), z = /* @__PURE__ */ new WeakMap(), B = /* @__PURE__ */ new WeakMap();
-function V(e, t) {
+var R = /* @__PURE__ */ new WeakMap(), z = /* @__PURE__ */ new WeakMap(), B = /* @__PURE__ */ new WeakMap(), V = /* @__PURE__ */ new WeakMap();
+function H(e, t) {
 	let n = t?.rect(e) ?? e.getBoundingClientRect();
 	return {
 		top: n.top,
@@ -394,18 +395,18 @@ function V(e, t) {
 		height: n.height
 	};
 }
-function H(e, t) {
+function U(e, t) {
 	let n = e.filter((e) => {
 		let n = t?.rect(e) ?? e.getBoundingClientRect();
 		return n.width > 0 && n.height > 0;
 	}), r = new Set(n);
 	return n.map((e) => ({
 		element: e,
-		parent: U(e, r),
-		rect: V(e, t)
+		parent: W(e, r),
+		rect: H(e, t)
 	}));
 }
-function U(e, t) {
+function W(e, t) {
 	let n = e.parentElement;
 	for (; n;) {
 		if (t.has(n)) return n;
@@ -413,45 +414,39 @@ function U(e, t) {
 	}
 	return null;
 }
-function W(e, t = c, n = l, r) {
+function G(e, t = c, n = l, r) {
 	let i = /* @__PURE__ */ new Map();
 	for (let t of e) {
-		let e = V(t.element, r);
+		let e = H(t.element, r);
 		i.set(t.element, {
 			x: t.rect.left - e.left,
 			y: t.rect.top - e.top
 		});
 	}
-	let a = [];
-	for (let t of e) {
-		let e = i.get(t.element), n = t.parent ? i.get(t.parent) : void 0, r = e.x - (n?.x ?? 0), o = e.y - (n?.y ?? 0);
-		if (t.element.dataset.runtimeProxy === "true" || t.element.dataset.runtimePlaceholder === "true" || t.element.dataset.runtimeActive === "true" || Math.abs(r) < .5 && Math.abs(o) < .5) {
-			t.element.dataset.runtimeGroupAnimating !== "true" && t.element.dataset.runtimeFlip !== "true" && (t.element.style.transition = "");
+	for (let r of e) {
+		let e = i.get(r.element), a = r.parent ? i.get(r.parent) : void 0, o = e.x - (a?.x ?? 0), s = e.y - (a?.y ?? 0);
+		if (r.element.dataset.runtimeProxy === "true" || r.element.dataset.runtimePlaceholder === "true" || r.element.dataset.runtimeActive === "true" || Math.abs(o) < .5 && Math.abs(s) < .5) {
+			r.element.dataset.runtimeGroupAnimating !== "true" && r.element.dataset.runtimeFlip !== "true" && (r.element.style.transition = "");
 			continue;
 		}
-		let s = B.get(t.element);
-		s !== void 0 && (cancelAnimationFrame(s), B.delete(t.element));
-		let c = z.get(t.element);
-		c !== void 0 && (clearTimeout(c), z.delete(t.element)), t.element.style.transform = `translate(${r}px, ${o}px)`, t.element.style.transition = "none";
-		let l = String(Number(t.element.dataset.runtimeFlipToken ?? "0") + 1);
-		t.element.dataset.runtimeFlip = "true", t.element.dataset.runtimeFlipToken = l, a.push({
-			element: t.element,
-			dx: r,
-			dy: o,
-			token: l
+		r.element.style.transform = `translate(${o}px, ${s}px)`, r.element.style.transition = "none";
+		let c = String(Number(r.element.dataset.runtimeFlipToken ?? "0") + 1);
+		r.element.dataset.runtimeFlip = "true", r.element.dataset.runtimeFlipToken = c;
+		let l = V.get(r.element);
+		l !== void 0 && (cancelAnimationFrame(l), V.delete(r.element));
+		let u = requestAnimationFrame(() => {
+			V.delete(r.element), r.element.dataset.runtimeFlipToken === c && (r.element.style.transition = `transform ${t}ms ${n}`, r.element.style.transform = "");
 		});
+		V.set(r.element, u);
+		let d = window.setTimeout(() => {
+			r.element.dataset.runtimeFlipToken === c && (r.element.style.transition = "", r.element.style.transform = "", delete r.element.dataset.runtimeFlip, B.delete(r.element));
+		}, t + 40);
+		B.set(r.element, d);
 	}
-	if (a.length === 0) return;
-	let o = requestAnimationFrame(() => {
-		for (let { element: e, token: r } of a) e.dataset.runtimeFlipToken === r && (e.style.transition = `transform ${t}ms ${n}`, e.style.transform = "");
-	}), s = window.setTimeout(() => {
-		for (let { element: e, token: t } of a) e.dataset.runtimeFlipToken === t && (e.style.transition = "", e.style.transform = "", delete e.dataset.runtimeFlip, z.delete(e));
-	}, t + 40);
-	for (let { element: e } of a) B.set(e, o), z.set(e, s);
 }
-function G(e, t, n = c, r = l, i, a = !1, o = !1) {
+function K(e, t, n = c, r = l, i, a = !1, o = !1) {
 	if (e.dataset.runtimeLayoutTransaction === "true" || e.dataset.runtimeSurfaceResize === "true") return !1;
-	K(e);
+	q(e);
 	let s = i ?? e.getBoundingClientRect().height, u = String(Number(e.dataset.runtimeGroupToken ?? "0") + 1);
 	e.dataset.runtimeGroupToken = u;
 	let d = Math.abs(Math.max(0, t) - s), f = o ? Math.max(0, n) : Math.min(Math.max(d / 8, 200), 350);
@@ -460,18 +455,18 @@ function G(e, t, n = c, r = l, i, a = !1, o = !1) {
 		frame: null,
 		timeout: null
 	};
-	return R.set(e, p), p.frame = requestAnimationFrame(() => {
+	return z.set(e, p), p.frame = requestAnimationFrame(() => {
 		p.frame = null, e.style.height = `${Math.max(0, t)}px`;
 	}), p.timeout = window.setTimeout(() => {
-		e.dataset.runtimeGroupToken === u && (t <= 0 ? (e.style.height = "0px", e.style.overflow = "hidden") : a ? (e.style.height = `${t}px`, e.style.overflow = "") : (e.style.height = "", e.style.overflow = ""), e.style.transition = "", delete e.dataset.runtimeGroupAnimating, R.delete(e));
+		e.dataset.runtimeGroupToken === u && (t <= 0 ? (e.style.height = "0px", e.style.overflow = "hidden") : a ? (e.style.height = `${t}px`, e.style.overflow = "") : (e.style.height = "", e.style.overflow = ""), e.style.transition = "", delete e.dataset.runtimeGroupAnimating, z.delete(e));
 	}, f + 40), !0;
 }
-function K(e) {
-	let t = R.get(e);
-	t && (t.frame !== null && cancelAnimationFrame(t.frame), t.timeout !== null && window.clearTimeout(t.timeout), R.delete(e));
-}
 function q(e) {
-	L.delete(e);
+	let t = z.get(e);
+	t && (t.frame !== null && cancelAnimationFrame(t.frame), t.timeout !== null && window.clearTimeout(t.timeout), z.delete(e));
+}
+function J(e) {
+	R.delete(e);
 	let t = typeof Node < "u" && e instanceof Node, n = t ? e.getRootNode() : e, r = j.get(n);
 	r && (r.timeout !== void 0 && window.clearTimeout(r.timeout), r.entries.forEach(({ element: n, overflow: r }) => {
 		t && !e.contains(n) || (n.style.overflow = r);
@@ -479,13 +474,13 @@ function q(e) {
 	let a = [];
 	e instanceof HTMLElement && a.push(e), typeof e.querySelectorAll == "function" && a.push(...Array.from(e.querySelectorAll("[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-runtime-layout-transaction], [data-layout-content]")));
 	for (let e of a) {
-		let t = z.get(e), n = B.get(e), r = t !== void 0 || e.dataset.runtimeFlip === "true" || e.dataset.runtimeGroupAnimating === "true" || e.dataset.runtimeSurfaceResize === "true" || e.dataset.runtimeLayoutTransaction === "true";
-		t !== void 0 && (window.clearTimeout(t), z.delete(e)), n !== void 0 && (cancelAnimationFrame(n), B.delete(e)), i(e), o(e), K(e);
-		let a = X.get(e);
-		a && (Q(e, a.baseStyle), X.delete(e)), e.dataset.runtimeGroupAnimating === "true" && (e.style.height = e.dataset.layoutOpen === "false" ? "0px" : "", e.style.overflow = e.dataset.layoutOpen === "false" ? "hidden" : "", e.style.transition = ""), r && (e.style.transform = ""), e.dataset.runtimeFlip === "true" && delete e.dataset.runtimeFlip, delete e.dataset.runtimeSurfaceResize, delete e.dataset.runtimeSurfaceResizeToken, delete e.dataset.runtimeLayoutTransaction, delete e.dataset.runtimeGroupAnimating;
+		let t = B.get(e), n = V.get(e), r = t !== void 0 || e.dataset.runtimeFlip === "true" || e.dataset.runtimeGroupAnimating === "true" || e.dataset.runtimeSurfaceResize === "true" || e.dataset.runtimeLayoutTransaction === "true";
+		t !== void 0 && (window.clearTimeout(t), B.delete(e)), n !== void 0 && (cancelAnimationFrame(n), V.delete(e)), i(e), o(e), q(e);
+		let a = Z.get(e);
+		a && (Q(e, a.baseStyle), Z.delete(e)), e.dataset.runtimeGroupAnimating === "true" && (e.style.height = e.dataset.layoutOpen === "false" ? "0px" : "", e.style.overflow = e.dataset.layoutOpen === "false" ? "hidden" : "", e.style.transition = ""), r && (e.style.transform = ""), e.dataset.runtimeFlip === "true" && delete e.dataset.runtimeFlip, delete e.dataset.runtimeSurfaceResize, delete e.dataset.runtimeSurfaceResizeToken, delete e.dataset.runtimeLayoutTransaction, delete e.dataset.runtimeGroupAnimating;
 	}
 }
-async function J(e) {
+async function Y(e) {
 	let t = e.root instanceof HTMLElement ? e.root.ownerDocument : e.root, n = e.layoutTransaction?.begin(t, "group-toggle");
 	n && e.layoutTransaction?.request(t, {
 		type: "group-toggle",
@@ -493,10 +488,12 @@ async function J(e) {
 	});
 	let r = (w.get(e.content) ?? 0) + 1;
 	w.set(e.content, r);
-	let i = Array.from(e.root.querySelectorAll("[data-layout-role=\"card\"]")), a = k((i.length > 0 ? i : Array.from(e.root.querySelectorAll(".done-card-item, [data-card]"))).filter((e) => {
+	let i = Array.from(e.root.querySelectorAll("[data-layout-role=\"card\"]")), a = (i.length > 0 ? i : Array.from(e.root.querySelectorAll(".done-card-item, [data-card]"))).filter((e) => {
 		let t = e.getBoundingClientRect();
 		return t.width > 0 && t.height > 0;
-	}), e.root, !1, void 0, { surfaceMeasures: e.surfaceMeasures }), o = e.content.getBoundingClientRect().height, s = C ? ie(e.content, e.opening, e.duration, e.easing) : null;
+	}), o = e.content.getBoundingClientRect().height, s = k(a, e.root, !1, void 0, { surfaceMeasures: e.surfaceMeasures });
+	!e.opening && o > 0 && (q(e.content), e.content.dataset.runtimeGroupAnimating = "true", e.content.style.height = `${o}px`, e.content.style.overflow = "hidden", e.content.style.transition = "");
+	let c = C ? ie(e.content, e.opening, e.duration, e.easing) : null;
 	if (e.mutate(), await e.waitForLayout(), w.get(e.content) !== r) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
@@ -505,8 +502,8 @@ async function J(e) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
 	}
-	let c = e.layoutCache?.getGroup(e.content, e.opening), l = c?.height ?? (e.opening ? e.content.scrollHeight : 0);
-	if (G(e.content, l, e.duration, e.easing, o), s && ae(s, e.opening), await new Promise((e) => requestAnimationFrame(() => e())), w.get(e.content) !== r) {
+	let l = e.layoutCache?.getGroup(e.content, e.opening), u = e.content.scrollHeight, d = e.opening ? u : 0, f = e.opening && l && l.height === d ? l : void 0;
+	if (K(e.content, d, e.duration, e.easing, o), c && ae(c, e.opening), await new Promise((e) => requestAnimationFrame(() => e())), w.get(e.content) !== r) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
 	}
@@ -514,39 +511,50 @@ async function J(e) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
 	}
-	let u = c ? new Map(c.surfaceTargets) : Y(a.surfaces, e.content, l);
-	e.layoutCache?.setGroup(e.content, e.opening, l, u);
-	let d = u.size > 0 ? {
-		...a,
-		surfaces: a.surfaces.map((e) => ({
+	let p = f ? new Map(f.surfaceTargets) : X(s.surfaces, e.content, d);
+	e.layoutCache?.setGroup(e.content, e.opening, d, p);
+	let m = p.size > 0 ? {
+		...s,
+		surfaces: s.surfaces.map((e) => ({
 			...e,
-			targetMeasure: u.get(e.element)
+			targetMeasure: p.get(e.element)
 		}))
-	} : a, f = (e) => {
-		e && !e.isCurrent() || A(d);
+	} : s, h = (e) => {
+		e && !e.isCurrent() || A(m);
 	};
-	n && e.layoutTransaction?.defer(t, n.participantId, (e) => f(e), "group-flip") || f(), e.layoutTransaction?.commit(t, n?.participantId);
+	n && e.layoutTransaction?.defer(t, n.participantId, (e) => h(e), "group-flip") || h(), e.layoutTransaction?.commit(t, n?.participantId);
 }
-function Y(e, t, n) {
-	let r = /* @__PURE__ */ new Map(), i = {
+function X(e, t, n) {
+	let r = /* @__PURE__ */ new Map();
+	if (e.length === 0) return r;
+	let i = re(t), a = i ? de(i) : null, o = {
 		height: t.style.height,
 		overflow: t.style.overflow,
 		transition: t.style.transition
 	};
 	t.style.height = `${Math.max(0, n)}px`, t.style.overflow = "hidden", t.style.transition = "none";
-	let a = e.map((e) => ({
+	let s = e.map((e) => ({
 		item: e,
 		height: e.element.style.height,
 		overflow: e.element.style.overflow,
 		transition: e.element.style.transition
 	}));
-	return a.forEach(({ item: e }) => {
+	return s.forEach(({ item: e }) => {
 		e.measure && (e.element.style.height = "auto", e.element.style.overflow = "visible", e.element.style.transition = "none");
-	}), t.offsetHeight, a.forEach(({ item: e }) => {
+	}), t.offsetHeight, s.forEach(({ item: e }) => {
 		e.measure && r.set(e.element, e.measure());
-	}), a.forEach(({ item: e, height: t, overflow: n, transition: r }) => {
+	}), s.forEach(({ item: e, height: t, overflow: n, transition: r }) => {
 		e.element.style.height = t, e.element.style.overflow = n, e.element.style.transition = r;
-	}), t.style.height = i.height, t.style.overflow = i.overflow, t.style.transition = i.transition, r;
+	}), t.style.height = o.height, t.style.overflow = o.overflow, t.style.transition = o.transition, a && i && fe(i, a), r;
+}
+function re(e) {
+	let t = e.parentElement;
+	for (; t;) {
+		let e = getComputedStyle(t);
+		if (/(auto|scroll|overlay)/.test(`${e.overflowY} ${e.overflow}`)) return t;
+		t = t.parentElement;
+	}
+	return null;
 }
 function ie(e, t, n = c, r = l) {
 	let i = Array.from(e.querySelectorAll("[data-layout-role=\"card\"], .done-card-item")), a = String(Number(e.dataset.runtimePresenceToken ?? "0") + 1);
@@ -578,8 +586,8 @@ function ae(e, t) {
 function oe(e, t, n) {
 	return e.map((e) => {
 		e.dataset.runtimeLayoutTransaction = "true";
-		let r = V(e, t), i = n?.get(e), a = le(e);
-		return i && !X.has(e) && (e.style.height = `${$(e, r.height)}px`, e.style.overflow = "hidden"), {
+		let r = H(e, t), i = n?.get(e), a = ue(e);
+		return i && !Z.has(e) && (e.style.height = `${$(e, r.height)}px`, e.style.overflow = "hidden"), {
 			element: e,
 			rect: r,
 			measure: i,
@@ -590,7 +598,7 @@ function oe(e, t, n) {
 function se(e, t = c, n = l, r) {
 	ce(e);
 	let i = e.filter((e) => e.element.isConnected).map((e) => {
-		let t = V(e.element, r), n = e.targetMeasure === void 0 ? e.measure?.() : e.targetMeasure, i = n ? {
+		let t = H(e.element, r), n = e.targetMeasure === void 0 ? e.measure?.() : e.targetMeasure, i = n ? {
 			...t,
 			...n.width === void 0 ? {} : { width: n.width },
 			height: n.height
@@ -619,20 +627,20 @@ function se(e, t = c, n = l, r) {
 	let o = /* @__PURE__ */ new Map();
 	for (let { item: e, fromHeight: t, toHeight: n } of i) {
 		let n = e.element.style, r = {
-			baseStyle: X.get(e.element)?.baseStyle ?? e.inlineStyle,
-			token: String(++Z)
+			baseStyle: Z.get(e.element)?.baseStyle ?? e.inlineStyle,
+			token: String(++le)
 		};
-		X.set(e.element, r), o.set(e.element, r.token), n.overflow = "hidden", n.transition = "none", n.height = `${t}px`, e.element.dataset.runtimeSurfaceResize = "true", e.element.dataset.runtimeSurfaceResizeToken = r.token;
+		Z.set(e.element, r), o.set(e.element, r.token), n.overflow = "hidden", n.transition = "none", n.height = `${t}px`, e.element.dataset.runtimeSurfaceResize = "true", e.element.dataset.runtimeSurfaceResizeToken = r.token;
 	}
 	requestAnimationFrame(() => {
 		for (let { item: e, fromHeight: t, toHeight: n, profile: r } of i) {
-			let i = e.element.style, a = X.get(e.element), c = o.get(e.element);
+			let i = e.element.style, a = Z.get(e.element), c = o.get(e.element);
 			if (!a || !c || a.token !== c || e.element.dataset.runtimeSurfaceResizeToken !== c) continue;
 			let l = a.token;
 			i.transition = "none", s(e.element, t, n, r.duration, r.easing), window.setTimeout(() => {
 				if (e.element.dataset.runtimeSurfaceResizeToken !== l) return;
-				let t = X.get(e.element);
-				!t || t.token !== l || (Q(e.element, t.baseStyle), e.measure && (i.height = `${n}px`), X.delete(e.element), delete e.element.dataset.runtimeSurfaceResize, delete e.element.dataset.runtimeLayoutTransaction);
+				let t = Z.get(e.element);
+				!t || t.token !== l || (Q(e.element, t.baseStyle), e.measure && (i.height = `${n}px`), Z.delete(e.element), delete e.element.dataset.runtimeSurfaceResize, delete e.element.dataset.runtimeLayoutTransaction);
 			}, r.duration + 40);
 		}
 	});
@@ -640,13 +648,13 @@ function se(e, t = c, n = l, r) {
 function ce(e) {
 	let t = e.filter((e) => e.element.dataset.runtimeSurfaceResize === "true");
 	if (t.length !== 0) for (let { element: e } of t) {
-		if (!X.get(e)) continue;
-		let t = V(e).height;
-		o(e), e.style.height = `${$(e, t)}px`, e.style.overflow = "hidden", e.style.transition = "none", X.delete(e), delete e.dataset.runtimeSurfaceResize, delete e.dataset.runtimeSurfaceResizeToken, delete e.dataset.runtimeLayoutTransaction;
+		if (!Z.get(e)) continue;
+		let t = H(e).height;
+		o(e), e.style.height = `${$(e, t)}px`, e.style.overflow = "hidden", e.style.transition = "none", Z.delete(e), delete e.dataset.runtimeSurfaceResize, delete e.dataset.runtimeSurfaceResizeToken, delete e.dataset.runtimeLayoutTransaction;
 	}
 }
-var X = /* @__PURE__ */ new WeakMap(), Z = 0;
-function le(e) {
+var Z = /* @__PURE__ */ new WeakMap(), le = 0;
+function ue(e) {
 	return {
 		height: e.style.height,
 		overflow: e.style.overflow,
@@ -662,5 +670,18 @@ function $(e, t) {
 	let r = Number.parseFloat(n.paddingTop) + Number.parseFloat(n.paddingBottom) + Number.parseFloat(n.borderTopWidth) + Number.parseFloat(n.borderBottomWidth);
 	return Math.max(0, t - r);
 }
+function de(e) {
+	let t = Math.max(0, e.scrollHeight - e.clientHeight), n = e.scrollTop <= 1 ? "top" : t - e.scrollTop <= 1 ? "bottom" : "middle";
+	return {
+		top: e.scrollTop,
+		height: e.scrollHeight,
+		clientHeight: e.clientHeight,
+		anchor: n
+	};
+}
+function fe(e, t) {
+	let n = Math.max(0, e.scrollHeight - e.clientHeight);
+	e.scrollTop = t.anchor === "top" ? 0 : t.anchor === "bottom" ? n : Math.min(t.top, n);
+}
 //#endregion
-export { ee as a, T as c, b as d, e as f, J as i, G as l, k as n, te as o, A as r, E as s, q as t, y as u };
+export { F as a, T as c, b as d, e as f, Y as i, K as l, k as n, ee as o, A as r, E as s, J as t, y as u };
