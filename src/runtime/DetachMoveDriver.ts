@@ -239,11 +239,17 @@ export function resolveDetachLandingTarget<TDestination>(args: {
 
 
 export function captureDetachTargetSnapshot(
-  capture: (element: HTMLElement) => VisualSnapshot,
+  capture: (element: HTMLElement, rect?: DOMRect) => VisualSnapshot,
   element: HTMLElement,
-  options: { ignoreTemporaryOpacity?: boolean } = {},
+  options: {
+    ignoreTemporaryOpacity?: boolean
+    /** 已在同一 landing 事务中读取过的目标几何，避免重复触发布局。 */
+    rect?: { left: number; top: number; width: number; height: number }
+  } = {},
 ): VisualSnapshot {
-  const rect = element.getBoundingClientRect()
+  const rect = options.rect
+    ? new DOMRect(options.rect.left, options.rect.top, options.rect.width, options.rect.height)
+    : element.getBoundingClientRect()
   const opacity = element.style.opacity
   const computedOpacity = getComputedStyle(element).opacity
   // pointerup 发生在目标卡片上时，真实节点即使被设为 pointer-events:none
@@ -268,8 +274,9 @@ export function captureDetachTargetSnapshot(
   const parent = element.parentElement ?? element.ownerDocument.body
   parent.appendChild(snapshotNode)
   try {
-    void snapshotNode.offsetWidth
-    const snapshot = capture(snapshotNode)
+    const snapshot = capture(snapshotNode, rect)
+    // 目标几何已经在 landing 解析阶段读取过；视觉适配器只需读取克隆节点的
+    // 样式，不应再次通过 getBoundingClientRect() 触发布局。
     // CSS animation 或祖先交接状态可能继续让 computedStyle 返回 0，
     // 即使上面的临时 inline 覆盖已经生效。这里仍要把这个明确的
     // 交接态从目标静态快照中剔除，否则代理会按 opacity:0 淡出。

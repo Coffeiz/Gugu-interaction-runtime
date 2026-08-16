@@ -98,7 +98,7 @@ export interface VisualProxy {
 export interface VisualAdapter {
   resolveSource?(objectId: string): HTMLElement | null
   resolveTarget?(objectId: string, destination: unknown): HTMLElement | null
-  captureVisualState?(element: HTMLElement): VisualSnapshot
+  captureVisualState?(element: HTMLElement, rect?: DOMRect): VisualSnapshot
   applyState?(element: HTMLElement, state: VisualState): void
   createProxy?(context: VisualLifecycleContext): VisualProxy
   updateProxy?(proxy: VisualProxy, context: VisualLifecycleContext): void
@@ -142,10 +142,10 @@ export class DefaultVisualAdapter implements VisualAdapter {
     return rect.width > 0 && rect.height > 0 ? element : null
   }
 
-  captureVisualState(element: HTMLElement): VisualSnapshot {
+  captureVisualState(element: HTMLElement, rect?: DOMRect): VisualSnapshot {
     const style = getComputedStyle(element)
     return {
-      rect: element.getBoundingClientRect(),
+      rect: rect ?? element.getBoundingClientRect(),
       borderRadius: style.borderRadius,
       boxShadow: style.boxShadow,
       border: style.border,

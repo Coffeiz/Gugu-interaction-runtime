@@ -242,10 +242,16 @@ export function createDetachMoveFromAdapter(config: {
               : target.rect
           })()
         : target?.kind === 'element' ? target.element : landedEl
+      const cachedTargetRect = target?.kind === 'rect'
+        ? liveLandingRect as { left: number; top: number; width: number; height: number }
+        : undefined
       const targetSnapshot = captureDetachTargetSnapshot(
-        (el: HTMLElement) => runtime.captureVisualState(targetObjectId, el),
+        (el: HTMLElement, rect?: DOMRect) => runtime.captureVisualState(targetObjectId, el, rect),
         landedEl,
-        { ignoreTemporaryOpacity: true },
+        {
+          ignoreTemporaryOpacity: true,
+          rect: cachedTargetRect,
+        },
       )
       const visualContext = createDetachVisualContext({
         createContext: () => runtime.createVisualLifecycleContext(

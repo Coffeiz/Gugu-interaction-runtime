@@ -18,9 +18,9 @@ export class VisualStateCoordinator {
     const adapter = this.port.getAdapter(objectId)
     ;(adapter.applyState ?? new DefaultVisualAdapter().applyState)(element, state)
   }
-  capture(objectId: string, element: HTMLElement) {
+  capture(objectId: string, element: HTMLElement, rect?: DOMRect) {
     const adapter = this.port.getAdapter(objectId)
-    return (adapter.captureVisualState ?? new DefaultVisualAdapter().captureVisualState)(element)
+    return (adapter.captureVisualState ?? new DefaultVisualAdapter().captureVisualState)(element, rect)
   }
   trackTarget(cleanup: Cleanup, target: HTMLElement, retarget: (rect: DOMRect) => void,
     options: Omit<LandingTargetTrackerOptions, 'cleanup' | 'target' | 'retarget'> = {}): () => void {

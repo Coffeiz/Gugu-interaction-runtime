@@ -942,8 +942,8 @@ setMotionProfiles(this.registry.motionProfile)
   }
 
   /** 获取对象当前视觉快照；未覆盖时使用默认 DOM 样式快照。 */
-  captureVisualState(objectId: string, element: HTMLElement) {
-    return this.visualState.capture(objectId, element)
+  captureVisualState(objectId: string, element: HTMLElement, rect?: DOMRect) {
+    return this.visualState.capture(objectId, element, rect)
   }
 
   /** 调用当前对象适配器的 reveal；交接只允许由 Runtime 触发。 */
