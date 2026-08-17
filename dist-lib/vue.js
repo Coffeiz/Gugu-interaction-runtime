@@ -145,18 +145,18 @@ function b(t) {
 		id: t.id,
 		...b,
 		element: null
-	}), S = a(!1), C = null, w = null, T = null, E = null, D = () => d(), O = () => !!(t.floating !== void 0 && o(t.floating)), k = () => {
-		let e = D().open;
+	}), S = a(!1), C = null, w = null, T = null, E = null, D = !1, O = () => d(), k = () => !!(t.floating !== void 0 && o(t.floating)), A = () => {
+		let e = O().open;
 		return typeof e == "function" ? e() : e !== !1;
-	}, A = () => {
-		let e = D().scrollKey;
+	}, j = () => {
+		let e = O().scrollKey;
 		return typeof e == "function" ? e() : e ?? null;
-	}, j = () => (t.motion === void 0 ? void 0 : o(t.motion))?.resize, M = () => {
+	}, M = () => (t.motion === void 0 ? void 0 : o(t.motion))?.resize, N = () => {
 		if (T) {
 			for (let { element: e, values: t } of T) for (let [n, r] of Object.entries(t)) e.style.setProperty(n, r);
 			T = null;
 		}
-	}, N = (e, t) => {
+	}, P = (e, t) => {
 		if (!t || !e.contains(t)) return;
 		let n = [], r = t;
 		for (; r && (n.push(r), r !== e);) r = r.parentElement;
@@ -176,33 +176,39 @@ function b(t) {
 			for (let t of n) t.style.minHeight = "0", t !== e && (t.style.flex = "1 1 auto");
 			t.style.overflowX = "hidden", t.style.overflowY = "auto", t.style.minHeight = "0", t.style.flex = "1 1 auto";
 		}
-	}, P = () => {
-		C !== null && window.clearTimeout(C), C = null, S.value = !1, E = null;
 	}, F = () => {
+		C !== null && window.clearTimeout(C), C = null, S.value = !1, E = null, D = !1;
+	}, I = () => {
 		let t = c.value;
-		if (!O() || !t?.isConnected) return;
-		let n = v(t, D()), r = n.layoutElement;
+		if (!k() || !t?.isConnected) return;
+		let n = v(t, O()), r = n.layoutElement;
 		if (!r) return;
-		k() && N(r, n.viewport);
-		let i = r.getBoundingClientRect().height, a = S.value && E !== null ? E : null, o = a === null && k() ? n.measureLayout() : null, s = a ?? o?.height ?? 0;
+		A() && P(r, n.viewport);
+		let i = r.getBoundingClientRect().height, a = S.value && E !== null ? E : null, o = a === null && A() ? n.measureLayout() : null, s = a ?? o?.height ?? 0;
 		if (S.value && E !== null && Math.abs(E - s) < .5) return;
 		if (Math.abs(i - s) < .5) {
-			P(), s === 0 && (r.style.height = "0px");
+			F(), s === 0 && (r.style.height = "0px");
 			return;
 		}
-		let l = A(), u = l ? t.querySelector(`[data-drawer-scroll="${l.replace(/"/g, "\\\"")}"]`) : n.viewport, d = u?.scrollTop ?? 0;
-		P(), S.value = !0, E = s;
-		let f = j();
+		let l = j(), u = l ? t.querySelector(`[data-drawer-scroll="${l.replace(/"/g, "\\\"")}"]`) : n.viewport, d = u?.scrollTop ?? 0;
+		F(), S.value = !0, E = s;
+		let f = M();
 		if (!e(r, s, f?.duration, f?.easing, void 0, !0, !0)) {
-			P();
+			F();
 			return;
 		}
 		let p = f?.duration ?? 250;
 		C = window.setTimeout(() => {
-			C = null, S.value = !1, u && (u.scrollTop = d), k() || M();
+			C = null, S.value = !1, E = null;
+			let e = D;
+			D = !1, u && (u.scrollTop = d), A() ? e && R() : N();
 		}, p + 80);
-	}, I = () => {
-		if (!O()) return;
+	}, L = () => {
+		if (!k()) return;
+		if (S.value) {
+			D = !0;
+			return;
+		}
 		let e = c.value?.ownerDocument ?? document, n = i.layout.begin(e, "surface-observer", "observer");
 		if (i.layout.request(e, {
 			type: "surface-natural-size",
@@ -212,23 +218,23 @@ function b(t) {
 			return;
 		}
 		let r = (e) => {
-			e && !e.isCurrent() || F();
+			e && !e.isCurrent() || I();
 		};
 		i.layout.defer(e, n.participantId, (e) => r(e), "surface-resize") || r(), i.layout.commit(e, n.participantId);
-	}, L = () => {
+	}, R = () => {
 		w !== null && cancelAnimationFrame(w), w = requestAnimationFrame(() => {
-			w = null, I();
+			w = null, L();
 		});
-	}, R = null, z = null, B = null, V = () => {
-		R?.disconnect(), z?.disconnect(), B && window.removeEventListener("resize", B), R = null, z = null, B = null;
-	}, H = (e) => {
-		V();
+	}, z = null, B = null, V = null, H = () => {
+		z?.disconnect(), B?.disconnect(), V && window.removeEventListener("resize", V), z = null, B = null, V = null;
+	}, U = (e) => {
+		H();
 		let n = t.floating !== void 0 && o(t.floating);
 		if (!n || !e) return;
 		let r = () => {
-			i.surfaces.get(t.id)?.generation === x && (i.surfaces.update(t.id, y(t, l, _)), L());
+			i.surfaces.get(t.id)?.generation === x && (i.surfaces.update(t.id, y(t, l, _)), R());
 		}, a = v(e, n === !0 ? {} : n).layoutElement, s = v(e, n === !0 ? {} : n).viewport;
-		typeof ResizeObserver < "u" && (R = new ResizeObserver(r), R.observe(e), a && a !== e && R.observe(a), s && s !== e && s !== a && R.observe(s)), typeof MutationObserver < "u" && (z = new MutationObserver(r), z.observe(e, {
+		typeof ResizeObserver < "u" && (z = new ResizeObserver(r), z.observe(e), a && a !== e && z.observe(a), s && s !== e && s !== a && z.observe(s)), typeof MutationObserver < "u" && (B = new MutationObserver(r), B.observe(e, {
 			childList: !0,
 			subtree: !0,
 			attributes: !0,
@@ -237,25 +243,25 @@ function b(t) {
 				"data-drawer-scroll",
 				"data-scroll-viewport"
 			]
-		})), typeof window < "u" && (B = () => {
-			E = null, L();
-		}, window.addEventListener("resize", B)), r(), L();
+		})), typeof window < "u" && (V = () => {
+			E = null, R();
+		}, window.addEventListener("resize", V)), r(), R();
 	};
 	return s(() => y(t, l, _), (e) => i.surfaces.update(t.id, e), { deep: !0 }), s(c, (e, n) => {
 		let r = i.surfaces.get(t.id);
-		r?.generation === x && (e === null && r.element && r.element !== n || (i.surfaces.setElement(t.id, e), H(e)));
+		r?.generation === x && (e === null && r.element && r.element !== n || (i.surfaces.setElement(t.id, e), U(e)));
 	}), s(() => t.floating !== void 0 && o(t.floating), () => {
-		H(c.value);
+		U(c.value);
 	}, { deep: !0 }), s(() => {
-		let e = D();
-		return [k(), typeof e.scrollKey == "function" ? e.scrollKey() : e.scrollKey ?? null];
+		let e = O();
+		return [A(), typeof e.scrollKey == "function" ? e.scrollKey() : e.scrollKey ?? null];
 	}, () => {
-		n(() => F());
+		n(() => I());
 	}, {
 		flush: "post",
 		immediate: !0
 	}), r(() => {
-		P(), M(), w !== null && cancelAnimationFrame(w), g !== null && typeof cancelAnimationFrame < "u" && cancelAnimationFrame(g), g = null, p = null, m = !1, h = null, V(), i.surfaces.unregister(t.id, x);
+		F(), N(), w !== null && cancelAnimationFrame(w), g !== null && typeof cancelAnimationFrame < "u" && cancelAnimationFrame(g), g = null, p = null, m = !1, h = null, H(), i.surfaces.unregister(t.id, x);
 	}), {
 		elementRef: c,
 		generation: x,

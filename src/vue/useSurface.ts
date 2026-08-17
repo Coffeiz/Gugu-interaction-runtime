@@ -99,6 +99,10 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
   // ResizeObserver 会在宽度/内容布局变化的每一帧回调。记录当前高度事务的
   // 目标，避免同一个目标被反复取消并从中间帧重启动画。
   let floatingAnimationTarget: number | null = null
+  // 高度动画进行中不能临时把 layoutElement 写成 height:auto 去重测自然高度；
+  // 但这期间发生的内容 mutation 也不能直接丢掉。先记脏，动画结束后清掉旧 target
+  // 再补一轮 observer resize，让删除/折叠后的 Surface 真正收束到最新内容高度。
+  let floatingResizePending = false
 
   const currentFloatingOptions = (): FloatingSurfaceOptions => floatingOptions()
   const isFloatingSurface = (): boolean => {
@@ -167,6 +171,7 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     animationTimer = null
     isAnimating.value = false
     floatingAnimationTarget = null
+    floatingResizePending = false
   }
   const animateFloatingSurface = (): void => {
     const element = elementRef.value
@@ -220,12 +225,22 @@ export function useSurface(options: UseSurfaceOptions): UseSurfaceResult {
     animationTimer = window.setTimeout(() => {
       animationTimer = null
       isAnimating.value = false
+      floatingAnimationTarget = null
+      const shouldRemeasure = floatingResizePending
+      floatingResizePending = false
       if (scrollElement) scrollElement.scrollTop = scrollTop
       if (!currentFloatingOpen()) restoreFloatingScrollLayout()
+      else if (shouldRemeasure) scheduleFloatingResize()
     }, animationDuration + 80)
   }
   const runFloatingObserverResize = (): void => {
     if (!isFloatingSurface()) return
+    // 动画中直接重测会破坏当前高度事务；旧实现虽然避免了重测，却把这一轮
+    // 内容变化永久吞掉。把它转成 deferred remeasure，由动画完成回调重新调度。
+    if (isAnimating.value) {
+      floatingResizePending = true
+      return
+    }
     const root = elementRef.value?.ownerDocument ?? document
     const transaction = runtime.layout.begin(root, 'surface-observer', 'observer')
     runtime.layout.request(root, { type: 'surface-natural-size', surfaceId: options.id })
