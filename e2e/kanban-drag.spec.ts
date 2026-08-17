@@ -92,11 +92,12 @@ test('无效落点回飞途中 regrab 后正常落地，只产生一次 Action',
   await page.mouse.move(invalidBox.x + invalidBox.width / 2, invalidBox.y + invalidBox.height / 2, { steps: 15 })
   await page.mouse.up()
 
-  // regrab 目标是回飞中的 proxy（松手后短暂延迟才会把 pointer-events 打开成
-  // 可交互），不是原卡片 DOM；这里显式定位 proxy 当前位置，而不是猜测松手点。
+  // landing proxy 始终保持 pointer-events:none，避免自身或子节点重新命中 :hover；
+  // regrab 由 Runtime 在 document 捕获阶段按代理实时矩形判断。因此这里直接用
+  // proxy 的当前位置点击，验证无需把代理本身变成可交互节点也能完成接管。
   const proxy = page.locator('[data-runtime-proxy]')
   await expect(proxy).toHaveCount(1)
-  await expect.poll(async () => (await proxy.evaluate(el => (el as HTMLElement).style.pointerEvents))).toBe('auto')
+  await expect.poll(async () => (await proxy.evaluate(el => (el as HTMLElement).style.pointerEvents))).toBe('none')
   const proxyBox = await proxy.boundingBox()
   if (!proxyBox) throw new Error('landing proxy not found')
 
