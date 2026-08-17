@@ -93,19 +93,47 @@ test('无效落点回飞途中 regrab 后正常落地，只产生一次 Action',
   await page.mouse.up()
 
   // landing proxy 始终保持 pointer-events:none，避免自身或子节点重新命中 :hover；
-  // regrab 由 Runtime 在 document 捕获阶段按代理实时矩形判断。因此这里直接用
-  // proxy 的当前位置点击，验证无需把代理本身变成可交互节点也能完成接管。
+  // regrab 由 Runtime 在 document 捕获阶段按代理实时矩形判断。
   const proxy = page.locator('[data-runtime-proxy]')
   await expect(proxy).toHaveCount(1)
   await expect.poll(async () => (await proxy.evaluate(el => (el as HTMLElement).style.pointerEvents))).toBe('none')
-  const proxyBox = await proxy.boundingBox()
-  if (!proxyBox) throw new Error('landing proxy not found')
 
-  // 回飞动画途中立刻重新抓起（regrab），不等它落定
-  await page.mouse.move(proxyBox.x + proxyBox.width / 2, proxyBox.y + proxyBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(columnBox.x + columnBox.width / 2, columnBox.y + 100, { steps: 15 })
-  await page.mouse.up()
+  // proxy 正在持续回飞，不能先在 Playwright 侧读取 boundingBox、再隔一个异步步骤
+  // 去点击旧坐标。这里在浏览器同一任务内读取当前 rect 并把 pointerdown 交给
+  // document 捕获监听器，验证 Runtime 的实时矩形命中；随后 move/up 仍进入新
+  // Session 的 window pointer 输入链路。
+  await page.evaluate(async ({ x, y }) => {
+    const landingProxy = document.querySelector<HTMLElement>('[data-runtime-proxy]')
+    if (!landingProxy) throw new Error('landing proxy not found')
+    const rect = landingProxy.getBoundingClientRect()
+    document.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+    }))
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    window.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+      clientX: x,
+      clientY: y,
+    }))
+    // PointerSessionInput 会把 move 合并到下一帧；等它提交命中后再 release。
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    window.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+      clientX: x,
+      clientY: y,
+    }))
+  }, { x: columnBox.x + columnBox.width / 2, y: columnBox.y + 100 })
 
   await expect.poll(() => page.evaluate(() => window.__runtimeDebug.getActionCount())).toBe(1)
   await expect.poll(() => page.evaluate(() => window.__runtimeDebug.getProxyCount())).toBe(0)
