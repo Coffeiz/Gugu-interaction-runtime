@@ -1,5 +1,6 @@
 import type { Cleanup } from '../cleanup/Cleanup'
 import { hasActiveRafLayoutAnimations, readRafVisualOffset } from './RafLayoutAnimator'
+import { readLatestLayoutGeometry, subscribeLayoutGeometry } from './LayoutMeasurement'
 
 export interface LandingTargetTrackerOptions {
   cleanup: Cleanup
@@ -35,7 +36,12 @@ function copyRect(rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>): DOM
  * 反读：RafLayoutAnimator 已经持有相同的 easing、起点和时钟。target 或祖先
  * 有 FLIP translation 时直接计算 visual rect；Runtime 其它布局动画仍在进行
  * 时暂停 DOM fallback，等整笔 Runtime 动画结束后只做一次 reconcile。
- * ResizeObserver 与低频 DOM 轮询只保留给真正的外部/未知变化。
+ *
+ * 关键区别是："其它 Runtime 动画 active"不再等价于"这个 target 没变化"。
+ * LayoutMeasurement 会把 Runtime 本来就要做的真实测量按 element 发布；并发
+ * transaction 如果确实改变了当前 landing target，tracker 在下一帧消费新
+ * final rect，并继续叠加 Runtime 已知的 FLIP trajectory。这样恢复即时 retarget，
+ * 同时不恢复旧的逐帧 DOM polling。
  */
 export function trackLandingTarget(options: LandingTargetTrackerOptions): () => void {
   let observer: ResizeObserver | null = null
@@ -50,6 +56,9 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
   let finalRect: DOMRect | null = null
   let runtimeLayoutWasActive = false
   let pendingObserverReconcile = false
+  let pendingGeometryRevision = false
+  let lastGeometrySequence = readLatestLayoutGeometry(options.target)?.sequence ?? 0
+  let stopGeometrySubscription: (() => void) | null = null
 
   const stop = (): void => {
     if (disposed) return
@@ -58,6 +67,8 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
     rafId = null
     observer?.disconnect()
     observer = null
+    stopGeometrySubscription?.()
+    stopGeometrySubscription = null
   }
 
   const commitRect = (rect: DOMRect): void => {
@@ -85,7 +96,22 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
   // 后续整个 Runtime 布局动画周期都不需要再同步测量 DOM。
   if (lastRect) updateFinalRect(lastRect)
 
-  if (typeof ResizeObserver === 'undefined') return stop
+  // 精确订阅当前 target。事件只来自 Runtime 已经执行的 LayoutMeasurement，
+  // 因而不会为了 invalidation 新增 DOM read。回调里也不直接 retarget：GroupLayout
+  // 的 measure phase 发生在 Invert 写入之前，等下一 rAF 后新的 FLIP state 已登记，
+  // 此时再用 finalRect + trajectory(t) 才与屏幕上真实目标完全一致。
+  stopGeometrySubscription = subscribeLayoutGeometry(options.target, revision => {
+    if (disposed || revision.sequence <= lastGeometrySequence) return
+    lastGeometrySequence = revision.sequence
+    updateFinalRect(revision.rect)
+    pendingGeometryRevision = true
+    frameCount = 0
+  })
+
+  if (typeof ResizeObserver === 'undefined') {
+    options.cleanup.track(stop)
+    return stop
+  }
 
   const measureTarget = (time = performance.now()): void => {
     if (disposed || !options.target.isConnected) return
@@ -129,6 +155,27 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
 
     const offset = readRafVisualOffset(options.target, time)
     const runtimeLayoutActive = hasActiveRafLayoutAnimations()
+
+    // A concurrent layout transaction measured this exact target after changing layout.
+    // Consume the latest revision at most one frame later. If the new transaction also
+    // started a FLIP on target/ancestor, compose that freshly registered trajectory now.
+    if (pendingGeometryRevision) {
+      pendingGeometryRevision = false
+      if (runtimeLayoutActive) runtimeLayoutWasActive = true
+      if (finalRect) {
+        frameCount = 0
+        commitRect(offset
+          ? new DOMRect(
+              finalRect.left + offset.x,
+              finalRect.top + offset.y,
+              finalRect.width,
+              finalRect.height,
+            )
+          : copyRect(finalRect))
+      }
+      return
+    }
+
     if (offset) {
       runtimeLayoutWasActive = true
       // Runtime-owned motion：只做数学计算，不触发布局。
@@ -153,8 +200,9 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
     if (runtimeLayoutActive) {
       runtimeLayoutWasActive = true
       // target 自身可能没有 transform（例如刚挂载的新 landing target），但
-      // 其它 sibling FLIP / Surface resize 仍属于同一 Runtime transaction。
-      // initialRect 已经给出最终目标；这段时间不做低频 DOM polling。
+      // 其它 sibling FLIP / Surface resize 仍属于 Runtime layout work。未知变化
+      // 继续禁止 DOM polling；若其它 transaction 真改变了本 target，上面的
+      // LayoutMeasurement revision 会精确唤醒它。
       if (!finalRect) measureTarget(time)
       else if (!lastRect || !sameRect(lastRect, finalRect)) commitRect(copyRect(finalRect))
       frameCount = 0
