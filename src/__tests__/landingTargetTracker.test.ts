@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { Cleanup } from '../cleanup/Cleanup'
 import { trackLandingTarget } from '../dom/LandingTargetTracker'
+import { createLayoutMeasurement } from '../dom/LayoutMeasurement'
 import { animateRafTransform, cancelRafTransform, readRafVisualOffset } from '../dom/RafLayoutAnimator'
 
 describe('LandingTargetTracker retarget', () => {
@@ -122,6 +123,116 @@ describe('LandingTargetTracker retarget', () => {
 
     cancelRafTransform(sibling)
     sibling.remove()
+  })
+
+  it('并发布局事务测到当前 target 新位置时下一帧 retarget，且 tracker 不追加 DOM read', () => {
+    const rafQueue = createTracker()
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+    const sibling = document.createElement('div')
+    document.body.appendChild(sibling)
+    const rectSpy = vi.spyOn(target, 'getBoundingClientRect')
+      .mockReturnValue(new DOMRect(80, 30, 120, 60))
+    const retarget = vi.fn()
+
+    // 模拟 card1 的 sibling FLIP 仍在运行；card2 target 自身没有 active transform。
+    animateRafTransform(sibling, 60, 0, 1000, 'cubic-bezier(.22,1,.36,1)')
+    trackLandingTarget({
+      cleanup,
+      target,
+      retarget,
+      initialRect: new DOMRect(20, 30, 120, 60),
+    })
+
+    // 这是另一个 Runtime layout pass 本来就会执行的测量，不是 tracker 新增的读。
+    createLayoutMeasurement().rect(target)
+    rectSpy.mockClear()
+
+    runFrame(rafQueue, 1)
+    expect(retarget).toHaveBeenCalledTimes(1)
+    expect(retarget.mock.calls[0][0].left).toBe(80)
+    expect(rectSpy).not.toHaveBeenCalled()
+
+    cancelRafTransform(sibling)
+    sibling.remove()
+  })
+
+  it('无关 element 的 geometry revision 不会唤醒当前 landing target', () => {
+    const rafQueue = createTracker()
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+    const sibling = document.createElement('div')
+    const unrelated = document.createElement('div')
+    document.body.append(sibling, unrelated)
+    const targetRectSpy = vi.spyOn(target, 'getBoundingClientRect')
+      .mockReturnValue(new DOMRect(20, 30, 120, 60))
+    vi.spyOn(unrelated, 'getBoundingClientRect')
+      .mockReturnValue(new DOMRect(200, 30, 120, 60))
+    const retarget = vi.fn()
+
+    animateRafTransform(sibling, 60, 0, 1000, 'cubic-bezier(.22,1,.36,1)')
+    trackLandingTarget({
+      cleanup,
+      target,
+      retarget,
+      initialRect: new DOMRect(20, 30, 120, 60),
+    })
+
+    createLayoutMeasurement().rect(unrelated)
+    runFrame(rafQueue, 1)
+
+    expect(retarget).not.toHaveBeenCalled()
+    expect(targetRectSpy).not.toHaveBeenCalled()
+
+    cancelRafTransform(sibling)
+    sibling.remove()
+    unrelated.remove()
+  })
+
+  it('同一帧多个 target revision 只消费最新几何，latest target wins', () => {
+    const rafQueue = createTracker()
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+    const sibling = document.createElement('div')
+    document.body.appendChild(sibling)
+    let left = 50
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(
+      () => new DOMRect(left, 30, 120, 60),
+    )
+    const retarget = vi.fn()
+
+    animateRafTransform(sibling, 60, 0, 1000, 'cubic-bezier(.22,1,.36,1)')
+    trackLandingTarget({
+      cleanup,
+      target,
+      retarget,
+      initialRect: new DOMRect(20, 30, 120, 60),
+    })
+
+    createLayoutMeasurement().rect(target)
+    left = 95
+    createLayoutMeasurement().rect(target)
+    runFrame(rafQueue, 1)
+
+    expect(retarget).toHaveBeenCalledTimes(1)
+    expect(retarget.mock.calls[0][0].left).toBe(95)
+
+    cancelRafTransform(sibling)
+    sibling.remove()
+  })
+
+  it('geometry subscription 随 landing cleanup 失效，旧 session 不会被 revision 复活', () => {
+    createTracker()
+    const retarget = vi.fn()
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(new DOMRect(70, 0, 100, 50))
+    const stop = trackLandingTarget({
+      cleanup,
+      target,
+      retarget,
+      initialRect: new DOMRect(10, 0, 100, 50),
+    })
+
+    stop()
+    createLayoutMeasurement().rect(target)
+
+    expect(retarget).not.toHaveBeenCalled()
   })
 
   it('Relative FLIP 会合成祖先和目标自身的 Runtime 位移', () => {
