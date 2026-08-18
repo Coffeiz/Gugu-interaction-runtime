@@ -1,3 +1,9 @@
+import {
+  bindLayoutMeasurementContext,
+  createLayoutMeasurementContext,
+  type LayoutMeasurementContext,
+} from './LayoutMeasurement'
+
 export type LayoutTransactionReason = 'move' | 'group-toggle' | 'surface-observer'
 export type LayoutTransactionPriority = 'observer' | 'interaction'
 
@@ -14,6 +20,11 @@ export interface LayoutTransactionSnapshot {
   readonly priority: LayoutTransactionPriority
   readonly mutations: readonly LayoutMutation[]
   readonly plans: readonly LayoutPlanSnapshot[]
+  /**
+   * Stable identity/fact stream for every geometry pass belonging to this transaction.
+   * Individual capture/play LayoutMeasurement objects still own separate rect caches.
+   */
+  readonly measurement: LayoutMeasurementContext
 }
 
 export type LayoutPlanStatus = 'queued' | 'running' | 'completed' | 'cancelled' | 'failed'
@@ -39,6 +50,7 @@ export interface LayoutPlan {
 interface TransactionState {
   readonly id: string
   readonly root: ParentNode
+  readonly measurement: LayoutMeasurementContext
   reasons: LayoutTransactionReason[]
   priority: LayoutTransactionPriority
   mutations: LayoutMutation[]
@@ -51,8 +63,9 @@ interface TransactionState {
 /**
  * 同一布局根节点的事务收集器。
  *
- * Phase 1 只负责收集和合并，不负责 DOM 测量或动画播放；后续组切换、落地
- * 和 Surface observer 都通过这里共享事务边界，再由统一提交器执行布局。
+ * 事务拥有稳定的 measurement context，但不跨 DOM mutation 复用 rect：真正的
+ * capture/play pass 仍各自创建 LayoutMeasurement。context 只把这些已经发生的
+ * DOM 测量归到同一事务，并向 landing 发布精确的 geometry revision。
  */
 export class LayoutTransactionCoordinator {
   private sequence = 0
@@ -68,12 +81,17 @@ export class LayoutTransactionCoordinator {
       current.participants += 1
       const participantId = `participant-${++this.participantSequence}`
       current.participantIds.add(participantId)
+      // A nested/merged participant must restore the transaction association in case some
+      // standalone layout pass temporarily became the latest geometry producer for the root.
+      bindLayoutMeasurementContext(root, current.measurement)
       return this.snapshot(current, participantId)
     }
 
+    const id = `layout-${++this.sequence}`
     const state: TransactionState = {
-      id: `layout-${++this.sequence}`,
+      id,
       root,
+      measurement: createLayoutMeasurementContext(id),
       reasons: [reason],
       priority,
       mutations: [],
@@ -86,6 +104,9 @@ export class LayoutTransactionCoordinator {
     state.participantIds.add(participantId)
     this.active.set(root, state)
     this.latestTransaction.set(root, state.id)
+    // Keep this association after finalize as well. FLIP playback may be deferred to a
+    // microtask/rAF after commit; a newer transaction will replace it before its own pass.
+    bindLayoutMeasurementContext(root, state.measurement)
     return this.snapshot(state, participantId)
   }
 
@@ -191,6 +212,7 @@ export class LayoutTransactionCoordinator {
         type: plan.type,
         status: plan.status,
       })),
+      measurement: state.measurement,
     }
   }
 }

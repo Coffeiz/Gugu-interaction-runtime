@@ -5,7 +5,7 @@ import { createDirectFollowController, type DragMotionDriver } from '../../motio
 import { FOLLOW_PROFILE, FOLLOW_ROTATION } from '../../motion/MotionProfile'
 import { shapeReleaseVelocity } from '../../motion/ReleaseMotion'
 import { captureDetachDraggingSnapshot, prepareDetachMotion, prepareDetachPickup, createDetachDropState, updateDetachDrop, resolveDetachLandingTarget, captureDetachTargetSnapshot, createDetachVisualContext, startDetachLandingVisual, completeDetachLanding, resolveDetachRegrabTarget, interruptDetachRegrab, scheduleDetachLandingFrame, createDetachLayoutLifecycle, createDetachLandingLifecycle } from '../DetachMoveDriver'
-import type { Runtime, RuntimeCompletionGate } from '../../Runtime'
+import type { Runtime, RuntimeCompletionGate, MoveLandingResolution } from '../../Runtime'
 import type { LandingResult, MoveBehaviorDriver, MoveVisualLifecycle } from '../../behavior/MoveBehavior'
 
 export function createDetachMoveFromAdapter(config: {
@@ -53,6 +53,8 @@ export function createDetachMoveFromAdapter(config: {
   let landingProxy: HTMLElement | null = null
   let landingTargetElement: HTMLElement | null = null
   let revealedTargetElement: HTMLElement | null = null
+  let preparedLandingResolution: MoveLandingResolution | null = null
+  let preparedLandingRect: DOMRect | null = null
   let released = false
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
@@ -92,6 +94,44 @@ export function createDetachMoveFromAdapter(config: {
 
   function getSessionState() { return sessionId ? runtime.getSession(sessionId)?.state : undefined }
 
+  function isUsablePreparedLandingTarget(resolution: MoveLandingResolution | null, destination: { columnId: string }): boolean {
+    if (!resolution) return false
+    if (resolution.kind === 'rect') {
+      return resolution.rect.width > 0 && resolution.rect.height > 0
+    }
+    const target = resolution.element
+    if (!target.isConnected) return false
+    // Explicit/semantic targets are independent DOM nodes and are safe once mounted.
+    const registeredObjectElement = runtime.objects.get(objectId)?.element ?? null
+    if (target !== registeredObjectElement) return true
+    // Same-Surface reorder intentionally reuses the same node.
+    if (!initialSurfaceId || destination.columnId === initialSurfaceId) return true
+    // Cross-Surface Vue may also reuse the same node. In that case DOM containment is the
+    // reliable signal that Teleport/patch has completed; surfaceId alone can update earlier.
+    return runtime.surfaces.get(destination.columnId)?.element?.contains(target) ?? false
+  }
+
+  async function prepareLandingTargetBeforeLayout(): Promise<void> {
+    const sid = sessionId
+    const destination = pendingDrop
+    if (!sid || !destination || getSessionState() !== 'landing') return
+    // surface.enter releases detach ownership synchronously; Vue schedules the Teleport patch
+    // in its microtask queue. Yield once so the real business node reaches its final Surface,
+    // while MoveCommitCoordinator is still awaiting enter() and therefore has NOT started FLIP.
+    await Promise.resolve()
+    if (sessionId !== sid || getSessionState() !== 'landing') return
+    const resolution = runtime.resolveMoveLandingResolution(sid, destination)
+    if (!isUsablePreparedLandingTarget(resolution, destination)) return
+    if (resolution?.kind === 'element') {
+      const rect = resolution.element.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      preparedLandingRect = new DOMRect(rect.left, rect.top, rect.width, rect.height)
+    } else {
+      preparedLandingRect = null
+    }
+    preparedLandingResolution = resolution
+  }
+
   function updateDropFromPoint(x: number, y: number): void {
     if (getSessionState() !== 'active') return
     if (!dropState) return
@@ -122,6 +162,8 @@ export function createDetachMoveFromAdapter(config: {
   function onUp(releaseEvent?: PointerEvent) {
     if (released) return { accepted: false as const }
     released = true
+    preparedLandingResolution = null
+    preparedLandingRect = null
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
     dragMotion?.stop()
     dragMotion = null
@@ -213,7 +255,7 @@ export function createDetachMoveFromAdapter(config: {
       if (!isGroupSession) sourceLease?.restoreLayoutHidden()
       objectLease?.release()
     }
-    const proceedWithTarget = (sid: string, target: import('../../Runtime').MoveLandingResolution | null) => {
+    const proceedWithTarget = (sid: string, target: MoveLandingResolution | null, measuredRect?: DOMRect | null) => {
       if (getSessionState() !== 'landing') return
       const landingElement = target?.kind === 'element' ? target.element : null
       const revealTarget = landingElement
@@ -242,15 +284,16 @@ export function createDetachMoveFromAdapter(config: {
               : target.rect
           })()
         : target?.kind === 'element' ? target.element : landedEl
-      const cachedTargetRect = target?.kind === 'rect'
-        ? liveLandingRect as { left: number; top: number; width: number; height: number }
-        : undefined
+      const cachedTargetRect = measuredRect
+        ?? (target?.kind === 'rect'
+          ? liveLandingRect as { left: number; top: number; width: number; height: number }
+          : undefined)
       const targetSnapshot = captureDetachTargetSnapshot(
         (el: HTMLElement, rect?: DOMRect) => runtime.captureVisualState(targetObjectId, el, rect),
         landedEl,
         {
           ignoreTemporaryOpacity: true,
-          rect: cachedTargetRect,
+          rect: cachedTargetRect ?? undefined,
         },
       )
       const visualContext = createDetachVisualContext({
@@ -310,6 +353,14 @@ export function createDetachMoveFromAdapter(config: {
     }
     landingPlan = scheduleDetachLandingFrame(() => undefined, () => {
       const sid = sessionId!
+      const prepared = preparedLandingResolution
+      const measuredRect = preparedLandingRect
+      preparedLandingResolution = null
+      preparedLandingRect = null
+      if (prepared && isUsablePreparedLandingTarget(prepared, destination)) {
+        proceedWithTarget(sid, prepared, measuredRect)
+        return
+      }
       void runtime.resolveLandingTarget(sid, destination).then(target => proceedWithTarget(sid, target))
     })
     return { accepted: true as const, destination: pendingDrop, ...(invalidReturn ? { emitAction: false } : {}) }
@@ -578,6 +629,8 @@ export function createDetachMoveFromAdapter(config: {
     },
     cancel(_ctx: any, _reason: string) {
       released = true
+      preparedLandingResolution = null
+      preparedLandingRect = null
       dragMotion?.stop()
       dragMotion = null
       if (runtime.getVisualProxy(sessionId!)) runtime.disposeVisualProxy(sessionId!)
@@ -602,11 +655,14 @@ export function createDetachMoveFromAdapter(config: {
     ),
     surface: {
       // emit() 成功之后触发（见 RuntimeMove.ts MoveCommitCoordinator.commit），
-      // 此时业务 store 已经落地在新 Surface，这里释放 ownership，业务
-      // <Teleport :disabled="!isDetached(...)"> 传送回来的就是最终正确位置，
-      // 不会有"先传送回原列、emit 生效后再传送一次"的中间态闪烁。
-      // 无效落点（没有 emit）不会走到这里，在 onUp 里已经立刻释放过了。
-      enter: () => objectLease?.release(),
+      // 此时业务 store 已经落地在新 Surface。先释放 ownership，等一轮微任务让
+      // Teleport/DOM patch 真正完成，再在 FLIP play 之前捕获 landing target 的
+      // 最终 rect。MoveCommitCoordinator 会 await 这个 hook，因此不会形成
+      // layout write → resolveLandingTarget gBCR 的 read-after-write。
+      enter: async () => {
+        objectLease?.release()
+        await prepareLandingTargetBeforeLayout()
+      },
     },
     ...createDetachLandingLifecycle({
       createGate: () => runtime.createCompletionGate(sessionId!, { completed: false, reason: 'landing-cancelled' }),
@@ -628,6 +684,8 @@ export function createDetachMoveFromAdapter(config: {
           })
         }
         revealedTargetElement = null
+        preparedLandingResolution = null
+        preparedLandingRect = null
         // landing 完成后再保险清理旧 floating registry；正常 handoff 后这里是
         // 空操作，真正的 proxy 由 Runtime 的统一 dispose 边界销毁。
         clearFloatingStyle(element)
