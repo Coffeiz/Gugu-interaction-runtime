@@ -84,13 +84,17 @@ export interface DetachPickupPreparation {
 
 
 /**
- * 正被拖拽/落地的源节点整段生命周期都不该参与 collection 入场/离场判断，
- * 这段判断跟"抓在手里"还是"正在落地"无关，只要还没交接完就一直排除；
- * `.contains` 覆盖 presence 包裹层是源节点祖先的情况（比如 Teleport 传送
- * 前后，包裹层和源节点还是同一棵子树）。
+ * 当前 move transaction 拥有的是“语义对象”，不只是抓起时的那一个 DOM
+ * 节点。跨 Surface（例如 canvas → drawer）时 Vue 会挂出一张新的目标卡，
+ * 它与 source DOM 不同，但 data-layout-key 相同；这张 target 也不能再被
+ * CollectionPresence 当成普通 CRUD 新增做 opacity enter，否则会和 landing /
+ * reveal 双重写同一个对象。没有 layoutKey 的旧接入仍按 source 引用排除。
  */
 function ignoreDetachSource(sourceElement: HTMLElement): (element: HTMLElement) => boolean {
-  return element => element === sourceElement || element.contains(sourceElement)
+  const sourceLayoutKey = sourceElement.dataset.layoutKey
+  return element => element === sourceElement
+    || element.contains(sourceElement)
+    || Boolean(sourceLayoutKey && element.dataset.layoutKey === sourceLayoutKey)
 }
 
 export function prepareDetachPickup(

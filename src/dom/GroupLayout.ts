@@ -1,6 +1,6 @@
 import { captureRects, FLIP_DURATION, FLIP_EASING, playFlip, resetActiveFlip } from './Flip'
 import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
-import { animateRafHeight, cancelRafHeight, cancelRafTransform } from './RafLayoutAnimator'
+import { animateRafHeight, animateRafTransform, cancelRafHeight, cancelRafTransform } from './RafLayoutAnimator'
 import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
 import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasurement'
 import type { LayoutCache } from './LayoutCache'
@@ -24,7 +24,6 @@ function resolveProfile(): { flip: { duration: number; easing: string }; resize:
     resize: p?.resize ?? DEFAULT_MOTION_PROFILE.resize,
   }
 }
-
 
 export interface GroupRect { readonly top: number; readonly left: number; readonly width: number; readonly height: number }
 export interface GroupLayoutSnapshot {
@@ -287,8 +286,6 @@ function mergeSurfaceSnapshots(
 
 const pendingLayoutFlips = new WeakMap<ParentNode, LayoutFlipSnapshot>()
 const groupAnimationStates = new WeakMap<HTMLElement, { frame: number | null; timeout: number | null }>()
-const flipCleanupTimers = new WeakMap<HTMLElement, number>()
-const flipStartFrames = new WeakMap<HTMLElement, number>()
 
 function readRect(element: HTMLElement, measurement?: LayoutMeasurement): GroupRect {
   const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
@@ -327,6 +324,7 @@ function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement
 export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING, measurement?: LayoutMeasurement): void {
   const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
 
+  // measure phase：先把所有 after rect / relative delta 算完，再写任何 transform。
   for (const item of before) {
     const next = readRect(item.element, measurement)
     viewportDeltas.set(item.element, {
@@ -335,6 +333,7 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
     })
   }
 
+  const plans: Array<{ element: HTMLElement; dx: number; dy: number; token: string }> = []
   for (const item of before) {
     const delta = viewportDeltas.get(item.element)!
     const parentDelta = item.parent ? viewportDeltas.get(item.parent) : undefined
@@ -355,31 +354,25 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
       }
       continue
     }
-    item.element.style.transform = `translate(${dx}px, ${dy}px)`
-    item.element.style.transition = 'none'
     const token = String(Number(item.element.dataset.runtimeFlipToken ?? '0') + 1)
-    item.element.dataset.runtimeFlip = 'true'
-    item.element.dataset.runtimeFlipToken = token
-    const previousStartFrame = flipStartFrames.get(item.element)
-    if (previousStartFrame !== undefined) {
-      cancelAnimationFrame(previousStartFrame)
-      flipStartFrames.delete(item.element)
-    }
-    const startFrame = requestAnimationFrame(() => {
-      flipStartFrames.delete(item.element)
-      if (item.element.dataset.runtimeFlipToken !== token) return
-      item.element.style.transition = `transform ${duration}ms ${easing}`
-      item.element.style.transform = ''
+    plans.push({ element: item.element, dx, dy, token })
+  }
+
+  // write phase：Invert 一次性写完；animateRafTransform 只登记状态，所有节点
+  // 随后由 RafLayoutAnimator 的单一 scheduler 在同一个 rAF 中推进和清理。
+  for (const { element, dx, dy, token } of plans) {
+    element.style.transform = `translate(${dx}px, ${dy}px)`
+    element.style.transition = 'none'
+    element.dataset.runtimeFlip = 'true'
+    element.dataset.runtimeFlipToken = token
+  }
+  for (const { element, dx, dy, token } of plans) {
+    animateRafTransform(element, dx, dy, duration, easing, () => {
+      if (element.dataset.runtimeFlipToken !== token) return
+      element.style.transition = ''
+      element.style.transform = ''
+      delete element.dataset.runtimeFlip
     })
-    flipStartFrames.set(item.element, startFrame)
-    const cleanupTimer = window.setTimeout(() => {
-      if (item.element.dataset.runtimeFlipToken !== token) return
-      item.element.style.transition = ''
-      item.element.style.transform = ''
-      delete item.element.dataset.runtimeFlip
-      flipCleanupTimers.delete(item.element)
-    }, duration + 40)
-    flipCleanupTimers.set(item.element, cleanupTimer)
   }
 }
 
@@ -475,21 +468,10 @@ export function cancelLayoutAnimations(root: ParentNode): void {
     )))
   }
   for (const element of elements) {
-    const flipTimer = flipCleanupTimers.get(element)
-    const startFrame = flipStartFrames.get(element)
-    const hadRuntimeStyle = flipTimer !== undefined
-      || element.dataset.runtimeFlip === 'true'
+    const hadRuntimeStyle = element.dataset.runtimeFlip === 'true'
       || element.dataset.runtimeGroupAnimating === 'true'
       || element.dataset.runtimeSurfaceResize === 'true'
       || element.dataset.runtimeLayoutTransaction === 'true'
-    if (flipTimer !== undefined) {
-      window.clearTimeout(flipTimer)
-      flipCleanupTimers.delete(element)
-    }
-    if (startFrame !== undefined) {
-      cancelAnimationFrame(startFrame)
-      flipStartFrames.delete(element)
-    }
     cancelRafTransform(element)
     cancelRafHeight(element)
     cancelGroupAnimation(element)
@@ -787,7 +769,7 @@ export function playSurfaceResize(
   })
 
   const planTokens = new Map<HTMLElement, string>()
-  for (const { item, fromHeight, toHeight } of plans) {
+  for (const { item, fromHeight } of plans) {
     const style = item.element.style
     const state = {
       baseStyle: surfaceResizeStates.get(item.element)?.baseStyle ?? item.inlineStyle,

@@ -228,12 +228,16 @@ export class DefaultVisualAdapter implements VisualAdapter {
       width: rawTargetRect.width,
       height: rawTargetRect.height,
     }
+    // landing bounds 本身也是 DOM geometry。目标 FLIP 期间如果每次 retarget
+    // 都重新读取 viewport，会把 target gBCR 消掉的收益又从另一条链路追回来。
+    // 同一笔 landing 的 viewport 边界在几百毫秒内视作布局常量；真实 resize
+    // 由下一笔 transaction/observer 重新测量。
+    const landingBounds = context.landingMode === 'free' ? null : context.landingBounds?.() ?? null
     const clampTarget = (rect: LandingRect): LandingRect => {
       // free landing 代表画布上的连续物理落点，允许代理沿惯性轨迹飞出
       // viewport；viewport clamp 只适用于列表/抽屉等需要留在可视区域内的落地。
       if (context.landingMode === 'free') return rect
-      const bounds = context.landingBounds?.()
-      return bounds ? clampLandingRectToBounds(rect, bounds) : rect
+      return landingBounds ? clampLandingRectToBounds(rect, landingBounds) : rect
     }
     const targetRect = clampTarget(rawLandingRect)
     const hasUsableTargetRect = targetRect.width > 0 && targetRect.height > 0
@@ -327,6 +331,9 @@ export class DefaultVisualAdapter implements VisualAdapter {
       && typeof destinationPoint.y === 'number'
       ? { x: destinationPoint.x, y: destinationPoint.y }
       : undefined
+    // readTarget 与 tracker 必须消费同一份 Runtime-owned 几何，不能前者又
+    // 单独回读 DOM。tracker 更新这个值后，settle validation 直接复用。
+    let trackedTargetRect: LandingRect = targetRect
     const { finished, retarget } = land(el, targetRect, {
       objectId: context.objectId,
       sessionId: context.sessionId,
@@ -368,7 +375,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // 会把相机变换后的 viewport 坐标当成新 motion target，表现为停顿后再
       // 突然追目标；相机位移统一由 camera glue 处理。
       readTarget: targetElement && !context.landingCameraOrigin
-        ? () => clampTarget(targetElement.getBoundingClientRect())
+        ? () => trackedTargetRect
         : undefined,
       cameraOrigin: context.landingMode === 'free'
         ? context.landingCameraOrigin ?? context.cameraOrigin
@@ -400,29 +407,24 @@ export class DefaultVisualAdapter implements VisualAdapter {
       releaseDamping: DEFAULT_RELEASE_PROFILE.dampingRatio,
     })
     if (this.runtime && targetElement && !context.landingCameraOrigin) {
-      // targetSnapshot 只用于代理的首帧样式和初始几何，不能作为后续
-      // retarget 的位置来源。目标卡可能在另一个 landing 期间被兄弟
-      // FLIP 移动，即使它不在 data-layout-surface 下，也必须跟随当前
-      // 视觉 rect；否则代理会回到落地开始时的旧位置。
+      // tracker 已经取得/计算了当前 visual rect；callback 必须直接消费它，
+      // 不能像旧实现那样忽略参数后再做第二次 getBoundingClientRect()。
       const snapshotRect = context.targetSnapshot?.rect
-      const readRetargetRect = (): LandingRect => {
-        const liveRect = targetElement!.getBoundingClientRect()
-        if (liveRect.width > 0 && liveRect.height > 0) return clampTarget(liveRect)
-        // 目标节点短暂被框架隐藏或重挂载时，不要把代理 retarget 到
-        // [0, 0, 0, 0]；沿用最后一个有效快照，等待下一帧恢复实时位置。
-        if (snapshotRect && snapshotRect.width > 0 && snapshotRect.height > 0) {
-          return clampTarget({
-            left: snapshotRect.x,
-            top: snapshotRect.y,
-            width: snapshotRect.width,
-            height: snapshotRect.height,
-          })
-        }
-        return clampTarget(liveRect)
-      }
-      this.runtime.trackLandingTarget(context.sessionId, targetElement, () => {
-        const rect = readRetargetRect()
-        retarget(rect)
+      this.runtime.trackLandingTarget(context.sessionId, targetElement, rect => {
+        const nextRect: LandingRect = rect.width > 0 && rect.height > 0
+          ? clampTarget(rect)
+          : snapshotRect && snapshotRect.width > 0 && snapshotRect.height > 0
+            ? clampTarget({
+                left: snapshotRect.x,
+                top: snapshotRect.y,
+                width: snapshotRect.width,
+                height: snapshotRect.height,
+              })
+            : trackedTargetRect
+        trackedTargetRect = nextRect
+        retarget(nextRect)
+      }, {
+        initialRect: liveTargetRect,
       })
     }
     return finished.then(() => ({ completed: true }))
