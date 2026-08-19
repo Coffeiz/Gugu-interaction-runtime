@@ -18,7 +18,7 @@ export interface LayoutParticipantPlan {
 function escapeSelectorValue(value: string): string {
   const css = globalThis.CSS
   if (css?.escape) return css.escape(value)
-  return value.replace(/([\\"'\[\]#.>:~+*^$|=(), ])/g, '\\$1')
+  return value.replace(/([\\\"'\[\]#.>:~+*^$|=(), ])/g, '\\$1')
 }
 
 function inScope(element: HTMLElement, scopeSurfaces?: readonly HTMLElement[]): boolean {
@@ -47,6 +47,17 @@ function isFollowing(reference: HTMLElement, candidate: HTMLElement): boolean {
 }
 
 /**
+ * Runtime 的可交互对象节点不一定就是业务布局中的直接 card sibling。
+ * 例如已完成列用 `.done-card-item[data-layout-role="card"]` 承担列表排布，
+ * `useObject()` 则绑定在里面的 ProjectCard 根节点。participant range 的顺序
+ * 必须按显式 layout-card carrier 判断，但集合里仍保留原 Runtime element，
+ * 这样后续 FLIP/measurement ownership 不会被换成业务 wrapper。
+ */
+function layoutOrderNode(element: HTMLElement): HTMLElement {
+  return element.closest<HTMLElement>('[data-layout-role="card"]') ?? element
+}
+
+/**
  * Capture-time source suffix. This is cheap (DOM-order only; no geometry reads) and protects
  * clone/custom modes where committing a move can still remove the source node from its old
  * list. Later groups are intentionally not included: their own group container participates in
@@ -56,12 +67,14 @@ export function captureSourceAffectedCards(
   cards: readonly HTMLElement[],
   sourceElement: HTMLElement,
 ): ReadonlySet<HTMLElement> {
-  const parent = sourceElement.parentElement
+  const sourceOrderNode = layoutOrderNode(sourceElement)
+  const parent = sourceOrderNode.parentElement
   if (!parent) return new Set()
   const affected = new Set<HTMLElement>()
   for (const card of cards) {
-    if (card.parentElement !== parent) continue
-    if (isFollowing(sourceElement, card)) affected.add(card)
+    const cardOrderNode = layoutOrderNode(card)
+    if (cardOrderNode === sourceOrderNode || cardOrderNode.parentElement !== parent) continue
+    if (isFollowing(sourceOrderNode, cardOrderNode)) affected.add(card)
   }
   return affected
 }
