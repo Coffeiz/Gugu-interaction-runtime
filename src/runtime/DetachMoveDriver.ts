@@ -97,20 +97,49 @@ function ignoreDetachSource(sourceElement: HTMLElement): (element: HTMLElement) 
     || Boolean(sourceLayoutKey && element.dataset.layoutKey === sourceLayoutKey)
 }
 
+/**
+ * Surface 可以显式提供 viewport map；旧接入没有提供时，Runtime 只识别通用
+ * data-scroll-viewport 契约，不探查业务 class/组件名。没有标记就保守退化为
+ * 不做 viewport participant 裁剪，不影响现有 FLIP 正确性。
+ */
+function resolveScopeViewports(
+  scopeSurfaces: readonly HTMLElement[] | undefined,
+  explicit: ReadonlyMap<HTMLElement, HTMLElement> | undefined,
+): ReadonlyMap<HTMLElement, HTMLElement> | undefined {
+  if (explicit && explicit.size > 0) return explicit
+  if (!scopeSurfaces || scopeSurfaces.length === 0) return undefined
+  const inferred = new Map<HTMLElement, HTMLElement>()
+  for (const surface of scopeSurfaces) {
+    const viewport = surface.matches('[data-scroll-viewport]')
+      ? surface
+      : surface.querySelector<HTMLElement>('[data-scroll-viewport]')
+    if (viewport?.isConnected) inferred.set(surface, viewport)
+  }
+  return inferred.size > 0 ? inferred : undefined
+}
+
 export function prepareDetachPickup(
   sourceElement: HTMLElement,
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
+  scopeViewports?: () => ReadonlyMap<HTMLElement, HTMLElement>,
 ): DetachPickupPreparation {
   const beforeContent = sourceElement.cloneNode(true) as HTMLElement
   const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
+  const surfaces = scopeSurfaces?.()
   return {
     beforeContent,
     beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement), {
-      scopeSurfaces: scopeSurfaces?.(),
+      scopeSurfaces: surfaces,
+      viewportBySurface: resolveScopeViewports(surfaces, scopeViewports?.()),
       surfaceMeasures: surfaceMeasures?.(),
+      focus: {
+        sourceElement,
+        layoutKey: sourceElement.dataset.layoutKey,
+        mode: 'removal',
+      },
     }),
   }
 }
@@ -406,6 +435,7 @@ export function createDetachLayoutLifecycle(
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
   layoutTransaction?: LayoutTransactionCoordinator,
+  scopeViewports?: () => ReadonlyMap<HTMLElement, HTMLElement>,
 ) {
   let layoutToken = 0
   let transactionRoot: ParentNode | null = null
@@ -417,13 +447,23 @@ export function createDetachLayoutLifecycle(
       const transaction = layoutTransaction?.begin(transactionRoot, 'move')
       transactionParticipantId = transaction?.participantId
       if (transaction) layoutTransaction?.request(transactionRoot, { type: 'move-layout', source: sourceEl })
+      const surfaces = scopeSurfaces?.()
       return captureLayoutFlip(
         registeredElements()
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
         document,
         true,
         ignoreDetachSource(sourceEl),
-        { scopeSurfaces: scopeSurfaces?.(), surfaceMeasures: surfaceMeasures?.() },
+        {
+          scopeSurfaces: surfaces,
+          viewportBySurface: resolveScopeViewports(surfaces, scopeViewports?.()),
+          surfaceMeasures: surfaceMeasures?.(),
+          focus: {
+            sourceElement: sourceEl,
+            layoutKey: sourceEl.dataset.layoutKey,
+            mode: 'move',
+          },
+        },
       )
     },
     play: (_context: unknown, snapshot: unknown, useRaf = false) => {

@@ -14,6 +14,8 @@ export interface CollectionPresenceSnapshot {
   }>
   /** capture 时登记的忽略判断，play 阶段必须用同一份，否则两边判断口径不一致。 */
   readonly ignore?: (element: HTMLElement) => boolean
+  /** participant policy：不需要动画的卡片在 capture/play 两侧都不做几何解析。 */
+  readonly include?: (element: HTMLElement) => boolean
   /** 只在受影响的 Surface 内比较 collection，避免扫描整个页面。 */
   readonly scopeSurfaces?: readonly HTMLElement[]
 }
@@ -102,6 +104,7 @@ export function captureCollectionPresence(
   ignore?: (element: HTMLElement) => boolean,
   scopeSurfaces?: readonly HTMLElement[],
   measurement?: LayoutMeasurement,
+  include?: (element: HTMLElement) => boolean,
 ): CollectionPresenceSnapshot {
   const collectionByKey = new Map<string, string>()
   const entries = queryScopedElements(root, selector, scopeSurfaces)
@@ -113,6 +116,7 @@ export function captureCollectionPresence(
       // 还在交互中"；调用方（DetachMoveDriver）在整段抓取→落地生命周期内
       // 都能拿到确定的源节点引用，直接把它传进来最可靠。
       if (ignore?.(element)) return null
+      if (include && !include(element)) return null
       if (!isWithinScope(element, scopeSurfaces)) return null
       const resolved = resolveCollectionCard(element, measurement)
       if (!resolved) return null
@@ -128,7 +132,7 @@ export function captureCollectionPresence(
       }
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-  return { root, selector, collectionByKey, entries, ignore, scopeSurfaces }
+  return { root, selector, collectionByKey, entries, ignore, include, scopeSurfaces }
 }
 
 export function playCollectionPresence(
@@ -143,6 +147,7 @@ export function playCollectionPresence(
   const current = queryScopedElements(snapshot.root, snapshot.selector, snapshot.scopeSurfaces)
     .filter(element => {
       if (snapshot.ignore?.(element)) return false
+      if (snapshot.include && !snapshot.include(element)) return false
       if (!isWithinScope(element, snapshot.scopeSurfaces)) return false
       const resolved = resolveCollectionCard(element, measurement)
       if (!resolved) return false

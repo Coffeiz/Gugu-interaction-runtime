@@ -3,6 +3,13 @@ import { type MotionProfile, DEFAULT_MOTION_PROFILE } from './MotionProfile'
 import { animateRafHeight, animateRafTransform, cancelRafHeight, cancelRafTransform } from './RafLayoutAnimator'
 import { captureCollectionPresence, playCollectionPresence, type CollectionPresenceSnapshot } from './CollectionPresence'
 import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasurement'
+import {
+  buildLayoutParticipantPlan,
+  captureSourceAffectedCards,
+  findLayoutScopeSurface,
+  isRectWithinViewportOverscan,
+  type LayoutParticipantFocus,
+} from './LayoutParticipantPolicy'
 import type { LayoutCache } from './LayoutCache'
 import type { LayoutTransactionCoordinator } from './LayoutTransaction'
 
@@ -39,6 +46,54 @@ export interface SurfaceLayoutSnapshot {
   readonly targetMeasure?: { width?: number; height: number } | null
   readonly inlineStyle: Pick<CSSStyleDeclaration, 'height' | 'overflow' | 'transition'>
 }
+
+interface LayoutParticipantSnapshot {
+  readonly cards: readonly HTMLElement[]
+  readonly scopeSurfaces?: readonly HTMLElement[]
+  readonly focus?: LayoutParticipantFocus
+  readonly sourceAffected: ReadonlySet<HTMLElement>
+  readonly viewportEligible: ReadonlySet<HTMLElement>
+  readonly candidateCards: number
+  readonly capturedCards: number
+  readonly captureReads: number
+  readonly captureCacheHits: number
+}
+
+export interface LayoutFlipTelemetry {
+  readonly candidateCards: number
+  readonly capturedCards: number
+  readonly eligibleCards: number
+  readonly captureReads: number
+  readonly captureCacheHits: number
+  readonly playReads: number
+  readonly playCacheHits: number
+  readonly rangeSkipped: number
+  readonly offscreenSkipped: number
+  readonly parentOwnedSkipped: number
+  readonly measuredCards: number
+  readonly animatedCards: number
+  readonly animatedGroups: number
+  readonly tinyDeltaSkipped: number
+}
+
+let lastLayoutFlipTelemetry: LayoutFlipTelemetry | null = null
+
+/** 最近一笔 Layout FLIP 的 participant/measurement 统计，供性能回归和 DevTools 调试。 */
+export function getLastLayoutFlipTelemetry(): LayoutFlipTelemetry | null {
+  return lastLayoutFlipTelemetry ? { ...lastLayoutFlipTelemetry } : null
+}
+
+function publishLayoutFlipTelemetry(telemetry: LayoutFlipTelemetry): void {
+  lastLayoutFlipTelemetry = telemetry
+  if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return
+  try {
+    performance.mark('gugu:layout-flip', { detail: telemetry })
+  } catch {
+    // Older/jsdom Performance implementations may not support mark options.
+    try { performance.mark('gugu:layout-flip') } catch { /* no-op */ }
+  }
+}
+
 export interface LayoutFlipSnapshot {
   readonly root: ParentNode
   /** 分组树（年/月包装节点 + 挂在分组下的卡片叶子）的 Relative FLIP 快照。 */
@@ -47,6 +102,7 @@ export interface LayoutFlipSnapshot {
   readonly flat?: { readonly elements: HTMLElement[]; readonly before: Map<HTMLElement, DOMRect> }
   readonly surfaces: SurfaceLayoutSnapshot[]
   readonly presence?: CollectionPresenceSnapshot
+  readonly participants?: LayoutParticipantSnapshot
 }
 
 /**
@@ -78,6 +134,48 @@ function splitLayoutFlipParticipants(
   return { groups, groupLeaves, flatCards }
 }
 
+function captureViewportRects(
+  viewportBySurface: ReadonlyMap<HTMLElement, HTMLElement> | undefined,
+  measurement: LayoutMeasurement,
+): ReadonlyMap<HTMLElement, GroupRect> {
+  const result = new Map<HTMLElement, GroupRect>()
+  if (!viewportBySurface) return result
+  for (const [surface, viewport] of viewportBySurface) {
+    if (!surface.isConnected || !viewport.isConnected) continue
+    const rect = measurement.rect(viewport)
+    result.set(surface, { top: rect.top, left: rect.left, width: rect.width, height: rect.height })
+  }
+  return result
+}
+
+function buildViewportEligibility(
+  cards: readonly HTMLElement[],
+  groupBefore: readonly GroupLayoutSnapshot[],
+  flatBefore: ReadonlyMap<HTMLElement, DOMRect>,
+  viewportRects: ReadonlyMap<HTMLElement, GroupRect>,
+  scopeSurfaces?: readonly HTMLElement[],
+): ReadonlySet<HTMLElement> {
+  if (viewportRects.size === 0) return new Set(cards)
+  const cardSet = new Set(cards)
+  const beforeRects = new Map<HTMLElement, GroupRect>()
+  for (const item of groupBefore) {
+    if (cardSet.has(item.element)) beforeRects.set(item.element, item.rect)
+  }
+  for (const [element, rect] of flatBefore) {
+    beforeRects.set(element, { top: rect.top, left: rect.left, width: rect.width, height: rect.height })
+  }
+  const eligible = new Set<HTMLElement>()
+  for (const card of cards) {
+    const rect = beforeRects.get(card)
+    const surface = findLayoutScopeSurface(card, scopeSurfaces)
+    const viewport = surface ? viewportRects.get(surface) : undefined
+    // Missing geometry/surface information is an ambiguity: keep the participant rather than
+    // turning a performance heuristic into a correctness dependency.
+    if (!rect || !viewport || isRectWithinViewportOverscan(rect, viewport)) eligible.add(card)
+  }
+  return eligible
+}
+
 /** 一份快照里按各自参与者的实际归属，分别捕获 Relative Group FLIP 和普通 FLIP。 */
 export function captureLayoutFlip(
   cards: readonly HTMLElement[],
@@ -93,6 +191,10 @@ export function captureLayoutFlip(
   options: {
     readonly scopeSurfaces?: readonly HTMLElement[]
     readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
+    /** Surface layout element -> actual scroll viewport. */
+    readonly viewportBySurface?: ReadonlyMap<HTMLElement, HTMLElement>
+    /** Semantic move focus used for source/destination affected-range reduction. */
+    readonly focus?: LayoutParticipantFocus
   } = {},
 ): LayoutFlipSnapshot {
   // 不在 capture 阶段恢复正在运行的 Surface resize。新事务需要继承当前
@@ -115,8 +217,31 @@ export function captureLayoutFlip(
   ]
     .filter(inScope)
   const measurement = createLayoutMeasurement()
-  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(cards, root, options.scopeSurfaces)
+  const scopedCards = cards.filter(inScope)
+  const sourceAffected = options.focus
+    ? captureSourceAffectedCards(scopedCards, options.focus.sourceElement)
+    : new Set<HTMLElement>()
+  // Pickup/removal is the only phase whose entire affected range is known before mutation.
+  // For release/move the destination target may be a different DOM node mounted by Vue, so
+  // keep the capture broad and reduce the second measurement once the final DOM exists.
+  const captureCards = options.focus?.mode === 'removal'
+    ? scopedCards.filter(card => sourceAffected.has(card))
+    : scopedCards
+  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(captureCards, root, options.scopeSurfaces)
   const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement, options.surfaceMeasures)
+  const viewportRects = captureViewportRects(options.viewportBySurface, measurement)
+  const groupBefore = groups.length > 0
+    ? captureGroupLayout([...groups, ...groupLeaves], measurement)
+    : []
+  const flatBefore = flatCards.length > 0 ? captureRects(flatCards, measurement) : new Map<HTMLElement, DOMRect>()
+  const viewportEligible = buildViewportEligibility(
+    captureCards,
+    groupBefore,
+    flatBefore,
+    viewportRects,
+    options.scopeSurfaces,
+  )
+  const participantCards = new Set(captureCards)
   // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
   // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
   // 显式开启。collection 通常标在列表容器上，卡片节点只标
@@ -126,14 +251,39 @@ export function captureLayoutFlip(
       ? scope.matches('[data-layout-collection]') || scope.querySelector('[data-layout-collection]') !== null
       : root.querySelector('[data-layout-collection]') !== null,
   )
+  // Presence shares the same viewport/range eligibility. It still queries scoped DOM to keep
+  // semantic collection identity correct, but skipped cards no longer perform geometry reads,
+  // computed validation or outerHTML serialization.
+  const presenceInclude = options.focus || options.viewportBySurface
+    ? (element: HTMLElement) => participantCards.has(element) && viewportEligible.has(element)
+    : undefined
   const snapshot: LayoutFlipSnapshot = {
     root,
-    group: groups.length > 0 ? { before: captureGroupLayout([...groups, ...groupLeaves], measurement) } : undefined,
-    flat: flatCards.length > 0 ? { elements: flatCards, before: captureRects(flatCards, measurement) } : undefined,
+    group: groupBefore.length > 0 ? { before: groupBefore } : undefined,
+    flat: flatCards.length > 0 ? { elements: flatCards, before: flatBefore } : undefined,
     surfaces,
     presence: includePresence && hasPresenceCollection
-      ? captureCollectionPresence(root, '[data-layout-role="card"]', undefined, presenceIgnore, options.scopeSurfaces, measurement)
+      ? captureCollectionPresence(
+          root,
+          '[data-layout-role="card"]',
+          undefined,
+          presenceIgnore,
+          options.scopeSurfaces,
+          measurement,
+          presenceInclude,
+        )
       : undefined,
+    participants: {
+      cards: captureCards,
+      scopeSurfaces: options.scopeSurfaces ? [...options.scopeSurfaces] : undefined,
+      focus: options.focus,
+      sourceAffected,
+      viewportEligible,
+      candidateCards: scopedCards.length,
+      capturedCards: captureCards.length,
+      captureReads: measurement.stats.reads,
+      captureCacheHits: measurement.stats.cacheHits,
+    },
   }
   return mergePendingLayoutSnapshot(root, snapshot)
 }
@@ -141,6 +291,18 @@ export function captureLayoutFlip(
 export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
   const measurement = createLayoutMeasurement()
   const profile = resolveProfile()
+  const participantPlan = snapshot.participants
+    ? buildLayoutParticipantPlan({
+        cards: snapshot.participants.cards,
+        root: snapshot.root,
+        focus: snapshot.participants.focus,
+        scopeSurfaces: snapshot.participants.scopeSurfaces,
+        sourceAffected: snapshot.participants.sourceAffected,
+        viewportEligible: snapshot.participants.viewportEligible,
+      })
+    : null
+  const eligibleCards = participantPlan?.eligible
+  const cardElements = snapshot.participants ? new Set(snapshot.participants.cards) : undefined
   // Surface 的自然高度必须在 FLIP transform 写入前测量。组/卡片的 Invert
   // transform 可能扩大滚动溢出范围；先测 Surface 再播放 FLIP，避免抽屉
   // 把动画中间态误当成自然高度，抓起底部卡片时留下额外空间。
@@ -148,13 +310,52 @@ export function playLayoutFlip(snapshot: LayoutFlipSnapshot): void {
   const groupClip = snapshot.group
     ? releaseGroupClip(snapshot.group.before)
     : null
-  if (snapshot.group) playGroupFlip(snapshot.group.before, profile.flip.duration, profile.flip.easing, measurement)
-  if (snapshot.flat) playFlip(snapshot.flat.elements, snapshot.flat.before, profile.flip.duration, profile.flip.easing, measurement)
+  const groupStats = snapshot.group
+    ? playGroupFlip(
+        snapshot.group.before,
+        profile.flip.duration,
+        profile.flip.easing,
+        measurement,
+        cardElements,
+        eligibleCards,
+      )
+    : null
+  const flatStats = snapshot.flat
+    ? playFlip(
+        snapshot.flat.elements,
+        snapshot.flat.before,
+        profile.flip.duration,
+        profile.flip.easing,
+        measurement,
+        eligibleCards ? element => eligibleCards.has(element) : undefined,
+      )
+    : null
   if (snapshot.presence) playCollectionPresence(snapshot.presence, {
       duration: profile.flip.duration,
       easing: profile.flip.easing,
   }, measurement)
   if (groupClip) restoreGroupClip(groupClip, profile.flip.duration + 50)
+
+  const participant = snapshot.participants
+  const captureRangeSkipped = participant
+    ? Math.max(0, participant.candidateCards - participant.capturedCards)
+    : 0
+  publishLayoutFlipTelemetry({
+    candidateCards: participant?.candidateCards ?? 0,
+    capturedCards: participant?.capturedCards ?? 0,
+    eligibleCards: eligibleCards?.size ?? participant?.capturedCards ?? 0,
+    captureReads: participant?.captureReads ?? 0,
+    captureCacheHits: participant?.captureCacheHits ?? 0,
+    playReads: measurement.stats.reads,
+    playCacheHits: measurement.stats.cacheHits,
+    rangeSkipped: captureRangeSkipped + (participantPlan?.rangeSkipped ?? 0),
+    offscreenSkipped: participantPlan?.offscreenSkipped ?? 0,
+    parentOwnedSkipped: (participantPlan?.inheritedSkipped ?? 0) + (groupStats?.parentInherited ?? 0),
+    measuredCards: (groupStats?.measuredCards ?? 0) + (flatStats?.measured ?? 0),
+    animatedCards: (groupStats?.animatedCards ?? 0) + (flatStats?.animated ?? 0),
+    animatedGroups: groupStats?.animatedGroups ?? 0,
+    tinyDeltaSkipped: (groupStats?.tinySkipped ?? 0) + (flatStats?.tinySkipped ?? 0),
+  })
 }
 
 interface GroupClipState {
@@ -168,6 +369,9 @@ let groupClipSequence = 0
 
 function releaseGroupClip(before: readonly GroupLayoutSnapshot[]): GroupClipState | null {
   const entries = before
+    // Clip ownership belongs to group/content containers. Card leaves used to reach the
+    // getComputedStyle() below as well, turning a three-group drawer into dozens of style reads.
+    .filter(item => item.element.matches('[data-layout-group], [data-layout-content]'))
     .filter(item => item.rect.height > 0)
     .map(item => ({ element: item.element, overflow: item.element.style.overflow }))
     .filter(item => item.element.isConnected)
@@ -316,35 +520,82 @@ function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement
   return null
 }
 
+interface GroupFlipPlayStats {
+  readonly measuredCards: number
+  readonly measuredGroups: number
+  readonly animatedCards: number
+  readonly animatedGroups: number
+  readonly filteredSkipped: number
+  readonly tinySkipped: number
+  readonly runtimeSkipped: number
+  readonly parentInherited: number
+}
+
 /**
  * Relative FLIP：节点（组或卡片叶）的屏幕位移减去直接父节点的屏幕位移，
  * 只播放它在父布局内真正产生的局部位移。父组 transform 会自然带动局部
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
-export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration = FLIP_DURATION, easing = FLIP_EASING, measurement?: LayoutMeasurement): void {
+export function playGroupFlip(
+  before: readonly GroupLayoutSnapshot[],
+  duration = FLIP_DURATION,
+  easing = FLIP_EASING,
+  measurement?: LayoutMeasurement,
+  cardElements?: ReadonlySet<HTMLElement>,
+  eligibleCards?: ReadonlySet<HTMLElement>,
+): GroupFlipPlayStats {
+  const allElements = before.map(item => item.element)
+  const previouslyActive = new Set(allElements.filter(element => element.dataset.runtimeFlip === 'true'))
+  resetActiveFlip(allElements)
   const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
+  let measuredCards = 0
+  let measuredGroups = 0
+  let filteredSkipped = 0
+  let runtimeSkipped = 0
 
   // measure phase：先把所有 after rect / relative delta 算完，再写任何 transform。
+  // Group/content containers are always measured; only card leaves are participant-reduced.
   for (const item of before) {
+    const isCard = cardElements?.has(item.element) ?? false
+    if (isCard && eligibleCards && !eligibleCards.has(item.element)) {
+      filteredSkipped += 1
+      if (previouslyActive.has(item.element)) item.element.style.transition = ''
+      continue
+    }
+    if (
+      item.element.dataset.runtimeProxy === 'true'
+      || item.element.dataset.runtimePlaceholder === 'true'
+      || item.element.dataset.runtimeActive === 'true'
+    ) {
+      runtimeSkipped += 1
+      if (previouslyActive.has(item.element)) item.element.style.transition = ''
+      continue
+    }
     const next = readRect(item.element, measurement)
+    if (isCard) measuredCards += 1
+    else measuredGroups += 1
     viewportDeltas.set(item.element, {
       x: item.rect.left - next.left,
       y: item.rect.top - next.top,
     })
   }
 
-  const plans: Array<{ element: HTMLElement; dx: number; dy: number; token: string }> = []
+  const plans: Array<{ element: HTMLElement; dx: number; dy: number; token: string; isCard: boolean }> = []
+  let tinySkipped = 0
+  let parentInherited = 0
   for (const item of before) {
-    const delta = viewportDeltas.get(item.element)!
+    const delta = viewportDeltas.get(item.element)
+    if (!delta) continue
     const parentDelta = item.parent ? viewportDeltas.get(item.parent) : undefined
     const dx = delta.x - (parentDelta?.x ?? 0)
     const dy = delta.y - (parentDelta?.y ?? 0)
-    if (
-      item.element.dataset.runtimeProxy === 'true'
-      || item.element.dataset.runtimePlaceholder === 'true'
-      || item.element.dataset.runtimeActive === 'true'
-      || (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5)
-    ) {
+    const isCard = cardElements?.has(item.element) ?? false
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+      tinySkipped += 1
+      if (isCard && parentDelta
+        && (Math.abs(delta.x) >= 0.5 || Math.abs(delta.y) >= 0.5)) {
+        parentInherited += 1
+      }
       // resetActiveFlip 可能给这个元素设置了 transition: none，
       // 如果跳过 FLIP，需要清除以免永久锁定 transition。
       // 但组高度动画由 transitionGroupHeight 独立持有，不能在这里清掉。
@@ -355,7 +606,7 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
       continue
     }
     const token = String(Number(item.element.dataset.runtimeFlipToken ?? '0') + 1)
-    plans.push({ element: item.element, dx, dy, token })
+    plans.push({ element: item.element, dx, dy, token, isCard })
   }
 
   // write phase：Invert 一次性写完；animateRafTransform 只登记状态，所有节点
@@ -373,6 +624,16 @@ export function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration =
       element.style.transform = ''
       delete element.dataset.runtimeFlip
     })
+  }
+  return {
+    measuredCards,
+    measuredGroups,
+    animatedCards: plans.filter(plan => plan.isCard).length,
+    animatedGroups: plans.filter(plan => !plan.isCard).length,
+    filteredSkipped,
+    tinySkipped,
+    runtimeSkipped,
+    parentInherited,
   }
 }
 
