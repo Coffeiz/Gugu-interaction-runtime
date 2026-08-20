@@ -16,6 +16,8 @@ export interface CollectionPresenceSnapshot {
   readonly ignore?: (element: HTMLElement) => boolean
   /** participant policy：不需要动画的卡片在 capture/play 两侧都不做几何解析。 */
   readonly include?: (element: HTMLElement) => boolean
+  /** capture 时按稳定 key 固化 participant 选择，避免节点重挂载后引用失效。 */
+  readonly includeKeys?: ReadonlySet<string>
   /** 只在受影响的 Surface 内比较 collection，避免扫描整个页面。 */
   readonly scopeSurfaces?: readonly HTMLElement[]
 }
@@ -107,6 +109,7 @@ export function captureCollectionPresence(
   include?: (element: HTMLElement) => boolean,
 ): CollectionPresenceSnapshot {
   const collectionByKey = new Map<string, string>()
+  const includeKeys = include ? new Set<string>() : undefined
   const entries = queryScopedElements(root, selector, scopeSurfaces)
     .map(element => {
       // 正在被 Runtime 接管的对象（抓取中/落地中）不参与 presence 判断——
@@ -116,12 +119,13 @@ export function captureCollectionPresence(
       // 还在交互中"；调用方（DetachMoveDriver）在整段抓取→落地生命周期内
       // 都能拿到确定的源节点引用，直接把它传进来最可靠。
       if (ignore?.(element)) return null
-      if (include && !include(element)) return null
       if (!isWithinScope(element, scopeSurfaces)) return null
       const resolved = resolveCollectionCard(element, measurement)
       if (!resolved) return null
       const id = key(element)
       if (!id) return null
+      if (include && !include(element)) return null
+      includeKeys?.add(id)
       const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
       collectionByKey.set(id, resolved.collectionId)
       return {
@@ -132,7 +136,7 @@ export function captureCollectionPresence(
       }
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-  return { root, selector, collectionByKey, entries, ignore, include, scopeSurfaces }
+  return { root, selector, collectionByKey, entries, ignore, include, includeKeys, scopeSurfaces }
 }
 
 export function playCollectionPresence(
@@ -147,12 +151,12 @@ export function playCollectionPresence(
   const current = queryScopedElements(snapshot.root, snapshot.selector, snapshot.scopeSurfaces)
     .filter(element => {
       if (snapshot.ignore?.(element)) return false
-      if (snapshot.include && !snapshot.include(element)) return false
       if (!isWithinScope(element, snapshot.scopeSurfaces)) return false
       const resolved = resolveCollectionCard(element, measurement)
       if (!resolved) return false
       const id = key(element)
       if (!id) return false
+      if (snapshot.includeKeys ? !snapshot.includeKeys.has(id) : snapshot.include && !snapshot.include(element)) return false
       currentCollectionByKey.set(id, resolved.collectionId)
       return true
     })

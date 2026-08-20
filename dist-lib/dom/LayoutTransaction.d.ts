@@ -1,3 +1,4 @@
+import { LayoutMeasurementContext } from './LayoutMeasurement';
 export type LayoutTransactionReason = 'move' | 'group-toggle' | 'surface-observer';
 export type LayoutTransactionPriority = 'observer' | 'interaction';
 export interface LayoutMutation {
@@ -12,6 +13,11 @@ export interface LayoutTransactionSnapshot {
     readonly priority: LayoutTransactionPriority;
     readonly mutations: readonly LayoutMutation[];
     readonly plans: readonly LayoutPlanSnapshot[];
+    /**
+     * Stable identity/fact stream for every geometry pass belonging to this transaction.
+     * Individual capture/play LayoutMeasurement objects still own separate rect caches.
+     */
+    readonly measurement: LayoutMeasurementContext;
 }
 export type LayoutPlanStatus = 'queued' | 'running' | 'completed' | 'cancelled' | 'failed';
 export interface LayoutPlanSnapshot {
@@ -33,8 +39,9 @@ export interface LayoutPlan {
 /**
  * 同一布局根节点的事务收集器。
  *
- * Phase 1 只负责收集和合并，不负责 DOM 测量或动画播放；后续组切换、落地
- * 和 Surface observer 都通过这里共享事务边界，再由统一提交器执行布局。
+ * 事务拥有稳定的 measurement context，但不跨 DOM mutation 复用 rect：真正的
+ * capture/play pass 仍各自创建 LayoutMeasurement。context 只把这些已经发生的
+ * DOM 测量归到同一事务，并向 landing 发布精确的 geometry revision。
  */
 export declare class LayoutTransactionCoordinator {
     private sequence;

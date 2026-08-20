@@ -87,10 +87,14 @@ function publishLayoutFlipTelemetry(telemetry: LayoutFlipTelemetry): void {
   lastLayoutFlipTelemetry = telemetry
   if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return
   try {
+    performance.clearMarks?.('gugu:layout-flip')
     performance.mark('gugu:layout-flip', { detail: telemetry })
   } catch {
     // Older/jsdom Performance implementations may not support mark options.
-    try { performance.mark('gugu:layout-flip') } catch { /* no-op */ }
+    try {
+      performance.clearMarks?.('gugu:layout-flip')
+      performance.mark('gugu:layout-flip')
+    } catch { /* no-op */ }
   }
 }
 
@@ -452,38 +456,78 @@ function mergePendingLayoutSnapshot(root: ParentNode, next: LayoutFlipSnapshot):
   const surfaces = mergeSurfaceSnapshots(next.surfaces, pending.surfaces)
   const flat = mergeFlatSnapshot(next.flat, pending.flat)
   const group = mergeGroupSnapshot(next.group, pending.group)
-  return { ...next, flat, group, surfaces }
+  return { ...next, flat, group, surfaces, participants: mergeParticipants(next.participants, pending.participants) }
+}
+
+function mergeParticipants(
+  next: LayoutFlipSnapshot['participants'],
+  pending: LayoutFlipSnapshot['participants'],
+): LayoutFlipSnapshot['participants'] {
+  if (!next || !pending) return next
+  const cards = [...new Set([...pending.cards, ...next.cards])]
+  const sourceAffected = new Set([...pending.sourceAffected, ...next.sourceAffected])
+  // Geometry is inherited from a transaction that has not played yet. Its participant
+  // reduction was calculated against an older DOM, so applying next-only focus/range/
+  // viewport filters here can silently drop a card whose before rect we just inherited.
+  // Keep the union conservatively for this merged transaction; the next transaction's
+  // normal reduction resumes on the following capture.
+  return {
+    ...next,
+    cards,
+    focus: undefined,
+    sourceAffected,
+    viewportEligible: new Set(cards),
+    candidateCards: Math.max(next.candidateCards, pending.candidateCards),
+    capturedCards: cards.length,
+    captureReads: next.captureReads + pending.captureReads,
+    captureCacheHits: next.captureCacheHits + pending.captureCacheHits,
+  }
 }
 
 function mergeFlatSnapshot(
   next: LayoutFlipSnapshot['flat'],
   pending: LayoutFlipSnapshot['flat'],
 ): LayoutFlipSnapshot['flat'] {
-  if (!next || !pending) return next
-  const before = new Map(next.before)
-  for (const element of next.elements) {
-    const rect = pending.before.get(element)
-    if (rect) before.set(element, rect)
+  if (!next) return pending
+  if (!pending) return next
+  const elements = [...new Set([...pending.elements, ...next.elements])]
+  const before = new Map(pending.before)
+  for (const [element, rect] of next.before) {
+    if (!before.has(element)) before.set(element, rect)
   }
-  return { ...next, before }
+  return { ...next, elements, before }
 }
 
 function mergeGroupSnapshot(
   next: LayoutFlipSnapshot['group'],
   pending: LayoutFlipSnapshot['group'],
 ): LayoutFlipSnapshot['group'] {
-  if (!next || !pending) return next
+  if (!next) return pending
+  if (!pending) return next
+  const nextByElement = new Map(next.before.map(item => [item.element, item]))
   const pendingRects = new Map(pending.before.map(item => [item.element, item.rect]))
-  return { before: next.before.map(item => ({ ...item, rect: pendingRects.get(item.element) ?? item.rect })) }
+  const elements = [...new Set([...pending.before.map(item => item.element), ...next.before.map(item => item.element)])]
+  return {
+    before: elements.map(element => {
+      const nextItem = nextByElement.get(element)
+      const pendingItem = pending.before.find(item => item.element === element)
+      const base = nextItem ?? pendingItem!
+      return { ...base, rect: pendingRects.get(element) ?? base.rect }
+    }),
+  }
 }
 
 function mergeSurfaceSnapshots(
   next: readonly SurfaceLayoutSnapshot[],
   pending: readonly SurfaceLayoutSnapshot[],
 ): SurfaceLayoutSnapshot[] {
+  const nextByElement = new Map(next.map(item => [item.element, item]))
   const pendingByElement = new Map(pending.map(item => [item.element, item]))
-  return next.map(item => {
-    const previous = pendingByElement.get(item.element)
+  const elements = [...new Set([...pending.map(item => item.element), ...next.map(item => item.element)])]
+  return elements.map(element => {
+    const item = nextByElement.get(element)
+    const previous = pendingByElement.get(element)
+    if (!item) return previous!
     return previous ? { ...item, rect: previous.rect, inlineStyle: previous.inlineStyle } : item
   })
 }

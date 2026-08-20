@@ -1,6 +1,13 @@
 import { LayoutMeasurement } from './LayoutMeasurement';
 export declare const FLIP_DURATION: number;
 export declare const FLIP_EASING: string;
+export interface FlipPlayStats {
+    readonly measured: number;
+    readonly animated: number;
+    readonly filteredSkipped: number;
+    readonly tinySkipped: number;
+    readonly runtimeSkipped: number;
+}
 /**
  * 通用 FLIP：在一次 DOM 变化前后分别调用 capture()/play()，用 transform
  * 补间视觉位移，不摸 height/opacity 等其它属性。对应 Gugu-web
@@ -12,4 +19,4 @@ export declare function captureRects(elements: HTMLElement[], measurement?: Layo
  * 仅用于测量新的无 transform 布局；两步发生在同一 JS 帧内，不会露出跳帧。
  */
 export declare function resetActiveFlip(elements: readonly HTMLElement[]): void;
-export declare function playFlip(elements: HTMLElement[], before: Map<HTMLElement, DOMRect>, duration?: number, easing?: string, measurement?: LayoutMeasurement): void;
+export declare function playFlip(elements: HTMLElement[], before: Map<HTMLElement, DOMRect>, duration?: number, easing?: string, measurement?: LayoutMeasurement, shouldMeasure?: (element: HTMLElement) => boolean): FlipPlayStats;

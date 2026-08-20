@@ -31,7 +31,22 @@ export function findLayoutScopeSurface(
   scopeSurfaces?: readonly HTMLElement[],
 ): HTMLElement | null {
   if (!scopeSurfaces || scopeSurfaces.length === 0) return null
-  return scopeSurfaces.find(surface => surface === element || surface.contains(element)) ?? null
+  let nearest: HTMLElement | null = null
+  let nearestDistance = Number.POSITIVE_INFINITY
+  for (const surface of scopeSurfaces) {
+    if (surface !== element && !surface.contains(element)) continue
+    let distance = 0
+    let cursor: HTMLElement | null = element
+    while (cursor && cursor !== surface) {
+      distance += 1
+      cursor = cursor.parentElement
+    }
+    if (cursor === surface && distance < nearestDistance) {
+      nearest = surface
+      nearestDistance = distance
+    }
+  }
+  return nearest
 }
 
 function nearestCollection(element: HTMLElement): HTMLElement | null {

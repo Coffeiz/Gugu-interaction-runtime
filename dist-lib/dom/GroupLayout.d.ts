@@ -1,6 +1,7 @@
 import { MotionProfile } from './MotionProfile';
 import { CollectionPresenceSnapshot } from './CollectionPresence';
 import { LayoutMeasurement } from './LayoutMeasurement';
+import { LayoutParticipantFocus } from './LayoutParticipantPolicy';
 import { LayoutCache } from './LayoutCache';
 import { LayoutTransactionCoordinator } from './LayoutTransaction';
 export declare function setMotionProfiles(profile: MotionProfile | null): void;
@@ -35,6 +36,35 @@ export interface SurfaceLayoutSnapshot {
     } | null;
     readonly inlineStyle: Pick<CSSStyleDeclaration, 'height' | 'overflow' | 'transition'>;
 }
+interface LayoutParticipantSnapshot {
+    readonly cards: readonly HTMLElement[];
+    readonly scopeSurfaces?: readonly HTMLElement[];
+    readonly focus?: LayoutParticipantFocus;
+    readonly sourceAffected: ReadonlySet<HTMLElement>;
+    readonly viewportEligible: ReadonlySet<HTMLElement>;
+    readonly candidateCards: number;
+    readonly capturedCards: number;
+    readonly captureReads: number;
+    readonly captureCacheHits: number;
+}
+export interface LayoutFlipTelemetry {
+    readonly candidateCards: number;
+    readonly capturedCards: number;
+    readonly eligibleCards: number;
+    readonly captureReads: number;
+    readonly captureCacheHits: number;
+    readonly playReads: number;
+    readonly playCacheHits: number;
+    readonly rangeSkipped: number;
+    readonly offscreenSkipped: number;
+    readonly parentOwnedSkipped: number;
+    readonly measuredCards: number;
+    readonly animatedCards: number;
+    readonly animatedGroups: number;
+    readonly tinyDeltaSkipped: number;
+}
+/** 最近一笔 Layout FLIP 的 participant/measurement 统计，供性能回归和 DevTools 调试。 */
+export declare function getLastLayoutFlipTelemetry(): LayoutFlipTelemetry | null;
 export interface LayoutFlipSnapshot {
     readonly root: ParentNode;
     /** 分组树（年/月包装节点 + 挂在分组下的卡片叶子）的 Relative FLIP 快照。 */
@@ -48,6 +78,7 @@ export interface LayoutFlipSnapshot {
     };
     readonly surfaces: SurfaceLayoutSnapshot[];
     readonly presence?: CollectionPresenceSnapshot;
+    readonly participants?: LayoutParticipantSnapshot;
 }
 /** 一份快照里按各自参与者的实际归属，分别捕获 Relative Group FLIP 和普通 FLIP。 */
 export declare function captureLayoutFlip(cards: readonly HTMLElement[], root?: ParentNode, includePresence?: boolean, 
@@ -63,6 +94,10 @@ presenceIgnore?: (element: HTMLElement) => boolean, options?: {
         width?: number;
         height: number;
     } | null)>;
+    /** Surface layout element -> actual scroll viewport. */
+    readonly viewportBySurface?: ReadonlyMap<HTMLElement, HTMLElement>;
+    /** Semantic move focus used for source/destination affected-range reduction. */
+    readonly focus?: LayoutParticipantFocus;
 }): LayoutFlipSnapshot;
 export declare function playLayoutFlip(snapshot: LayoutFlipSnapshot): void;
 /**
@@ -93,12 +128,22 @@ export declare function scheduleLayoutFlip(snapshot: LayoutFlipSnapshot): void;
  */
 export declare function scheduleLayoutFlipOnRaf(snapshot: LayoutFlipSnapshot): void;
 export declare function captureGroupLayout(elements: readonly HTMLElement[], measurement?: LayoutMeasurement): GroupLayoutSnapshot[];
+interface GroupFlipPlayStats {
+    readonly measuredCards: number;
+    readonly measuredGroups: number;
+    readonly animatedCards: number;
+    readonly animatedGroups: number;
+    readonly filteredSkipped: number;
+    readonly tinySkipped: number;
+    readonly runtimeSkipped: number;
+    readonly parentInherited: number;
+}
 /**
  * Relative FLIP：节点（组或卡片叶）的屏幕位移减去直接父节点的屏幕位移，
  * 只播放它在父布局内真正产生的局部位移。父组 transform 会自然带动局部
  * 位移为 0 的子内容；同一月内卡片重排则会留下非零局部位移。
  */
-export declare function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration?: number, easing?: string, measurement?: LayoutMeasurement): void;
+export declare function playGroupFlip(before: readonly GroupLayoutSnapshot[], duration?: number, easing?: string, measurement?: LayoutMeasurement, cardElements?: ReadonlySet<HTMLElement>, eligibleCards?: ReadonlySet<HTMLElement>): GroupFlipPlayStats;
 export declare function transitionGroupHeight(element: HTMLElement, targetHeight: number, duration?: number, easing?: string, fromHeight?: number, retainTargetHeight?: boolean, exactDuration?: boolean): boolean;
 /**
  * 组件卸载或弹窗关闭时调用，取消该根节点下尚未完成的布局动画，并恢复
@@ -137,3 +182,4 @@ export declare function captureSurfaceLayout(elements: readonly HTMLElement[], m
 export declare function playSurfaceResize(before: readonly SurfaceLayoutSnapshot[], duration?: number, easing?: string, measurement?: LayoutMeasurement): void;
 export declare function captureScroll(container: HTMLElement): ScrollSnapshot;
 export declare function restoreScroll(container: HTMLElement, snapshot: ScrollSnapshot): void;
+export {};
