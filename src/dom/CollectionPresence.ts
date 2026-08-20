@@ -120,11 +120,13 @@ export function captureCollectionPresence(
       // 都能拿到确定的源节点引用，直接把它传进来最可靠。
       if (ignore?.(element)) return null
       if (!isWithinScope(element, scopeSurfaces)) return null
-      const resolved = resolveCollectionCard(element, measurement)
-      if (!resolved) return null
       const id = key(element)
       if (!id) return null
       if (include && !include(element)) return null
+      // participant 过滤必须先于几何校验；否则被 reduction 丢弃的卡片仍会
+      // 触发 rect(element) / rect(collection)，把 presence 的性能收益抵消掉。
+      const resolved = resolveCollectionCard(element, measurement)
+      if (!resolved) return null
       includeKeys?.add(id)
       const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
       collectionByKey.set(id, resolved.collectionId)
@@ -152,11 +154,11 @@ export function playCollectionPresence(
     .filter(element => {
       if (snapshot.ignore?.(element)) return false
       if (!isWithinScope(element, snapshot.scopeSurfaces)) return false
-      const resolved = resolveCollectionCard(element, measurement)
-      if (!resolved) return false
       const id = key(element)
       if (!id) return false
       if (snapshot.includeKeys ? !snapshot.includeKeys.has(id) : snapshot.include && !snapshot.include(element)) return false
+      const resolved = resolveCollectionCard(element, measurement)
+      if (!resolved) return false
       currentCollectionByKey.set(id, resolved.collectionId)
       return true
     })

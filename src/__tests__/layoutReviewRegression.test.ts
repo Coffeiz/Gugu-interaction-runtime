@@ -40,7 +40,15 @@ describe('审查回归', () => {
     mockRect(collection, { left: 0, top: 0, width: 300, height: 100 })
     mockRect(oldCard, { left: 0, top: 0, width: 200, height: 40 })
 
-    const snapshot = captureCollectionPresence(root, '[data-layout-role="card"]')
+    const snapshot = captureCollectionPresence(
+      root,
+      '[data-layout-role="card"]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      element => element === oldCard,
+    )
     const newCard = makeCollectionCard('card-1', 'active')
     collection.replaceChildren(newCard)
     mockRect(newCard, { left: 0, top: 0, width: 200, height: 40 })
@@ -52,6 +60,34 @@ describe('审查回归', () => {
     playCollectionPresence(snapshot)
 
     expect(animate).not.toHaveBeenCalled()
+  })
+
+  it('presence reduction 在几何读取前过滤非 participant 卡片', () => {
+    const root = document.createElement('main')
+    const collection = document.createElement('section')
+    collection.dataset.layoutCollection = 'active'
+    const cards = Array.from({ length: 10 }, (_, index) => {
+      const card = makeCollectionCard(`card-${index}`, 'active')
+      collection.append(card)
+      return card
+    })
+    root.append(collection)
+    document.body.append(root)
+    mockRect(collection, { left: 0, top: 0, width: 500, height: 500 })
+    const cardReads = cards.map(card => vi.spyOn(card, 'getBoundingClientRect'))
+    const included = new Set(cards.slice(0, 2))
+
+    captureCollectionPresence(
+      root,
+      '[data-layout-role="card"]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      element => included.has(element),
+    )
+
+    expect(cardReads.map(spy => spy.mock.calls.length)).toEqual([2, 2, 0, 0, 0, 0, 0, 0, 0, 0])
   })
 
   it('嵌套 Surface 选择最内层，而不依赖注册顺序', () => {

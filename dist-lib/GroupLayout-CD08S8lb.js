@@ -257,14 +257,14 @@ function ae(e, t, n = E, r, i, a, o) {
 		collectionByKey: s,
 		entries: ie(e, t, i).map((e) => {
 			if (r?.(e) || !k(e, i)) return null;
-			let t = O(e, a);
-			if (!t) return null;
-			let l = n(e);
-			if (!l || o && !o(e)) return null;
-			c?.add(l);
+			let t = n(e);
+			if (!t || o && !o(e)) return null;
+			let l = O(e, a);
+			if (!l) return null;
+			c?.add(t);
 			let u = a?.rect(e) ?? e.getBoundingClientRect();
-			return s.set(l, t.collectionId), {
-				key: l,
+			return s.set(t, l.collectionId), {
+				key: t,
 				element: e,
 				rect: {
 					left: u.left,
@@ -285,10 +285,10 @@ function oe(e, t = {}, n) {
 	let r = t.duration ?? 250, i = t.easing ?? "cubic-bezier(.22,1,.36,1)", a = t.key ?? E, o = /* @__PURE__ */ new Map();
 	ie(e.root, e.selector, e.scopeSurfaces).filter((t) => {
 		if (e.ignore?.(t) || !k(t, e.scopeSurfaces)) return !1;
-		let r = O(t, n);
-		if (!r) return !1;
-		let i = a(t);
-		return !i || (e.includeKeys ? !e.includeKeys.has(i) : e.include && !e.include(t)) ? !1 : (o.set(i, r.collectionId), !0);
+		let r = a(t);
+		if (!r || (e.includeKeys ? !e.includeKeys.has(r) : e.include && !e.include(t))) return !1;
+		let i = O(t, n);
+		return i ? (o.set(r, i.collectionId), !0) : !1;
 	}).filter((t) => {
 		let n = a(t);
 		if (!n) return !1;
