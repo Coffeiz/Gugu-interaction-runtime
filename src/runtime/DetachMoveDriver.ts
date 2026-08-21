@@ -1,7 +1,6 @@
 import { captureLayoutFlip, scheduleLayoutFlip, scheduleLayoutFlipOnRaf } from '../dom/GroupLayout'
 import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
-import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
-import { applyFloatingStyle } from '../dom/Visual'
+import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { releaseVisibilityOwnership, setProxyInteractive } from '../dom/Visual'
 import type { GrabAlignConfig } from '../Runtime'
 import type { LayoutTransactionCoordinator } from '../dom/LayoutTransaction'
@@ -55,29 +54,7 @@ export function prepareDetachMotion(
 
 
 
-export function applyDetachPickupVisual(
-  applyState: (objectId: string, element: HTMLElement, state: VisualState) => void,
-  objectId: string,
-  element: HTMLElement,
-  rect: DOMRect,
-  fromRect?: DOMRect,
-): void {
-  element.style.transform = ''
-  applyFloatingStyle(element, rect)
-  document.body.classList.add('kb-dragging')
-  if (fromRect) element.style.transition = 'none'
-  applyState(objectId, element, {
-    phase: 'dragging',
-    hovered: element.matches(':hover'),
-    selected: element.classList.contains('is-selected'),
-    grabbed: true,
-  })
-}
-
-
-
 export interface DetachPickupPreparation {
-  readonly beforeContent: HTMLElement
   readonly beforePickup: ReturnType<typeof captureLayoutFlip>
 }
 
@@ -97,20 +74,44 @@ function ignoreDetachSource(sourceElement: HTMLElement): (element: HTMLElement) 
     || Boolean(sourceLayoutKey && element.dataset.layoutKey === sourceLayoutKey)
 }
 
+/**
+ * Surface 可以显式提供 viewport map；旧接入没有提供时，Runtime 只识别通用
+ * data-scroll-viewport 契约，不探查业务 class/组件名。没有标记就保守退化为
+ * 不做 viewport participant 裁剪，不影响现有 FLIP 正确性。
+ */
+function resolveScopeViewports(
+  scopeSurfaces: readonly HTMLElement[] | undefined,
+): ReadonlyMap<HTMLElement, HTMLElement> | undefined {
+  if (!scopeSurfaces || scopeSurfaces.length === 0) return undefined
+  const inferred = new Map<HTMLElement, HTMLElement>()
+  for (const surface of scopeSurfaces) {
+    const viewport = surface.matches('[data-scroll-viewport]')
+      ? surface
+      : surface.querySelector<HTMLElement>('[data-scroll-viewport]')
+    if (viewport?.isConnected) inferred.set(surface, viewport)
+  }
+  return inferred.size > 0 ? inferred : undefined
+}
+
 export function prepareDetachPickup(
   sourceElement: HTMLElement,
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
 ): DetachPickupPreparation {
-  const beforeContent = sourceElement.cloneNode(true) as HTMLElement
   const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
+  const surfaces = scopeSurfaces?.()
   return {
-    beforeContent,
     beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement), {
-      scopeSurfaces: scopeSurfaces?.(),
+      scopeSurfaces: surfaces,
+      viewportBySurface: resolveScopeViewports(surfaces),
       surfaceMeasures: surfaceMeasures?.(),
+      focus: {
+        sourceElement,
+        layoutKey: sourceElement.dataset.layoutKey,
+        mode: 'removal',
+      },
     }),
   }
 }
@@ -118,29 +119,23 @@ export function prepareDetachPickup(
 
 
 export function createDetachDropState<TDrop>(
-  initialSurface: string | undefined,
   resolve: (event: PointerEvent) => TDrop | null,
   same: (drop: TDrop, previous: TDrop | null) => boolean,
 ) {
-  let currentSurface = initialSurface
   let pending: TDrop | null = null
   return {
-    update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null {
+    update(event: PointerEvent): TDrop | null {
       const drop = resolve(event)
       if (!drop) {
         pending = null
         return null
       }
       if (same(drop, pending)) return pending
-      currentSurface = getSurface(drop)
       pending = drop
       return pending
     },
     release(): TDrop | null {
       return pending
-    },
-    get currentSurface(): string | undefined {
-      return currentSurface
     },
   }
 }
@@ -151,11 +146,9 @@ export function updateDetachDrop<TDrop>(args: {
   active: boolean
   event: PointerEvent
   state: ReturnType<typeof createDetachDropState<TDrop>>
-  resolve: (event: PointerEvent) => TDrop | null
-  getSurface: (drop: TDrop) => string
 }): TDrop | null {
   if (!args.active) return null
-  return args.state.update(args.event, args.getSurface)
+  return args.state.update(args.event)
 }
 
 
@@ -178,42 +171,6 @@ export function interruptDetachRegrab(args: {
   args.source.style.visibility = 'hidden'
   // source 的可见性由新 session 的 pickup 阶段恢复，避免旧 proxy 销毁
   // 与新 session 接管之间露出一帧列表态本体。
-}
-
-
-
-export function cancelDetachWithoutDrop(args: {
-  source: HTMLElement
-  registeredElements: () => HTMLElement[]
-  cancel: () => void
-  releaseObject: () => void
-  clearFloating: (element: HTMLElement) => void
-  clearActive: () => void
-}): void {
-  document.body.classList.remove('kb-dragging')
-  const returnCards = args.registeredElements()
-    .filter(element => element !== args.source && element.dataset.runtimeProxy !== 'true')
-  const returnBefore = captureLayoutFlip(returnCards, document, true, ignoreDetachSource(args.source))
-  args.cancel()
-  args.clearFloating(args.source)
-  args.clearActive()
-  args.releaseObject()
-  scheduleLayoutFlip(returnBefore)
-}
-
-
-
-export function prepareDetachLanding(args: {
-  source: HTMLElement
-  settle: (element: HTMLElement) => void
-  clearActive: () => void
-  releaseObject: () => void
-}): DOMRect {
-  const beforeRect = args.source.getBoundingClientRect()
-  args.settle(args.source)
-  args.clearActive()
-  args.releaseObject()
-  return beforeRect
 }
 
 
@@ -417,13 +374,23 @@ export function createDetachLayoutLifecycle(
       const transaction = layoutTransaction?.begin(transactionRoot, 'move')
       transactionParticipantId = transaction?.participantId
       if (transaction) layoutTransaction?.request(transactionRoot, { type: 'move-layout', source: sourceEl })
+      const surfaces = scopeSurfaces?.()
       return captureLayoutFlip(
         registeredElements()
           .filter(el => el !== sourceEl && el.dataset.runtimeProxy !== 'true'),
         document,
         true,
         ignoreDetachSource(sourceEl),
-        { scopeSurfaces: scopeSurfaces?.(), surfaceMeasures: surfaceMeasures?.() },
+        {
+          scopeSurfaces: surfaces,
+          viewportBySurface: resolveScopeViewports(surfaces),
+          surfaceMeasures: surfaceMeasures?.(),
+          focus: {
+            sourceElement: sourceEl,
+            layoutKey: sourceEl.dataset.layoutKey,
+            mode: 'move',
+          },
+        },
       )
     },
     play: (_context: unknown, snapshot: unknown, useRaf = false) => {

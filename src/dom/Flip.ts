@@ -9,6 +9,12 @@ import type { LayoutMeasurement } from './LayoutMeasurement'
 export const FLIP_DURATION = DEFAULT_MOTION_PROFILE.flip.duration
 export const FLIP_EASING = DEFAULT_MOTION_PROFILE.flip.easing
 
+export interface FlipPlayStats {
+  readonly measured: number
+  readonly animated: number
+  readonly tinySkipped: number
+}
+
 /**
  * 通用 FLIP：在一次 DOM 变化前后分别调用 capture()/play()，用 transform
  * 补间视觉位移，不摸 height/opacity 等其它属性。对应 Gugu-web
@@ -43,14 +49,24 @@ export function playFlip(
   duration = FLIP_DURATION,
   easing = FLIP_EASING,
   measurement?: LayoutMeasurement,
-): void {
+  shouldMeasure?: (element: HTMLElement) => boolean,
+): FlipPlayStats {
   // 新 FLIP 必须先作废同一批元素上的旧 rAF、timeout 和 transitionend，
   // 否则快速抓放会出现旧事务补写 transform，表现为二次让位或瞬间展开。
+  // participant reduction 也不能绕开这个边界：即使这一笔决定跳过某张卡，
+  // 它身上的上一笔 Runtime FLIP 仍必须先失效。
+  const previouslyActive = new Set(elements.filter(element => element.dataset.runtimeFlip === 'true'))
   resetActiveFlip(elements)
   const plans: Array<{ element: HTMLElement; dx: number; dy: number }> = []
-  // Read phase: measure every participant before writing any new transform.
+  let measured = 0
+  let tinySkipped = 0
+  // Read phase: measure every selected participant before writing any new transform.
   // Interleaving these operations forces one layout flush per card.
   for (const el of elements) {
+    if (shouldMeasure && !shouldMeasure(el)) {
+      if (previouslyActive.has(el)) el.style.transition = ''
+      continue
+    }
     // Runtime 临时视觉对象和当前拖动对象不属于兄弟布局动画参与者。
     // 统一在 Layout 层过滤，适配器无需每次重复维护排除条件。
     if (
@@ -58,16 +74,20 @@ export function playFlip(
       el.dataset.runtimePlaceholder === 'true' ||
       el.dataset.runtimeActive === 'true'
     ) {
+      if (previouslyActive.has(el)) el.style.transition = ''
       continue
     }
     const from = before.get(el)
     if (!from) {
+      if (previouslyActive.has(el)) el.style.transition = ''
       continue
     }
     const to = measurement?.rect(el) ?? el.getBoundingClientRect()
+    measured += 1
     const dx = from.left - to.left
     const dy = from.top - to.top
     if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+      tinySkipped += 1
       // resetActiveFlip 可能给这个元素设置了 transition: none !important，
       // 如果跳过 FLIP，需要清除以免永久锁定 transition。
       el.style.transition = ''
@@ -88,5 +108,10 @@ export function playFlip(
       el.style.transition = ''
       delete el.dataset.runtimeFlip
     })
+  }
+  return {
+    measured,
+    animated: plans.length,
+    tinySkipped,
   }
 }

@@ -23,7 +23,6 @@ export function createDetachMoveFromAdapter(config: {
   const objectItem = runtime.objects.get(objectId)
   const allSurfaces = runtime.surfaces.snapshot()
   const surfaceIds = allSurfaces.map(s => s.id)
-  const findColumnIdOf = (oid: string) => runtime.objects.get(oid)?.surfaceId
   const initialSurfaceId = objectItem?.surfaceId ?? allSurfaces[0]?.id
   // 折叠的年/月分组（data-layout-content 容器 data-layout-open="false"）里的
   // 卡片本来就不可见，节点却仍然挂在 DOM 里（折叠只是收起高度，不卸载）。
@@ -139,8 +138,6 @@ export function createDetachMoveFromAdapter(config: {
       active: getSessionState() === 'active',
       event: { clientX: x, clientY: y } as PointerEvent,
       state: dropState,
-      resolve: (ev: PointerEvent) => runtime.resolveMoveHit(objectId, ev.clientX, ev.clientY),
-      getSurface: (drop: { columnId: string; index: number }) => drop.columnId,
     })
     if (!hit) return
     pendingDrop = { ...hit, point: { x, y } }
@@ -585,7 +582,6 @@ export function createDetachMoveFromAdapter(config: {
         dragMotion = direct
       }
       dropState = createDetachDropState(
-        findColumnIdOf(objectId),
         (ev: PointerEvent) => runtime.resolveMoveHit(objectId, ev.clientX, ev.clientY),
         (drop: { columnId: string; index: number }, previous: { columnId: string; index: number } | null) => drop.columnId === previous?.columnId && drop.index === previous?.index,
       )

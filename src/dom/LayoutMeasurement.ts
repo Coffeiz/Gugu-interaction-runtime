@@ -7,8 +7,14 @@
  * fresh measurements that Runtime already had to perform. Landing can subscribe to those
  * facts instead of polling the DOM again.
  */
+export interface LayoutMeasurementStats {
+  readonly reads: number
+  readonly cacheHits: number
+}
+
 export interface LayoutMeasurement {
   readonly context: LayoutMeasurementContext
+  readonly stats: LayoutMeasurementStats
   rect(element: HTMLElement): DOMRect
 }
 
@@ -107,14 +113,23 @@ export function subscribeLayoutGeometry(element: HTMLElement, listener: Geometry
 export function createLayoutMeasurement(context?: LayoutMeasurementContext): LayoutMeasurement {
   const cache = new WeakMap<HTMLElement, DOMRect>()
   let resolvedContext = context
+  let reads = 0
+  let cacheHits = 0
   return {
     get context() {
       return resolvedContext ??= createLayoutMeasurementContext()
     },
+    get stats() {
+      return { reads, cacheHits }
+    },
     rect(element) {
       const cached = cache.get(element)
-      if (cached) return cached
+      if (cached) {
+        cacheHits += 1
+        return cached
+      }
       const rect = element.getBoundingClientRect()
+      reads += 1
       cache.set(element, rect)
       // When a LayoutTransactionCoordinator has bound a context for this root, attach the
       // pass to that transaction. Standalone pickup/return FLIP gets its own context instead.

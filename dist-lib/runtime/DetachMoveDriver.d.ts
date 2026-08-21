@@ -1,6 +1,6 @@
 import { captureLayoutFlip } from '../dom/GroupLayout';
 import { LandingResult, MoveContext } from '../behavior/MoveBehavior';
-import { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes';
+import { VisualSnapshot } from '../dom/VisualAdapterTypes';
 import { GrabAlignConfig } from '../Runtime';
 import { LayoutTransactionCoordinator } from '../dom/LayoutTransaction';
 export declare function captureDetachDraggingSnapshot(capture: (objectId: string, element: HTMLElement) => VisualSnapshot, objectId: string, element: HTMLElement): VisualSnapshot;
@@ -18,26 +18,21 @@ export declare function prepareDetachMotion(context: MoveContext, element: HTMLE
     offsetX: number;
     offsetY: number;
 };
-export declare function applyDetachPickupVisual(applyState: (objectId: string, element: HTMLElement, state: VisualState) => void, objectId: string, element: HTMLElement, rect: DOMRect, fromRect?: DOMRect): void;
 export interface DetachPickupPreparation {
-    readonly beforeContent: HTMLElement;
     readonly beforePickup: ReturnType<typeof captureLayoutFlip>;
 }
 export declare function prepareDetachPickup(sourceElement: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[], surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => {
     width?: number;
     height: number;
 } | null)>): DetachPickupPreparation;
-export declare function createDetachDropState<TDrop>(initialSurface: string | undefined, resolve: (event: PointerEvent) => TDrop | null, same: (drop: TDrop, previous: TDrop | null) => boolean): {
-    update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null;
+export declare function createDetachDropState<TDrop>(resolve: (event: PointerEvent) => TDrop | null, same: (drop: TDrop, previous: TDrop | null) => boolean): {
+    update(event: PointerEvent): TDrop | null;
     release(): TDrop | null;
-    readonly currentSurface: string | undefined;
 };
 export declare function updateDetachDrop<TDrop>(args: {
     active: boolean;
     event: PointerEvent;
     state: ReturnType<typeof createDetachDropState<TDrop>>;
-    resolve: (event: PointerEvent) => TDrop | null;
-    getSurface: (drop: TDrop) => string;
 }): TDrop | null;
 export declare function interruptDetachRegrab(args: {
     event: PointerEvent;
@@ -47,20 +42,6 @@ export declare function interruptDetachRegrab(args: {
     interrupt: () => void;
     clearRegrab: () => void;
 }): void;
-export declare function cancelDetachWithoutDrop(args: {
-    source: HTMLElement;
-    registeredElements: () => HTMLElement[];
-    cancel: () => void;
-    releaseObject: () => void;
-    clearFloating: (element: HTMLElement) => void;
-    clearActive: () => void;
-}): void;
-export declare function prepareDetachLanding(args: {
-    source: HTMLElement;
-    settle: (element: HTMLElement) => void;
-    clearActive: () => void;
-    releaseObject: () => void;
-}): DOMRect;
 export declare function scheduleDetachLandingFrame(clearFloating: () => void, callback: () => void): () => void;
 export declare function resolveDetachLandingTarget<TDestination>(args: {
     resolve: () => HTMLElement | null;
