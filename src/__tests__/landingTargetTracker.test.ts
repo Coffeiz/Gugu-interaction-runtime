@@ -13,6 +13,7 @@ import {
 describe('LandingTargetTracker retarget', () => {
   let cleanup: Cleanup
   let target: HTMLElement
+  let notifyResize: (() => void) | null = null
 
   beforeEach(() => {
     cleanup = new Cleanup()
@@ -25,6 +26,7 @@ describe('LandingTargetTracker retarget', () => {
     cleanup.disposeAll()
     target.remove()
     vi.restoreAllMocks()
+    notifyResize = null
   })
 
   function createTracker() {
@@ -37,12 +39,19 @@ describe('LandingTargetTracker retarget', () => {
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id: number) => {
       if (id > 0 && id <= rafQueue.length) rafQueue[id - 1] = null
     })
-    if (typeof ResizeObserver === 'undefined') {
-      ;(window as any).ResizeObserver = class {
-        observe() { /* noop */ }
-        disconnect() { /* noop */ }
+    // 用可控 observer 模拟真实的 ResizeObserver invalidation，避免测试通过
+    // 直接改 tracker 内部状态而失去对浏览器时序的约束。
+    const ResizeObserverMock = class {
+      private readonly callback: () => void
+      constructor(callback: () => void) {
+        this.callback = callback
+        notifyResize = () => this.callback()
       }
+      observe() { /* noop */ }
+      disconnect() { /* noop */ }
     }
+    ;(window as any).ResizeObserver = ResizeObserverMock
+    ;(globalThis as any).ResizeObserver = ResizeObserverMock
     return rafQueue
   }
 
@@ -131,7 +140,7 @@ describe('LandingTargetTracker retarget', () => {
     sibling.remove()
   })
 
-  it('祖先 Surface 高度动画期间逐帧读取 landing target 的真实 reflow 位置', () => {
+  it('祖先 Surface 高度动画收到 resize invalidation 后读取 landing target 的真实 reflow 位置', () => {
     const rafQueue = createTracker()
     vi.spyOn(performance, 'now').mockReturnValue(0)
     const surface = document.createElement('div')
@@ -152,7 +161,14 @@ describe('LandingTargetTracker retarget', () => {
     animateRafHeight(surface, 100, 240, 1000, 'linear')
     top = 68
 
+    // 高度动画仍在运行但尚未收到尺寸 invalidation 时，不应逐帧读取 DOM。
     runFrame(rafQueue, 0)
+    expect(rectSpy).not.toHaveBeenCalled()
+    expect(retarget).not.toHaveBeenCalled()
+
+    notifyResize?.()
+    // height scheduler 与 tracker 各自占一个 rAF；这里只推进 tracker 的下一帧。
+    runFrame(rafQueue, rafQueue.length - 1)
 
     expect(rectSpy).toHaveBeenCalledTimes(1)
     expect(retarget).toHaveBeenCalledTimes(1)
@@ -181,8 +197,9 @@ describe('LandingTargetTracker retarget', () => {
       initialRect: new DOMRect(4, 12, 120, 60),
     })
     top = 96
+    notifyResize?.()
 
-    runFrame(rafQueue, 0)
+    runFrame(rafQueue, 1)
 
     expect(rectSpy).toHaveBeenCalledTimes(1)
     expect(retarget.mock.calls[0][0].top).toBe(96)

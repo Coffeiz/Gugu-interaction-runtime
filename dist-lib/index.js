@@ -1061,8 +1061,8 @@ function Ee(t) {
 	let w = (n) => {
 		if (o || (r = requestAnimationFrame(w), !t.target.isConnected)) return;
 		let i = _(t.target, n), f = e();
-		if (a(t.target)) {
-			m = !0, C(n);
+		if (a(t.target) && (m = !0, h)) {
+			C(n);
 			return;
 		}
 		if (g) {

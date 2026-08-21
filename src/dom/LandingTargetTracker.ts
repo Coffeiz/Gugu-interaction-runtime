@@ -162,12 +162,14 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
     const heightLayoutActive = hasActiveHeightAnimationInAncestors(options.target)
 
     // Surface height 动画会让垂直居中的抽屉内容发生真实 reflow；这类位置变化
-    // 不存在可由 Runtime 轨迹推导的 transform offset。只对当前 landing target
-    // 的祖先链命中 height state 时逐帧读取，普通 FLIP 仍保持零 DOM polling。
+    // 不存在可由 Runtime 轨迹推导的 transform offset。只有 ResizeObserver 明确
+    // 报告了 target/ancestor 的尺寸变化时才读取一次，避免恢复逐帧 DOM polling。
     if (heightLayoutActive) {
       runtimeLayoutWasActive = true
-      measureTarget(time)
-      return
+      if (pendingObserverReconcile) {
+        measureTarget(time)
+        return
+      }
     }
 
     // A concurrent layout transaction measured this exact target after changing layout.
