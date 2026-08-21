@@ -1,13 +1,11 @@
 export type LayoutParticipantMode = 'move' | 'removal';
 export interface LayoutParticipantFocus {
     readonly sourceElement: HTMLElement;
-    readonly sourceContainer?: HTMLElement | null;
     readonly layoutKey?: string;
     readonly mode: LayoutParticipantMode;
 }
 export interface LayoutParticipantPlan {
     readonly eligible: ReadonlySet<HTMLElement>;
-    readonly focusTarget: HTMLElement | null;
     readonly rangeSkipped: number;
     readonly inheritedSkipped: number;
     readonly offscreenSkipped: number;

@@ -2,14 +2,12 @@ export type LayoutParticipantMode = 'move' | 'removal'
 
 export interface LayoutParticipantFocus {
   readonly sourceElement: HTMLElement
-  readonly sourceContainer?: HTMLElement | null
   readonly layoutKey?: string
   readonly mode: LayoutParticipantMode
 }
 
 export interface LayoutParticipantPlan {
   readonly eligible: ReadonlySet<HTMLElement>
-  readonly focusTarget: HTMLElement | null
   readonly rangeSkipped: number
   readonly inheritedSkipped: number
   readonly offscreenSkipped: number
@@ -163,12 +161,10 @@ export function buildLayoutParticipantPlan(args: {
     : null
   const targetContent = focusTarget ? nearestContent(focusTarget) : null
   const targetCollection = focusTarget ? nearestCollection(focusTarget) : null
-  let capturedSourceContainer = args.focus?.sourceContainer ?? null
-  if (!capturedSourceContainer) {
-    for (const card of sourceAffected) {
-      capturedSourceContainer = card.parentElement
-      break
-    }
+  let capturedSourceContainer: HTMLElement | null = null
+  for (const card of sourceAffected) {
+    capturedSourceContainer = card.parentElement
+    break
   }
   const sameContainerReorder = Boolean(
     focusTarget
@@ -221,7 +217,7 @@ export function buildLayoutParticipantPlan(args: {
     eligible.add(card)
   }
 
-  return { eligible, focusTarget, rangeSkipped, inheritedSkipped, offscreenSkipped }
+  return { eligible, rangeSkipped, inheritedSkipped, offscreenSkipped }
 }
 
 export interface ViewportRectLike {

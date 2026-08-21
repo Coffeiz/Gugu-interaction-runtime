@@ -4,9 +4,7 @@ export declare const FLIP_EASING: string;
 export interface FlipPlayStats {
     readonly measured: number;
     readonly animated: number;
-    readonly filteredSkipped: number;
     readonly tinySkipped: number;
-    readonly runtimeSkipped: number;
 }
 /**
  * 通用 FLIP：在一次 DOM 变化前后分别调用 capture()/play()，用 transform

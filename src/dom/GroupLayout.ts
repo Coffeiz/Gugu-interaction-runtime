@@ -566,12 +566,9 @@ function findGroupParent(element: HTMLElement, groupSet: ReadonlySet<HTMLElement
 
 interface GroupFlipPlayStats {
   readonly measuredCards: number
-  readonly measuredGroups: number
   readonly animatedCards: number
   readonly animatedGroups: number
-  readonly filteredSkipped: number
   readonly tinySkipped: number
-  readonly runtimeSkipped: number
   readonly parentInherited: number
 }
 
@@ -593,16 +590,12 @@ export function playGroupFlip(
   resetActiveFlip(allElements)
   const viewportDeltas = new Map<HTMLElement, { x: number; y: number }>()
   let measuredCards = 0
-  let measuredGroups = 0
-  let filteredSkipped = 0
-  let runtimeSkipped = 0
 
   // measure phase：先把所有 after rect / relative delta 算完，再写任何 transform。
   // Group/content containers are always measured; only card leaves are participant-reduced.
   for (const item of before) {
     const isCard = cardElements?.has(item.element) ?? false
     if (isCard && eligibleCards && !eligibleCards.has(item.element)) {
-      filteredSkipped += 1
       if (previouslyActive.has(item.element)) item.element.style.transition = ''
       continue
     }
@@ -611,13 +604,11 @@ export function playGroupFlip(
       || item.element.dataset.runtimePlaceholder === 'true'
       || item.element.dataset.runtimeActive === 'true'
     ) {
-      runtimeSkipped += 1
       if (previouslyActive.has(item.element)) item.element.style.transition = ''
       continue
     }
     const next = readRect(item.element, measurement)
     if (isCard) measuredCards += 1
-    else measuredGroups += 1
     viewportDeltas.set(item.element, {
       x: item.rect.left - next.left,
       y: item.rect.top - next.top,
@@ -671,12 +662,9 @@ export function playGroupFlip(
   }
   return {
     measuredCards,
-    measuredGroups,
     animatedCards: plans.filter(plan => plan.isCard).length,
     animatedGroups: plans.filter(plan => !plan.isCard).length,
-    filteredSkipped,
     tinySkipped,
-    runtimeSkipped,
     parentInherited,
   }
 }

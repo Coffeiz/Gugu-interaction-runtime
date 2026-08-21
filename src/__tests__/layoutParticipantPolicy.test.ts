@@ -144,7 +144,11 @@ describe('LayoutParticipantPolicy', () => {
       sourceAffected: new Set([sourceAfter]),
     })
 
-    expect(plan.focusTarget).toBe(replacement)
+    expect(resolveLayoutFocusTarget(document, {
+      sourceElement: source,
+      layoutKey: 'moving',
+      mode: 'move',
+    }, [sourceSurface, targetSurface])).toBe(replacement)
     expect(plan.eligible.has(sourceAfter)).toBe(true)
     expect(plan.eligible.has(before)).toBe(false)
     expect(plan.eligible.has(after)).toBe(true)

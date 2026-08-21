@@ -130,12 +130,9 @@ export declare function scheduleLayoutFlipOnRaf(snapshot: LayoutFlipSnapshot): v
 export declare function captureGroupLayout(elements: readonly HTMLElement[], measurement?: LayoutMeasurement): GroupLayoutSnapshot[];
 interface GroupFlipPlayStats {
     readonly measuredCards: number;
-    readonly measuredGroups: number;
     readonly animatedCards: number;
     readonly animatedGroups: number;
-    readonly filteredSkipped: number;
     readonly tinySkipped: number;
-    readonly runtimeSkipped: number;
     readonly parentInherited: number;
 }
 /**

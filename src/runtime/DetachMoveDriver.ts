@@ -1,7 +1,6 @@
 import { captureLayoutFlip, scheduleLayoutFlip, scheduleLayoutFlipOnRaf } from '../dom/GroupLayout'
 import type { LandingResult, MoveContext } from '../behavior/MoveBehavior'
-import type { VisualSnapshot, VisualState } from '../dom/VisualAdapterTypes'
-import { applyFloatingStyle } from '../dom/Visual'
+import type { VisualSnapshot } from '../dom/VisualAdapterTypes'
 import { releaseVisibilityOwnership, setProxyInteractive } from '../dom/Visual'
 import type { GrabAlignConfig } from '../Runtime'
 import type { LayoutTransactionCoordinator } from '../dom/LayoutTransaction'
@@ -55,29 +54,7 @@ export function prepareDetachMotion(
 
 
 
-export function applyDetachPickupVisual(
-  applyState: (objectId: string, element: HTMLElement, state: VisualState) => void,
-  objectId: string,
-  element: HTMLElement,
-  rect: DOMRect,
-  fromRect?: DOMRect,
-): void {
-  element.style.transform = ''
-  applyFloatingStyle(element, rect)
-  document.body.classList.add('kb-dragging')
-  if (fromRect) element.style.transition = 'none'
-  applyState(objectId, element, {
-    phase: 'dragging',
-    hovered: element.matches(':hover'),
-    selected: element.classList.contains('is-selected'),
-    grabbed: true,
-  })
-}
-
-
-
 export interface DetachPickupPreparation {
-  readonly beforeContent: HTMLElement
   readonly beforePickup: ReturnType<typeof captureLayoutFlip>
 }
 
@@ -104,9 +81,7 @@ function ignoreDetachSource(sourceElement: HTMLElement): (element: HTMLElement) 
  */
 function resolveScopeViewports(
   scopeSurfaces: readonly HTMLElement[] | undefined,
-  explicit: ReadonlyMap<HTMLElement, HTMLElement> | undefined,
 ): ReadonlyMap<HTMLElement, HTMLElement> | undefined {
-  if (explicit && explicit.size > 0) return explicit
   if (!scopeSurfaces || scopeSurfaces.length === 0) return undefined
   const inferred = new Map<HTMLElement, HTMLElement>()
   for (const surface of scopeSurfaces) {
@@ -123,17 +98,14 @@ export function prepareDetachPickup(
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
-  scopeViewports?: () => ReadonlyMap<HTMLElement, HTMLElement>,
 ): DetachPickupPreparation {
-  const beforeContent = sourceElement.cloneNode(true) as HTMLElement
   const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
   const surfaces = scopeSurfaces?.()
   return {
-    beforeContent,
     beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement), {
       scopeSurfaces: surfaces,
-      viewportBySurface: resolveScopeViewports(surfaces, scopeViewports?.()),
+      viewportBySurface: resolveScopeViewports(surfaces),
       surfaceMeasures: surfaceMeasures?.(),
       focus: {
         sourceElement,
@@ -147,29 +119,23 @@ export function prepareDetachPickup(
 
 
 export function createDetachDropState<TDrop>(
-  initialSurface: string | undefined,
   resolve: (event: PointerEvent) => TDrop | null,
   same: (drop: TDrop, previous: TDrop | null) => boolean,
 ) {
-  let currentSurface = initialSurface
   let pending: TDrop | null = null
   return {
-    update(event: PointerEvent, getSurface: (drop: TDrop) => string): TDrop | null {
+    update(event: PointerEvent): TDrop | null {
       const drop = resolve(event)
       if (!drop) {
         pending = null
         return null
       }
       if (same(drop, pending)) return pending
-      currentSurface = getSurface(drop)
       pending = drop
       return pending
     },
     release(): TDrop | null {
       return pending
-    },
-    get currentSurface(): string | undefined {
-      return currentSurface
     },
   }
 }
@@ -180,11 +146,9 @@ export function updateDetachDrop<TDrop>(args: {
   active: boolean
   event: PointerEvent
   state: ReturnType<typeof createDetachDropState<TDrop>>
-  resolve: (event: PointerEvent) => TDrop | null
-  getSurface: (drop: TDrop) => string
 }): TDrop | null {
   if (!args.active) return null
-  return args.state.update(args.event, args.getSurface)
+  return args.state.update(args.event)
 }
 
 
@@ -207,42 +171,6 @@ export function interruptDetachRegrab(args: {
   args.source.style.visibility = 'hidden'
   // source 的可见性由新 session 的 pickup 阶段恢复，避免旧 proxy 销毁
   // 与新 session 接管之间露出一帧列表态本体。
-}
-
-
-
-export function cancelDetachWithoutDrop(args: {
-  source: HTMLElement
-  registeredElements: () => HTMLElement[]
-  cancel: () => void
-  releaseObject: () => void
-  clearFloating: (element: HTMLElement) => void
-  clearActive: () => void
-}): void {
-  document.body.classList.remove('kb-dragging')
-  const returnCards = args.registeredElements()
-    .filter(element => element !== args.source && element.dataset.runtimeProxy !== 'true')
-  const returnBefore = captureLayoutFlip(returnCards, document, true, ignoreDetachSource(args.source))
-  args.cancel()
-  args.clearFloating(args.source)
-  args.clearActive()
-  args.releaseObject()
-  scheduleLayoutFlip(returnBefore)
-}
-
-
-
-export function prepareDetachLanding(args: {
-  source: HTMLElement
-  settle: (element: HTMLElement) => void
-  clearActive: () => void
-  releaseObject: () => void
-}): DOMRect {
-  const beforeRect = args.source.getBoundingClientRect()
-  args.settle(args.source)
-  args.clearActive()
-  args.releaseObject()
-  return beforeRect
 }
 
 
@@ -435,7 +363,6 @@ export function createDetachLayoutLifecycle(
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
   layoutTransaction?: LayoutTransactionCoordinator,
-  scopeViewports?: () => ReadonlyMap<HTMLElement, HTMLElement>,
 ) {
   let layoutToken = 0
   let transactionRoot: ParentNode | null = null
@@ -456,7 +383,7 @@ export function createDetachLayoutLifecycle(
         ignoreDetachSource(sourceEl),
         {
           scopeSurfaces: surfaces,
-          viewportBySurface: resolveScopeViewports(surfaces, scopeViewports?.()),
+          viewportBySurface: resolveScopeViewports(surfaces),
           surfaceMeasures: surfaceMeasures?.(),
           focus: {
             sourceElement: sourceEl,

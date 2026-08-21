@@ -12,9 +12,7 @@ export const FLIP_EASING = DEFAULT_MOTION_PROFILE.flip.easing
 export interface FlipPlayStats {
   readonly measured: number
   readonly animated: number
-  readonly filteredSkipped: number
   readonly tinySkipped: number
-  readonly runtimeSkipped: number
 }
 
 /**
@@ -61,14 +59,11 @@ export function playFlip(
   resetActiveFlip(elements)
   const plans: Array<{ element: HTMLElement; dx: number; dy: number }> = []
   let measured = 0
-  let filteredSkipped = 0
   let tinySkipped = 0
-  let runtimeSkipped = 0
   // Read phase: measure every selected participant before writing any new transform.
   // Interleaving these operations forces one layout flush per card.
   for (const el of elements) {
     if (shouldMeasure && !shouldMeasure(el)) {
-      filteredSkipped += 1
       if (previouslyActive.has(el)) el.style.transition = ''
       continue
     }
@@ -79,13 +74,11 @@ export function playFlip(
       el.dataset.runtimePlaceholder === 'true' ||
       el.dataset.runtimeActive === 'true'
     ) {
-      runtimeSkipped += 1
       if (previouslyActive.has(el)) el.style.transition = ''
       continue
     }
     const from = before.get(el)
     if (!from) {
-      filteredSkipped += 1
       if (previouslyActive.has(el)) el.style.transition = ''
       continue
     }
@@ -119,8 +112,6 @@ export function playFlip(
   return {
     measured,
     animated: plans.length,
-    filteredSkipped,
     tinySkipped,
-    runtimeSkipped,
   }
 }

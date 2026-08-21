@@ -178,32 +178,32 @@ function T(e) {
 function ne(e, t, n = C, r = w, i, a) {
 	let o = new Set(e.filter((e) => e.dataset.runtimeFlip === "true"));
 	T(e);
-	let s = [], c = 0, l = 0, u = 0, d = 0;
+	let s = [], c = 0, l = 0;
 	for (let n of e) {
 		if (a && !a(n)) {
-			l += 1, o.has(n) && (n.style.transition = "");
+			o.has(n) && (n.style.transition = "");
 			continue;
 		}
 		if (n.dataset.runtimeProxy === "true" || n.dataset.runtimePlaceholder === "true" || n.dataset.runtimeActive === "true") {
-			d += 1, o.has(n) && (n.style.transition = "");
+			o.has(n) && (n.style.transition = "");
 			continue;
 		}
 		let e = t.get(n);
 		if (!e) {
-			l += 1, o.has(n) && (n.style.transition = "");
+			o.has(n) && (n.style.transition = "");
 			continue;
 		}
 		let r = i?.rect(n) ?? n.getBoundingClientRect();
 		c += 1;
-		let f = e.left - r.left, p = e.top - r.top;
-		if (Math.abs(f) < .5 && Math.abs(p) < .5) {
-			u += 1, n.style.transition = "";
+		let u = e.left - r.left, d = e.top - r.top;
+		if (Math.abs(u) < .5 && Math.abs(d) < .5) {
+			l += 1, n.style.transition = "";
 			continue;
 		}
 		s.push({
 			element: n,
-			dx: f,
-			dy: p
+			dx: u,
+			dy: d
 		});
 	}
 	for (let { element: e, dx: t, dy: i } of s) {
@@ -216,9 +216,7 @@ function ne(e, t, n = C, r = w, i, a) {
 	return {
 		measured: c,
 		animated: s.length,
-		filteredSkipped: l,
-		tinySkipped: u,
-		runtimeSkipped: d
+		tinySkipped: l
 	};
 }
 //#endregion
@@ -444,8 +442,8 @@ function ve(e, t, n) {
 	return t.sourceElement.isConnected && P(t.sourceElement, n) ? t.sourceElement : null;
 }
 function ye(e) {
-	let t = e.sourceAffected ?? /* @__PURE__ */ new Set(), n = e.viewportEligible, r = ve(e.root, e.focus, e.scopeSurfaces), i = /* @__PURE__ */ new Set(), a = 0, o = 0, s = 0, c = r ? F(r, e.scopeSurfaces) : null, l = e.focus ? F(e.focus.sourceElement, e.scopeSurfaces) : null, u = r ? L(r) : null, d = r ? I(r) : null, f = e.focus?.sourceContainer ?? null;
-	if (!f) for (let e of t) {
+	let t = e.sourceAffected ?? /* @__PURE__ */ new Set(), n = e.viewportEligible, r = ve(e.root, e.focus, e.scopeSurfaces), i = /* @__PURE__ */ new Set(), a = 0, o = 0, s = 0, c = r ? F(r, e.scopeSurfaces) : null, l = e.focus ? F(e.focus.sourceElement, e.scopeSurfaces) : null, u = r ? L(r) : null, d = r ? I(r) : null, f = null;
+	for (let e of t) {
 		f = e.parentElement;
 		break;
 	}
@@ -475,7 +473,6 @@ function ye(e) {
 	}
 	return {
 		eligible: i,
-		focusTarget: r,
 		rangeSkipped: a,
 		inheritedSkipped: o,
 		offscreenSkipped: s
@@ -741,34 +738,34 @@ function Re(e, t) {
 function ze(e, t = C, n = w, r, i, a) {
 	let o = e.map((e) => e.element), s = new Set(o.filter((e) => e.dataset.runtimeFlip === "true"));
 	T(o);
-	let c = /* @__PURE__ */ new Map(), l = 0, u = 0, d = 0, f = 0;
+	let c = /* @__PURE__ */ new Map(), l = 0;
 	for (let t of e) {
 		let e = i?.has(t.element) ?? !1;
 		if (e && a && !a.has(t.element)) {
-			d += 1, s.has(t.element) && (t.element.style.transition = "");
+			s.has(t.element) && (t.element.style.transition = "");
 			continue;
 		}
 		if (t.element.dataset.runtimeProxy === "true" || t.element.dataset.runtimePlaceholder === "true" || t.element.dataset.runtimeActive === "true") {
-			f += 1, s.has(t.element) && (t.element.style.transition = "");
+			s.has(t.element) && (t.element.style.transition = "");
 			continue;
 		}
 		let n = Y(t.element, r);
-		e ? l += 1 : u += 1, c.set(t.element, {
+		e && (l += 1), c.set(t.element, {
 			x: t.rect.left - n.left,
 			y: t.rect.top - n.top
 		});
 	}
-	let p = [], m = 0, h = 0;
+	let u = [], d = 0, f = 0;
 	for (let t of e) {
 		let e = c.get(t.element);
 		if (!e) continue;
 		let n = t.parent ? c.get(t.parent) : void 0, r = e.x - (n?.x ?? 0), a = e.y - (n?.y ?? 0), o = i?.has(t.element) ?? !1;
 		if (Math.abs(r) < .5 && Math.abs(a) < .5) {
-			m += 1, o && n && (Math.abs(e.x) >= .5 || Math.abs(e.y) >= .5) && (h += 1), t.element.dataset.runtimeGroupAnimating !== "true" && t.element.dataset.runtimeFlip !== "true" && (t.element.style.transition = "");
+			d += 1, o && n && (Math.abs(e.x) >= .5 || Math.abs(e.y) >= .5) && (f += 1), t.element.dataset.runtimeGroupAnimating !== "true" && t.element.dataset.runtimeFlip !== "true" && (t.element.style.transition = "");
 			continue;
 		}
 		let s = String(Number(t.element.dataset.runtimeFlipToken ?? "0") + 1);
-		p.push({
+		u.push({
 			element: t.element,
 			dx: r,
 			dy: a,
@@ -776,19 +773,16 @@ function ze(e, t = C, n = w, r, i, a) {
 			isCard: o
 		});
 	}
-	for (let { element: e, dx: t, dy: n, token: r } of p) e.style.transform = `translate(${t}px, ${n}px)`, e.style.transition = "none", e.dataset.runtimeFlip = "true", e.dataset.runtimeFlipToken = r;
-	for (let { element: e, dx: r, dy: i, token: a } of p) b(e, r, i, t, n, () => {
+	for (let { element: e, dx: t, dy: n, token: r } of u) e.style.transform = `translate(${t}px, ${n}px)`, e.style.transition = "none", e.dataset.runtimeFlip = "true", e.dataset.runtimeFlipToken = r;
+	for (let { element: e, dx: r, dy: i, token: a } of u) b(e, r, i, t, n, () => {
 		e.dataset.runtimeFlipToken === a && (e.style.transition = "", e.style.transform = "", delete e.dataset.runtimeFlip);
 	});
 	return {
 		measuredCards: l,
-		measuredGroups: u,
-		animatedCards: p.filter((e) => e.isCard).length,
-		animatedGroups: p.filter((e) => !e.isCard).length,
-		filteredSkipped: d,
-		tinySkipped: m,
-		runtimeSkipped: f,
-		parentInherited: h
+		animatedCards: u.filter((e) => e.isCard).length,
+		animatedGroups: u.filter((e) => !e.isCard).length,
+		tinySkipped: d,
+		parentInherited: f
 	};
 }
 function Be(e, t, n = C, r = w, i, a = !1, o = !1) {
