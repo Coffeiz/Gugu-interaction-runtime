@@ -22,6 +22,8 @@ export interface CollectionPresenceSnapshot {
     readonly include?: (element: HTMLElement) => boolean;
     /** capture 时按稳定 key 固化 participant 选择，避免节点重挂载后引用失效。 */
     readonly includeKeys?: ReadonlySet<string>;
+    /** capture 时已存在的语义 key；play 阶段用来区分旧非 participant 和真正新 entry。 */
+    readonly knownKeys?: ReadonlySet<string>;
     /** 只在受影响的 Surface 内比较 collection，避免扫描整个页面。 */
     readonly scopeSurfaces?: readonly HTMLElement[];
 }

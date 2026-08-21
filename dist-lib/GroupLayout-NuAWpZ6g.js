@@ -250,7 +250,7 @@ function ie(e, t, n) {
 	return r;
 }
 function ae(e, t, n = E, r, i, a, o) {
-	let s = /* @__PURE__ */ new Map(), c = o ? /* @__PURE__ */ new Set() : void 0;
+	let s = /* @__PURE__ */ new Map(), c = o ? /* @__PURE__ */ new Set() : void 0, l = o ? /* @__PURE__ */ new Set() : void 0;
 	return {
 		root: e,
 		selector: t,
@@ -258,19 +258,19 @@ function ae(e, t, n = E, r, i, a, o) {
 		entries: ie(e, t, i).map((e) => {
 			if (r?.(e) || !k(e, i)) return null;
 			let t = n(e);
-			if (!t || o && !o(e)) return null;
+			if (!t || (l?.add(t), o && !o(e))) return null;
 			c?.add(t);
-			let l = O(e, a);
-			if (!l) return null;
-			let u = a?.rect(e) ?? e.getBoundingClientRect();
-			return s.set(t, l.collectionId), {
+			let u = O(e, a);
+			if (!u) return null;
+			let d = a?.rect(e) ?? e.getBoundingClientRect();
+			return s.set(t, u.collectionId), {
 				key: t,
 				element: e,
 				rect: {
-					left: u.left,
-					top: u.top,
-					width: u.width,
-					height: u.height
+					left: d.left,
+					top: d.top,
+					width: d.width,
+					height: d.height
 				},
 				contentHTML: e.outerHTML
 			};
@@ -278,6 +278,7 @@ function ae(e, t, n = E, r, i, a, o) {
 		ignore: r,
 		include: o,
 		includeKeys: c,
+		knownKeys: l,
 		scopeSurfaces: i
 	};
 }
@@ -286,7 +287,11 @@ function oe(e, t = {}, n) {
 	ie(e.root, e.selector, e.scopeSurfaces).filter((t) => {
 		if (e.ignore?.(t) || !k(t, e.scopeSurfaces)) return !1;
 		let r = a(t);
-		if (!r || (e.includeKeys ? !e.includeKeys.has(r) : e.include && !e.include(t))) return !1;
+		if (!r) return !1;
+		if (e.includeKeys) {
+			let t = e.includeKeys.has(r), n = !e.knownKeys?.has(r);
+			if (!t && !n) return !1;
+		} else if (e.include && !e.include(t)) return !1;
 		let i = O(t, n);
 		return i ? (o.set(r, i.collectionId), !0) : !1;
 	}).filter((t) => {

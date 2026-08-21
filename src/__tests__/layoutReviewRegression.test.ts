@@ -131,6 +131,42 @@ describe('审查回归', () => {
     expect(animate).toHaveBeenCalledTimes(1)
   })
 
+  it('reduction 开启时允许真正新 key 入场，但继续跳过旧 non-participant', () => {
+    const root = document.createElement('main')
+    const collection = document.createElement('section')
+    collection.dataset.layoutCollection = 'active'
+    const oldParticipant = makeCollectionCard('participant', 'active')
+    const oldNonParticipant = makeCollectionCard('non-participant', 'active')
+    collection.append(oldParticipant, oldNonParticipant)
+    root.append(collection)
+    document.body.append(root)
+    mockRect(collection, { left: 0, top: 0, width: 500, height: 200 })
+    mockRect(oldParticipant, { left: 0, top: 0, width: 200, height: 40 })
+    mockRect(oldNonParticipant, { left: 0, top: 50, width: 200, height: 40 })
+
+    const snapshot = captureCollectionPresence(
+      root,
+      '[data-layout-role="card"]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      element => element === oldParticipant,
+    )
+    const newCard = makeCollectionCard('new-entry', 'active')
+    collection.append(newCard)
+    mockRect(newCard, { left: 0, top: 100, width: 200, height: 40 })
+    const newAnimate = vi.fn().mockReturnValue({ finished: Promise.resolve() } as unknown as Animation)
+    const oldAnimate = vi.fn().mockReturnValue({ finished: Promise.resolve() } as unknown as Animation)
+    Object.defineProperty(newCard, 'animate', { value: newAnimate, configurable: true })
+    Object.defineProperty(oldNonParticipant, 'animate', { value: oldAnimate, configurable: true })
+
+    playCollectionPresence(snapshot)
+
+    expect(newAnimate).toHaveBeenCalledTimes(1)
+    expect(oldAnimate).not.toHaveBeenCalled()
+  })
+
   it('嵌套 Surface 选择最内层，而不依赖注册顺序', () => {
     const outer = document.createElement('section')
     const inner = document.createElement('div')

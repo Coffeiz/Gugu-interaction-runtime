@@ -18,6 +18,8 @@ export interface CollectionPresenceSnapshot {
   readonly include?: (element: HTMLElement) => boolean
   /** capture 时按稳定 key 固化 participant 选择，避免节点重挂载后引用失效。 */
   readonly includeKeys?: ReadonlySet<string>
+  /** capture 时已存在的语义 key；play 阶段用来区分旧非 participant 和真正新 entry。 */
+  readonly knownKeys?: ReadonlySet<string>
   /** 只在受影响的 Surface 内比较 collection，避免扫描整个页面。 */
   readonly scopeSurfaces?: readonly HTMLElement[]
 }
@@ -110,6 +112,7 @@ export function captureCollectionPresence(
 ): CollectionPresenceSnapshot {
   const collectionByKey = new Map<string, string>()
   const includeKeys = include ? new Set<string>() : undefined
+  const knownKeys = include ? new Set<string>() : undefined
   const entries = queryScopedElements(root, selector, scopeSurfaces)
     .map(element => {
       // 正在被 Runtime 接管的对象（抓取中/落地中）不参与 presence 判断——
@@ -122,6 +125,7 @@ export function captureCollectionPresence(
       if (!isWithinScope(element, scopeSurfaces)) return null
       const id = key(element)
       if (!id) return null
+      knownKeys?.add(id)
       if (include && !include(element)) return null
       // includeKeys 表示 participant 的语义资格，不等同于 capture 时已经
       // 通过可见性校验的 presence entry。节点本帧可能折叠，下一帧再变为可见。
@@ -140,7 +144,7 @@ export function captureCollectionPresence(
       }
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-  return { root, selector, collectionByKey, entries, ignore, include, includeKeys, scopeSurfaces }
+  return { root, selector, collectionByKey, entries, ignore, include, includeKeys, knownKeys, scopeSurfaces }
 }
 
 export function playCollectionPresence(
@@ -158,7 +162,13 @@ export function playCollectionPresence(
       if (!isWithinScope(element, snapshot.scopeSurfaces)) return false
       const id = key(element)
       if (!id) return false
-      if (snapshot.includeKeys ? !snapshot.includeKeys.has(id) : snapshot.include && !snapshot.include(element)) return false
+      if (snapshot.includeKeys) {
+        const participant = snapshot.includeKeys.has(id)
+        const isNewKey = !snapshot.knownKeys?.has(id)
+        if (!participant && !isNewKey) return false
+      } else if (snapshot.include && !snapshot.include(element)) {
+        return false
+      }
       const resolved = resolveCollectionCard(element, measurement)
       if (!resolved) return false
       currentCollectionByKey.set(id, resolved.collectionId)
