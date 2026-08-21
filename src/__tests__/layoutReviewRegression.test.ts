@@ -90,6 +90,47 @@ describe('审查回归', () => {
     expect(cardReads.map(spy => spy.mock.calls.length)).toEqual([2, 2, 0, 0, 0, 0, 0, 0, 0, 0])
   })
 
+  it('capture 时不可见但 play 时变可见的 participant 仍按 semantic key 入场', () => {
+    const root = document.createElement('main')
+    const collapsed = document.createElement('section')
+    collapsed.dataset.layoutOpen = 'false'
+    const hiddenCollection = document.createElement('div')
+    hiddenCollection.dataset.layoutCollection = 'hidden'
+    const oldCard = makeCollectionCard('card-hidden', 'hidden')
+    hiddenCollection.append(oldCard)
+    collapsed.append(hiddenCollection)
+    root.append(collapsed)
+    document.body.append(root)
+    mockRect(hiddenCollection, { left: 0, top: 0, width: 300, height: 100 })
+    mockRect(oldCard, { left: 0, top: 0, width: 200, height: 40 })
+
+    const snapshot = captureCollectionPresence(
+      root,
+      '[data-layout-role="card"]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      element => element === oldCard,
+    )
+
+    const visibleCollection = document.createElement('div')
+    visibleCollection.dataset.layoutCollection = 'visible'
+    const newCard = makeCollectionCard('card-hidden', 'visible')
+    visibleCollection.append(newCard)
+    collapsed.replaceWith(visibleCollection)
+    mockRect(visibleCollection, { left: 0, top: 0, width: 300, height: 100 })
+    mockRect(newCard, { left: 0, top: 0, width: 200, height: 40 })
+    const animate = vi.fn().mockReturnValue({ finished: Promise.resolve() } as unknown as Animation)
+    Object.defineProperty(newCard, 'animate', { value: animate, configurable: true })
+
+    playCollectionPresence(snapshot)
+
+    expect(snapshot.includeKeys?.has('card-hidden')).toBe(true)
+    expect(snapshot.entries).toHaveLength(0)
+    expect(animate).toHaveBeenCalledTimes(1)
+  })
+
   it('嵌套 Surface 选择最内层，而不依赖注册顺序', () => {
     const outer = document.createElement('section')
     const inner = document.createElement('div')

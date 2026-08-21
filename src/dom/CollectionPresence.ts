@@ -123,11 +123,13 @@ export function captureCollectionPresence(
       const id = key(element)
       if (!id) return null
       if (include && !include(element)) return null
+      // includeKeys 表示 participant 的语义资格，不等同于 capture 时已经
+      // 通过可见性校验的 presence entry。节点本帧可能折叠，下一帧再变为可见。
+      includeKeys?.add(id)
       // participant 过滤必须先于几何校验；否则被 reduction 丢弃的卡片仍会
       // 触发 rect(element) / rect(collection)，把 presence 的性能收益抵消掉。
       const resolved = resolveCollectionCard(element, measurement)
       if (!resolved) return null
-      includeKeys?.add(id)
       const rect = measurement?.rect(element) ?? element.getBoundingClientRect()
       collectionByKey.set(id, resolved.collectionId)
       return {

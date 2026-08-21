@@ -259,9 +259,9 @@ function ae(e, t, n = E, r, i, a, o) {
 			if (r?.(e) || !k(e, i)) return null;
 			let t = n(e);
 			if (!t || o && !o(e)) return null;
+			c?.add(t);
 			let l = O(e, a);
 			if (!l) return null;
-			c?.add(t);
 			let u = a?.rect(e) ?? e.getBoundingClientRect();
 			return s.set(t, l.collectionId), {
 				key: t,
