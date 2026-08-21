@@ -1,5 +1,9 @@
 import type { Cleanup } from '../cleanup/Cleanup'
-import { hasActiveRafLayoutAnimations, readRafVisualOffset } from './RafLayoutAnimator'
+import {
+  hasActiveHeightAnimationInAncestors,
+  hasActiveRafLayoutAnimations,
+  readRafVisualOffset,
+} from './RafLayoutAnimator'
 import { readLatestLayoutGeometry, subscribeLayoutGeometry } from './LayoutMeasurement'
 
 export interface LandingTargetTrackerOptions {
@@ -155,6 +159,16 @@ export function trackLandingTarget(options: LandingTargetTrackerOptions): () => 
 
     const offset = readRafVisualOffset(options.target, time)
     const runtimeLayoutActive = hasActiveRafLayoutAnimations()
+    const heightLayoutActive = hasActiveHeightAnimationInAncestors(options.target)
+
+    // Surface height 动画会让垂直居中的抽屉内容发生真实 reflow；这类位置变化
+    // 不存在可由 Runtime 轨迹推导的 transform offset。只对当前 landing target
+    // 的祖先链命中 height state 时逐帧读取，普通 FLIP 仍保持零 DOM polling。
+    if (heightLayoutActive) {
+      runtimeLayoutWasActive = true
+      measureTarget(time)
+      return
+    }
 
     // A concurrent layout transaction measured this exact target after changing layout.
     // Consume the latest revision at most one frame later. If the new transaction also

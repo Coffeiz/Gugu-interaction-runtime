@@ -2,7 +2,13 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { Cleanup } from '../cleanup/Cleanup'
 import { trackLandingTarget } from '../dom/LandingTargetTracker'
 import { createLayoutMeasurement } from '../dom/LayoutMeasurement'
-import { animateRafTransform, cancelRafTransform, readRafVisualOffset } from '../dom/RafLayoutAnimator'
+import {
+  animateRafHeight,
+  animateRafTransform,
+  cancelRafHeight,
+  cancelRafTransform,
+  readRafVisualOffset,
+} from '../dom/RafLayoutAnimator'
 
 describe('LandingTargetTracker retarget', () => {
   let cleanup: Cleanup
@@ -123,6 +129,65 @@ describe('LandingTargetTracker retarget', () => {
 
     cancelRafTransform(sibling)
     sibling.remove()
+  })
+
+  it('祖先 Surface 高度动画期间逐帧读取 landing target 的真实 reflow 位置', () => {
+    const rafQueue = createTracker()
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+    const surface = document.createElement('div')
+    surface.appendChild(target)
+    document.body.appendChild(surface)
+    let top = 20
+    const rectSpy = vi.spyOn(target, 'getBoundingClientRect').mockImplementation(
+      () => new DOMRect(10, top, 120, 60),
+    )
+    const retarget = vi.fn()
+
+    trackLandingTarget({
+      cleanup,
+      target,
+      retarget,
+      initialRect: new DOMRect(10, 20, 120, 60),
+    })
+    animateRafHeight(surface, 100, 240, 1000, 'linear')
+    top = 68
+
+    runFrame(rafQueue, 0)
+
+    expect(rectSpy).toHaveBeenCalledTimes(1)
+    expect(retarget).toHaveBeenCalledTimes(1)
+    expect(retarget.mock.calls[0][0].top).toBe(68)
+
+    cancelRafHeight(surface)
+    surface.remove()
+  })
+
+  it('折叠分组展开的 Runtime height transition 期间也会 retarget', () => {
+    const rafQueue = createTracker()
+    const groupContent = document.createElement('div')
+    groupContent.dataset.runtimeGroupAnimating = 'true'
+    groupContent.appendChild(target)
+    document.body.appendChild(groupContent)
+    let top = 12
+    const rectSpy = vi.spyOn(target, 'getBoundingClientRect').mockImplementation(
+      () => new DOMRect(4, top, 120, 60),
+    )
+    const retarget = vi.fn()
+
+    trackLandingTarget({
+      cleanup,
+      target,
+      retarget,
+      initialRect: new DOMRect(4, 12, 120, 60),
+    })
+    top = 96
+
+    runFrame(rafQueue, 0)
+
+    expect(rectSpy).toHaveBeenCalledTimes(1)
+    expect(retarget.mock.calls[0][0].top).toBe(96)
+
+    groupContent.remove()
   })
 
   it('并发布局事务测到当前 target 新位置时下一帧 retarget，且 tracker 不追加 DOM read', () => {

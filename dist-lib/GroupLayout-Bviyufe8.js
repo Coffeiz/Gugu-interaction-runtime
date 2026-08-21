@@ -116,14 +116,22 @@ function m(e) {
 function h() {
 	return t.size > 0 || r.size > 0;
 }
-function g(e, n = performance.now()) {
+function g(e) {
+	let t = e;
+	for (; t;) {
+		if (r.has(t) || t.dataset.runtimeGroupAnimating === "true") return !0;
+		t = t.parentElement;
+	}
+	return !1;
+}
+function _(e, n = performance.now()) {
 	let r = t.get(e);
 	return r ? c(r, n) : null;
 }
-function _(e, t = performance.now()) {
+function v(e, t = performance.now()) {
 	let n = e, r = 0, i = 0, a = !1;
 	for (; n;) {
-		let e = g(n, t);
+		let e = _(n, t);
 		e && (r += e.x, i += e.y, a = !0), n = n.parentElement;
 	}
 	return a ? {
@@ -131,14 +139,14 @@ function _(e, t = performance.now()) {
 		y: i
 	} : null;
 }
-function v(e, r = !0) {
+function y(e, r = !0) {
 	t.delete(e) && (n.delete(e), r && (t.size === 0 ? l() : u()), f());
 }
-function y(e) {
-	t.has(e) && (v(e), e.style.transform = "");
+function b(e) {
+	t.has(e) && (y(e), e.style.transform = "");
 }
-function b(e, r, i, a, s, c) {
-	v(e, !1), t.set(e, {
+function x(e, r, i, a, s, c) {
+	y(e, !1), t.set(e, {
 		started: null,
 		duration: Math.max(1, a),
 		fromX: r,
@@ -148,14 +156,14 @@ function b(e, r, i, a, s, c) {
 		onComplete: c
 	}), n.add(e), p();
 }
-function x(e) {
+function S(e) {
 	r.delete(e) && f();
 }
-function S(e) {
-	r.has(e) && (x(e), e.style.height = "");
+function ee(e) {
+	r.has(e) && (S(e), e.style.height = "");
 }
-function ee(e, t, n, i, a, s) {
-	x(e), r.set(e, {
+function te(e, t, n, i, a, s) {
+	S(e), r.set(e, {
 		started: performance.now(),
 		duration: Math.max(1, i),
 		from: t,
@@ -167,17 +175,17 @@ function ee(e, t, n, i, a, s) {
 //#endregion
 //#region src/dom/Flip.ts
 var C = e.flip.duration, w = e.flip.easing;
-function te(e, t) {
+function ne(e, t) {
 	let n = /* @__PURE__ */ new Map();
 	return e.forEach((e) => n.set(e, t?.rect(e) ?? e.getBoundingClientRect())), n;
 }
-function T(e) {
+function re(e) {
 	let t = e.filter((e) => e.dataset.runtimeFlip === "true");
-	if (t.length !== 0) for (let e of t) e.dataset.runtimeFlipToken = String(Number(e.dataset.runtimeFlipToken ?? "0") + 1), delete e.dataset.runtimeFlip, y(e), e.style.setProperty("transition", "none", "important");
+	if (t.length !== 0) for (let e of t) e.dataset.runtimeFlipToken = String(Number(e.dataset.runtimeFlipToken ?? "0") + 1), delete e.dataset.runtimeFlip, b(e), e.style.setProperty("transition", "none", "important");
 }
-function ne(e, t, n = C, r = w, i, a) {
+function ie(e, t, n = C, r = w, i, a) {
 	let o = new Set(e.filter((e) => e.dataset.runtimeFlip === "true"));
-	T(e);
+	re(e);
 	let s = [], c = 0, l = 0;
 	for (let n of e) {
 		if (a && !a(n)) {
@@ -209,7 +217,7 @@ function ne(e, t, n = C, r = w, i, a) {
 	for (let { element: e, dx: t, dy: i } of s) {
 		e.style.setProperty("transition", "none", "important"), e.style.transform = `translate(${t}px, ${i}px)`;
 		let a = String(Number(e.dataset.runtimeFlipToken ?? "0") + 1);
-		e.dataset.runtimeFlip = "true", e.dataset.runtimeFlipToken = a, b(e, t, i, n, r, () => {
+		e.dataset.runtimeFlip = "true", e.dataset.runtimeFlipToken = a, x(e, t, i, n, r, () => {
 			e.dataset.runtimeFlipToken === a && (e.style.transition = "", delete e.dataset.runtimeFlip);
 		});
 	}
@@ -221,25 +229,25 @@ function ne(e, t, n = C, r = w, i, a) {
 }
 //#endregion
 //#region src/dom/CollectionPresence.ts
-function E(e) {
+function ae(e) {
 	return e.dataset.layoutKey ?? e.dataset.card ?? "";
 }
-var D = /* @__PURE__ */ new WeakMap();
-function re(e) {
+var T = /* @__PURE__ */ new WeakMap();
+function oe(e) {
 	let t = e.closest("[data-layout-open=\"false\"]");
 	return t !== null && t.dataset.runtimeGroupAnimating !== "true";
 }
-function O(e, t) {
-	if (re(e)) return null;
+function E(e, t) {
+	if (oe(e)) return null;
 	let n = e.closest("[data-layout-collection]");
 	if (!n) return null;
 	let r = t?.rect(e) ?? e.getBoundingClientRect(), i = t?.rect(n) ?? n.getBoundingClientRect();
 	return r.width > 0 && r.height > 0 && i.width > 0 && r.width <= i.width * 1.25 && r.left >= i.left - 1 && r.right <= i.right + 1 ? { collectionId: n.dataset.layoutCollection ?? "" } : null;
 }
-function k(e, t) {
+function D(e, t) {
 	return !t || t.length === 0 || t.some((t) => t === e || t.contains(e));
 }
-function ie(e, t, n) {
+function O(e, t, n) {
 	if (!n || n.length === 0) return Array.from(e.querySelectorAll(t));
 	let r = [], i = /* @__PURE__ */ new Set();
 	for (let e of n) e.matches(t) && !i.has(e) && (i.add(e), r.push(e)), e.querySelectorAll(t).forEach((e) => {
@@ -247,18 +255,18 @@ function ie(e, t, n) {
 	});
 	return r;
 }
-function ae(e, t, n = E, r, i, a, o) {
+function k(e, t, n = ae, r, i, a, o) {
 	let s = /* @__PURE__ */ new Map(), c = o ? /* @__PURE__ */ new Set() : void 0, l = o ? /* @__PURE__ */ new Set() : void 0;
 	return {
 		root: e,
 		selector: t,
 		collectionByKey: s,
-		entries: ie(e, t, i).map((e) => {
-			if (r?.(e) || !k(e, i)) return null;
+		entries: O(e, t, i).map((e) => {
+			if (r?.(e) || !D(e, i)) return null;
 			let t = n(e);
 			if (!t || (l?.add(t), o && !o(e))) return null;
 			c?.add(t);
-			let u = O(e, a);
+			let u = E(e, a);
 			if (!u) return null;
 			let d = a?.rect(e) ?? e.getBoundingClientRect();
 			return s.set(t, u.collectionId), {
@@ -280,17 +288,17 @@ function ae(e, t, n = E, r, i, a, o) {
 		scopeSurfaces: i
 	};
 }
-function oe(e, t = {}, n) {
-	let r = t.duration ?? 250, i = t.easing ?? "cubic-bezier(.22,1,.36,1)", a = t.key ?? E, o = /* @__PURE__ */ new Map();
-	ie(e.root, e.selector, e.scopeSurfaces).filter((t) => {
-		if (e.ignore?.(t) || !k(t, e.scopeSurfaces)) return !1;
+function A(e, t = {}, n) {
+	let r = t.duration ?? 250, i = t.easing ?? "cubic-bezier(.22,1,.36,1)", a = t.key ?? ae, o = /* @__PURE__ */ new Map();
+	O(e.root, e.selector, e.scopeSurfaces).filter((t) => {
+		if (e.ignore?.(t) || !D(t, e.scopeSurfaces)) return !1;
 		let r = a(t);
 		if (!r) return !1;
 		if (e.includeKeys) {
 			let t = e.includeKeys.has(r), n = !e.knownKeys?.has(r);
 			if (!t && !n) return !1;
 		} else if (e.include && !e.include(t)) return !1;
-		let i = O(t, n);
+		let i = E(t, n);
 		return i ? (o.set(r, i.collectionId), !0) : !1;
 	}).filter((t) => {
 		let n = a(t);
@@ -298,14 +306,14 @@ function oe(e, t = {}, n) {
 		let r = e.collectionByKey.get(n);
 		return r === void 0 || r !== o.get(n);
 	}).forEach((e) => {
-		D.get(e)?.cancel();
+		T.get(e)?.cancel();
 		let t = e.animate([{ opacity: 0 }, { opacity: 1 }], {
 			duration: r,
 			easing: i,
 			fill: "both"
 		});
-		D.set(e, t), t.finished.then(() => {
-			D.get(e) === t && D.delete(e);
+		T.set(e, t), t.finished.then(() => {
+			T.get(e) === t && T.delete(e);
 		}).catch(() => void 0);
 	}), e.entries.forEach((e) => {
 		if (o.has(e.key)) return;
@@ -324,15 +332,15 @@ function oe(e, t = {}, n) {
 }
 //#endregion
 //#region src/dom/LayoutMeasurement.ts
-var se = 0, ce = 0, le = /* @__PURE__ */ new WeakMap(), A = /* @__PURE__ */ new WeakMap(), j = /* @__PURE__ */ new WeakMap();
-function ue(e) {
+var se = 0, ce = 0, j = /* @__PURE__ */ new WeakMap(), M = /* @__PURE__ */ new WeakMap(), N = /* @__PURE__ */ new WeakMap();
+function le(e) {
 	return new DOMRect(e.left, e.top, e.width, e.height);
 }
-function de(e) {
+function ue(e) {
 	let t = e.getRootNode();
 	return t instanceof Document || t instanceof ShadowRoot ? t : e.ownerDocument;
 }
-var fe = class {
+var de = class {
 	constructor(e = `layout-measurement-${++se}`) {
 		this.latest = /* @__PURE__ */ new WeakMap(), this.id = e;
 	}
@@ -341,10 +349,10 @@ var fe = class {
 			contextId: this.id,
 			sequence: ++ce,
 			element: e,
-			rect: ue(t)
+			rect: le(t)
 		};
-		this.latest.set(e, n), A.set(e, n);
-		let r = j.get(e);
+		this.latest.set(e, n), M.set(e, n);
+		let r = N.get(e);
 		if (r) for (let e of [...r]) e(n);
 		return n;
 	}
@@ -352,27 +360,27 @@ var fe = class {
 		return this.latest.get(e);
 	}
 };
-function M(e) {
-	return new fe(e);
+function P(e) {
+	return new de(e);
 }
-function pe(e, t) {
-	le.set(e, t);
+function fe(e, t) {
+	j.set(e, t);
 }
-function me(e) {
-	return A.get(e);
+function pe(e) {
+	return M.get(e);
 }
-function he(e, t) {
-	let n = j.get(e);
-	return n || (n = /* @__PURE__ */ new Set(), j.set(e, n)), n.add(t), () => {
-		let n = j.get(e);
-		n && (n.delete(t), n.size === 0 && j.delete(e));
+function me(e, t) {
+	let n = N.get(e);
+	return n || (n = /* @__PURE__ */ new Set(), N.set(e, n)), n.add(t), () => {
+		let n = N.get(e);
+		n && (n.delete(t), n.size === 0 && N.delete(e));
 	};
 }
-function N(e) {
+function F(e) {
 	let t = /* @__PURE__ */ new WeakMap(), n = e, r = 0, i = 0;
 	return {
 		get context() {
-			return n ??= M();
+			return n ??= P();
 		},
 		get stats() {
 			return {
@@ -384,20 +392,20 @@ function N(e) {
 			let a = t.get(e);
 			if (a) return i += 1, a;
 			let o = e.getBoundingClientRect();
-			return r += 1, t.set(e, o), n ??= le.get(de(e)) ?? M(), n.publish(e, o), o;
+			return r += 1, t.set(e, o), n ??= j.get(ue(e)) ?? P(), n.publish(e, o), o;
 		}
 	};
 }
 //#endregion
 //#region src/dom/LayoutParticipantPolicy.ts
-function ge(e) {
+function he(e) {
 	let t = globalThis.CSS;
 	return t?.escape ? t.escape(e) : e.replace(/([\\\"'\[\]#.>:~+*^$|=(), ])/g, "\\$1");
 }
-function P(e, t) {
+function I(e, t) {
 	return !t || t.length === 0 || t.some((t) => t === e || t.contains(e));
 }
-function F(e, t) {
+function L(e, t) {
 	if (!t || t.length === 0) return null;
 	let n = null, r = Infinity;
 	for (let i of t) {
@@ -408,41 +416,41 @@ function F(e, t) {
 	}
 	return n;
 }
-function I(e) {
+function R(e) {
 	return e.closest("[data-layout-collection]");
 }
-function L(e) {
+function z(e) {
 	return e.closest("[data-layout-content]");
 }
-function R(e, t) {
+function B(e, t) {
 	return !!(e.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING);
 }
-function z(e) {
+function V(e) {
 	return e.closest("[data-layout-role=\"card\"]") ?? e;
 }
-function _e(e, t) {
-	let n = z(t), r = n.parentElement;
+function ge(e, t) {
+	let n = V(t), r = n.parentElement;
 	if (!r) return /* @__PURE__ */ new Set();
 	let i = /* @__PURE__ */ new Set();
 	for (let t of e) {
-		let e = z(t);
-		e !== n && e.parentElement === r && R(n, e) && i.add(t);
+		let e = V(t);
+		e !== n && e.parentElement === r && B(n, e) && i.add(t);
 	}
 	return i;
 }
-function ve(e, t, n) {
+function _e(e, t, n) {
 	if (!t) return null;
-	if (t.mode === "removal") return t.sourceElement.isConnected && P(t.sourceElement, n) ? t.sourceElement : null;
+	if (t.mode === "removal") return t.sourceElement.isConnected && I(t.sourceElement, n) ? t.sourceElement : null;
 	let r = t.layoutKey;
 	if (r && typeof e.querySelectorAll == "function") {
-		let i = `[data-layout-key="${ge(r)}"]`, a = Array.from(e.querySelectorAll(i)).filter((e) => e.isConnected && P(e, n)).filter((e) => e.dataset.runtimeProxy !== "true" && e.dataset.runtimePlaceholder !== "true"), o = a.find((e) => e !== t.sourceElement);
+		let i = `[data-layout-key="${he(r)}"]`, a = Array.from(e.querySelectorAll(i)).filter((e) => e.isConnected && I(e, n)).filter((e) => e.dataset.runtimeProxy !== "true" && e.dataset.runtimePlaceholder !== "true"), o = a.find((e) => e !== t.sourceElement);
 		if (o) return o;
 		if (a.includes(t.sourceElement)) return t.sourceElement;
 	}
-	return t.sourceElement.isConnected && P(t.sourceElement, n) ? t.sourceElement : null;
+	return t.sourceElement.isConnected && I(t.sourceElement, n) ? t.sourceElement : null;
 }
-function ye(e) {
-	let t = e.sourceAffected ?? /* @__PURE__ */ new Set(), n = e.viewportEligible, r = ve(e.root, e.focus, e.scopeSurfaces), i = /* @__PURE__ */ new Set(), a = 0, o = 0, s = 0, c = r ? F(r, e.scopeSurfaces) : null, l = e.focus ? F(e.focus.sourceElement, e.scopeSurfaces) : null, u = r ? L(r) : null, d = r ? I(r) : null, f = null;
+function ve(e) {
+	let t = e.sourceAffected ?? /* @__PURE__ */ new Set(), n = e.viewportEligible, r = _e(e.root, e.focus, e.scopeSurfaces), i = /* @__PURE__ */ new Set(), a = 0, o = 0, s = 0, c = r ? L(r, e.scopeSurfaces) : null, l = e.focus ? L(e.focus.sourceElement, e.scopeSurfaces) : null, u = r ? z(r) : null, d = r ? R(r) : null, f = null;
 	for (let e of t) {
 		f = e.parentElement;
 		break;
@@ -452,13 +460,13 @@ function ye(e) {
 		let m = !0, h = !1;
 		if (e.focus?.mode === "removal") m = t.has(f);
 		else if (r) {
-			let n = F(f, e.scopeSurfaces);
-			if (p && f.parentElement === r.parentElement) m = R(r, f);
+			let n = L(f, e.scopeSurfaces);
+			if (p && f.parentElement === r.parentElement) m = B(r, f);
 			else if (t.has(f)) m = !0;
 			else if (c && n && n !== c) m = !(l && n === l);
 			else if (!c || !n || n === c) {
-				let e = L(f), t = I(f);
-				u && e && e !== u && d && t === d ? (m = !1, h = !0) : (f.parentElement === r.parentElement || u && e === u) && (m = R(r, f));
+				let e = z(f), t = R(f);
+				u && e && e !== u && d && t === d ? (m = !1, h = !0) : (f.parentElement === r.parentElement || u && e === u) && (m = B(r, f));
 			}
 		}
 		if (!m) {
@@ -478,21 +486,21 @@ function ye(e) {
 		offscreenSkipped: s
 	};
 }
-function be(e, t, n = Math.max(240, t.height)) {
+function ye(e, t, n = Math.max(240, t.height)) {
 	let r = e.left + e.width, i = e.top + e.height, a = t.left + t.width, o = t.top + t.height;
 	return r >= t.left - n && e.left <= a + n && i >= t.top - n && e.top <= o + n;
 }
 //#endregion
 //#region src/dom/GroupLayout.ts
-var B = null, V = !1, H = /* @__PURE__ */ new WeakMap();
+var H = null, U = !1, W = /* @__PURE__ */ new WeakMap();
+function be(e) {
+	H = e;
+}
 function xe(e) {
-	B = e;
+	U = e;
 }
-function Se(e) {
-	V = e;
-}
-function U() {
-	let t = B;
+function Se() {
+	let t = H;
 	return {
 		flip: t?.flip ?? e.flip,
 		resize: t?.resize ?? e.resize
@@ -543,17 +551,17 @@ function Ee(e, t, n, r, i) {
 	});
 	let s = /* @__PURE__ */ new Set();
 	for (let t of e) {
-		let e = o.get(t), n = F(t, i), a = n ? r.get(n) : void 0;
-		(!e || !a || be(e, a)) && s.add(t);
+		let e = o.get(t), n = L(t, i), a = n ? r.get(n) : void 0;
+		(!e || !a || ye(e, a)) && s.add(t);
 	}
 	return s;
 }
-function W(e, t = document, n = !0, r, i = {}) {
+function De(e, t = document, n = !0, r, i = {}) {
 	let a = (e) => {
 		let t = i.scopeSurfaces;
 		return !t || t.length === 0 || t.some((t) => t === e || t.contains(e));
-	}, o = [...t instanceof HTMLElement && t.matches("[data-layout-surface]") ? [t] : [], ...Array.from(t.querySelectorAll("[data-layout-surface]"))].filter(a), s = N(), c = e.filter(a), l = i.focus ? _e(c, i.focus.sourceElement) : /* @__PURE__ */ new Set(), u = i.focus?.mode === "removal" ? c.filter((e) => l.has(e)) : c, { groups: d, groupLeaves: f, flatCards: p } = we(u, t, i.scopeSurfaces), m = qe(o, s, i.surfaceMeasures), h = Te(i.viewportBySurface, s), g = d.length > 0 ? Le([...d, ...f], s) : [], _ = p.length > 0 ? te(p, s) : /* @__PURE__ */ new Map(), v = Ee(u, g, _, h, i.scopeSurfaces), y = new Set(u), b = (i.scopeSurfaces ?? [t]).some((e) => e instanceof HTMLElement ? e.matches("[data-layout-collection]") || e.querySelector("[data-layout-collection]") !== null : t.querySelector("[data-layout-collection]") !== null), x = i.focus || i.viewportBySurface ? (e) => y.has(e) && v.has(e) : void 0;
-	return Me(t, {
+	}, o = [...t instanceof HTMLElement && t.matches("[data-layout-surface]") ? [t] : [], ...Array.from(t.querySelectorAll("[data-layout-surface]"))].filter(a), s = F(), c = e.filter(a), l = i.focus ? ge(c, i.focus.sourceElement) : /* @__PURE__ */ new Set(), u = i.focus?.mode === "removal" ? c.filter((e) => l.has(e)) : c, { groups: d, groupLeaves: f, flatCards: p } = we(u, t, i.scopeSurfaces), m = Je(o, s, i.surfaceMeasures), h = Te(i.viewportBySurface, s), g = d.length > 0 ? Re([...d, ...f], s) : [], _ = p.length > 0 ? ne(p, s) : /* @__PURE__ */ new Map(), v = Ee(u, g, _, h, i.scopeSurfaces), y = new Set(u), b = (i.scopeSurfaces ?? [t]).some((e) => e instanceof HTMLElement ? e.matches("[data-layout-collection]") || e.querySelector("[data-layout-collection]") !== null : t.querySelector("[data-layout-collection]") !== null), x = i.focus || i.viewportBySurface ? (e) => y.has(e) && v.has(e) : void 0;
+	return Ne(t, {
 		root: t,
 		group: g.length > 0 ? { before: g } : void 0,
 		flat: p.length > 0 ? {
@@ -561,7 +569,7 @@ function W(e, t = document, n = !0, r, i = {}) {
 			before: _
 		} : void 0,
 		surfaces: m,
-		presence: n && b ? ae(t, "[data-layout-role=\"card\"]", void 0, r, i.scopeSurfaces, s, x) : void 0,
+		presence: n && b ? k(t, "[data-layout-role=\"card\"]", void 0, r, i.scopeSurfaces, s, x) : void 0,
 		participants: {
 			cards: u,
 			scopeSurfaces: i.scopeSurfaces ? [...i.scopeSurfaces] : void 0,
@@ -576,7 +584,7 @@ function W(e, t = document, n = !0, r, i = {}) {
 	});
 }
 function G(e) {
-	let t = N(), n = U(), r = e.participants ? ye({
+	let t = F(), n = Se(), r = e.participants ? ve({
 		cards: e.participants.cards,
 		root: e.root,
 		focus: e.participants.focus,
@@ -584,12 +592,12 @@ function G(e) {
 		sourceAffected: e.participants.sourceAffected,
 		viewportEligible: e.participants.viewportEligible
 	}) : null, i = r?.eligible, a = e.participants ? new Set(e.participants.cards) : void 0;
-	Je(e.surfaces, n.resize.duration, n.resize.easing, t);
-	let o = e.group ? Oe(e.group.before) : null, s = e.group ? ze(e.group.before, n.flip.duration, n.flip.easing, t, a, i) : null, c = e.flat ? ne(e.flat.elements, e.flat.before, n.flip.duration, n.flip.easing, t, i ? (e) => i.has(e) : void 0) : null;
-	e.presence && oe(e.presence, {
+	Ye(e.surfaces, n.resize.duration, n.resize.easing, t);
+	let o = e.group ? ke(e.group.before) : null, s = e.group ? Be(e.group.before, n.flip.duration, n.flip.easing, t, a, i) : null, c = e.flat ? ie(e.flat.elements, e.flat.before, n.flip.duration, n.flip.easing, t, i ? (e) => i.has(e) : void 0) : null;
+	e.presence && A(e.presence, {
 		duration: n.flip.duration,
 		easing: n.flip.easing
-	}, t), o && ke(o, n.flip.duration + 50);
+	}, t), o && Ae(o, n.flip.duration + 50);
 	let l = e.participants, u = l ? Math.max(0, l.candidateCards - l.capturedCards) : 0;
 	Ce({
 		candidateCards: l?.candidateCards ?? 0,
@@ -608,8 +616,8 @@ function G(e) {
 		tinyDeltaSkipped: (s?.tinySkipped ?? 0) + (c?.tinySkipped ?? 0)
 	});
 }
-var K = /* @__PURE__ */ new WeakMap(), De = 0;
-function Oe(e) {
+var K = /* @__PURE__ */ new WeakMap(), Oe = 0;
+function ke(e) {
 	let t = e.filter((e) => e.element.matches("[data-layout-group], [data-layout-content]")).filter((e) => e.rect.height > 0).map((e) => ({
 		element: e.element,
 		overflow: e.element.style.overflow
@@ -622,12 +630,12 @@ function Oe(e) {
 		e.style.overflow = "visible";
 	});
 	let r = {
-		token: String(++De),
+		token: String(++Oe),
 		entries: t
 	};
 	return K.set(n, r), r;
 }
-function ke(e, t) {
+function Ae(e, t) {
 	let n = e.entries[0]?.element.getRootNode();
 	n && (e.timeout = window.setTimeout(() => {
 		K.get(n)?.token === e.token && (e.entries.forEach(({ element: e, overflow: t }) => {
@@ -635,29 +643,29 @@ function ke(e, t) {
 		}), K.delete(n));
 	}, t));
 }
-function Ae(e) {
+function je(e) {
 	q.set(e.root, e), queueMicrotask(() => {
 		q.get(e.root) === e && (q.delete(e.root), G(e));
 	});
 }
-function je(e) {
+function Me(e) {
 	q.set(e.root, e), requestAnimationFrame(() => {
 		q.get(e.root) === e && (q.delete(e.root), G(e));
 	});
 }
-function Me(e, t) {
+function Ne(e, t) {
 	let n = q.get(e);
 	if (!n) return t;
-	let r = Ie(t.surfaces, n.surfaces), i = Pe(t.flat, n.flat), a = Fe(t.group, n.group);
+	let r = Le(t.surfaces, n.surfaces), i = Fe(t.flat, n.flat), a = Ie(t.group, n.group);
 	return {
 		...t,
 		flat: i,
 		group: a,
 		surfaces: r,
-		participants: Ne(t.participants, n.participants)
+		participants: Pe(t.participants, n.participants)
 	};
 }
-function Ne(e, t) {
+function Pe(e, t) {
 	if (!e || !t) return e;
 	let n = [.../* @__PURE__ */ new Set([...t.cards, ...e.cards])], r = /* @__PURE__ */ new Set([...t.sourceAffected, ...e.sourceAffected]);
 	return {
@@ -672,7 +680,7 @@ function Ne(e, t) {
 		captureCacheHits: e.captureCacheHits + t.captureCacheHits
 	};
 }
-function Pe(e, t) {
+function Fe(e, t) {
 	if (!e) return t;
 	if (!t) return e;
 	let n = [.../* @__PURE__ */ new Set([...t.elements, ...e.elements])], r = new Map(t.before);
@@ -683,7 +691,7 @@ function Pe(e, t) {
 		before: r
 	};
 }
-function Fe(e, t) {
+function Ie(e, t) {
 	if (!e) return t;
 	if (!t) return e;
 	let n = new Map(e.before.map((e) => [e.element, e])), r = new Map(t.before.map((e) => [e.element, e.rect]));
@@ -695,7 +703,7 @@ function Fe(e, t) {
 		};
 	}) };
 }
-function Ie(e, t) {
+function Le(e, t) {
 	let n = new Map(e.map((e) => [e.element, e])), r = new Map(t.map((e) => [e.element, e]));
 	return [.../* @__PURE__ */ new Set([...t.map((e) => e.element), ...e.map((e) => e.element)])].map((e) => {
 		let t = n.get(e), i = r.get(e);
@@ -716,18 +724,18 @@ function Y(e, t) {
 		height: n.height
 	};
 }
-function Le(e, t) {
+function Re(e, t) {
 	let n = e.filter((e) => {
 		let n = t?.rect(e) ?? e.getBoundingClientRect();
 		return n.width > 0 && n.height > 0;
 	}), r = new Set(n);
 	return n.map((e) => ({
 		element: e,
-		parent: Re(e, r),
+		parent: ze(e, r),
 		rect: Y(e, t)
 	}));
 }
-function Re(e, t) {
+function ze(e, t) {
 	let n = e.parentElement;
 	for (; n;) {
 		if (t.has(n)) return n;
@@ -735,9 +743,9 @@ function Re(e, t) {
 	}
 	return null;
 }
-function ze(e, t = C, n = w, r, i, a) {
+function Be(e, t = C, n = w, r, i, a) {
 	let o = e.map((e) => e.element), s = new Set(o.filter((e) => e.dataset.runtimeFlip === "true"));
-	T(o);
+	re(o);
 	let c = /* @__PURE__ */ new Map(), l = 0;
 	for (let t of e) {
 		let e = i?.has(t.element) ?? !1;
@@ -774,7 +782,7 @@ function ze(e, t = C, n = w, r, i, a) {
 		});
 	}
 	for (let { element: e, dx: t, dy: n, token: r } of u) e.style.transform = `translate(${t}px, ${n}px)`, e.style.transition = "none", e.dataset.runtimeFlip = "true", e.dataset.runtimeFlipToken = r;
-	for (let { element: e, dx: r, dy: i, token: a } of u) b(e, r, i, t, n, () => {
+	for (let { element: e, dx: r, dy: i, token: a } of u) x(e, r, i, t, n, () => {
 		e.dataset.runtimeFlipToken === a && (e.style.transition = "", e.style.transform = "", delete e.dataset.runtimeFlip);
 	});
 	return {
@@ -785,7 +793,7 @@ function ze(e, t = C, n = w, r, i, a) {
 		parentInherited: f
 	};
 }
-function Be(e, t, n = C, r = w, i, a = !1, o = !1) {
+function Ve(e, t, n = C, r = w, i, a = !1, o = !1) {
 	if (e.dataset.runtimeLayoutTransaction === "true" || e.dataset.runtimeSurfaceResize === "true") return !1;
 	X(e);
 	let s = i ?? e.getBoundingClientRect().height, c = String(Number(e.dataset.runtimeGroupToken ?? "0") + 1);
@@ -806,7 +814,7 @@ function X(e) {
 	let t = J.get(e);
 	t && (t.frame !== null && cancelAnimationFrame(t.frame), t.timeout !== null && window.clearTimeout(t.timeout), J.delete(e));
 }
-function Ve(e) {
+function He(e) {
 	q.delete(e);
 	let t = typeof Node < "u" && e instanceof Node, n = t ? e.getRootNode() : e, r = K.get(n);
 	r && (r.timeout !== void 0 && window.clearTimeout(r.timeout), r.entries.forEach(({ element: n, overflow: r }) => {
@@ -816,26 +824,26 @@ function Ve(e) {
 	e instanceof HTMLElement && i.push(e), typeof e.querySelectorAll == "function" && i.push(...Array.from(e.querySelectorAll("[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-runtime-layout-transaction], [data-layout-content]")));
 	for (let e of i) {
 		let t = e.dataset.runtimeFlip === "true" || e.dataset.runtimeGroupAnimating === "true" || e.dataset.runtimeSurfaceResize === "true" || e.dataset.runtimeLayoutTransaction === "true";
-		y(e), S(e), X(e);
+		b(e), ee(e), X(e);
 		let n = Z.get(e);
 		n && (Q(e, n.baseStyle), Z.delete(e)), e.dataset.runtimeGroupAnimating === "true" && (e.style.height = e.dataset.layoutOpen === "false" ? "0px" : "", e.style.overflow = e.dataset.layoutOpen === "false" ? "hidden" : "", e.style.transition = ""), t && (e.style.transform = ""), e.dataset.runtimeFlip === "true" && delete e.dataset.runtimeFlip, delete e.dataset.runtimeSurfaceResize, delete e.dataset.runtimeSurfaceResizeToken, delete e.dataset.runtimeLayoutTransaction, delete e.dataset.runtimeGroupAnimating;
 	}
 }
-async function He(e) {
+async function Ue(e) {
 	let t = e.root instanceof HTMLElement ? e.root.ownerDocument : e.root, n = e.layoutTransaction?.begin(t, "group-toggle");
 	n && e.layoutTransaction?.request(t, {
 		type: "group-toggle",
 		opening: e.opening
 	});
-	let r = (H.get(e.content) ?? 0) + 1;
-	H.set(e.content, r);
+	let r = (W.get(e.content) ?? 0) + 1;
+	W.set(e.content, r);
 	let i = Array.from(e.root.querySelectorAll("[data-layout-role=\"card\"]")), a = (i.length > 0 ? i : Array.from(e.root.querySelectorAll(".done-card-item, [data-card]"))).filter((e) => {
 		let t = e.getBoundingClientRect();
 		return t.width > 0 && t.height > 0;
-	}), o = e.content.getBoundingClientRect().height, s = W(a, e.root, !1, void 0, { surfaceMeasures: e.surfaceMeasures });
+	}), o = e.content.getBoundingClientRect().height, s = De(a, e.root, !1, void 0, { surfaceMeasures: e.surfaceMeasures });
 	!e.opening && o > 0 && (X(e.content), e.content.dataset.runtimeGroupAnimating = "true", e.content.style.height = `${o}px`, e.content.style.overflow = "hidden", e.content.style.transition = "");
-	let c = V ? Ge(e.content, e.opening, e.duration, e.easing) : null;
-	if (e.mutate(), await e.waitForLayout(), H.get(e.content) !== r) {
+	let c = U ? Ke(e.content, e.opening, e.duration, e.easing) : null;
+	if (e.mutate(), await e.waitForLayout(), W.get(e.content) !== r) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
 	}
@@ -844,7 +852,7 @@ async function He(e) {
 		return;
 	}
 	let l = e.layoutCache?.getGroup(e.content, e.opening), u = e.content.scrollHeight, d = e.opening ? u : 0, f = e.opening && l && l.height === d ? l : void 0;
-	if (Be(e.content, d, e.duration, e.easing, o), c && Ke(c, e.opening), await new Promise((e) => requestAnimationFrame(() => e())), H.get(e.content) !== r) {
+	if (Ve(e.content, d, e.duration, e.easing, o), c && qe(c, e.opening), await new Promise((e) => requestAnimationFrame(() => e())), W.get(e.content) !== r) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
 	}
@@ -852,7 +860,7 @@ async function He(e) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
 	}
-	let p = f ? new Map(f.surfaceTargets) : Ue(s.surfaces, e.content, d);
+	let p = f ? new Map(f.surfaceTargets) : We(s.surfaces, e.content, d);
 	e.layoutCache?.setGroup(e.content, e.opening, d, p);
 	let m = p.size > 0 ? {
 		...s,
@@ -865,10 +873,10 @@ async function He(e) {
 	};
 	n && e.layoutTransaction?.defer(t, n.participantId, (e) => h(e), "group-flip") || h(), e.layoutTransaction?.commit(t, n?.participantId);
 }
-function Ue(e, t, n) {
+function We(e, t, n) {
 	let r = /* @__PURE__ */ new Map();
 	if (e.length === 0) return r;
-	let i = We(t), a = i ? Qe(i) : null, o = {
+	let i = Ge(t), a = i ? $e(i) : null, o = {
 		height: t.style.height,
 		overflow: t.style.overflow,
 		transition: t.style.transition
@@ -886,9 +894,9 @@ function Ue(e, t, n) {
 		e.measure && r.set(e.element, e.measure());
 	}), s.forEach(({ item: e, height: t, overflow: n, transition: r }) => {
 		e.element.style.height = t, e.element.style.overflow = n, e.element.style.transition = r;
-	}), t.style.height = o.height, t.style.overflow = o.overflow, t.style.transition = o.transition, a && i && $e(i, a), r;
+	}), t.style.height = o.height, t.style.overflow = o.overflow, t.style.transition = o.transition, a && i && et(i, a), r;
 }
-function We(e) {
+function Ge(e) {
 	let t = e.parentElement;
 	for (; t;) {
 		let e = getComputedStyle(t);
@@ -897,7 +905,7 @@ function We(e) {
 	}
 	return null;
 }
-function Ge(e, t, n = C, r = w) {
+function Ke(e, t, n = C, r = w) {
 	let i = Array.from(e.querySelectorAll("[data-layout-role=\"card\"], .done-card-item")), a = String(Number(e.dataset.runtimePresenceToken ?? "0") + 1);
 	return e.dataset.runtimePresenceToken = a, i.forEach((e) => {
 		t && (e.style.opacity = "0");
@@ -908,7 +916,7 @@ function Ge(e, t, n = C, r = w) {
 		duration: n
 	};
 }
-function Ke(e, t) {
+function qe(e, t) {
 	let { content: n, elements: r, token: i, duration: a } = e;
 	requestAnimationFrame(() => {
 		n.dataset.runtimePresenceToken === i && r.forEach((e) => {
@@ -924,10 +932,10 @@ function Ke(e, t) {
 		});
 	}, a + 40);
 }
-function qe(e, t, n) {
+function Je(e, t, n) {
 	return e.map((e) => {
 		e.dataset.runtimeLayoutTransaction = "true";
-		let r = Y(e, t), i = n?.get(e), a = Ze(e);
+		let r = Y(e, t), i = n?.get(e), a = Qe(e);
 		return i && !Z.has(e) && (e.style.height = `${$(e, r.height)}px`, e.style.overflow = "hidden"), {
 			element: e,
 			rect: r,
@@ -936,8 +944,8 @@ function qe(e, t, n) {
 		};
 	});
 }
-function Je(e, t = C, n = w, r) {
-	Ye(e);
+function Ye(e, t = C, n = w, r) {
+	Xe(e);
 	let i = e.filter((e) => e.element.isConnected).map((e) => {
 		let t = Y(e.element, r), n = e.targetMeasure === void 0 ? e.measure?.() : e.targetMeasure, i = n ? {
 			...t,
@@ -947,7 +955,7 @@ function Je(e, t = C, n = w, r) {
 		return {
 			item: e,
 			next: i,
-			profile: U().resize,
+			profile: Se().resize,
 			fromHeight: $(e.element, e.rect.height),
 			toHeight: $(e.element, i.height)
 		};
@@ -969,7 +977,7 @@ function Je(e, t = C, n = w, r) {
 	for (let { item: e, fromHeight: t } of i) {
 		let n = e.element.style, r = {
 			baseStyle: Z.get(e.element)?.baseStyle ?? e.inlineStyle,
-			token: String(++Xe)
+			token: String(++Ze)
 		};
 		Z.set(e.element, r), o.set(e.element, r.token), n.overflow = "hidden", n.transition = "none", n.height = `${t}px`, e.element.dataset.runtimeSurfaceResize = "true", e.element.dataset.runtimeSurfaceResizeToken = r.token;
 	}
@@ -978,7 +986,7 @@ function Je(e, t = C, n = w, r) {
 			let i = e.element.style, a = Z.get(e.element), s = o.get(e.element);
 			if (!a || !s || a.token !== s || e.element.dataset.runtimeSurfaceResizeToken !== s) continue;
 			let c = a.token;
-			i.transition = "none", ee(e.element, t, n, r.duration, r.easing), window.setTimeout(() => {
+			i.transition = "none", te(e.element, t, n, r.duration, r.easing), window.setTimeout(() => {
 				if (e.element.dataset.runtimeSurfaceResizeToken !== c) return;
 				let t = Z.get(e.element);
 				!t || t.token !== c || (Q(e.element, t.baseStyle), e.measure && (i.height = `${n}px`), Z.delete(e.element), delete e.element.dataset.runtimeSurfaceResize, delete e.element.dataset.runtimeLayoutTransaction);
@@ -986,16 +994,16 @@ function Je(e, t = C, n = w, r) {
 		}
 	});
 }
-function Ye(e) {
+function Xe(e) {
 	let t = e.filter((e) => e.element.dataset.runtimeSurfaceResize === "true");
 	if (t.length !== 0) for (let { element: e } of t) {
 		if (!Z.get(e)) continue;
 		let t = Y(e).height;
-		S(e), e.style.height = `${$(e, t)}px`, e.style.overflow = "hidden", e.style.transition = "none", Z.delete(e), delete e.dataset.runtimeSurfaceResize, delete e.dataset.runtimeSurfaceResizeToken, delete e.dataset.runtimeLayoutTransaction;
+		ee(e), e.style.height = `${$(e, t)}px`, e.style.overflow = "hidden", e.style.transition = "none", Z.delete(e), delete e.dataset.runtimeSurfaceResize, delete e.dataset.runtimeSurfaceResizeToken, delete e.dataset.runtimeLayoutTransaction;
 	}
 }
-var Z = /* @__PURE__ */ new WeakMap(), Xe = 0;
-function Ze(e) {
+var Z = /* @__PURE__ */ new WeakMap(), Ze = 0;
+function Qe(e) {
 	return {
 		height: e.style.height,
 		overflow: e.style.overflow,
@@ -1011,7 +1019,7 @@ function $(e, t) {
 	let r = Number.parseFloat(n.paddingTop) + Number.parseFloat(n.paddingBottom) + Number.parseFloat(n.borderTopWidth) + Number.parseFloat(n.borderBottomWidth);
 	return Math.max(0, t - r);
 }
-function Qe(e) {
+function $e(e) {
 	let t = Math.max(0, e.scrollHeight - e.clientHeight), n = e.scrollTop <= 1 ? "top" : t - e.scrollTop <= 1 ? "bottom" : "middle";
 	return {
 		top: e.scrollTop,
@@ -1020,9 +1028,9 @@ function Qe(e) {
 		anchor: n
 	};
 }
-function $e(e, t) {
+function et(e, t) {
 	let n = Math.max(0, e.scrollHeight - e.clientHeight);
 	e.scrollTop = t.anchor === "top" ? 0 : t.anchor === "bottom" ? n : Math.min(t.top, n);
 }
 //#endregion
-export { _, Ae as a, xe as c, M as d, me as f, h as g, oe as h, He as i, Be as l, ae as m, W as n, je as o, he as p, G as r, Se as s, Ve as t, pe as u, e as v };
+export { h as _, je as a, be as c, P as d, pe as f, g, A as h, Ue as i, Ve as l, k as m, De as n, Me as o, me as p, G as r, xe as s, He as t, fe as u, v, e as y };

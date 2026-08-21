@@ -233,11 +233,11 @@ export class DefaultVisualAdapter implements VisualAdapter {
     // 同一笔 landing 的 viewport 边界在几百毫秒内视作布局常量；真实 resize
     // 由下一笔 transaction/observer 重新测量。
     const landingBounds = context.landingMode === 'free' ? null : context.landingBounds?.() ?? null
-    const clampTarget = (rect: LandingRect): LandingRect => {
+    const clampTarget = (rect: LandingRect, bounds = landingBounds): LandingRect => {
       // free landing 代表画布上的连续物理落点，允许代理沿惯性轨迹飞出
       // viewport；viewport clamp 只适用于列表/抽屉等需要留在可视区域内的落地。
       if (context.landingMode === 'free') return rect
-      return landingBounds ? clampLandingRectToBounds(rect, landingBounds) : rect
+      return bounds ? clampLandingRectToBounds(rect, bounds) : rect
     }
     const targetRect = clampTarget(rawLandingRect)
     const hasUsableTargetRect = targetRect.width > 0 && targetRect.height > 0
@@ -411,15 +411,19 @@ export class DefaultVisualAdapter implements VisualAdapter {
       // 不能像旧实现那样忽略参数后再做第二次 getBoundingClientRect()。
       const snapshotRect = context.targetSnapshot?.rect
       this.runtime.trackLandingTarget(context.sessionId, targetElement, rect => {
+        // 抽屉分组展开时 viewport 自身也在 resize；继续使用 landing 开始时
+        // 缓存的 bounds 会把目标 top 锁在旧的 bottom 边界，导致 retarget
+        // 虽然收到新 rect，最终仍飞向展开前的位置。
+        const liveLandingBounds = context.landingBounds?.() ?? landingBounds
         const nextRect: LandingRect = rect.width > 0 && rect.height > 0
-          ? clampTarget(rect)
+          ? clampTarget(rect, liveLandingBounds)
           : snapshotRect && snapshotRect.width > 0 && snapshotRect.height > 0
             ? clampTarget({
                 left: snapshotRect.x,
                 top: snapshotRect.y,
                 width: snapshotRect.width,
                 height: snapshotRect.height,
-              })
+              }, liveLandingBounds)
             : trackedTargetRect
         trackedTargetRect = nextRect
         retarget(nextRect)
