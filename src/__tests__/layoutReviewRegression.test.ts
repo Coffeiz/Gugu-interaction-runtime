@@ -90,6 +90,37 @@ describe('审查回归', () => {
     expect(cardReads.map(spy => spy.mock.calls.length)).toEqual([2, 2, 0, 0, 0, 0, 0, 0, 0, 0])
   })
 
+  it('presence participant 支持 Runtime 卡片包在语义 wrapper 内', () => {
+    const surface = document.createElement('section')
+    surface.dataset.layoutSurface = 'done'
+    const collection = document.createElement('div')
+    collection.dataset.layoutCollection = 'recent'
+    const wrapper = makeCollectionCard('project-1', 'recent')
+    const runtimeCard = document.createElement('article')
+    runtimeCard.dataset.layoutKey = 'project:1'
+    wrapper.append(runtimeCard)
+    collection.append(wrapper)
+    surface.append(collection)
+    document.body.append(surface)
+    mockRect(surface, { left: 0, top: 0, width: 500, height: 300 })
+    mockRect(collection, { left: 0, top: 0, width: 500, height: 100 })
+    mockRect(wrapper, { left: 0, top: 0, width: 200, height: 40 })
+    mockRect(runtimeCard, { left: 0, top: 0, width: 200, height: 40 })
+
+    const snapshot = captureLayoutFlip(
+      [runtimeCard],
+      document,
+      true,
+      undefined,
+      {
+        scopeSurfaces: [surface],
+        focus: { sourceElement: runtimeCard, layoutKey: 'project:1', mode: 'move' },
+      },
+    )
+
+    expect(snapshot.presence?.entries.map(entry => entry.key)).toEqual(['project-1'])
+  })
+
   it('capture 时不可见但 play 时变可见的 participant 仍按 semantic key 入场', () => {
     const root = document.createElement('main')
     const collapsed = document.createElement('section')
@@ -165,6 +196,43 @@ describe('审查回归', () => {
 
     expect(newAnimate).toHaveBeenCalledTimes(1)
     expect(oldAnimate).not.toHaveBeenCalled()
+  })
+
+  it('Top-N collection 溢出时，旧卡片换 collection 仍执行入场动画', () => {
+    const root = document.createElement('main')
+    const recent = document.createElement('section')
+    recent.dataset.layoutCollection = 'recent'
+    const month = document.createElement('section')
+    month.dataset.layoutCollection = 'month-2026-08'
+    const cards = new Map<string, HTMLElement>()
+    for (const [key, collection] of [['a', recent], ['b', recent], ['c', recent], ['d', month]] as const) {
+      const card = makeCollectionCard(`project-${key}`, collection.dataset.layoutCollection!)
+      delete card.dataset.layoutCollection
+      collection.append(card)
+      cards.set(key, card)
+      mockRect(card, { left: 0, top: cards.size * 45, width: 200, height: 40 })
+    }
+    root.append(recent, month)
+    document.body.append(root)
+    mockRect(recent, { left: 0, top: 0, width: 300, height: 160 })
+    mockRect(month, { left: 0, top: 180, width: 300, height: 80 })
+
+    const snapshot = captureCollectionPresence(
+      root,
+      '[data-layout-role="card"]',
+      undefined,
+      element => element === cards.get('a'),
+    )
+    const d = cards.get('d')!
+    recent.append(d)
+    month.replaceChildren()
+    mockRect(d, { left: 0, top: 135, width: 200, height: 40 })
+    const animate = vi.fn().mockReturnValue({ finished: Promise.resolve() } as unknown as Animation)
+    Object.defineProperty(d, 'animate', { value: animate, configurable: true })
+
+    playCollectionPresence(snapshot)
+
+    expect(animate).toHaveBeenCalledTimes(1)
   })
 
   it('嵌套 Surface 选择最内层，而不依赖注册顺序', () => {

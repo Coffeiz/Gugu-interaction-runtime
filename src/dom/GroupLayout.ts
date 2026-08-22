@@ -259,7 +259,16 @@ export function captureLayoutFlip(
   // semantic collection identity correct, but skipped cards no longer perform geometry reads,
   // computed validation or outerHTML serialization.
   const presenceInclude = options.focus || options.viewportBySurface
-    ? (element: HTMLElement) => participantCards.has(element) && viewportEligible.has(element)
+    ? (element: HTMLElement) => {
+      // Runtime 注册的卡片可能是 presence wrapper 的子节点（项目页的
+      // `.proj-card` 被包在 `.done-card-item` 中）。Presence 选择器匹配
+      // wrapper，不能用 HTMLElement 引用做严格相等判断，否则性能裁剪会
+      // 把所有 wrapper 都过滤掉，最近完成列表就不会有兄弟卡片的淡入淡出。
+      const participant = Array.from(participantCards).find(candidate =>
+        candidate === element || candidate.contains(element) || element.contains(candidate),
+      )
+      return participant !== undefined && viewportEligible.has(participant)
+    }
     : undefined
   const snapshot: LayoutFlipSnapshot = {
     root,

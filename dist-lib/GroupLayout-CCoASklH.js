@@ -560,7 +560,10 @@ function De(e, t = document, n = !0, r, i = {}) {
 	let a = (e) => {
 		let t = i.scopeSurfaces;
 		return !t || t.length === 0 || t.some((t) => t === e || t.contains(e));
-	}, o = [...t instanceof HTMLElement && t.matches("[data-layout-surface]") ? [t] : [], ...Array.from(t.querySelectorAll("[data-layout-surface]"))].filter(a), s = F(), c = e.filter(a), l = i.focus ? ge(c, i.focus.sourceElement) : /* @__PURE__ */ new Set(), u = i.focus?.mode === "removal" ? c.filter((e) => l.has(e)) : c, { groups: d, groupLeaves: f, flatCards: p } = we(u, t, i.scopeSurfaces), m = Je(o, s, i.surfaceMeasures), h = Te(i.viewportBySurface, s), g = d.length > 0 ? Re([...d, ...f], s) : [], _ = p.length > 0 ? ne(p, s) : /* @__PURE__ */ new Map(), v = Ee(u, g, _, h, i.scopeSurfaces), y = new Set(u), b = (i.scopeSurfaces ?? [t]).some((e) => e instanceof HTMLElement ? e.matches("[data-layout-collection]") || e.querySelector("[data-layout-collection]") !== null : t.querySelector("[data-layout-collection]") !== null), x = i.focus || i.viewportBySurface ? (e) => y.has(e) && v.has(e) : void 0;
+	}, o = [...t instanceof HTMLElement && t.matches("[data-layout-surface]") ? [t] : [], ...Array.from(t.querySelectorAll("[data-layout-surface]"))].filter(a), s = F(), c = e.filter(a), l = i.focus ? ge(c, i.focus.sourceElement) : /* @__PURE__ */ new Set(), u = i.focus?.mode === "removal" ? c.filter((e) => l.has(e)) : c, { groups: d, groupLeaves: f, flatCards: p } = we(u, t, i.scopeSurfaces), m = Je(o, s, i.surfaceMeasures), h = Te(i.viewportBySurface, s), g = d.length > 0 ? Re([...d, ...f], s) : [], _ = p.length > 0 ? ne(p, s) : /* @__PURE__ */ new Map(), v = Ee(u, g, _, h, i.scopeSurfaces), y = new Set(u), b = (i.scopeSurfaces ?? [t]).some((e) => e instanceof HTMLElement ? e.matches("[data-layout-collection]") || e.querySelector("[data-layout-collection]") !== null : t.querySelector("[data-layout-collection]") !== null), x = i.focus || i.viewportBySurface ? (e) => {
+		let t = Array.from(y).find((t) => t === e || t.contains(e) || e.contains(t));
+		return t !== void 0 && v.has(t);
+	} : void 0;
 	return Ne(t, {
 		root: t,
 		group: g.length > 0 ? { before: g } : void 0,
