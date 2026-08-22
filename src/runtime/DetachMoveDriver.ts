@@ -363,6 +363,7 @@ export function createDetachLayoutLifecycle(
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
   layoutTransaction?: LayoutTransactionCoordinator,
+  presenceElements?: () => readonly HTMLElement[],
 ) {
   let layoutToken = 0
   let transactionRoot: ParentNode | null = null
@@ -390,6 +391,9 @@ export function createDetachLayoutLifecycle(
             layoutKey: sourceEl.dataset.layoutKey,
             mode: 'move',
           },
+          // 折叠 collection 内的卡片不参加 FLIP 几何计算，但可能在业务
+          // mutation 后进入另一个可见 collection，需保留给 Presence 做入场判断。
+          presenceCards: presenceElements?.() ?? registeredElements(),
         },
       )
     },

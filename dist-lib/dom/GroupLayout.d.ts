@@ -98,6 +98,12 @@ presenceIgnore?: (element: HTMLElement) => boolean, options?: {
     readonly viewportBySurface?: ReadonlyMap<HTMLElement, HTMLElement>;
     /** Semantic move focus used for source/destination affected-range reduction. */
     readonly focus?: LayoutParticipantFocus;
+    /**
+     * Presence-only candidates. They may be outside the FLIP participant set,
+     * for example cards inside a collapsed collection that can become visible
+     * in another collection after the business mutation.
+     */
+    readonly presenceCards?: readonly HTMLElement[];
 }): LayoutFlipSnapshot;
 export declare function playLayoutFlip(snapshot: LayoutFlipSnapshot): void;
 /**

@@ -162,6 +162,52 @@ describe('审查回归', () => {
     expect(animate).toHaveBeenCalledTimes(1)
   })
 
+  it('折叠 collection 内的卡片进入 recent 时仍播放 Presence 入场', () => {
+    const surface = document.createElement('section')
+    surface.dataset.layoutSurface = 'done'
+    const recent = document.createElement('div')
+    recent.dataset.layoutCollection = 'recent'
+    const collapsed = document.createElement('div')
+    collapsed.dataset.layoutOpen = 'false'
+    const month = document.createElement('div')
+    month.dataset.layoutCollection = '202608'
+    const incoming = makeCollectionCard('project-incoming', '202608')
+    month.append(incoming)
+    collapsed.append(month)
+    surface.append(recent, collapsed)
+    document.body.append(surface)
+
+    const runtimeCard = document.createElement('article')
+    runtimeCard.dataset.layoutKey = 'project-incoming'
+    mockRect(surface, { left: 0, top: 0, width: 500, height: 300 })
+    mockRect(recent, { left: 0, top: 0, width: 500, height: 80 })
+    mockRect(month, { left: 0, top: 100, width: 500, height: 80 })
+    mockRect(incoming, { left: 0, top: 100, width: 200, height: 40 })
+
+    const snapshot = captureLayoutFlip(
+      [runtimeCard],
+      document,
+      true,
+      undefined,
+      {
+        scopeSurfaces: [surface],
+        focus: { sourceElement: runtimeCard, layoutKey: 'project-incoming', mode: 'move' },
+        presenceCards: [incoming],
+      },
+    )
+
+    recent.append(incoming)
+    collapsed.remove()
+    mockRect(incoming, { left: 0, top: 0, width: 200, height: 40 })
+    const animate = vi.fn().mockReturnValue({ finished: Promise.resolve() } as unknown as Animation)
+    Object.defineProperty(incoming, 'animate', { value: animate, configurable: true })
+
+    playCollectionPresence(snapshot.presence!)
+
+    expect(snapshot.presence?.entries).toHaveLength(0)
+    expect(animate).toHaveBeenCalledTimes(1)
+  })
+
   it('reduction 开启时允许真正新 key 入场，但继续跳过旧 non-participant', () => {
     const root = document.createElement('main')
     const collection = document.createElement('section')

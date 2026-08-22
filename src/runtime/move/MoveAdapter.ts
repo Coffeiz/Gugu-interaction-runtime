@@ -32,7 +32,7 @@ export function createDetachMoveFromAdapter(config: {
   // 有没有被某一层折叠祖先包住，包住了就不参与这次 FLIP。
   const isInsideCollapsedGroup = (element: HTMLElement): boolean =>
     element.closest('[data-layout-content][data-layout-open="false"]') !== null
-  const registeredElements = (): HTMLElement[] => {
+  const allLayoutElements = (): HTMLElement[] => {
     const objects = [...runtime.objects.values()]
       .map(item => item.element)
       .filter((candidate): candidate is HTMLElement => Boolean(candidate?.isConnected))
@@ -41,6 +41,9 @@ export function createDetachMoveFromAdapter(config: {
     // Vue TransitionGroup 单独移动，release 时会与卡片错拍。
     const anchors = Array.from(document.querySelectorAll<HTMLElement>('[data-flip-target]'))
     return Array.from(new Set([...objects, ...anchors]))
+  }
+  const registeredElements = (): HTMLElement[] => {
+    return allLayoutElements()
       .filter(candidate => !isInsideCollapsedGroup(candidate))
   }
   let beforeContent: HTMLElement | undefined
@@ -648,6 +651,7 @@ export function createDetachMoveFromAdapter(config: {
       layoutScopeSurfaces,
       layoutSurfaceMeasures,
       runtime.layout,
+      allLayoutElements,
     ),
     surface: {
       // emit() 成功之后触发（见 RuntimeMove.ts MoveCommitCoordinator.commit），

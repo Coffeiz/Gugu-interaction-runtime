@@ -199,6 +199,12 @@ export function captureLayoutFlip(
     readonly viewportBySurface?: ReadonlyMap<HTMLElement, HTMLElement>
     /** Semantic move focus used for source/destination affected-range reduction. */
     readonly focus?: LayoutParticipantFocus
+    /**
+     * Presence-only candidates. They may be outside the FLIP participant set,
+     * for example cards inside a collapsed collection that can become visible
+     * in another collection after the business mutation.
+     */
+    readonly presenceCards?: readonly HTMLElement[]
   } = {},
 ): LayoutFlipSnapshot {
   // 不在 capture 阶段恢复正在运行的 Surface resize。新事务需要继承当前
@@ -246,6 +252,12 @@ export function captureLayoutFlip(
     options.scopeSurfaces,
   )
   const participantCards = new Set(captureCards)
+  const presenceCards = options.presenceCards ?? captureCards
+  const presenceCandidates = new Set(presenceCards.filter(inScope))
+  const isCollapsedPresenceCandidate = (element: HTMLElement): boolean => {
+    const collapsed = element.closest<HTMLElement>('[data-layout-open="false"]')
+    return collapsed !== null && collapsed.dataset.runtimeGroupAnimating !== 'true'
+  }
   // 普通列表没有 collection presence 语义时不做全量卡片扫描和 cloneNode；
   // 完成列等需要感知 collection 迁移的业务通过 data-layout-collection
   // 显式开启。collection 通常标在列表容器上，卡片节点只标
@@ -264,10 +276,14 @@ export function captureLayoutFlip(
       // `.proj-card` 被包在 `.done-card-item` 中）。Presence 选择器匹配
       // wrapper，不能用 HTMLElement 引用做严格相等判断，否则性能裁剪会
       // 把所有 wrapper 都过滤掉，最近完成列表就不会有兄弟卡片的淡入淡出。
-      const participant = Array.from(participantCards).find(candidate =>
+      const participant = Array.from(presenceCandidates).find(candidate =>
         candidate === element || candidate.contains(element) || element.contains(candidate),
       )
-      return participant !== undefined && viewportEligible.has(participant)
+      // Presence 的候选范围可以包含折叠分组里的卡片。它们在 capture 时
+      // 不应读取几何，但在业务 mutation 后可能进入可见的 recent collection，
+      // 此时必须允许 play 阶段按 semantic key 播放入场动画。
+      return participant !== undefined
+        && (viewportEligible.has(participant) || isCollapsedPresenceCandidate(participant))
     }
     : undefined
   const snapshot: LayoutFlipSnapshot = {
