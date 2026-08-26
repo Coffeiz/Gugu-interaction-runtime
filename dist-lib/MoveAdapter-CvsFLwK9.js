@@ -1259,7 +1259,7 @@ function Fe(e) {
 				}), C = null;
 				return;
 			}
-			E = u, D = u, o && (t.concealVisualTarget(e, u), t.keepSurfaceTargetVisible(c.columnId, u)), !o && i?.kind === "rect" && t.concealVisualTarget(e, u);
+			E = u, D = u, o && t.keepSurfaceTargetVisible(c.columnId, u), !o && i?.kind === "rect" && t.concealVisualTarget(e, u);
 			let d = t.findObjectIdByElement(u, n) ?? n, f = i?.kind === "rect" ? (() => {
 				let e = u.getBoundingClientRect();
 				return e.width > 0 && e.height > 0 ? {
