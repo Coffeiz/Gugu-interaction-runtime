@@ -267,24 +267,8 @@ export function createDetachMoveFromAdapter(config: {
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
       if (!landedEl) {
-        console.info('[runtime-canvas-landing-probe]', JSON.stringify({
-          phase: 'runtime-target-missing',
-          sessionId: sid,
-          objectId,
-          destination,
-          targetKind: target?.kind,
-        }))
         landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
       }
-      console.info('[runtime-canvas-landing-probe]', JSON.stringify({
-        phase: 'runtime-target-resolved',
-        sessionId: sid,
-        objectId,
-        targetKind: target?.kind,
-        landingElementConnected: landedEl.isConnected,
-        targetVisibility: landedEl.style.visibility || 'default',
-        targetDisplay: landedEl.style.display || 'default',
-      }))
       landingTargetElement = landedEl
       revealedTargetElement = landedEl
       if (landingElement) {

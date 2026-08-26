@@ -1253,27 +1253,13 @@ function Fe(e) {
 				})
 			});
 			if (!u) {
-				console.info("[runtime-canvas-landing-probe]", JSON.stringify({
-					phase: "runtime-target-missing",
-					sessionId: e,
-					objectId: n,
-					destination: c,
-					targetKind: i?.kind
-				})), C?.complete({
+				C?.complete({
 					completed: !1,
 					reason: "target-not-registered"
 				}), C = null;
 				return;
 			}
-			console.info("[runtime-canvas-landing-probe]", JSON.stringify({
-				phase: "runtime-target-resolved",
-				sessionId: e,
-				objectId: n,
-				targetKind: i?.kind,
-				landingElementConnected: u.isConnected,
-				targetVisibility: u.style.visibility || "default",
-				targetDisplay: u.style.display || "default"
-			})), E = u, D = u, o && (t.concealVisualTarget(e, u), t.keepSurfaceTargetVisible(c.columnId, u)), !o && i?.kind === "rect" && t.concealVisualTarget(e, u);
+			E = u, D = u, o && (t.concealVisualTarget(e, u), t.keepSurfaceTargetVisible(c.columnId, u)), !o && i?.kind === "rect" && t.concealVisualTarget(e, u);
 			let d = t.findObjectIdByElement(u, n) ?? n, f = i?.kind === "rect" ? (() => {
 				let e = u.getBoundingClientRect();
 				return e.width > 0 && e.height > 0 ? {
