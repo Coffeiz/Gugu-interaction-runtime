@@ -2500,11 +2500,15 @@ var Ie = class {
 	}
 	stopMoveVisualTracking(e) {
 		let t = this.moveVisualFrames.has(e.id) || this.moveVisualPhases.has(e.id), n = this.moveVisualFrames.get(e.id);
-		n !== void 0 && typeof cancelAnimationFrame == "function" && cancelAnimationFrame(n), this.moveVisualFrames.delete(e.id), this.moveVisualPhases.delete(e.id), t && this.events.emit({
+		n !== void 0 && typeof cancelAnimationFrame == "function" && cancelAnimationFrame(n), this.moveVisualFrames.delete(e.id), this.moveVisualPhases.delete(e.id), t && (this.events.emit({
 			type: "move-visual-end",
 			sessionId: e.id,
 			objectId: e.objectId
-		});
+		}), this.events.emit({
+			type: "move-visual-settled",
+			sessionId: e.id,
+			objectId: e.objectId
+		}));
 	}
 	orchestrateMoveSession(e, t = {}) {
 		let n;
