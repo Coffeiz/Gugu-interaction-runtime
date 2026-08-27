@@ -271,16 +271,11 @@ export function createDetachMoveFromAdapter(config: {
       }
       landingTargetElement = landedEl
       revealedTargetElement = landedEl
-      if (landingElement) {
-        // 业务层可能已经在 commit 后乐观插入目标节点。先登记隐藏 ownership，
-        // 再启动 landing，避免目标本体在代理完成飞入前先闪现一帧；visibility
-        // 不影响 getBoundingClientRect，因此不会改变落地测量。
-        runtime.concealVisualTarget(sid, landedEl)
-        runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
-      }
-      if (!landingElement && target?.kind === 'rect') {
-        runtime.concealVisualTarget(sid, landedEl)
-      }
+      // 目标本体的隐藏由 VisualAdapter 根据 preserveTarget 统一决定。
+      // 这里不能无条件 conceal：文件库的文件夹/面包屑注册了
+      // preserveMoveTarget，目标应在 landing 期间保持可见；此前此处的
+      // 额外 conceal 绕过了该配置，导致目标卡片/面包屑闪退一段时间。
+      if (landingElement) runtime.keepSurfaceTargetVisible(destination.columnId, landedEl)
       const targetObjectId = runtime.findObjectIdByElement(landedEl, objectId) ?? objectId
       const liveLandingRect = target?.kind === 'rect'
         ? (() => {
