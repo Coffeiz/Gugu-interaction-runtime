@@ -1,4 +1,4 @@
-import { applyFloatingStyle, claimVisibilityOwnership, clearFloatingStyle, getFloatingProxy, getProxyAttitude, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
+import { applyFloatingStyle, claimVisibilityOwnership, clearFloatingStyle, concealElement, getFloatingProxy, getProxyAttitude, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
 import { createCardMotionController } from '../../motion/CardMotionController'
 import { createDirectFollowController, type DragMotionDriver } from '../../motion/DirectFollowController'
@@ -271,6 +271,11 @@ export function createDetachMoveFromAdapter(config: {
       }
       landingTargetElement = landedEl
       revealedTargetElement = landedEl
+      // 自由画布用矩形落点，没有把 DOM 目标传给 VisualAdapter，因此 adapter
+      // 不会走 targetElement 的自动 conceal。业务 Action 已经把本体插入画布时，
+      // 必须先登记本 session 的可见性 ownership，否则本体会在代理开始飞行前
+      // 先闪现一帧；后续统一 reveal 会按同一 owner 恢复它。
+      if (target?.kind === 'rect') concealElement(landedEl, sid)
       // 目标本体的隐藏由 VisualAdapter 根据 preserveTarget 统一决定。
       // 这里不能无条件 conceal：文件库的文件夹/面包屑注册了
       // preserveMoveTarget，目标应在 landing 期间保持可见；此前此处的

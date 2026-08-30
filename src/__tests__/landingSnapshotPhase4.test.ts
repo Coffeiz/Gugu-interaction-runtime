@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Runtime } from '../Runtime'
 import { resolveDetachRegrabTarget, startDetachLandingVisual } from '../runtime/DetachMoveDriver'
+import { concealElement, revealElement } from '../dom/Visual'
 
 function rect(width: number, height: number): DOMRect {
   return {
@@ -17,6 +18,20 @@ function rect(width: number, height: number): DOMRect {
 }
 
 describe('landing snapshot Phase 4 异常接力', () => {
+  it('矩形落地目标在代理完成前保持隐藏，并且只由当前 session 恢复', () => {
+    const target = document.createElement('article')
+    document.body.append(target)
+
+    concealElement(target, 'landing-session')
+    expect(target.style.visibility).toBe('hidden')
+    expect(revealElement(target, 'old-session')).toBe(false)
+    expect(target.style.visibility).toBe('hidden')
+    expect(revealElement(target, 'landing-session')).toBe(true)
+    expect(target.style.visibility).toBe('')
+
+    target.remove()
+  })
+
   it('regrab 不接管断开或零尺寸节点，避免从左上角重建代理', () => {
     const root = document.createElement('div')
     const zero = document.createElement('div')
