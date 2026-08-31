@@ -1,9 +1,11 @@
 <div align="center">
 
+<img src="./docs/assets/Gugu-logo-colored.png" width="128" alt="Gugu Logo">
+
 # Gugu Interaction Runtime
 
 <p>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-2ea44f.svg" alt="Apache-2.0 License"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-2ea44f.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/Runtime-3.0.3-6f42c1.svg" alt="Runtime 3.0.3">
   <img src="https://img.shields.io/badge/TypeScript-5.x-3178c6.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/Vue-3.x-42b883.svg" alt="Vue 3">
@@ -27,12 +29,12 @@
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="./docs/assets/kanban-drag-1.gif" width="100%" alt="看板跨列拖拽示例">
+      <img src="./docs/assets/kanban-drag-1.gif" width="640" alt="看板跨列拖拽示例">
       <h3>看板</h3>
       <p>跨列移动、同列排序、分组布局与 FLIP 动画。适合项目看板、任务流和状态列。</p>
     </td>
     <td width="50%" valign="top">
-      <img src="./docs/assets/file-drag-1.gif" width="100%" alt="文件库拖拽示例">
+      <img src="./docs/assets/file-drag-1.gif" width="640" alt="文件库拖拽示例">
       <h3>文件库</h3>
       <p>文件夹目标、面包屑、多选移动与网格/列表布局。适合文件树和资源管理器。</p>
     </td>
@@ -43,12 +45,12 @@
       <table>
         <tr>
           <td width="50%" valign="top">
-            <img src="./docs/assets/canvas-drag-1.gif" width="100%" alt="画布自由落点拖拽示例">
+            <img src="./docs/assets/canvas-drag-1.gif" width="640" alt="画布自由落点拖拽示例">
             <h4>自由落点</h4>
             <p>支持画布缩放和自由坐标落地，适合白板、流程图和自由布局编辑器。</p>
           </td>
           <td width="50%" valign="top">
-            <img src="./docs/assets/canvas-drag-2.gif" width="100%" alt="画布与抽屉跨容器拖拽示例">
+            <img src="./docs/assets/canvas-drag-2.gif" width="640" alt="画布与抽屉跨容器拖拽示例">
             <h4>跨容器拖拽</h4>
             <p>支持画布与浮动抽屉之间的对象移动，并保持代理、落地和布局交接连续。</p>
           </td>
