@@ -4,6 +4,8 @@
 
 # Gugu Interaction Runtime
 
+<p><a href="./README_en.md">English</a></p>
+
 <p>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-2ea44f.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/Runtime-3.0.3-6f42c1.svg" alt="Runtime 3.0.3">
