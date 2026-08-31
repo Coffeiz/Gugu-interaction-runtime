@@ -1,6 +1,6 @@
 # 画布节点注册与抽屉首次落地连接实施方案
 
-> 状态：Phase 0、Phase 1、Phase 2 已完成，进入回归收口阶段。
+> 状态：Phase 0、Phase 1、Phase 2 和回归验收已完成。本文保留为画布连接问题的历史排查与迁移记录。
 
 ## 目标
 
@@ -60,7 +60,7 @@ D. 画布卡已经注册正确，但连接命中仍使用旧的节点模型坐�
 因此根因判定为 **B：乐观插入使用 `clientKey` 生成的 object ID，但连接开始/完成逻辑
 仍按 `nodeId` 拼接旧 ID**。Phase 0 未修改行为，临时 JSON 探针已清理。
 
-## Phase 1：统一连接 object ID（进行中）
+## Phase 1：统一连接 object ID（已完成）
 
 连接起点和终点统一使用 `mindCanvasObjectId(item)`，不再在 `MindCanvas.vue` 中手写
 `mind:${nodeId}`。这样乐观插入对象的 `clientKey` 会贯穿连接生命周期。
@@ -72,12 +72,12 @@ D. 画布卡已经注册正确，但连接命中仍使用旧的节点模型坐�
 - [x] 保留历史对象没有 `clientKey` 时的 `mind:${nodeId}` 兼容行为；
 - [x] 保留 Runtime 的端口命中、连接校验和连接生命周期。
 
-### 待验证
+### 验证结果
 
 - [x] 抽屉拖入画布后第一次即可开始连接；
 - [x] 乐观对象替换为服务端对象后仍可连接。
 
-## Phase 2：统一节点能力边界（进行中）
+## Phase 2：统一节点能力边界（已完成）
 
 在 `useMindRuntimeObject()` 内部根据已有 `surfaceId` 派生能力：
 

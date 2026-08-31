@@ -4,8 +4,8 @@
 >
 > 本文针对需要“外壳尺寸动画 + 内容分组布局 + 内部滚动 + 拖拽落点可见性”协同工作的
 > 浮动 Surface，例如 Gugu-web 画布右侧项目抽屉。Core 的完整契约仍以
-> [INTEGRATION.md](../INTEGRATION.md) 为准，Vue composable 的现有契约见
-> [VUE.md](VUE.md)。
+> [INTEGRATION.md](../../INTEGRATION.md) 为准，Vue composable 的现有契约见
+> [VUE.md](../../integration/VUE.md)。
 
 ## 一、问题与目标
 
@@ -200,7 +200,7 @@ Vue 适配层可以自动计算：
 5. 内容滚动位置的产品语义（例如底部锚定）；
 6. 在自动发现无法表达时提供显式 getter。
 
-## 五、执行 TODO
+## 五、实施记录
 
 ### Phase 0：基线与契约 ✅
 

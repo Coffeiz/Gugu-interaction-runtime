@@ -5,7 +5,7 @@
 > 本文记录稳定的 Vue 适配层 API。Core API 的完整契约仍以
 > [../INTEGRATION.md](../INTEGRATION.md) 为准。
 >
-> 分阶段执行计划见 [VUE_IMPLEMENTATION_PLAN.md](./VUE_IMPLEMENTATION_PLAN.md)。
+> 分阶段执行计划见 [归档的 Vue 实施计划](../archive/plans/VUE_IMPLEMENTATION_PLAN.md)。
 
 ## 目标
 

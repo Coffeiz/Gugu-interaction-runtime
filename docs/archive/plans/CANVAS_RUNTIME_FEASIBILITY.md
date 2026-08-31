@@ -6,9 +6,10 @@
 
 关联文档：
 
-- [INTEGRATION.md](./INTEGRATION.md)：Runtime Core API 契约
-- [integration/VUE.md](./integration/VUE.md)：Vue DOM 生命周期适配
-- [DESIGN.md](./DESIGN.md)：Runtime 内部职责和设计约束
+- [API.md](../../API.md)：Runtime Core API 参考
+- [INTEGRATION.md](../../INTEGRATION.md)：Runtime 接入流程
+- [integration/VUE.md](../../integration/VUE.md)：Vue DOM 生命周期适配
+- [DESIGN.md](../../DESIGN.md)：Runtime 内部职责和设计约束
 
 ## 一、目标与非目标
 
@@ -37,7 +38,7 @@
 
 ## 二、现状审核
 
-审核基线：Runtime `main`（`9d55d40`）与 Gugu-web 当前画布代码。
+审核基线：Runtime `3.0.2`（发布提交 `89f0746`）与 Gugu-web 当前画布代码。
 
 ### 2.1 Runtime 已具备的能力
 
@@ -261,7 +262,7 @@ runtime.configureMotion({
 - 为画布复制看板/文件的 FLIP、reveal、regrab 逻辑；
 - Stage 1 为了通过测试加入隐式 camera fallback。
 
-## 五、Stage 1 实施 TODO
+## 五、Stage 1 实施记录与剩余工作
 
 ### A. Runtime Core
 

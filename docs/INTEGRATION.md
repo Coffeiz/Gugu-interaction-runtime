@@ -2,17 +2,28 @@
 
 ## 接入状态
 
-本文描述的是 3.0.0 的稳定接入 API。Gugu-web 项目看板、文件库和项目文件面板均已完成
+本文描述的是 3.0.2 的稳定接入流程。完整公开接口集中整理在
+[Core API 参考](./API.md)；Gugu-web 项目看板、文件库和项目文件面板均已完成
 Runtime 回归，联调直接使用 Runtime 源码而非 npm 包；文件业务仍由 Gugu-web 自己管理，
 Runtime 不持有文件树、权限或 API。
 
-本文只作为框架无关 Core API 的完整说明书。Vue 的简化接入方案单独记录在
+本文负责“如何接入”。框架无关 API 的字段和方法索引请以
+[Core API 参考](./API.md) 为准。Vue 的简化接入方案单独记录在
 [Vue 接入指南](integration/VUE.md)，该指南已完成并作为 Vue 业务接入的推荐入口，不改变本文的 Core 契约。
 
 本文的唯一业务语义契约是 Runtime Core API。Vue、React 或其他框架都可以直接调用同一套
 `runtime.objects`、`runtime.surfaces`、`runtime.targets` 和 `runtime.onAction()`；框架
 只负责把自己的 DOM ref 和组件生命周期接到这些 API 上，不产生另一套拖拽语义。Runtime
 同时提供可选的 Vue/React DOM 适配器，用来收敛这部分重复的 ref、卸载和布局提交代码。
+
+## 阅读顺序
+
+1. 先看“五分钟接入”，完成 Object、Surface 和 Action 的最小链路。
+2. 再看“核心 API 参数”和“画布 Node / Connection”，补齐对象类型、目标和连接能力。
+3. 需要多选、Presence、紧凑代理或画布相机时，按需阅读对应专题章节。
+4. Vue 项目最后切换到 [Vue 接入指南](integration/VUE.md) 的 composable 方案；React 或其他框架继续使用 Core API 和 DOM adapter。
+
+方法和类型的完整索引见 [API.md](./API.md)。本文以示例和接入约束为主，避免重复维护每个字段的完整定义。
 
 看板和文件 Demo 也直接使用这些注册表 API。`runtime.registerSurface()`、
 `runtime.registerTarget()` 等旧的 Runtime 便捷包装已移除，不再作为接入入口。框架适配器
@@ -37,7 +48,10 @@ project-files:19:file:123
 Runtime 不需要理解 `fileId`、`folderId` 或文件 API。多选拖拽使用通用 Group Session 和
 `move-group` Action，文件业务侧只负责把对象 ID 列表分流到已有的移动、权限和回滚逻辑。
 
-## 五分钟接入（3.0.0）
+## 五分钟接入（3.0.2）
+
+> 本文后面的章节保留了画布、Presence、紧凑代理和布局事务等专题示例；查找单个
+> 类型或方法时优先使用 [API 参考](./API.md)，避免在专题说明中寻找完整签名。
 
 Runtime 的常用接入只需要三件事：注册对象、注册 Surface、订阅 Action。
 默认使用 `detach` 视觉策略和内置 MotionController；业务端只负责对象 DOM、容器
@@ -971,7 +985,7 @@ Surface 的 `height` 或 `transition`。
 
 ```ts
 runtime.configureMotion({ flip, resize, landing, group })
-runtime.start({ type: 'move', objectId: card.id, input: event })
+runtime.start({ type: 'move', objectId: card.id, input: { kind: 'pointerdown', event } })
 runtime.onAction(async action => {
   await projectStore.applyAction(action)
 })

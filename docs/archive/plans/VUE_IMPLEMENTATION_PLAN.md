@@ -3,8 +3,8 @@
 > 状态：Phase 6 已完成，文件系统 Demo 与 Gugu-web 文件业务接入已完成，后续进入适配层维护与业务接入
 >
 > 本文是 Vue 适配层的执行计划。Vue API 的设计基线见
-> [VUE.md](./VUE.md)，框架无关的 Core API 仍以
-> [INTEGRATION.md](../INTEGRATION.md) 为准。
+> [VUE.md](../../integration/VUE.md)，框架无关的 Core API 仍以
+> [INTEGRATION.md](../../INTEGRATION.md) 为准。
 
 当前进度：Phase 0 至 Phase 6 已完成；后续只做兼容性维护和业务接入。
 

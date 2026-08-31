@@ -1,5 +1,8 @@
 # Vue 旧适配层参考基线
 
+> 历史参考，不是新的业务接入入口。当前 Vue 接入请使用
+> [Vue 接入指南](../../integration/VUE.md) 和 `gugu-interaction-runtime/vue`。
+
 这里保存提交 `f4ea296` 的父提交中曾经工作的 Vue API 代码，仅用于设计兼容性对照，**不参与
 构建、不作为 npm 导出，也不是当前推荐入口**。
 

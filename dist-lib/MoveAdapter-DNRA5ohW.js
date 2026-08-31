@@ -488,7 +488,7 @@ function re(e, t, n) {
 		boxSizing: "border-box",
 		margin: "0",
 		pointerEvents: "none"
-	}), delete r.dataset.runtimeProxyContent, delete r.dataset.runtimePhase, delete r.dataset.runtimeCompact, Object.assign(r.style, {
+	}), r.dataset.runtimeProxyContent = "true", e.dataset.runtimePhase && (r.dataset.runtimePhase = e.dataset.runtimePhase), e.dataset.runtimeCompact === "true" && (r.dataset.runtimeCompact = "true"), Object.assign(r.style, {
 		position: "absolute",
 		inset: "0",
 		width: "100%",

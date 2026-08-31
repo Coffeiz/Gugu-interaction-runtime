@@ -1,7 +1,7 @@
 # Interaction Runtime · 设计目标
 
-> 当前实现版本：3.0.0。接入步骤和公开参数请先阅读
-> [INTEGRATION.md](./INTEGRATION.md)。
+> 当前实现版本：3.0.2。公开接口以 [API 参考](./API.md) 为准，接入步骤见
+> [接入指南](./INTEGRATION.md)。
 
 ## 先看结论
 
@@ -27,8 +27,9 @@ Vue / React
 ### 阅读顺序
 
 - 只想接入：阅读 [INTEGRATION.md](./INTEGRATION.md)；
+- 只想查接口：阅读 [API.md](./API.md)；
 - 想理解模块职责：阅读本文的“核心原则”和“分层边界”；
-- 想继续开发：再阅读 [PLAN.md](./PLAN.md)；
+- 想继续开发：再阅读 [实施计划归档](./archive/plans/README.md)；
 - 想排查具体历史问题：阅读 `docs/devlog/`，不要把排查过程当作设计契约。
 
 ### 当前实现与规划的区别
@@ -285,7 +286,7 @@ type SessionState =
 
 （当前 demo 的 `Session.ts` 只实现了 `active/landing/handoff/done/cancelled`
 这个精简子集——`prepare`/`release`/`saving`/`interrupt`/`rollback` 还没有
-对应代码，见 [PLAN.md](./PLAN.md) 的执行计划。这里先把完整状态机的"坑位"
+对应代码，见 [实施计划归档](./archive/plans/PLAN.md) 的执行计划。这里先把完整状态机的"坑位"
 定下来，避免以后补这些分支时要推翻现在的结构。）
 
 ### 4. 对象只声明身份、DOM 和能力，不自己管生命周期
@@ -409,7 +410,7 @@ Core 可以依赖 TypeScript、Map/Set 和 AbortController；DOM 层可以依赖
 这份文件只回答"为什么这样设计"，是写给要理解/修改 Runtime 本身的人看的。
 
 - 具体的分层结构、模块职责表、目录结构、分阶段执行计划、Gugu-web 现有
-  代码到新分层的映射，见 [PLAN.md](./PLAN.md)——同样是给自己看的，关注
+代码到新分层的映射，见 [实施计划归档](./archive/plans/PLAN.md)——同样是给自己看的，关注
   "现在做到哪了、下一步做什么"。
 - 当前 Demo 默认使用 detach；具体视觉策略由 `VisualAdapter` 和对象注册配置决定。
 - 怎么把一个新的业务对象接进来（注册 Object/Surface、Vue 模板怎么写、

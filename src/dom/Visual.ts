@@ -581,9 +581,13 @@ function wrapContentForMorph(
     margin: '0',
     pointerEvents: 'none',
   })
-  delete sourceLayer.dataset.runtimeProxyContent
-  delete sourceLayer.dataset.runtimePhase
-  delete sourceLayer.dataset.runtimeCompact
+  // source layer 会在本次同步 DOM 交接后立刻参与绘制。不能在这里删掉
+  // Runtime 标记，否则它会在 phase 仍为 grabbing 的这一帧退回业务卡片的
+  // 渐变底色，产生一个性能面板可见、肉眼不一定明显的“不透明闪帧”。
+  // 保留抓取态标记，直到 source layer 随 opacity 交叉淡出并随 proxy 一起销毁。
+  sourceLayer.dataset.runtimeProxyContent = 'true'
+  if (source.dataset.runtimePhase) sourceLayer.dataset.runtimePhase = source.dataset.runtimePhase
+  if (source.dataset.runtimeCompact === 'true') sourceLayer.dataset.runtimeCompact = 'true'
   Object.assign(sourceLayer.style, {
     position: 'absolute',
     inset: '0',

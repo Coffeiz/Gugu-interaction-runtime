@@ -77,14 +77,14 @@ landingHost
 
 ### Phase 5：测试与收尾
 
-- [ ] 增加画布缩放 1.7 拖入抽屉的内容连续缩放回归测试。
-- [ ] 增加 grabbing 阴影/蓝色描边不残留回归测试。
-- [ ] 增加不同 grid/flex/padding 的双快照布局测试。
-- [ ] 增加跨 Surface regrab 测试。
-- [ ] 增加 invalid return/cancel 测试。
-- [ ] 运行 typecheck、proxy layout、motion policy、完整单测和 E2E。
-- [ ] 清理所有探针和无效旧代码。
-- [ ] 更新 CHANGELOG 和相关集成文档。
+- [x] 增加画布缩放 1.7 拖入抽屉的内容连续缩放回归测试。
+- [x] 增加 grabbing 阴影/蓝色描边不残留回归测试。
+- [x] 增加不同 grid/flex/padding 的双快照布局测试。
+- [x] 增加跨 Surface regrab 测试。
+- [x] 增加 invalid return/cancel 测试。
+- [x] 运行 typecheck、proxy layout、motion policy、完整单测和 E2E。
+- [x] 清理所有探针和无效旧代码。
+- [x] 更新 CHANGELOG 和相关集成文档。
 
 ## 验收标准
 

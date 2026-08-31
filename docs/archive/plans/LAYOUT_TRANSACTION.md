@@ -27,7 +27,7 @@ runtime.layout.request(root, { type: 'move-card', objectId: 'card-1' })
 const committed = runtime.layout.commit(root)
 ```
 
-## 实施 TODO
+## 实施记录
 
 ### Phase 0：契约收口
 

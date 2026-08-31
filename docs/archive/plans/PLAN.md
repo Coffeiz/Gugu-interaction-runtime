@@ -1,12 +1,12 @@
 # Interaction Runtime · 分层结构与执行计划
 
-> 当前稳定版本：3.0.0。Runtime 3.0.0 已以 Gugu-web 的真实看板和文件系统接入作为回归场景，
+> 当前稳定版本：3.0.2。Runtime 3.0.2 已以 Gugu-web 的真实看板和文件系统接入作为回归场景，
 > 验证“只注册 Object、Surface、Target 和 Action 即可接入业务”的 Runtime 契约。Gugu-web
 > 直接编译本仓库 `src/`，不经 npm 包或构建产物。
 
-设计动机见 [DESIGN.md](./DESIGN.md)。本文件是具体的模块划分、目录结构和
+设计动机见 [DESIGN.md](../../DESIGN.md)。本文件是具体的模块划分、目录结构和
 分阶段执行计划——写给自己看的架构/进度文档。如果你是要接入这套 Runtime
-的使用者，看 [INTEGRATION.md](./INTEGRATION.md) 就够了，不用读这份。
+的使用者，看 [API.md](../../API.md) 和 [INTEGRATION.md](../../INTEGRATION.md) 就够了，不用读这份。
 
 ## 一、三层职责
 
@@ -83,7 +83,7 @@ pointerup
   → 恢复 Vue Transition，Cleanup 清理
 ```
 
-## 四、目录结构（2.0.1）
+## 四、目录结构（3.0.x）
 
 ```
 src/
@@ -119,14 +119,14 @@ src/
 
 ### 当前稳定基线
 
-Runtime 3.0.0 当前分支基线为提交 `f908d65`（文件系统与画布接入回归完成）；当前工作树另有
-收起抽屉落点和 Surface accepts 响应式更新修改，待进入下一次发布记录。
+Runtime 3.0.2 当前分支基线为发布提交 `89f0746`（文件系统、画布接入与布局事务回归完成）；
+当前工作树与该发布提交一致。后续新增能力继续从独立分支开始，并通过 Demo 与浏览器回归验证。
 Session、MoveBehavior、Action、MotionController、landing/reveal、regrab、FLIP、
 Vue/React DOM 适配器、文件系统 Demo 和 `proxyLayout` API 均已进入稳定实现。
 后续新增能力继续从独立分支开始，并通过 Demo 与浏览器回归验证；Gugu-web 文件页、
 画布和多选等业务迁移仍按阶段 2/3 的计划推进。
 Vue composable 适配层已经进入稳定接入路径，兼容基线与迁移边界见
-[Vue 接入指南](integration/VUE.md)。新业务优先使用 `useObject`、`useSurface`、
+[Vue 接入指南](../../integration/VUE.md)。新业务优先使用 `useObject`、`useSurface`、
 `useTarget` 和 `useRuntimeAction`，`createVueRuntimeAdapter` 只作为旧接入面的过渡桥接。
 
 ### 阶段 0：本仓库内的最小骨架（demo，不接业务）
@@ -227,7 +227,7 @@ Object/Session 模型）——都是目前 demo 里"能跑，但没做全"的部
 - [x] `hitTest` 从 `kanbanDrag.ts`/`kanbanDragDetach.ts` 里的两份重复代码
       抽成公共的 `Hit` 模块；clone 与 detach 现在共享同一套命中语义
 
-这几项做完，[INTEGRATION.md](./INTEGRATION.md) 里的 Core API 契约已经成立，
+这几项做完，[INTEGRATION.md](../../INTEGRATION.md) 里的 Core API 契约已经成立，
 不再保留 `useObject`/`useSurface` 作为接入入口。`Motion`（速度延续、物理运动、飞行中重新瞄准目标）暂不在这批里，
 后续已在阶段 0.9.6 由 MotionController 和 Runtime 内置视觉策略完成，当前不再由
 业务 Demo 维护独立的落地动画入口。
@@ -501,7 +501,7 @@ grabbing
 
 首个真实接入目标是看板项目卡。看板已有 clone/detach 两种视觉策略和
 完整的跨列、同列、落地中断回归场景，适合先验证 Runtime 纯 API 是否能收回
-业务侧的事务编排。这也是 2.0.1 的真实业务回归门槛，不再把 Demo 通过视为业务接入通过。
+业务侧的事务编排。这也是早期 2.0.1 阶段设定的真实业务回归门槛，不再把 Demo 通过视为业务接入通过。
 目标调用方只有三类代码：
 
 ```text
@@ -566,7 +566,7 @@ grabbing
 - [x] 每个交互只输出一次 Action；任意时刻每张卡最多一个视觉 proxy；结束后无受控样式、
       listener、RAF、lease 或残留 overlay 节点；
 - [x] Gugu-web 项目页不再 import 旧项目拖拽/完成列 FLIP 编排模块；
-- [x] Runtime 单测、真实浏览器集成回归、Gugu-web typecheck/build 全部通过后发布 2.0.1。
+- [x] Runtime 单测、真实浏览器集成回归、Gugu-web typecheck/build 全部通过后完成早期 2.0.1 阶段验收。
 
 **完成定义（已满足）**：Gugu-web 只保留对象/Surface 注册、对象与容器样式、Action 到 Store/API 的映射，
 不再为普通卡片移动写 adapter 或生命周期闭包。回归记录用例细节（1-1 最后一项）留待后续按需补充，
