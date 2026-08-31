@@ -22,10 +22,6 @@
     "./runtime/move/MoveAdapter": {
       "types": "./dist-lib/runtime/move/MoveAdapter.d.ts",
       "import": "./dist-lib/runtime/move/MoveAdapter.js"
-    },
-    "./runtime/detach/DetachAdapter": {
-      "types": "./dist-lib/runtime/move/MoveAdapter.d.ts",
-      "import": "./dist-lib/runtime/move/MoveAdapter.js"
     }
   },
   "files": [

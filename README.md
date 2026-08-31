@@ -22,6 +22,8 @@
 
 <p>把拖拽、布局联动、落地交接和节点连接交给 Runtime，让业务代码只需要声明对象与区域，并接收语义化 Action。</p>
 
+<p>这是一个 Vibe Coding 项目，欢迎通过 Issue 或 Pull Request 反馈问题、提出建议和贡献改进。</p>
+
 </div>
 
 ## 使用案例
@@ -267,4 +269,9 @@ npm run build:lib
 
 ## 许可证
 
-[Apache-2.0](LICENSE)
+[MIT](LICENSE)
+
+## 联系方式
+
+- Email：`coffeiz216@gmail.com`
+- QQ：`1005757597`
