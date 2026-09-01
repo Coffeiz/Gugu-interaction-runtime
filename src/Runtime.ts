@@ -57,8 +57,6 @@ export type RuntimeEvent =
   | { type: 'target-added' | 'target-removed' | 'target-changed'; id: string }
   | { type: 'move-visual-update'; sessionId: string; objectId: string; phase: 'active' | 'landing'; rect: { x: number; y: number; width: number; height: number } }
   | { type: 'move-visual-end'; sessionId: string; objectId: string }
-  /** 视觉跟踪结束后的完整移动事务收尾，不能与 move-visual-end 混用。 */
-  | { type: 'move-visual-settled'; sessionId: string; objectId: string }
   | { type: 'ownership-changed'; id: string }
 
 export type RuntimeLandingTargetOptions = Omit<
@@ -1784,12 +1782,7 @@ setMotionProfiles(this.registry.motionProfile)
     if (frame !== undefined && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
     this.moveVisualFrames.delete(session.id)
     this.moveVisualPhases.delete(session.id)
-    if (tracked) {
-      this.events.emit({ type: 'move-visual-end', sessionId: session.id, objectId: session.objectId })
-      // move-visual-end 只表示 RAF/phase 跟踪停止。事务可能仍在 reveal、handoff
-      // 或 regrab 收尾，业务层必须等到这里再允许实时事件刷新替换 DOM。
-      this.events.emit({ type: 'move-visual-settled', sessionId: session.id, objectId: session.objectId })
-    }
+    if (tracked) this.events.emit({ type: 'move-visual-end', sessionId: session.id, objectId: session.objectId })
   }
 
   /**

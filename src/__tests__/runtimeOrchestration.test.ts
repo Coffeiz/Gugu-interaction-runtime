@@ -678,19 +678,6 @@ describe('Runtime move orchestration', () => {
     expect(proxyDispose).toHaveBeenCalledOnce()
   })
 
-  it('视觉跟踪结束后才发出完整事务 settled 事件', () => {
-    const runtime = createRuntime()
-    const events: string[] = []
-    runtime.subscribe(event => {
-      if (event.type === 'move-visual-end' || event.type === 'move-visual-settled') events.push(event.type)
-    })
-    const handle = runtime.start(createRequest())
-
-    runtime.cancel(handle.id, 'regrab')
-
-    expect(events).toEqual(['move-visual-end', 'move-visual-settled'])
-  })
-
   it('Surface 目标滚动由 Runtime 统一保持在视口内', () => {
     const runtime = createRuntime()
     const viewport = document.createElement('div')
