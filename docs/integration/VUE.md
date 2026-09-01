@@ -66,6 +66,7 @@ const { elementRef } = useSurface({
   id: `column:${status}`,
   type: 'project-column',
   accepts: ['project-card'],
+  layout: 'grid',
 })
 ```
 
@@ -76,6 +77,7 @@ const { elementRef } = useSurface({
   id: 'mind:drawer',
   type: 'mind-drawer',
   accepts: ['project-card'],
+  layout: 'grid',
   layoutElement: () => viewportRef.value,
   measureLayout: () => ({ height: contentRef.value?.scrollHeight ?? 0 }),
 })

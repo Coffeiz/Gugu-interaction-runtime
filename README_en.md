@@ -128,16 +128,23 @@ The Runtime does not own projects, files, permissions, or backend APIs. It only 
 Vue projects should use the dedicated entry point. The composables handle DOM refs, reactive field updates, component unmounting, and generation protection:
 
 ```ts
+// main.ts: provide the Runtime instance at the app level
+import { createApp } from 'vue'
+import { runtime } from 'gugu-interaction-runtime'
+import { runtimeInjectionKey } from 'gugu-interaction-runtime/vue'
+import App from './App.vue'
+
+createApp(App).provide(runtimeInjectionKey, runtime).mount('#app')
+```
+
+```ts
+// Business component: declare objects, surfaces, and Action handling only
 import {
-  provideRuntime,
   useObject,
   useSurface,
   useTarget,
   useRuntimeAction,
 } from 'gugu-interaction-runtime/vue'
-import { runtime } from 'gugu-interaction-runtime'
-
-provideRuntime(runtime)
 
 const { elementRef } = useObject({
   id: 'project:123',
@@ -148,6 +155,12 @@ const { elementRef } = useObject({
 
 useRuntimeAction(action => projectStore.applyInteraction(action))
 ```
+
+> An instance provided by `provideRuntime(runtime)` is only visible to **child**
+> components. Calling `provideRuntime()` and then `useObject()` /
+> `useRuntimeAction()` in the same component throws
+> `Vue Runtime provider is missing; call provideRuntime(runtime) in a parent component`.
+> Provide the Runtime in a parent component, or inject it at the app level as shown above.
 
 Bind `elementRef` to the real object element in the template. Floating drawers and other complex areas can use:
 
