@@ -131,16 +131,23 @@ Vue 项目推荐使用独立入口。composable 会处理 DOM ref、响应式字
 generation 保护：
 
 ```ts
+// main.ts：在应用级注入 Runtime 实例
+import { createApp } from 'vue'
+import { runtime } from 'gugu-interaction-runtime'
+import { runtimeInjectionKey } from 'gugu-interaction-runtime/vue'
+import App from './App.vue'
+
+createApp(App).provide(runtimeInjectionKey, runtime).mount('#app')
+```
+
+```ts
+// 业务组件：只声明对象、区域和 Action
 import {
-  provideRuntime,
   useObject,
   useSurface,
   useTarget,
   useRuntimeAction,
 } from 'gugu-interaction-runtime/vue'
-import { runtime } from 'gugu-interaction-runtime'
-
-provideRuntime(runtime)
 
 const { elementRef } = useObject({
   id: 'project:123',
@@ -151,6 +158,11 @@ const { elementRef } = useObject({
 
 useRuntimeAction(action => projectStore.applyInteraction(action))
 ```
+
+> `provideRuntime(runtime)` 注入的实例只对**子组件**可见。在同一个组件里先调用
+> `provideRuntime()` 再调用 `useObject()` / `useRuntimeAction()` 会抛出
+> `Vue Runtime provider is missing; call provideRuntime(runtime) in a parent component`。
+> 请把注入放在父组件，或者按上面的写法在 app 级注入。
 
 模板中将 `elementRef` 绑定到真实对象节点即可。浮动抽屉等复杂区域可以使用：
 
