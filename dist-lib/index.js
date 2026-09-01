@@ -1,5 +1,5 @@
 import { _ as e, a as t, c as n, d as r, f as i, g as a, h as o, i as s, l as c, m as l, n as u, o as d, p as f, r as p, s as m, t as h, u as g, v as _, y as v } from "./GroupLayout-DZr40zZY.js";
-import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-QuDaWmQ0.js";
+import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-JQ8Gp6SG.js";
 //#region src/core/Emitter.ts
 var I = class {
 	constructor() {
@@ -584,7 +584,7 @@ var W = class {
 			completed: !1,
 			reason: "target-zero-size"
 		});
-		r.style.transition = "none";
+		i && !n.preserveTarget && !n.targetVisibilityOwned && F(i, n.sessionId), r.style.transition = "none";
 		let f = n.landingMode === "target", p = M(r).dataset.runtimeCompact === "true", m = !!(n.sourceSurfaceId && n.destinationSurfaceId && n.sourceSurfaceId !== n.destinationSurfaceId), h = n.motionState ? { ...n.motionState } : void 0, g = m && n.disableTargetVisualMorph, _ = n.targetSnapshot, y = !!(_ && (_.background && _.background !== "transparent" && _.background !== "rgba(0, 0, 0, 0)" || _.backgroundImage && _.backgroundImage !== "none" || _.boxShadow && _.boxShadow !== "none")), b = !g && (f ? !n.disableTargetVisualMorph && y : !!_), S = !g && !n.disableTargetVisualMorph && y && !p && !!i, C = _?.boxShadow ? _.boxShadow : void 0, w = m && !f ? "1" : _?.opacity, T = n.landingMode === "free" ? n.motion?.freeLanding ?? n.motion?.landing : n.landingMode === "target" ? n.motion?.target?.landing ?? n.motion?.landing : n.motion?.landing, D = n.motionEnabled === !1 || n.releaseMode === "normal";
 		!f && D && (r.style.width = `${d.width}px`, r.style.height = `${d.height}px`);
 		let O = D ? ee : te, k = n.destination && typeof n.destination == "object" ? n.destination.point : void 0, A = k && typeof k.x == "number" && typeof k.y == "number" ? {
@@ -727,7 +727,7 @@ var Y = class {
 	setMotionController(e) {
 		this.motionController = e;
 	}
-}, X = class {
+}, _e = class {
 	constructor() {
 		this.sessions = /* @__PURE__ */ new Map(), this.completionGates = /* @__PURE__ */ new Map();
 	}
@@ -785,7 +785,7 @@ var Y = class {
 		let r = this.sessions.get(e);
 		if (r) return n?.(r), r.interrupt(t), this.sessions.delete(e), r;
 	}
-}, _e = class {
+}, ve = class {
 	constructor(e) {
 		this.sessions = e;
 	}
@@ -812,15 +812,15 @@ var Y = class {
 };
 //#endregion
 //#region src/runtime/RuntimeMove.ts
-function ve(e) {
+function ye(e) {
 	return !!(e && typeof e.then == "function");
 }
-var ye = class e {
+var be = class e {
 	constructor(e, t, n, r) {
 		this.updateCoordinator = e, this.releaseCoordinator = t, this.commitCoordinator = n, this.landingCoordinator = r;
 	}
 	static fromPorts(t, n, r) {
-		return new e(new be(t), new xe(), n, r);
+		return new e(new xe(t), new Se(), n, r);
 	}
 	update(e, t) {
 		this.updateCoordinator.update(e, t);
@@ -846,7 +846,7 @@ var ye = class e {
 		} catch (e) {
 			return n.cancel(a.id, e instanceof Error ? e.message : "release-failed"), Promise.resolve();
 		}
-		return ve(s) ? Promise.resolve(s).then((e) => this.finishRelease(a, o, e, n), (e) => {
+		return ye(s) ? Promise.resolve(s).then((e) => this.finishRelease(a, o, e, n), (e) => {
 			n.cancel(a.id, e instanceof Error ? e.message : "release-failed");
 		}) : this.finishRelease(a, o, s, n);
 	}
@@ -897,7 +897,7 @@ var ye = class e {
 			interrupt: (e) => t.interrupt(r.id, e ?? "interrupted")
 		};
 	}
-}, be = class {
+}, xe = class {
 	constructor(e) {
 		this.port = e;
 	}
@@ -905,7 +905,7 @@ var ye = class e {
 		let n = this.port.getSession(e);
 		!n || n.state !== "active" || this.port.getBehavior(n.type)?.update?.(this.port.createContext(e), t);
 	}
-}, xe = class {
+}, Se = class {
 	prepare(e, t) {
 		return e ? t.kind === "pointercancel" || t.kind === "blur" || t.kind === "lostpointercapture" ? {
 			kind: "cancel",
@@ -918,7 +918,7 @@ var ye = class e {
 			session: e
 		} : { kind: "ignore" }) : { kind: "ignore" };
 	}
-}, Se = class {
+}, Ce = class {
 	constructor(e, t) {
 		this.port = e, this.actions = t;
 	}
@@ -937,7 +937,7 @@ var ye = class e {
 		let a = this.port.getLifecycle(e.id), o = this.port.normalize(e.objectId, n);
 		o && await a?.surface?.leave?.(i, o.fromSurfaceId), await this.actions.emit(e.objectId, t.getContext(e.id).destination, t.getContext(e.id).transaction), o && await a?.surface?.enter?.(i, o.toSurfaceId), this.resolveIsAppend(e.objectId, o) ? this.port.playLayout(e.id, !0) : this.port.playLayout(e.id);
 	}
-}, Ce = class {
+}, we = class {
 	constructor(e) {
 		this.port = e;
 	}
@@ -951,7 +951,7 @@ var ye = class e {
 			this.port.getSession(e.id) === e && this.port.cancel(e.id, t instanceof Error ? t.message : "landing-failed");
 		}
 	}
-}, we = class {
+}, Te = class {
 	constructor(e) {
 		this.port = e;
 	}
@@ -1019,17 +1019,17 @@ var ye = class e {
 };
 //#endregion
 //#region src/dom/LandingTargetTracker.ts
-function Te(e, t) {
+function Ee(e, t) {
 	return Math.abs(e.left - t.left) < .5 && Math.abs(e.top - t.top) < .5 && Math.abs(e.width - t.width) < .5 && Math.abs(e.height - t.height) < .5;
 }
-function Z(e) {
+function X(e) {
 	return new DOMRect(e.left, e.top, e.width, e.height);
 }
-function Ee(t) {
-	let n = null, r = null, o = !1, s = Math.max(0, t.stableFrameLimit ?? 2), c = Math.max(1, t.idlePollInterval ?? 4), l = 0, u = 0, d = t.initialRect ? Z(t.initialRect) : null, p = null, m = !1, h = !1, g = !1, v = i(t.target)?.sequence ?? 0, y = null, b = () => {
+function De(t) {
+	let n = null, r = null, o = !1, s = Math.max(0, t.stableFrameLimit ?? 2), c = Math.max(1, t.idlePollInterval ?? 4), l = 0, u = 0, d = t.initialRect ? X(t.initialRect) : null, p = null, m = !1, h = !1, g = !1, v = i(t.target)?.sequence ?? 0, y = null, b = () => {
 		o || (o = !0, r !== null && cancelAnimationFrame(r), r = null, n?.disconnect(), n = null, y?.(), y = null);
 	}, x = (e) => {
-		if (d && Te(d, e)) {
+		if (d && Ee(d, e)) {
 			l += 1;
 			return;
 		}
@@ -1066,7 +1066,7 @@ function Ee(t) {
 			return;
 		}
 		if (g) {
-			g = !1, f && (m = !0), p && (u = 0, x(i ? new DOMRect(p.left + i.x, p.top + i.y, p.width, p.height) : Z(p)));
+			g = !1, f && (m = !0), p && (u = 0, x(i ? new DOMRect(p.left + i.x, p.top + i.y, p.width, p.height) : X(p)));
 			return;
 		}
 		if (i) {
@@ -1078,7 +1078,7 @@ function Ee(t) {
 			return;
 		}
 		if (f) {
-			m = !0, p ? (!d || !Te(d, p)) && x(Z(p)) : C(n), u = 0;
+			m = !0, p ? (!d || !Ee(d, p)) && x(X(p)) : C(n), u = 0;
 			return;
 		}
 		if (m || h) {
@@ -1091,7 +1091,7 @@ function Ee(t) {
 }
 //#endregion
 //#region src/runtime/RuntimeVisual.ts
-var De = class {
+var Oe = class {
 	constructor(e) {
 		this.port = e;
 	}
@@ -1106,14 +1106,14 @@ var De = class {
 		return (this.port.getAdapter(e).captureVisualState ?? new G().captureVisualState)(t, n);
 	}
 	trackTarget(e, t, n, r = {}) {
-		return Ee({
+		return De({
 			...r,
 			cleanup: e,
 			target: t,
 			retarget: n
 		});
 	}
-}, Oe = class {
+}, ke = class {
 	constructor() {
 		this.proxies = /* @__PURE__ */ new Map();
 	}
@@ -1127,7 +1127,7 @@ var De = class {
 		let t = this.proxies.get(e);
 		return this.proxies.delete(e), t;
 	}
-}, ke = class {
+}, Ae = class {
 	constructor(e, t) {
 		this.port = e, this.proxies = t;
 	}
@@ -1164,7 +1164,7 @@ var De = class {
 };
 //#endregion
 //#region src/input/PointerSessionInput.ts
-function Ae(e, t, n = {}) {
+function je(e, t, n = {}) {
 	let r = n.target ?? window, i = n.captureTarget, a = !1, o = null, s = null, c = (n) => {
 		o = n, s === null && (s = r.requestAnimationFrame(() => {
 			s = null;
@@ -1199,7 +1199,7 @@ function Ae(e, t, n = {}) {
 }
 //#endregion
 //#region src/runtime/RuntimeInput.ts
-var je = class {
+var Me = class {
 	constructor(e) {
 		this.port = e, this.bindings = /* @__PURE__ */ new WeakMap(), this.disposers = /* @__PURE__ */ new Map();
 	}
@@ -1250,12 +1250,12 @@ var je = class {
 		document.addEventListener("pointerdown", i, !0), e.cleanup.trackTargetListener(document, "pointerdown", i, { capture: !0 });
 	}
 	bindSession(e, t = {}) {
-		return Ae({
+		return je({
 			update: (e, t) => this.port.update(e, t),
 			release: (e, t) => this.port.release(e, t)
 		}, e, t);
 	}
-}, Me = class {
+}, Ne = class {
 	constructor(e) {
 		this.handlers = e;
 	}
@@ -1274,7 +1274,7 @@ var je = class {
 	interrupt(e, t) {
 		this.handlers.interrupt(e, t);
 	}
-}, Q = {
+}, Z = {
 	maxModifiers: 2,
 	foldDuration: 300,
 	modifierFadeDuration: 180,
@@ -1301,28 +1301,28 @@ var je = class {
 		scale: .94
 	}]
 };
-function Ne(e) {
+function Pe(e) {
 	return {
-		maxModifiers: Math.max(0, e?.maxModifiers ?? Q.maxModifiers),
-		foldDuration: Math.max(0, e?.foldDuration ?? Q.foldDuration),
-		modifierFadeDuration: Math.max(0, e?.modifierFadeDuration ?? Q.modifierFadeDuration),
-		spread: e?.spread ?? Q.spread,
-		tight: e?.tight ?? Q.tight
+		maxModifiers: Math.max(0, e?.maxModifiers ?? Z.maxModifiers),
+		foldDuration: Math.max(0, e?.foldDuration ?? Z.foldDuration),
+		modifierFadeDuration: Math.max(0, e?.modifierFadeDuration ?? Z.modifierFadeDuration),
+		spread: e?.spread ?? Z.spread,
+		tight: e?.tight ?? Z.tight
 	};
 }
 //#endregion
 //#region src/dom/GroupVisual.ts
-function Pe(e, t) {
+function Fe(e, t) {
 	t && (e.dataset.runtimeProxyContent = "true", e.dataset.runtimeCompact = "true", e.style.boxSizing = "border-box", e.style.left = t.left ?? "50%", e.style.width = t.width, t.gridTemplateColumns && (e.style.gridTemplateColumns = t.gridTemplateColumns));
 }
-function $(e, t = new G(e)) {
+function Q(e, t = new G(e)) {
 	let n = /* @__PURE__ */ new WeakMap();
 	function r(t, r) {
 		let i = r.group;
 		if (!i || i.primaryObjectId !== r.objectId || n.has(t.element)) return;
 		let a = M(t.element), o = t.element.querySelector("[data-runtime-proxy-scale-shell=\"true\"]") ?? t.element;
 		if (o.style.overflow = "visible", a.style.zIndex = "2", !(r.sourceRect ?? r.sourceElement?.getBoundingClientRect())) return;
-		let s = Ne(r.groupDrag), c = r.proxyLayout?.compact, l = [], u = [], d = [], f = i.objectIds.map((t) => e.objects.get(t)?.element).filter((e) => !!e?.isConnected);
+		let s = Pe(r.groupDrag), c = r.proxyLayout?.compact, l = [], u = [], d = [], f = i.objectIds.map((t) => e.objects.get(t)?.element).filter((e) => !!e?.isConnected);
 		for (let e of f) l.push({
 			element: e,
 			cssText: e.style.cssText,
@@ -1355,7 +1355,7 @@ function $(e, t = new G(e)) {
 				WebkitBackdropFilter: t === 0 ? "blur(6px) saturate(1.15)" : "none",
 				transform: `${c?.transform ?? (c ? "translateX(-50%)" : "")}${c ? " " : ""}translate3d(${s.spread.x}px, ${s.spread.y}px, 0) rotateZ(${s.spread.rotate}deg) scale(${s.spread.scale})`,
 				transformOrigin: "center center"
-			}), Pe(l, c), l.dataset.runtimeGroupModifier = "true", delete l.dataset.runtimeGroupGhost, o.insertBefore(l, a), d.push(l), u.push({
+			}), Fe(l, c), l.dataset.runtimeGroupModifier = "true", delete l.dataset.runtimeGroupGhost, o.insertBefore(l, a), d.push(l), u.push({
 				element: l,
 				spread: s.spread,
 				tight: s.tight
@@ -1431,7 +1431,7 @@ function $(e, t = new G(e)) {
 }
 //#endregion
 //#region src/dom/AutoScroll.ts
-function Fe(e, t = {}) {
+function Ie(e, t = {}) {
 	let n = t.edgeSize ?? 48, r = t.maxSpeed ?? 16, i = null, a = null, o = null, s = !1, c = null, l = 0, u = null, d = null, f = null, p = () => {
 		if (!i || !i.isConnected) {
 			c = null;
@@ -1477,7 +1477,7 @@ function Fe(e, t = {}) {
 }
 //#endregion
 //#region src/dom/LayoutCache.ts
-var Ie = class {
+var Le = class {
 	constructor() {
 		this.version = 0, this.groups = /* @__PURE__ */ new WeakMap();
 	}
@@ -1501,7 +1501,7 @@ var Ie = class {
 			surfaceTargets: new Map(r)
 		}), this.groups.set(e, a);
 	}
-}, Le = class {
+}, Re = class {
 	constructor() {
 		this.sequence = 0, this.participantSequence = 0, this.planSequence = 0, this.active = /* @__PURE__ */ new WeakMap(), this.latestTransaction = /* @__PURE__ */ new WeakMap();
 	}
@@ -1605,12 +1605,12 @@ var Ie = class {
 			measurement: e.measurement
 		};
 	}
-}, Re = class {
+}, ze = class {
 	get visuals() {
 		return this.registry.visuals;
 	}
 	constructor() {
-		this.layout = new Le(), this.layoutCache = new Ie(), this.owner = new de(), this.objects = new B(), this.surfaces = new V(), this.targets = new H(), this.behaviors = new he(), this.registry = new Y(), this.hitResolver = null, this.sessionCoordinator = new X(), this.runtimeSession = new _e(this.sessionCoordinator), this.events = new I(), this.actions = new I(), this.visualProxyCoordinator = new Oe(), this.groupVisualAdapters = /* @__PURE__ */ new Map(), this.surfaceScrollFrames = /* @__PURE__ */ new WeakMap(), this.activeNodeConnection = null, this.nodeConnections = /* @__PURE__ */ new Set(), this.moveVisualFrames = /* @__PURE__ */ new Map(), this.moveVisualPhases = /* @__PURE__ */ new Map(), this.moveContentScales = /* @__PURE__ */ new Map(), this.defaultVisualAdapter = new G(this), this.moveBehavior = new W(), this.inputCoordinator = new je({
+		this.layout = new Re(), this.layoutCache = new Le(), this.owner = new de(), this.objects = new B(), this.surfaces = new V(), this.targets = new H(), this.behaviors = new he(), this.registry = new Y(), this.hitResolver = null, this.sessionCoordinator = new _e(), this.runtimeSession = new ve(this.sessionCoordinator), this.events = new I(), this.actions = new I(), this.visualProxyCoordinator = new ke(), this.groupVisualAdapters = /* @__PURE__ */ new Map(), this.surfaceScrollFrames = /* @__PURE__ */ new WeakMap(), this.activeNodeConnection = null, this.nodeConnections = /* @__PURE__ */ new Set(), this.moveVisualFrames = /* @__PURE__ */ new Map(), this.moveVisualPhases = /* @__PURE__ */ new Map(), this.moveContentScales = /* @__PURE__ */ new Map(), this.defaultVisualAdapter = new G(this), this.moveBehavior = new W(), this.inputCoordinator = new Me({
 			objects: this.objects,
 			registry: this.registry,
 			startObjectPointer: (e, t, n) => this.startObjectPointer(e, t, n),
@@ -1618,7 +1618,7 @@ var Ie = class {
 			regrab: (e, t) => this.regrab(e, t),
 			update: (e, t) => this.update(e, t),
 			release: (e, t) => this.release(e, t)
-		}), this.moveActions = new we({
+		}), this.moveActions = new Te({
 			getObjectSurface: (e) => this.objects.get(e)?.surfaceId,
 			getGroup: (e) => {
 				let t = this.sessionCoordinator.snapshot().find((t) => t.hasObject(e));
@@ -1628,7 +1628,7 @@ var Ie = class {
 				};
 			},
 			emit: (e) => this.actions.emitAsync(e)
-		}), this.moveCommit = new Se({
+		}), this.moveCommit = new Ce({
 			createContext: (e) => this.createBehaviorContext(e),
 			getLifecycle: (e) => this.moveBehavior.getLifecycle(e),
 			playLayout: (e, t) => this.playMoveLayout(e, t),
@@ -1636,21 +1636,21 @@ var Ie = class {
 			getSurfaceObjectCount: (e) => [...this.objects.values()].filter((t) => t.surfaceId === e).length,
 			hasLayoutAnchor: (e) => this.surfaces.get(e)?.element?.querySelector("[data-flip-target]") !== null,
 			getObjectIndex: (e, t) => this.getObjectSurfaceIndex(e, t)
-		}, this.moveActions), this.moveLanding = new Ce({
+		}, this.moveActions), this.moveLanding = new we({
 			createContext: (e) => this.createBehaviorContext(e),
 			getSession: (e) => this.sessionCoordinator.get(e),
 			cancel: (e, t) => this.cancel(e, t),
 			end: (e) => this.endSession(e)
-		}), this.runtimeMove = ye.fromPorts({
+		}), this.runtimeMove = be.fromPorts({
 			getSession: (e) => this.sessionCoordinator.get(e),
 			getBehavior: (e) => this.behaviors.get(e),
 			createContext: (e) => this.createBehaviorContext(this.sessionCoordinator.get(e))
-		}, this.moveCommit, this.moveLanding), this.visualState = new De({ getAdapter: (e) => this.getObjectVisualAdapter(e) }), this.visualMotion = new ke({
+		}, this.moveCommit, this.moveLanding), this.visualState = new Oe({ getAdapter: (e) => this.getObjectVisualAdapter(e) }), this.visualMotion = new Ae({
 			getSession: (e) => this.sessionCoordinator.get(e),
 			getAdapter: (e) => this.getObjectVisualAdapter(e),
 			getGroupAdapter: (e) => this.getObjectGroupVisualAdapter(e),
 			createContext: (e, t, n) => this.createVisualLifecycleContext(e, t, n)
-		}, this.visualProxyCoordinator), this.dispatcher = new Me({
+		}, this.visualProxyCoordinator), this.dispatcher = new Ne({
 			start: (e) => this.startInternal(e),
 			update: (e, t) => this.updateInternal(e, t),
 			release: (e, t) => this.releaseInternal(e, t),
@@ -1891,96 +1891,101 @@ var Ie = class {
 		if (!n) return;
 		let i = this.groupVisualAdapters.get(n);
 		if (i) return i;
-		let a = $(this, this.getObjectVisualAdapter(e));
+		let a = Q(this, this.getObjectVisualAdapter(e));
 		return this.groupVisualAdapters.set(n, a), a;
 	}
-	createVisualLifecycleContext(e, t, n, r) {
-		let i = this.sessionCoordinator.get(e), a = i ? this.objects.get(i.objectId) : void 0, o = a?.element ?? void 0, s = i ? this.getObjectVisualAdapter(i.objectId) : this.defaultVisualAdapter, c = new G(), l = a ? this.registry.objectTypes.get(a.visual ?? a.type) : void 0, u = this.getObjectCameraConfig(a?.id ?? ""), d = this.getDestinationSurfaceId(t), f = d ? this.surfaces.get(d) : void 0, p = l?.motion?.profile, m = this.registry.motionProfile, h = p || m ? {
+	preservesMoveTarget(e) {
+		let t = this.objects.get(e);
+		return (t ? this.registry.objectTypes.get(t.visual ?? t.type) : void 0)?.preserveMoveTarget ?? !1;
+	}
+	createVisualLifecycleContext(e, t, n, r, i) {
+		let a = this.sessionCoordinator.get(e), o = a ? this.objects.get(a.objectId) : void 0, s = o?.element ?? void 0, c = a ? this.getObjectVisualAdapter(a.objectId) : this.defaultVisualAdapter, l = new G(), u = o ? this.registry.objectTypes.get(o.visual ?? o.type) : void 0, d = this.getObjectCameraConfig(o?.id ?? ""), f = this.getDestinationSurfaceId(t), p = f ? this.surfaces.get(f) : void 0, m = u?.motion?.profile, h = this.registry.motionProfile, g = m || h ? {
+			...h,
 			...m,
-			...p,
 			flip: {
-				...m?.flip,
-				...p?.flip
+				...h?.flip,
+				...m?.flip
 			},
 			resize: {
-				...m?.resize,
-				...p?.resize
+				...h?.resize,
+				...m?.resize
 			},
 			landing: {
-				...m?.landing,
-				...p?.landing
+				...h?.landing,
+				...m?.landing
 			},
 			freeLanding: {
+				...h?.freeLanding,
 				...m?.freeLanding,
-				...p?.freeLanding,
 				release: {
-					...m?.freeLanding?.release,
-					...p?.freeLanding?.release
+					...h?.freeLanding?.release,
+					...m?.freeLanding?.release
 				}
 			},
 			target: {
+				...h?.target,
 				...m?.target,
-				...p?.target,
 				motion: {
-					...m?.target?.motion,
-					...p?.target?.motion
+					...h?.target?.motion,
+					...m?.target?.motion
 				},
 				landing: {
-					...m?.target?.landing,
-					...p?.target?.landing
+					...h?.target?.landing,
+					...m?.target?.landing
 				},
 				dismiss: {
-					...m?.target?.dismiss,
-					...p?.target?.dismiss
+					...h?.target?.dismiss,
+					...m?.target?.dismiss
 				}
 			},
 			group: {
-				...m?.group,
-				...p?.group
+				...h?.group,
+				...m?.group
 			}
-		} : void 0, g = typeof t == "object" && !!t && t.invalidReturn === !0, _ = n && "getBoundingClientRect" in n ? n : void 0, v = n && !_ ? n : void 0, y = !!(_ && o && _ === o), b = !!(_ && f?.element === _), x = this.getObjectProxyLayout(i?.objectId ?? "", o), S = l?.resolveMoveLandingTarget?.({
-			objectId: i?.objectId ?? "",
+		} : void 0, _ = typeof t == "object" && !!t && t.invalidReturn === !0, v = n && "getBoundingClientRect" in n ? n : void 0, y = n && !v ? n : void 0, b = !!(v && s && v === s), x = !!(v && p?.element === v), S = this.getObjectProxyLayout(a?.objectId ?? "", s), C = u?.resolveMoveLandingTarget?.({
+			objectId: a?.objectId ?? "",
 			destination: t
-		}), C = s.resolveTarget?.(i?.objectId ?? "", t), w = d ? this.targets.findForSurface(d, a?.type)?.element : null, T = !g && !y ? _ && !y && !b && (_ === S || _ === C || _ === w) ? "target" : f?.layout === "free" ? "free" : "default" : "default", E = i ? this.moveBehavior.getContext(e).transaction.destination : null, D = typeof E?.fromSurfaceId == "string" ? E.fromSurfaceId : a?.surfaceId;
+		}), w = c.resolveTarget?.(a?.objectId ?? "", t), T = f ? this.targets.findForSurface(f, o?.type)?.element : null, E = !_ && !b ? v && !b && !x && (v === C || v === w || v === T) ? "target" : p?.layout === "free" ? "free" : "default" : "default", D = a ? this.moveBehavior.getContext(e).transaction.destination : null, O = typeof D?.fromSurfaceId == "string" ? D.fromSurfaceId : o?.surfaceId;
 		return {
-			objectId: i?.objectId ?? "",
+			objectId: a?.objectId ?? "",
 			sessionId: e,
-			sourceSurfaceId: D,
-			destinationSurfaceId: d ?? void 0,
-			mode: a?.visualMode ?? "detach",
+			sourceSurfaceId: O,
+			destinationSurfaceId: f ?? void 0,
+			mode: o?.visualMode ?? "detach",
 			destination: t,
-			sourceElement: o,
+			sourceElement: s,
 			beforeContent: r,
-			targetElement: _,
-			targetRect: v,
-			sourceRect: o?.getBoundingClientRect(),
-			visualSnapshot: o ? (s.captureVisualState ?? c.captureVisualState)(o) : void 0,
-			targetSnapshot: _ ? (s.captureVisualState ?? c.captureVisualState)(_) : void 0,
-			preserveTarget: l?.preserveMoveTarget ?? !1,
-			landingMode: T,
-			releaseMode: l?.releaseMode ?? "physical",
-			contentScale: u.enabled && u.scale ? this.getSessionContentScale(e, a?.surfaceId ?? void 0) : void 0,
-			landingContentScale: u.enabled && f?.layout === "grid" ? 1 : void 0,
-			cameraOrigin: u.enabled && u.origin && u.landing ? this.getSurfaceCameraOrigin(a?.surfaceId) : void 0,
-			landingCameraOrigin: T === "free" ? this.getSurfaceCameraOrigin(d ?? void 0) : void 0,
-			landingCameraScale: T === "free" ? this.getSurfaceCameraScale(d ?? void 0) : void 0,
-			camera: u,
-			disableTargetVisualMorph: l?.disableTargetVisualMorph ?? !1,
+			targetElement: v,
+			targetRect: y,
+			sourceRect: s?.getBoundingClientRect(),
+			visualSnapshot: s ? (c.captureVisualState ?? l.captureVisualState)(s) : void 0,
+			targetSnapshot: v ? (c.captureVisualState ?? l.captureVisualState)(v) : void 0,
+			preserveTarget: this.preservesMoveTarget(o?.id ?? ""),
+			targetVisibilityOwned: i?.targetVisibilityOwned ?? !1,
+			landingMode: E,
+			releaseMode: u?.releaseMode ?? "physical",
+			contentScale: d.enabled && d.scale ? this.getSessionContentScale(e, o?.surfaceId ?? void 0) : void 0,
+			landingContentScale: d.enabled && p?.layout === "grid" ? 1 : void 0,
+			cameraOrigin: d.enabled && d.origin && d.landing ? this.getSurfaceCameraOrigin(o?.surfaceId) : void 0,
+			landingCameraOrigin: E === "free" ? this.getSurfaceCameraOrigin(f ?? void 0) : void 0,
+			landingCameraScale: E === "free" ? this.getSurfaceCameraScale(f ?? void 0) : void 0,
+			camera: d,
+			disableTargetVisualMorph: u?.disableTargetVisualMorph ?? !1,
 			landingBounds: () => {
 				let e = this.getDestinationSurfaceId(t), n = e ? this.resolveMoveSurfaceViewport(e) : null;
-				return n && _ && !n.contains(_) ? null : n?.getBoundingClientRect() ?? null;
+				return n && v && !n.contains(v) ? null : n?.getBoundingClientRect() ?? null;
 			},
-			motion: h,
-			motionEnabled: l?.motion?.enabled,
-			proxyLayout: x,
-			proxyZIndex: this.getObjectProxyZIndex(a?.id ?? ""),
-			landingProxyZIndex: this.getObjectLandingProxyZIndex(a?.id ?? "", a?.surfaceId ?? void 0, d ?? void 0),
-			affordances: l?.affordances,
-			groupDrag: l?.groupDrag,
-			group: i instanceof z ? {
-				primaryObjectId: i.primaryObjectId,
-				objectIds: i.objectIds,
-				offsets: new Map(i.objectIds.map((e) => [e, i.offsetFor(e)]).filter((e) => !!e[1]))
+			motion: g,
+			motionEnabled: u?.motion?.enabled,
+			proxyLayout: S,
+			proxyZIndex: this.getObjectProxyZIndex(o?.id ?? ""),
+			landingProxyZIndex: this.getObjectLandingProxyZIndex(o?.id ?? "", o?.surfaceId ?? void 0, f ?? void 0),
+			affordances: u?.affordances,
+			groupDrag: u?.groupDrag,
+			group: a instanceof z ? {
+				primaryObjectId: a.primaryObjectId,
+				objectIds: a.objectIds,
+				offsets: new Map(a.objectIds.map((e) => [e, a.offsetFor(e)]).filter((e) => !!e[1]))
 			} : void 0
 		};
 	}
@@ -2002,56 +2007,15 @@ var Ie = class {
 		return null;
 	}
 	applyVisualState(e, t, n) {
-		let r = typeof globalThis < "u" && globalThis.__GUGU_RUNTIME_HOVER_PROBE__ === !0;
-		r && console.log("[mind-hover-probe] runtime-apply-state " + JSON.stringify({
-			objectId: e,
-			phase: n.phase,
-			hovered: n.hovered,
-			grabbed: n.grabbed,
-			connected: t.isConnected,
-			runtimePhaseBefore: t.dataset.runtimePhase ?? null,
-			hiddenBefore: t.classList.contains("runtime-affordances-hidden"),
-			proxy: t.dataset.runtimeProxy ?? null,
-			proxyContent: t.dataset.runtimeProxyContent ?? null
-		})), this.visualState.apply(e, t, n);
-		let i = this.getObjectAffordancesConfig(e);
-		if (i && A(t, n.phase !== "idle" && n.phase !== "pressed", i.selector, `applyVisualState:${n.phase}`), r) {
-			let r = getComputedStyle(t);
-			console.log("[mind-hover-probe] runtime-apply-state-after " + JSON.stringify({
-				objectId: e,
-				phase: n.phase,
-				hovered: n.hovered,
-				connected: t.isConnected,
-				runtimePhaseAfter: t.dataset.runtimePhase ?? null,
-				className: t.className,
-				inline: {
-					opacity: t.style.opacity,
-					transform: t.style.transform,
-					transition: t.style.transition,
-					visibility: t.style.visibility
-				},
-				computed: {
-					opacity: r.opacity,
-					transform: r.transform,
-					transition: r.transition,
-					visibility: r.visibility
-				},
-				hoveredByCss: t.matches(":hover")
-			}));
-		}
+		this.visualState.apply(e, t, n);
+		let r = this.getObjectAffordancesConfig(e);
+		r && A(t, n.phase !== "idle" && n.phase !== "pressed", r.selector);
 	}
 	captureVisualState(e, t, n) {
 		return this.visualState.capture(e, t, n);
 	}
 	async revealVisualProxy(e, t, n) {
-		let r = typeof globalThis < "u" && globalThis.__GUGU_RUNTIME_HOVER_PROBE__ === !0;
-		r && console.log("[mind-hover-probe] runtime-reveal-start " + JSON.stringify({
-			sessionId: e,
-			targetConnected: t.isConnected
-		})), await this.visualMotion.reveal(e, t, n), r && console.log("[mind-hover-probe] runtime-reveal-end " + JSON.stringify({
-			sessionId: e,
-			targetConnected: t.isConnected
-		}));
+		await this.visualMotion.reveal(e, t, n);
 	}
 	registerVisualProxy(e, t) {
 		this.visualProxyCoordinator.get(e) && this.disposeVisualProxy(e), this.visualProxyCoordinator.register(e, t);
@@ -2152,7 +2116,7 @@ var Ie = class {
 	}
 	createAutoScroller(e, t = {}) {
 		let n = this.sessionCoordinator.get(e);
-		return n ? Fe(n.cleanup, t) : null;
+		return n ? Ie(n.cleanup, t) : null;
 	}
 	keepSurfaceTargetVisible(e, t) {
 		let n = this.resolveMoveSurfaceViewport(e);
@@ -2179,10 +2143,6 @@ var Ie = class {
 			this.surfaceScrollFrames.set(n, u);
 		}, u = requestAnimationFrame(l);
 		this.surfaceScrollFrames.set(n, u);
-	}
-	prepareVisualLandingTarget(e, t) {
-		let n = this.sessionCoordinator.get(e), r = n ? this.objects.get(n.objectId) : void 0;
-		(r ? this.registry.objectTypes.get(r.visual ?? r.type) : void 0)?.preserveMoveTarget || F(t, e);
 	}
 	concealVisualTarget(e, t) {
 		t.isConnected && F(t, e);
@@ -2545,11 +2505,15 @@ var Ie = class {
 	}
 	stopMoveVisualTracking(e) {
 		let t = this.moveVisualFrames.has(e.id) || this.moveVisualPhases.has(e.id), n = this.moveVisualFrames.get(e.id);
-		n !== void 0 && typeof cancelAnimationFrame == "function" && cancelAnimationFrame(n), this.moveVisualFrames.delete(e.id), this.moveVisualPhases.delete(e.id), t && this.events.emit({
+		n !== void 0 && typeof cancelAnimationFrame == "function" && cancelAnimationFrame(n), this.moveVisualFrames.delete(e.id), this.moveVisualPhases.delete(e.id), t && (this.events.emit({
 			type: "move-visual-end",
 			sessionId: e.id,
 			objectId: e.objectId
-		});
+		}), this.events.emit({
+			type: "move-visual-settled",
+			sessionId: e.id,
+			objectId: e.objectId
+		}));
 	}
 	orchestrateMoveSession(e, t = {}) {
 		let n;
@@ -2687,10 +2651,10 @@ var Ie = class {
 			hit: this.hitResolver
 		};
 	}
-}, ze = new Re();
+}, Be = new ze();
 //#endregion
 //#region src/adapters/dom.ts
-function Be(e) {
+function Ve(e) {
 	let t = /* @__PURE__ */ new Map(), n = /* @__PURE__ */ new Map(), r = /* @__PURE__ */ new Map(), i = /* @__PURE__ */ new Map();
 	return {
 		bindObject(n, r) {
@@ -2744,27 +2708,27 @@ function Be(e) {
 }
 //#endregion
 //#region src/adapters/vue.ts
-function Ve(e) {
-	return Be(e);
+function He(e) {
+	return Ve(e);
 }
 //#endregion
 //#region src/adapters/react.ts
-function He(e) {
-	return Be(e);
+function Ue(e) {
+	return Ve(e);
 }
 //#endregion
 //#region src/dom/Hit.ts
-function Ue(e, t) {
+function $(e, t) {
 	let n = e.getBoundingClientRect();
 	return t.x >= n.left && t.x <= n.right && t.y >= n.top && t.y <= n.bottom;
 }
 function We(e) {
 	return {
 		findSurface(t) {
-			return Array.from(document.querySelectorAll(e.surfaceSelector)).find((e) => Ue(e, t)) ?? null;
+			return Array.from(document.querySelectorAll(e.surfaceSelector)).find((e) => $(e, t)) ?? null;
 		},
 		findTarget(t, n, r) {
-			return Array.from(t.querySelectorAll(e.targetSelector)).filter((e) => e.dataset.card !== r).find((e) => Ue(e, n)) ?? null;
+			return Array.from(t.querySelectorAll(e.targetSelector)).filter((e) => e.dataset.card !== r).find((e) => $(e, n)) ?? null;
 		},
 		findIndex(t, n, r) {
 			let i = Array.from(t.querySelectorAll(e.targetSelector)).filter((e) => e.dataset.card !== r);
@@ -2792,4 +2756,4 @@ function Ge(e, t, n, r) {
 	} : null;
 }
 //#endregion
-export { Q as DEFAULT_GROUP_DRAG_CONFIG, x as DEFAULT_RELEASE_PROFILE, G as DefaultVisualAdapter, C as FOLLOW_PROFILE, y as FOLLOW_ROTATION, z as GroupDragSession, ce as LANDING_PROFILE, Ie as LayoutCache, Le as LayoutTransactionCoordinator, we as MoveActionCoordinator, W as MoveBehavior, Se as MoveCommitCoordinator, Ce as MoveLandingCoordinator, xe as MoveReleaseCoordinator, U as MoveTransaction, be as MoveUpdateCoordinator, B as ObjectStore, Re as Runtime, Me as RuntimeDispatcher, je as RuntimeInputCoordinator, ye as RuntimeMoveCoordinator, Y as RuntimeRegistry, _e as RuntimeSessionCoordinator, R as Session, X as SessionCoordinator, V as SurfaceStore, H as TargetStore, K as VisualAdapters, ke as VisualMotionCoordinator, Oe as VisualProxyCoordinator, De as VisualStateCoordinator, re as acquireSourceVisualLease, Ae as bindPointerSessionInput, h as cancelLayoutAnimations, l as captureCollectionPresence, u as captureLayoutFlip, b as coastOffset, le as createCardMotionController, se as createCubicBezierEasing, P as createDetachMoveFromAdapter, We as createDomHitResolver, ue as createFreeLandingMotion, $ as createGroupVisualAdapter, He as createReactRuntimeAdapter, J as createRegisteredHitResolver, Ve as createVueRuntimeAdapter, Ge as hitWithResolver, w as integrateSpring, o as playCollectionPresence, p as playLayoutFlip, D as resolveFreeLandingEasing, Ne as resolveGroupDragConfig, s as runGroupToggle, ze as runtime, m as setLayoutPresenceEnabled, S as shapeReleaseVelocity, Ee as trackLandingTarget, c as transitionGroupHeight };
+export { Z as DEFAULT_GROUP_DRAG_CONFIG, x as DEFAULT_RELEASE_PROFILE, G as DefaultVisualAdapter, C as FOLLOW_PROFILE, y as FOLLOW_ROTATION, z as GroupDragSession, ce as LANDING_PROFILE, Le as LayoutCache, Re as LayoutTransactionCoordinator, Te as MoveActionCoordinator, W as MoveBehavior, Ce as MoveCommitCoordinator, we as MoveLandingCoordinator, Se as MoveReleaseCoordinator, U as MoveTransaction, xe as MoveUpdateCoordinator, B as ObjectStore, ze as Runtime, Ne as RuntimeDispatcher, Me as RuntimeInputCoordinator, be as RuntimeMoveCoordinator, Y as RuntimeRegistry, ve as RuntimeSessionCoordinator, R as Session, _e as SessionCoordinator, V as SurfaceStore, H as TargetStore, K as VisualAdapters, Ae as VisualMotionCoordinator, ke as VisualProxyCoordinator, Oe as VisualStateCoordinator, re as acquireSourceVisualLease, je as bindPointerSessionInput, h as cancelLayoutAnimations, l as captureCollectionPresence, u as captureLayoutFlip, b as coastOffset, le as createCardMotionController, se as createCubicBezierEasing, P as createDetachMoveFromAdapter, We as createDomHitResolver, ue as createFreeLandingMotion, Q as createGroupVisualAdapter, Ue as createReactRuntimeAdapter, J as createRegisteredHitResolver, He as createVueRuntimeAdapter, Ge as hitWithResolver, w as integrateSpring, o as playCollectionPresence, p as playLayoutFlip, D as resolveFreeLandingEasing, Pe as resolveGroupDragConfig, s as runGroupToggle, Be as runtime, m as setLayoutPresenceEnabled, S as shapeReleaseVelocity, De as trackLandingTarget, c as transitionGroupHeight };

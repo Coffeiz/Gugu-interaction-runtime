@@ -61,6 +61,8 @@ export type RuntimeEvent =
    * 释放业务侧的 landing 闸门。旧 session 不会在该事件之后继续发视觉更新。
    */
   | { type: 'move-visual-end'; sessionId: string; objectId: string }
+  /** 视觉跟踪结束后的完整移动事务收尾，不能与 move-visual-end 混用。 */
+  | { type: 'move-visual-settled'; sessionId: string; objectId: string }
   | { type: 'ownership-changed'; id: string }
 
 export type RuntimeLandingTargetOptions = Omit<
@@ -752,11 +754,19 @@ setMotionProfiles(this.registry.motionProfile)
     return adapter
   }
 
+  /** 查询对象类型是否要求语义目标在 landing 期间保持可见。 */
+  preservesMoveTarget(objectId: string): boolean {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    return registration?.preserveMoveTarget ?? false
+  }
+
   createVisualLifecycleContext(
     sessionId: string,
     destination?: unknown,
     target?: HTMLElement | LandingRect,
     beforeContent?: HTMLElement,
+    options?: { targetVisibilityOwned?: boolean },
   ): VisualLifecycleContext {
     const session = this.sessionCoordinator.get(sessionId)
     const object = session ? this.objects.get(session.objectId) : undefined
@@ -841,7 +851,8 @@ setMotionProfiles(this.registry.motionProfile)
       targetSnapshot: targetElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
-      preserveTarget: registration?.preserveMoveTarget ?? false,
+      preserveTarget: this.preservesMoveTarget(object?.id ?? ''),
+      targetVisibilityOwned: options?.targetVisibilityOwned ?? false,
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。
       landingMode: effectiveLandingMode,
@@ -938,54 +949,10 @@ setMotionProfiles(this.registry.motionProfile)
 
   /** 将对象的生命周期视觉状态交给其适配器写入。 */
   applyVisualState(objectId: string, element: HTMLElement, state: VisualState): void {
-    const probeEnabled = typeof globalThis !== 'undefined'
-      && (globalThis as { __GUGU_RUNTIME_HOVER_PROBE__?: boolean }).__GUGU_RUNTIME_HOVER_PROBE__ === true
-    if (probeEnabled) {
-      console.log('[mind-hover-probe] runtime-apply-state ' + JSON.stringify({
-        objectId,
-        phase: state.phase,
-        hovered: state.hovered,
-        grabbed: state.grabbed,
-        connected: element.isConnected,
-        runtimePhaseBefore: element.dataset.runtimePhase ?? null,
-        hiddenBefore: element.classList.contains('runtime-affordances-hidden'),
-        proxy: element.dataset.runtimeProxy ?? null,
-        proxyContent: element.dataset.runtimeProxyContent ?? null,
-      }))
-    }
     this.visualState.apply(objectId, element, state)
     const config = this.getObjectAffordancesConfig(objectId)
     if (config) {
-      setRuntimeAffordancesHidden(
-        element,
-        state.phase !== 'idle' && state.phase !== 'pressed',
-        config.selector,
-        `applyVisualState:${state.phase}`,
-      )
-    }
-    if (probeEnabled) {
-      const computed = getComputedStyle(element)
-      console.log('[mind-hover-probe] runtime-apply-state-after ' + JSON.stringify({
-        objectId,
-        phase: state.phase,
-        hovered: state.hovered,
-        connected: element.isConnected,
-        runtimePhaseAfter: element.dataset.runtimePhase ?? null,
-        className: element.className,
-        inline: {
-          opacity: element.style.opacity,
-          transform: element.style.transform,
-          transition: element.style.transition,
-          visibility: element.style.visibility,
-        },
-        computed: {
-          opacity: computed.opacity,
-          transform: computed.transform,
-          transition: computed.transition,
-          visibility: computed.visibility,
-        },
-        hoveredByCss: element.matches(':hover'),
-      }))
+      setRuntimeAffordancesHidden(element, state.phase !== 'idle' && state.phase !== 'pressed', config.selector)
     }
   }
 
@@ -1000,11 +967,7 @@ setMotionProfiles(this.registry.motionProfile)
     target: HTMLElement,
     context?: VisualLifecycleContext,
   ): Promise<void> {
-    const probeEnabled = typeof globalThis !== 'undefined'
-      && (globalThis as { __GUGU_RUNTIME_HOVER_PROBE__?: boolean }).__GUGU_RUNTIME_HOVER_PROBE__ === true
-    if (probeEnabled) console.log('[mind-hover-probe] runtime-reveal-start ' + JSON.stringify({ sessionId, targetConnected: target.isConnected }))
     await this.visualMotion.reveal(sessionId, target, context)
-    if (probeEnabled) console.log('[mind-hover-probe] runtime-reveal-end ' + JSON.stringify({ sessionId, targetConnected: target.isConnected }))
   }
 
   registerVisualProxy(sessionId: string, proxy: VisualProxy): void {
@@ -1834,7 +1797,12 @@ setMotionProfiles(this.registry.motionProfile)
     if (frame !== undefined && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
     this.moveVisualFrames.delete(session.id)
     this.moveVisualPhases.delete(session.id)
-    if (tracked) this.events.emit({ type: 'move-visual-end', sessionId: session.id, objectId: session.objectId })
+    if (tracked) {
+      this.events.emit({ type: 'move-visual-end', sessionId: session.id, objectId: session.objectId })
+      // move-visual-end 只表示 RAF/phase 跟踪停止。事务可能仍在 reveal、handoff
+      // 或 regrab 收尾，业务层必须等到这里再允许实时事件刷新替换 DOM。
+      this.events.emit({ type: 'move-visual-settled', sessionId: session.id, objectId: session.objectId })
+    }
   }
 
   /**

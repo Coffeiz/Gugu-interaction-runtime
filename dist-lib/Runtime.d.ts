@@ -53,6 +53,12 @@ export type RuntimeEvent = {
     type: 'move-visual-end';
     sessionId: string;
     objectId: string;
+}
+/** 视觉跟踪结束后的完整移动事务收尾，不能与 move-visual-end 混用。 */
+ | {
+    type: 'move-visual-settled';
+    sessionId: string;
+    objectId: string;
 } | {
     type: 'ownership-changed';
     id: string;
@@ -347,7 +353,11 @@ export declare class Runtime {
     /** 读取对象类型声明的附加交互选择器；未声明时不干预业务 DOM。 */
     getObjectAffordancesConfig(objectId: string): ObjectAffordancesConfig | undefined;
     getObjectGroupVisualAdapter(objectId: string): VisualAdapter | undefined;
-    createVisualLifecycleContext(sessionId: string, destination?: unknown, target?: HTMLElement | LandingRect, beforeContent?: HTMLElement): VisualLifecycleContext;
+    /** 查询对象类型是否要求语义目标在 landing 期间保持可见。 */
+    preservesMoveTarget(objectId: string): boolean;
+    createVisualLifecycleContext(sessionId: string, destination?: unknown, target?: HTMLElement | LandingRect, beforeContent?: HTMLElement, options?: {
+        targetVisibilityOwned?: boolean;
+    }): VisualLifecycleContext;
     /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
     createVisualProxy(sessionId: string, context: VisualLifecycleContext): VisualProxy | undefined;
     /** 调用当前对象适配器的 landing，并保证无代理时也有确定结果。 */
@@ -398,12 +408,6 @@ export declare class Runtime {
      * 容器滚动不会比代理慢一大截，避免代理先完成并被销毁而容器仍在滚动。
      */
     keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void;
-    /**
-     * 在落地目标被解析出来的第一时间接管其可见性。
-     * 目标可能刚由宿主挂载，若等到 VisualAdapter.land() 才隐藏，浏览器会在
-     * pointer 下先计算一次 :hover，再因 visibility 变化派发 mouseleave。
-     */
-    prepareVisualLandingTarget(sessionId: string, target: HTMLElement): void;
     /**
      * 矩形落点也可能已经对应一个刚由业务插入的真实目标节点（典型是 free
      * canvas 的乐观插入）。先登记 visibility owner，等 landing 完成后统一 reveal，
