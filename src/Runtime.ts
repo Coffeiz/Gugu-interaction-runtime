@@ -56,6 +56,10 @@ export type RuntimeEvent =
   | { type: 'surface-added' | 'surface-removed' | 'surface-changed'; id: string }
   | { type: 'target-added' | 'target-removed' | 'target-changed'; id: string }
   | { type: 'move-visual-update'; sessionId: string; objectId: string; phase: 'active' | 'landing'; rect: { x: number; y: number; width: number; height: number } }
+  /**
+   * 完整视觉事务收尾：跟踪停止发生在 session 结束/取消/中断之前，宿主可以用它
+   * 释放业务侧的 landing 闸门。旧 session 不会在该事件之后继续发视觉更新。
+   */
   | { type: 'move-visual-end'; sessionId: string; objectId: string }
   | { type: 'ownership-changed'; id: string }
 
@@ -934,10 +938,54 @@ setMotionProfiles(this.registry.motionProfile)
 
   /** 将对象的生命周期视觉状态交给其适配器写入。 */
   applyVisualState(objectId: string, element: HTMLElement, state: VisualState): void {
+    const probeEnabled = typeof globalThis !== 'undefined'
+      && (globalThis as { __GUGU_RUNTIME_HOVER_PROBE__?: boolean }).__GUGU_RUNTIME_HOVER_PROBE__ === true
+    if (probeEnabled) {
+      console.log('[mind-hover-probe] runtime-apply-state ' + JSON.stringify({
+        objectId,
+        phase: state.phase,
+        hovered: state.hovered,
+        grabbed: state.grabbed,
+        connected: element.isConnected,
+        runtimePhaseBefore: element.dataset.runtimePhase ?? null,
+        hiddenBefore: element.classList.contains('runtime-affordances-hidden'),
+        proxy: element.dataset.runtimeProxy ?? null,
+        proxyContent: element.dataset.runtimeProxyContent ?? null,
+      }))
+    }
     this.visualState.apply(objectId, element, state)
     const config = this.getObjectAffordancesConfig(objectId)
     if (config) {
-      setRuntimeAffordancesHidden(element, state.phase !== 'idle' && state.phase !== 'pressed', config.selector)
+      setRuntimeAffordancesHidden(
+        element,
+        state.phase !== 'idle' && state.phase !== 'pressed',
+        config.selector,
+        `applyVisualState:${state.phase}`,
+      )
+    }
+    if (probeEnabled) {
+      const computed = getComputedStyle(element)
+      console.log('[mind-hover-probe] runtime-apply-state-after ' + JSON.stringify({
+        objectId,
+        phase: state.phase,
+        hovered: state.hovered,
+        connected: element.isConnected,
+        runtimePhaseAfter: element.dataset.runtimePhase ?? null,
+        className: element.className,
+        inline: {
+          opacity: element.style.opacity,
+          transform: element.style.transform,
+          transition: element.style.transition,
+          visibility: element.style.visibility,
+        },
+        computed: {
+          opacity: computed.opacity,
+          transform: computed.transform,
+          transition: computed.transition,
+          visibility: computed.visibility,
+        },
+        hoveredByCss: element.matches(':hover'),
+      }))
     }
   }
 
@@ -952,7 +1000,11 @@ setMotionProfiles(this.registry.motionProfile)
     target: HTMLElement,
     context?: VisualLifecycleContext,
   ): Promise<void> {
+    const probeEnabled = typeof globalThis !== 'undefined'
+      && (globalThis as { __GUGU_RUNTIME_HOVER_PROBE__?: boolean }).__GUGU_RUNTIME_HOVER_PROBE__ === true
+    if (probeEnabled) console.log('[mind-hover-probe] runtime-reveal-start ' + JSON.stringify({ sessionId, targetConnected: target.isConnected }))
     await this.visualMotion.reveal(sessionId, target, context)
+    if (probeEnabled) console.log('[mind-hover-probe] runtime-reveal-end ' + JSON.stringify({ sessionId, targetConnected: target.isConnected }))
   }
 
   registerVisualProxy(sessionId: string, proxy: VisualProxy): void {

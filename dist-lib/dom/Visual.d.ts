@@ -16,7 +16,7 @@ export declare function applyInheritedStyleContext(target: HTMLElement, context:
  */
 export declare function verifyVisualContextConsistency(source: HTMLElement, proxy: HTMLElement): string[];
 export declare function setProxyInteractive(proxy: HTMLElement, enabled: boolean): void;
-export declare function setRuntimeAffordancesHidden(root: HTMLElement, hidden: boolean, selector?: string | readonly string[]): void;
+export declare function setRuntimeAffordancesHidden(root: HTMLElement, hidden: boolean, selector?: string | readonly string[], reason?: string): void;
 /** 抓取代理的可选紧凑布局；尺寸和布局语义由业务声明，过渡由 Runtime 执行。 */
 export interface DragProxyLayoutConfig {
     compact?: {

@@ -1343,6 +1343,30 @@ describe('Runtime move orchestration', () => {
     expect(runtime.getSession(handle.id)).toBeUndefined()
   })
 
+  it('正常结束和取消都只发一次完整视觉收尾事件', async () => {
+    const runtime = createRuntime()
+    const visualEnds: string[] = []
+    runtime.subscribe(event => {
+      if (event.type === 'move-visual-end') visualEnds.push(`${event.sessionId}:${event.objectId}`)
+    })
+
+    const completed = runtime.orchestrateMoveSession(createRequest(), {
+      driver: createDriver(() => undefined),
+      lifecycle: { landing: () => ({ completed: true }) },
+    })
+    await runtime.release(completed.id, { kind: 'pointerup', event: new PointerEvent('pointerup') })
+
+    const cancelled = runtime.orchestrateMoveSession(createRequest(), {
+      driver: createDriver(() => undefined),
+    })
+    runtime.cancel(cancelled.id, 'cancelled')
+
+    expect(visualEnds).toEqual([
+      `${completed.id}:card-1`,
+      `${cancelled.id}:card-1`,
+    ])
+  })
+
   it('完成 gate 只允许当前 Session 完成一次，Session 结束会失效', async () => {
     const runtime = createRuntime()
     const handle = runtime.start(createRequest())

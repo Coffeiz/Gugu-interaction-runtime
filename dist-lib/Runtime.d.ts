@@ -44,7 +44,12 @@ export type RuntimeEvent = {
         width: number;
         height: number;
     };
-} | {
+}
+/**
+ * 完整视觉事务收尾：跟踪停止发生在 session 结束/取消/中断之前，宿主可以用它
+ * 释放业务侧的 landing 闸门。旧 session 不会在该事件之后继续发视觉更新。
+ */
+ | {
     type: 'move-visual-end';
     sessionId: string;
     objectId: string;
@@ -393,6 +398,12 @@ export declare class Runtime {
      * 容器滚动不会比代理慢一大截，避免代理先完成并被销毁而容器仍在滚动。
      */
     keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void;
+    /**
+     * 在落地目标被解析出来的第一时间接管其可见性。
+     * 目标可能刚由宿主挂载，若等到 VisualAdapter.land() 才隐藏，浏览器会在
+     * pointer 下先计算一次 :hover，再因 visibility 变化派发 mouseleave。
+     */
+    prepareVisualLandingTarget(sessionId: string, target: HTMLElement): void;
     /**
      * 矩形落点也可能已经对应一个刚由业务插入的真实目标节点（典型是 free
      * canvas 的乐观插入）。先登记 visibility owner，等 landing 完成后统一 reveal，

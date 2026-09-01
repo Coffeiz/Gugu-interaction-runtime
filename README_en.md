@@ -8,7 +8,7 @@
 
 <p>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-2ea44f.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/Runtime-3.0.3-6f42c1.svg" alt="Runtime 3.0.3">
+  <img src="https://img.shields.io/badge/Runtime-3.0.4-6f42c1.svg" alt="Runtime 3.0.4">
   <img src="https://img.shields.io/badge/TypeScript-5.x-3178c6.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/Vue-3.x-42b883.svg" alt="Vue 3">
 </p>
