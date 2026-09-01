@@ -45,6 +45,7 @@ export declare function interruptDetachRegrab(args: {
 export declare function scheduleDetachLandingFrame(clearFloating: () => void, callback: () => void): () => void;
 export declare function resolveDetachLandingTarget<TDestination>(args: {
     resolve: () => HTMLElement | null;
+    applyState: (element: HTMLElement) => void;
 }): HTMLElement | null;
 export declare function captureDetachTargetSnapshot(capture: (element: HTMLElement, rect?: DOMRect) => VisualSnapshot, element: HTMLElement, options?: {
     ignoreTemporaryOpacity?: boolean;

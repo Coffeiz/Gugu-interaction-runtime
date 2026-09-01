@@ -1,4 +1,4 @@
-import { applyFloatingStyle, claimVisibilityOwnership, clearFloatingStyle, concealElement, getFloatingProxy, getProxyAttitude, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
+import { applyFloatingStyle, claimVisibilityOwnership, clearFloatingStyle, concealElement, getFloatingProxy, getProxyAttitude, revealElement, setProxyInteractive, takeFloatingProxy } from '../../dom/Visual'
 import { acquireSourceVisualLease, type SourceVisualLease } from '../../dom/SourceVisualLease'
 import { createCardMotionController } from '../../motion/CardMotionController'
 import { createDirectFollowController, type DragMotionDriver } from '../../motion/DirectFollowController'
@@ -57,6 +57,8 @@ export function createDetachMoveFromAdapter(config: {
   let revealedTargetElement: HTMLElement | null = null
   let preparedLandingResolution: MoveLandingResolution | null = null
   let preparedLandingRect: DOMRect | null = null
+  let preparedTargetVisibilityOwned = false
+  let preparedTargetElement: HTMLElement | null = null
   let released = false
   let sessionId: string | null = null
   let objectLease: { release: () => void } | null = null
@@ -124,6 +126,18 @@ export function createDetachMoveFromAdapter(config: {
     if (sessionId !== sid || getSessionState() !== 'landing') return
     const resolution = runtime.resolveMoveLandingResolution(sid, destination)
     if (!isUsablePreparedLandingTarget(resolution, destination)) return
+    if (!resolution) return
+    // Vue patch 完成后 target 已经进入浏览器的绘制/命中树。这里在同一个
+    // microtask 内取得 visibility ownership，避免下一次 landing rAF 前被
+    // 原生 :hover 看到；free canvas 的矩形落点也尝试解析对应业务本体。
+    const targetElement = resolution.kind === 'element'
+      ? resolution.element
+      : runtime.resolveVisualTarget(sid, destination)
+    if (targetElement?.isConnected && !runtime.preservesMoveTarget(objectId)) {
+      runtime.concealVisualTarget(sid, targetElement)
+      preparedTargetVisibilityOwned = true
+      preparedTargetElement = targetElement
+    }
     if (resolution?.kind === 'element') {
       const rect = resolution.element.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return
@@ -164,6 +178,8 @@ export function createDetachMoveFromAdapter(config: {
     released = true
     preparedLandingResolution = null
     preparedLandingRect = null
+    preparedTargetVisibilityOwned = false
+    preparedTargetElement = null
     releaseMotionState = dragMotion ? { ...dragMotion.getState() } : undefined
     dragMotion?.stop()
     dragMotion = null
@@ -255,8 +271,11 @@ export function createDetachMoveFromAdapter(config: {
       if (!isGroupSession) sourceLease?.restoreLayoutHidden()
       objectLease?.release()
     }
-    const proceedWithTarget = (sid: string, target: MoveLandingResolution | null, measuredRect?: DOMRect | null) => {
-      if (getSessionState() !== 'landing') return
+    const proceedWithTarget = (sid: string, target: MoveLandingResolution | null, measuredRect?: DOMRect | null, targetVisibilityOwned = false, ownedTarget: HTMLElement | null = null) => {
+      if (getSessionState() !== 'landing') {
+        if (targetVisibilityOwned && ownedTarget) revealElement(ownedTarget, sid)
+        return
+      }
       const landingElement = target?.kind === 'element' ? target.element : null
       const revealTarget = landingElement
         ?? runtime.resolveVisualTarget(sessionId!, destination)
@@ -267,6 +286,7 @@ export function createDetachMoveFromAdapter(config: {
         applyState: (target: HTMLElement) => runtime.applyVisualState(objectId, target, { phase: 'revealing', hovered: false, selected: target.classList.contains('is-selected'), grabbed: false }),
       })
       if (!landedEl) {
+        if (targetVisibilityOwned && ownedTarget) revealElement(ownedTarget, sid)
         landingGate?.complete({ completed: false, reason: 'target-not-registered' }); landingGate = null; return
       }
       landingTargetElement = landedEl
@@ -308,6 +328,7 @@ export function createDetachMoveFromAdapter(config: {
           destination,
           liveLandingRect,
           beforeContent!,
+          { targetVisibilityOwned },
         ),
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,
         motionState: releaseMotionState,
@@ -361,12 +382,18 @@ export function createDetachMoveFromAdapter(config: {
       const sid = sessionId!
       const prepared = preparedLandingResolution
       const measuredRect = preparedLandingRect
+      const targetVisibilityOwned = preparedTargetVisibilityOwned
+      const preparedTarget = preparedTargetElement
+      const preparedIsUsable = Boolean(prepared && isUsablePreparedLandingTarget(prepared, destination))
       preparedLandingResolution = null
       preparedLandingRect = null
-      if (prepared && isUsablePreparedLandingTarget(prepared, destination)) {
-        proceedWithTarget(sid, prepared, measuredRect)
+      preparedTargetVisibilityOwned = false
+      preparedTargetElement = null
+      if (preparedIsUsable && prepared) {
+        proceedWithTarget(sid, prepared, measuredRect, targetVisibilityOwned, preparedTarget)
         return
       }
+      if (targetVisibilityOwned && preparedTarget) revealElement(preparedTarget, sid)
       void runtime.resolveLandingTarget(sid, destination).then(target => proceedWithTarget(sid, target))
     })
     return { accepted: true as const, destination: pendingDrop, ...(invalidReturn ? { emitAction: false } : {}) }
@@ -636,6 +663,11 @@ export function createDetachMoveFromAdapter(config: {
       released = true
       preparedLandingResolution = null
       preparedLandingRect = null
+      if (preparedTargetVisibilityOwned && preparedTargetElement) {
+        revealElement(preparedTargetElement, sessionId ?? '')
+      }
+      preparedTargetVisibilityOwned = false
+      preparedTargetElement = null
       dragMotion?.stop()
       dragMotion = null
       if (runtime.getVisualProxy(sessionId!)) runtime.disposeVisualProxy(sessionId!)
@@ -692,6 +724,8 @@ export function createDetachMoveFromAdapter(config: {
         revealedTargetElement = null
         preparedLandingResolution = null
         preparedLandingRect = null
+        preparedTargetVisibilityOwned = false
+        preparedTargetElement = null
         // landing 完成后再保险清理旧 floating registry；正常 handoff 后这里是
         // 空操作，真正的 proxy 由 Runtime 的统一 dispose 边界销毁。
         clearFloatingStyle(element)

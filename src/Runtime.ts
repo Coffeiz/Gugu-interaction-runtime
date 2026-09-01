@@ -752,11 +752,19 @@ setMotionProfiles(this.registry.motionProfile)
     return adapter
   }
 
+  /** 查询对象类型是否要求语义目标在 landing 期间保持可见。 */
+  preservesMoveTarget(objectId: string): boolean {
+    const object = this.objects.get(objectId)
+    const registration = object ? this.registry.objectTypes.get(object.visual ?? object.type) : undefined
+    return registration?.preserveMoveTarget ?? false
+  }
+
   createVisualLifecycleContext(
     sessionId: string,
     destination?: unknown,
     target?: HTMLElement | LandingRect,
     beforeContent?: HTMLElement,
+    options?: { targetVisibilityOwned?: boolean },
   ): VisualLifecycleContext {
     const session = this.sessionCoordinator.get(sessionId)
     const object = session ? this.objects.get(session.objectId) : undefined
@@ -841,7 +849,8 @@ setMotionProfiles(this.registry.motionProfile)
       targetSnapshot: targetElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
-      preserveTarget: registration?.preserveMoveTarget ?? false,
+      preserveTarget: this.preservesMoveTarget(object?.id ?? ''),
+      targetVisibilityOwned: options?.targetVisibilityOwned ?? false,
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。
       landingMode: effectiveLandingMode,

@@ -46,6 +46,8 @@ export interface VisualLifecycleContext {
   readonly targetRect?: LandingRect
   /** 目标节点作为语义落点时保留其可见性，避免与源代理发生双重交接。 */
   readonly preserveTarget?: boolean
+  /** Runtime 已在目标首次进入 DOM 后取得可见性 ownership，landing 不再重复隐藏。 */
+  readonly targetVisibilityOwned?: boolean
   /** default 保持普通 landing；target 到达语义目标后追加缩小淡出；free 使用纯矩形。 */
   readonly landingMode?: 'default' | 'target' | 'free'
   /** 释放后的落地策略；physical 继承释放状态，normal 不继承释放速度。 */
@@ -244,7 +246,7 @@ export class DefaultVisualAdapter implements VisualAdapter {
     if (!hasUsableTargetRect) {
       return Promise.resolve({ completed: false, reason: 'target-zero-size' })
     }
-    if (targetElement && !context.preserveTarget) {
+    if (targetElement && !context.preserveTarget && !context.targetVisibilityOwned) {
       concealElement(targetElement, context.sessionId)
     }
     // 位置 transform 在 grabbing 与 motion landing 阶段都由 Runtime 的运动控制器独占。
