@@ -1,5 +1,5 @@
 import { _ as e, a as t, c as n, d as r, f as i, g as a, h as o, i as s, l as c, m as l, n as u, o as d, p as f, r as p, s as m, t as h, u as g, v as _, y as v } from "./GroupLayout-DZr40zZY.js";
-import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-CxcBNFpW.js";
+import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-JQ8Gp6SG.js";
 //#region src/core/Emitter.ts
 var I = class {
 	constructor() {
@@ -2007,56 +2007,15 @@ var Le = class {
 		return null;
 	}
 	applyVisualState(e, t, n) {
-		let r = typeof globalThis < "u" && globalThis.__GUGU_RUNTIME_HOVER_PROBE__ === !0;
-		r && console.log("[mind-hover-probe] runtime-apply-state " + JSON.stringify({
-			objectId: e,
-			phase: n.phase,
-			hovered: n.hovered,
-			grabbed: n.grabbed,
-			connected: t.isConnected,
-			runtimePhaseBefore: t.dataset.runtimePhase ?? null,
-			hiddenBefore: t.classList.contains("runtime-affordances-hidden"),
-			proxy: t.dataset.runtimeProxy ?? null,
-			proxyContent: t.dataset.runtimeProxyContent ?? null
-		})), this.visualState.apply(e, t, n);
-		let i = this.getObjectAffordancesConfig(e);
-		if (i && A(t, n.phase !== "idle" && n.phase !== "pressed", i.selector, `applyVisualState:${n.phase}`), r) {
-			let r = getComputedStyle(t);
-			console.log("[mind-hover-probe] runtime-apply-state-after " + JSON.stringify({
-				objectId: e,
-				phase: n.phase,
-				hovered: n.hovered,
-				connected: t.isConnected,
-				runtimePhaseAfter: t.dataset.runtimePhase ?? null,
-				className: t.className,
-				inline: {
-					opacity: t.style.opacity,
-					transform: t.style.transform,
-					transition: t.style.transition,
-					visibility: t.style.visibility
-				},
-				computed: {
-					opacity: r.opacity,
-					transform: r.transform,
-					transition: r.transition,
-					visibility: r.visibility
-				},
-				hoveredByCss: t.matches(":hover")
-			}));
-		}
+		this.visualState.apply(e, t, n);
+		let r = this.getObjectAffordancesConfig(e);
+		r && A(t, n.phase !== "idle" && n.phase !== "pressed", r.selector);
 	}
 	captureVisualState(e, t, n) {
 		return this.visualState.capture(e, t, n);
 	}
 	async revealVisualProxy(e, t, n) {
-		let r = typeof globalThis < "u" && globalThis.__GUGU_RUNTIME_HOVER_PROBE__ === !0;
-		r && console.log("[mind-hover-probe] runtime-reveal-start " + JSON.stringify({
-			sessionId: e,
-			targetConnected: t.isConnected
-		})), await this.visualMotion.reveal(e, t, n), r && console.log("[mind-hover-probe] runtime-reveal-end " + JSON.stringify({
-			sessionId: e,
-			targetConnected: t.isConnected
-		}));
+		await this.visualMotion.reveal(e, t, n);
 	}
 	registerVisualProxy(e, t) {
 		this.visualProxyCoordinator.get(e) && this.disposeVisualProxy(e), this.visualProxyCoordinator.register(e, t);
@@ -2546,11 +2505,15 @@ var Le = class {
 	}
 	stopMoveVisualTracking(e) {
 		let t = this.moveVisualFrames.has(e.id) || this.moveVisualPhases.has(e.id), n = this.moveVisualFrames.get(e.id);
-		n !== void 0 && typeof cancelAnimationFrame == "function" && cancelAnimationFrame(n), this.moveVisualFrames.delete(e.id), this.moveVisualPhases.delete(e.id), t && this.events.emit({
+		n !== void 0 && typeof cancelAnimationFrame == "function" && cancelAnimationFrame(n), this.moveVisualFrames.delete(e.id), this.moveVisualPhases.delete(e.id), t && (this.events.emit({
 			type: "move-visual-end",
 			sessionId: e.id,
 			objectId: e.objectId
-		});
+		}), this.events.emit({
+			type: "move-visual-settled",
+			sessionId: e.id,
+			objectId: e.objectId
+		}));
 	}
 	orchestrateMoveSession(e, t = {}) {
 		let n;

@@ -91,7 +91,6 @@ export function setRuntimeAffordancesHidden(
   root: HTMLElement,
   hidden: boolean,
   selector?: string | readonly string[],
-  reason = 'unknown',
 ): void {
   const selectors = selector ? (Array.isArray(selector) ? selector : [selector]) : ['.runtime-affordances-hidden']
   const query = selectors.filter(Boolean).join(',')
@@ -101,24 +100,7 @@ export function setRuntimeAffordancesHidden(
     ...root.querySelectorAll<HTMLElement>(query),
   ]
   const affected = nodes.flatMap(node => [node, ...node.querySelectorAll<HTMLElement>('*')])
-  const probeEnabled = typeof globalThis !== 'undefined'
-    && (globalThis as { __GUGU_RUNTIME_HOVER_PROBE__?: boolean }).__GUGU_RUNTIME_HOVER_PROBE__ === true
-  affected.forEach(node => {
-    const before = node.classList.contains('runtime-affordances-hidden')
-    node.classList.toggle('runtime-affordances-hidden', hidden)
-    if (probeEnabled && before !== hidden) {
-      console.log('[mind-hover-probe] runtime-affordance ' + JSON.stringify({
-        reason,
-        hidden,
-        tag: node.tagName.toLowerCase(),
-        className: node.className,
-        rootPhase: root.dataset.runtimePhase ?? null,
-        rootObjectId: root.dataset.objectId ?? root.dataset.layoutKey ?? null,
-        rootProxy: root.dataset.runtimeProxy ?? null,
-        rootProxyContent: root.dataset.runtimeProxyContent ?? null,
-      }))
-    }
-  })
+  affected.forEach(node => node.classList.toggle('runtime-affordances-hidden', hidden))
 }
 
 /** 抓取代理的可选紧凑布局；尺寸和布局语义由业务声明，过渡由 Runtime 执行。 */
@@ -167,7 +149,7 @@ function copyLandingSurfaceState(source: HTMLElement, target: HTMLElement): void
 
 function clearLandingRuntimeState(element: HTMLElement): void {
   element.classList.remove('is-grabbed', 'is-hovered')
-  setRuntimeAffordancesHidden(element, false, undefined, 'clearLandingRuntimeState')
+  setRuntimeAffordancesHidden(element, false)
   delete element.dataset.runtimeProxy
   delete element.dataset.runtimeProxyContent
   delete element.dataset.runtimePhase
@@ -231,7 +213,7 @@ export function createDragProxy(
   const attitude = document.createElement('div')
   const scaleShell = document.createElement('div')
   const content = source.cloneNode(true) as HTMLElement
-  if (options.affordancesSelector) setRuntimeAffordancesHidden(content, true, options.affordancesSelector, 'createDragProxy')
+  if (options.affordancesSelector) setRuntimeAffordancesHidden(content, true, options.affordancesSelector)
   scaleShell.dataset.runtimeProxyScaleShell = 'true'
   if (options.cameraShell) scaleShell.dataset.runtimeCameraShell = 'true'
   attitude.dataset.runtimeProxyAttitude = 'true'
@@ -627,7 +609,7 @@ function wrapContentForMorph(
   // 渲染上下文写入目标层；源层则继续保留抓取时的上下文。
   preserveProxyVisualContext(toContent, targetLayer)
   clearLandingRuntimeState(targetLayer)
-  if (affordancesSelector) setRuntimeAffordancesHidden(targetLayer, true, affordancesSelector, 'prepareContentMorph')
+  if (affordancesSelector) setRuntimeAffordancesHidden(targetLayer, true, affordancesSelector)
   // 目标层先继承抓取代理的表面状态。landing 开始后再在同一条视觉
   // transition 上写入目标状态，避免目标层一出现就带着清晰本体覆盖掉 source
   // 的毛玻璃；内容仍然通过两层 opacity 交叉，背景/blur 则连续收敛。
@@ -1662,51 +1644,13 @@ export function applyDraggingGlassStyle(element: HTMLElement): void {
  */
 const visibilityOwner = new Map<HTMLElement, string>()
 
-function probeVisibilityWrite(
-  kind: string,
-  element: HTMLElement,
-  ownerId: string,
-  extra: Record<string, unknown> = {},
-): void {
-  if (typeof globalThis === 'undefined'
-    || (globalThis as { __GUGU_RUNTIME_HOVER_PROBE__?: boolean }).__GUGU_RUNTIME_HOVER_PROBE__ !== true) return
-  const style = getComputedStyle(element)
-  console.log('[mind-hover-probe] runtime-visibility-write ' + JSON.stringify({
-    kind,
-    ownerId,
-    tag: element.tagName.toLowerCase(),
-    className: element.className,
-    objectId: element.dataset.objectId ?? null,
-    layoutKey: element.dataset.layoutKey ?? null,
-    runtimePhase: element.dataset.runtimePhase ?? null,
-    connected: element.isConnected,
-    hovered: element.matches(':hover'),
-    inline: {
-      visibility: element.style.visibility,
-      opacity: element.style.opacity,
-      transform: element.style.transform,
-      transition: element.style.transition,
-    },
-    computed: {
-      visibility: style.visibility,
-      opacity: style.opacity,
-      transform: style.transform,
-      transition: style.transition,
-    },
-    stack: new Error().stack?.split('\\n').slice(2, 7),
-    ...extra,
-  }))
-}
-
 /**
  * 隐藏目标元素并登记 visibility ownership。
  * 只有登记的 owner 才能通过 revealElement() 恢复可见性。
  */
 export function concealElement(el: HTMLElement, ownerId: string): void {
-  probeVisibilityWrite('conceal-before', el, ownerId)
   visibilityOwner.set(el, ownerId)
   el.style.visibility = 'hidden'
-  probeVisibilityWrite('conceal-after', el, ownerId)
 }
 
 /**
@@ -1726,12 +1670,10 @@ export function claimVisibilityOwnership(el: HTMLElement, ownerId: string): void
  */
 export function revealElement(el: HTMLElement, ownerId: string): boolean {
   const isOwner = visibilityOwner.get(el) === ownerId
-  probeVisibilityWrite('reveal-before', el, ownerId, { isOwner })
   if (isOwner) {
     el.style.visibility = ''
     visibilityOwner.delete(el)
   }
-  probeVisibilityWrite('reveal-after', el, ownerId, { isOwner })
   return isOwner
 }
 

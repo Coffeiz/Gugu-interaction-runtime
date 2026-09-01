@@ -364,23 +364,9 @@ function T(e, t) {
 	e.style.pointerEvents = "none";
 	for (let t of [e, ...e.querySelectorAll("*")]) t.classList.remove("is-hovered");
 }
-function E(e, t, n, r = "unknown") {
-	let i = (n ? Array.isArray(n) ? n : [n] : [".runtime-affordances-hidden"]).filter(Boolean).join(",");
-	if (!i) return;
-	let a = [...e.matches(i) ? [e] : [], ...e.querySelectorAll(i)].flatMap((e) => [e, ...e.querySelectorAll("*")]), o = typeof globalThis < "u" && globalThis.__GUGU_RUNTIME_HOVER_PROBE__ === !0;
-	a.forEach((n) => {
-		let i = n.classList.contains("runtime-affordances-hidden");
-		n.classList.toggle("runtime-affordances-hidden", t), o && i !== t && console.log("[mind-hover-probe] runtime-affordance " + JSON.stringify({
-			reason: r,
-			hidden: t,
-			tag: n.tagName.toLowerCase(),
-			className: n.className,
-			rootPhase: e.dataset.runtimePhase ?? null,
-			rootObjectId: e.dataset.objectId ?? e.dataset.layoutKey ?? null,
-			rootProxy: e.dataset.runtimeProxy ?? null,
-			rootProxyContent: e.dataset.runtimeProxyContent ?? null
-		}));
-	});
+function E(e, t, n) {
+	let r = (n ? Array.isArray(n) ? n : [n] : [".runtime-affordances-hidden"]).filter(Boolean).join(",");
+	r && [...e.matches(r) ? [e] : [], ...e.querySelectorAll(r)].flatMap((e) => [e, ...e.querySelectorAll("*")]).forEach((e) => e.classList.toggle("runtime-affordances-hidden", t));
 }
 function D(e, t) {
 	e.style.setProperty("box-shadow", t, "important");
@@ -390,7 +376,7 @@ function O(e, t) {
 	t.style.border = n.border, t.style.borderRadius = n.borderRadius, t.style.setProperty("box-shadow", n.boxShadow, "important"), t.style.backgroundColor = n.backgroundColor, t.style.backgroundImage = n.backgroundImage, t.style.backdropFilter = n.backdropFilter, t.style.setProperty("-webkit-backdrop-filter", n.backdropFilter);
 }
 function k(e) {
-	e.classList.remove("is-grabbed", "is-hovered"), E(e, !1, void 0, "clearLandingRuntimeState"), delete e.dataset.runtimeProxy, delete e.dataset.runtimeProxyContent, delete e.dataset.runtimePhase, delete e.dataset.runtimeCompact;
+	e.classList.remove("is-grabbed", "is-hovered"), E(e, !1), delete e.dataset.runtimeProxy, delete e.dataset.runtimeProxyContent, delete e.dataset.runtimePhase, delete e.dataset.runtimeCompact;
 }
 function A(e, t, n) {
 	e.fromLayer.style.opacity = "1", e.toLayer.style.opacity = "0", e.contentRoot.offsetWidth, requestAnimationFrame(() => {
@@ -401,7 +387,7 @@ function A(e, t, n) {
 }
 function j(e, t = e.getBoundingClientRect(), n = {}) {
 	let r = n.layout?.compact, i = document.createElement("div"), a = document.createElement("div"), o = document.createElement("div"), s = e.cloneNode(!0);
-	n.affordancesSelector && E(s, !0, n.affordancesSelector, "createDragProxy"), o.dataset.runtimeProxyScaleShell = "true", n.cameraShell && (o.dataset.runtimeCameraShell = "true"), a.dataset.runtimeProxyAttitude = "true", s.dataset.runtimeProxyContent = "true", Object.assign(o.style, {
+	n.affordancesSelector && E(s, !0, n.affordancesSelector), o.dataset.runtimeProxyScaleShell = "true", n.cameraShell && (o.dataset.runtimeCameraShell = "true"), a.dataset.runtimeProxyAttitude = "true", s.dataset.runtimeProxyContent = "true", Object.assign(o.style, {
 		position: "absolute",
 		left: "0",
 		top: "0",
@@ -512,7 +498,7 @@ function ne(e, t, n) {
 		pointerEvents: "none"
 	});
 	let a = t.cloneNode(!0);
-	w(t, a), k(a), n && E(a, !0, n, "prepareContentMorph"), O(e, a), delete a.dataset.runtimePhase, delete a.dataset.runtimeCompact, Object.assign(a.style, {
+	w(t, a), k(a), n && E(a, !0, n), O(e, a), delete a.dataset.runtimePhase, delete a.dataset.runtimeCompact, Object.assign(a.style, {
 		position: "absolute",
 		inset: "0",
 		width: "100%",
@@ -705,7 +691,7 @@ function re(e, t, n = {}) {
 		mode: "settle",
 		onFrame: le,
 		onArrived: ce
-	}), Z = Math.hypot(n.motionState?.vx ?? 0, n.motionState?.vy ?? 0), ue = n.releaseDamping ?? .78, de = n.targetMotion ? {
+	}), ue = Math.hypot(n.motionState?.vx ?? 0, n.motionState?.vy ?? 0), de = n.releaseDamping ?? .78, fe = n.targetMotion ? {
 		position: {
 			...c.position,
 			...n.targetMotion.position
@@ -715,14 +701,14 @@ function re(e, t, n = {}) {
 			...n.targetMotion.scale
 		}
 	} : c;
-	n.landingMode !== "free" && X.setProfile(Z > 30 ? {
-		...de,
+	n.landingMode !== "free" && X.setProfile(ue > 30 ? {
+		...fe,
 		position: {
-			...de.position,
-			damping: de.position.damping * ue
+			...fe.position,
+			damping: fe.position.damping * de
 		}
-	} : de);
-	let Q = {
+	} : fe);
+	let Z = {
 		x: n.motionState?.x ?? C.left,
 		y: n.motionState?.y ?? C.top,
 		vx: n.motionState?.vx ?? 0,
@@ -733,30 +719,30 @@ function re(e, t, n = {}) {
 		rotateZ: n.motionState?.rotateZ ?? 0
 	};
 	X.seed({
-		x: Q.x,
-		y: Q.y,
-		vx: Q.vx,
-		vy: Q.vy,
-		scaleX: Q.scaleX,
-		scaleY: Q.scaleY,
-		rotateX: Q.rotateX,
-		rotateZ: Q.rotateZ
-	}), le(Q);
-	let $ = z(t), fe = E?.baseWidth ?? w, pe = E?.baseHeight ?? T;
-	E && n.landingMode !== "free" && n.landingMode !== "target" && (O > 0 || (O = fe > 0 ? $.width / fe : 1), E.shell.style.transformOrigin = "0 0", n.cameraShell ? (E.shell.style.left = `${((w - fe * y) / 2).toFixed(2)}px`, E.shell.style.top = `${((T - pe * y) / 2).toFixed(2)}px`, E.shell.style.transform = y === 1 ? "scale(1)" : `scale(${y}, ${y})`) : (E.shell.style.left = "0px", E.shell.style.top = "0px", E.shell.style.width = `${w}px`, E.shell.style.height = `${T}px`, E.shell.style.transform = "scale(1)"), E.shell.style.transition = "none");
-	let me = fe * y, he = pe * y, ge = n.landingMode === "target" ? {
+		x: Z.x,
+		y: Z.y,
+		vx: Z.vx,
+		vy: Z.vy,
+		scaleX: Z.scaleX,
+		scaleY: Z.scaleY,
+		rotateX: Z.rotateX,
+		rotateZ: Z.rotateZ
+	}), le(Z);
+	let Q = z(t), $ = E?.baseWidth ?? w, pe = E?.baseHeight ?? T;
+	E && n.landingMode !== "free" && n.landingMode !== "target" && (O > 0 || (O = $ > 0 ? Q.width / $ : 1), E.shell.style.transformOrigin = "0 0", n.cameraShell ? (E.shell.style.left = `${((w - $ * y) / 2).toFixed(2)}px`, E.shell.style.top = `${((T - pe * y) / 2).toFixed(2)}px`, E.shell.style.transform = y === 1 ? "scale(1)" : `scale(${y}, ${y})`) : (E.shell.style.left = "0px", E.shell.style.top = "0px", E.shell.style.width = `${w}px`, E.shell.style.height = `${T}px`, E.shell.style.transform = "scale(1)"), E.shell.style.transition = "none");
+	let me = $ * y, he = pe * y, ge = n.landingMode === "target" ? {
 		scaleX: 1,
 		scaleY: 1
 	} : n.landingMode === "free" ? {
-		scaleX: me > 0 ? $.width / me : 1,
-		scaleY: he > 0 ? $.height / he : 1
+		scaleX: me > 0 ? Q.width / me : 1,
+		scaleY: he > 0 ? Q.height / he : 1
 	} : {
-		scaleX: w > 0 ? $.width / w : 1,
-		scaleY: T > 0 ? $.height / T : 1
+		scaleX: w > 0 ? Q.width / w : 1,
+		scaleY: T > 0 ? Q.height / T : 1
 	};
 	X.setTarget({
-		x: $.left,
-		y: $.top,
+		x: Q.left,
+		y: Q.top,
 		scaleX: ge.scaleX,
 		scaleY: ge.scaleY
 	}), e.style.transition = "";
@@ -800,7 +786,7 @@ function re(e, t, n = {}) {
 			if (V) return;
 			B = e, ve(1e3);
 			let t = z(B), r = n.landingMode === "target" ? 1 : n.landingMode === "free" ? t.width / me : t.width / w, i = n.landingMode === "target" ? 1 : n.landingMode === "free" ? t.height / he : t.height / T;
-			E && n.landingMode !== "free" && n.landingMode !== "target" && n.landingContentScale === void 0 && (O = fe > 0 ? t.width / fe : O), X.setTarget({
+			E && n.landingMode !== "free" && n.landingMode !== "target" && n.landingContentScale === void 0 && (O = $ > 0 ? t.width / $ : O), X.setTarget({
 				x: t.left,
 				y: t.top,
 				scaleX: r,
@@ -882,52 +868,23 @@ function le() {
 function X(e) {
 	e.style.background = "rgba(255, 255, 255, 0.42)", e.style.backdropFilter = "blur(12px) saturate(1.15)", e.style.setProperty("-webkit-backdrop-filter", "blur(12px) saturate(1.15)"), e.style.border = "1px solid rgba(255, 255, 255, 0.72)", D(e, "0 22px 50px rgba(30, 35, 60, 0.30)"), e.style.opacity = "0.97";
 }
-var Z = /* @__PURE__ */ new Map();
-function ue(e, t, n, r = {}) {
-	if (typeof globalThis > "u" || globalThis.__GUGU_RUNTIME_HOVER_PROBE__ !== !0) return;
-	let i = getComputedStyle(t);
-	console.log("[mind-hover-probe] runtime-visibility-write " + JSON.stringify({
-		kind: e,
-		ownerId: n,
-		tag: t.tagName.toLowerCase(),
-		className: t.className,
-		objectId: t.dataset.objectId ?? null,
-		layoutKey: t.dataset.layoutKey ?? null,
-		runtimePhase: t.dataset.runtimePhase ?? null,
-		connected: t.isConnected,
-		hovered: t.matches(":hover"),
-		inline: {
-			visibility: t.style.visibility,
-			opacity: t.style.opacity,
-			transform: t.style.transform,
-			transition: t.style.transition
-		},
-		computed: {
-			visibility: i.visibility,
-			opacity: i.opacity,
-			transform: i.transform,
-			transition: i.transition
-		},
-		stack: (/* @__PURE__ */ Error()).stack?.split("\\n").slice(2, 7),
-		...r
-	}));
-}
+var ue = /* @__PURE__ */ new Map();
 function de(e, t) {
-	ue("conceal-before", e, t), Z.set(e, t), e.style.visibility = "hidden", ue("conceal-after", e, t);
-}
-function Q(e, t) {
-	(e.style.visibility === "hidden" || getComputedStyle(e).visibility === "hidden") && Z.set(e, t);
-}
-function $(e, t) {
-	let n = Z.get(e) === t;
-	return ue("reveal-before", e, t, { isOwner: n }), n && (e.style.visibility = "", Z.delete(e)), ue("reveal-after", e, t, { isOwner: n }), n;
+	ue.set(e, t), e.style.visibility = "hidden";
 }
 function fe(e, t) {
-	Z.get(e) === t && Z.delete(e);
+	(e.style.visibility === "hidden" || getComputedStyle(e).visibility === "hidden") && ue.set(e, t);
+}
+function Z(e, t) {
+	let n = ue.get(e) === t;
+	return n && (e.style.visibility = "", ue.delete(e)), n;
+}
+function Q(e, t) {
+	ue.get(e) === t && ue.delete(e);
 }
 //#endregion
 //#region src/dom/SourceVisualLease.ts
-var pe = [
+var $ = [
 	"left",
 	"top",
 	"right",
@@ -940,34 +897,34 @@ var pe = [
 	"maxHeight",
 	"zIndex"
 ];
-function me(e) {
-	return Object.fromEntries(pe.map((t) => [t, e.style[t]]));
+function pe(e) {
+	return Object.fromEntries($.map((t) => [t, e.style[t]]));
 }
-function he(e, t) {
-	let n = me(e);
+function me(e, t) {
+	let n = pe(e);
 	e.style.cssText = t;
-	for (let t of pe) n[t] !== "" && (e.style[t] = n[t]);
+	for (let t of $) n[t] !== "" && (e.style[t] = n[t]);
 }
-var ge = /* @__PURE__ */ new WeakMap();
-function _e(e, t) {
+var he = /* @__PURE__ */ new WeakMap();
+function ge(e, t) {
 	let n = {
 		sessionId: t,
 		cssText: e.style.cssText
 	};
-	ge.set(e, n);
-	let r = () => ge.get(e) === n;
+	he.set(e, n);
+	let r = () => he.get(e) === n;
 	return {
 		element: e,
 		sessionId: t,
 		detachFromLayout: () => r() ? (e.style.display = "none", e.style.pointerEvents = "none", !0) : !1,
 		restoreLayoutHidden: () => r() ? (e.style.display = "", e.style.visibility = "hidden", e.style.pointerEvents = "none", !0) : !1,
-		restore: () => r() ? (he(e, n.cssText), ge.delete(e), !0) : !1,
+		restore: () => r() ? (me(e, n.cssText), he.delete(e), !0) : !1,
 		isOwner: r
 	};
 }
 //#endregion
 //#region src/motion/DirectFollowController.ts
-function ve(e) {
+function _e(e) {
 	let t = {
 		x: 0,
 		y: 0,
@@ -997,7 +954,7 @@ function ve(e) {
 }
 //#endregion
 //#region src/runtime/DetachMoveDriver.ts
-function ye(e, t, n) {
+function ve(e, t, n) {
 	let r = e(t, n);
 	return {
 		...r,
@@ -1005,7 +962,7 @@ function ye(e, t, n) {
 		transform: n.style.transform || r.transform
 	};
 }
-function be(e, t, n, r, i) {
+function ye(e, t, n, r, i) {
 	let a = r ?? t.getBoundingClientRect(), o = i?.align ?? "center", s = o === "pointer" ? n.clientX - a.left : a.width / 2, c = o === "pointer" ? n.clientY - a.top : a.height / 2, l = s - (i?.offsetX ?? 0), u = c - (i?.offsetY ?? 0);
 	return r && (e.dragOffset = {
 		x: l,
@@ -1016,11 +973,11 @@ function be(e, t, n, r, i) {
 		offsetY: u
 	};
 }
-function xe(e) {
+function be(e) {
 	let t = e.dataset.layoutKey;
 	return (n) => n === e || n.contains(e) || !!(t && n.dataset.layoutKey === t);
 }
-function Se(e) {
+function xe(e) {
 	if (!e || e.length === 0) return;
 	let t = /* @__PURE__ */ new Map();
 	for (let n of e) {
@@ -1029,11 +986,11 @@ function Se(e) {
 	}
 	return t.size > 0 ? t : void 0;
 }
-function Ce(e, n, r, i) {
+function Se(e, n, r, i) {
 	let a = n().filter((t) => t !== e && t.dataset.runtimeProxy !== "true"), o = r?.();
-	return { beforePickup: t(a, document, !0, xe(e), {
+	return { beforePickup: t(a, document, !0, be(e), {
 		scopeSurfaces: o,
-		viewportBySurface: Se(o),
+		viewportBySurface: xe(o),
 		surfaceMeasures: i?.(),
 		focus: {
 			sourceElement: e,
@@ -1042,7 +999,7 @@ function Ce(e, n, r, i) {
 		}
 	}) };
 }
-function we(e, t) {
+function Ce(e, t) {
 	let n = null;
 	return {
 		update(r) {
@@ -1054,22 +1011,22 @@ function we(e, t) {
 		}
 	};
 }
-function Te(e) {
+function we(e) {
 	return e.active ? e.state.update(e.event) : null;
 }
-function Ee(e) {
-	e.event.stopPropagation(), T(e.proxy, !1), e.clearRegrab(), fe(e.source, e.sessionId), e.interrupt(), e.source.style.visibility = "hidden";
+function Te(e) {
+	e.event.stopPropagation(), T(e.proxy, !1), e.clearRegrab(), Q(e.source, e.sessionId), e.interrupt(), e.source.style.visibility = "hidden";
 }
-function De(e, t) {
+function Ee(e, t) {
 	return () => requestAnimationFrame(() => {
 		e(), t();
 	});
 }
-function Oe(e) {
+function De(e) {
 	let t = e.resolve();
 	return t ? (e.applyState(t), t) : null;
 }
-function ke(e, t, n = {}) {
+function Oe(e, t, n = {}) {
 	let r = n.rect ? new DOMRect(n.rect.left, n.rect.top, n.rect.width, n.rect.height) : t.getBoundingClientRect(), i = t.style.opacity, a = getComputedStyle(t).opacity, o = t.cloneNode(!0);
 	o.dataset.runtimeLandingSnapshot = "true", o.style.position = "fixed", o.style.left = "-100000px", o.style.top = "-100000px", o.style.width = `${r.width}px`, o.style.height = `${r.height}px`, o.style.visibility = "visible", o.style.pointerEvents = "none", o.style.transition = "none", n.ignoreTemporaryOpacity && (i === "0" || a === "0") && (o.style.opacity = "1"), (t.parentElement ?? t.ownerDocument.body).appendChild(o);
 	try {
@@ -1086,7 +1043,7 @@ function ke(e, t, n = {}) {
 		o.remove();
 	}
 }
-function Ae(e) {
+function ke(e) {
 	return {
 		...e.createContext(),
 		sourceElement: e.source,
@@ -1096,21 +1053,21 @@ function Ae(e) {
 		motionState: e.motionState
 	};
 }
-function je(e) {
+function Ae(e) {
 	let t = e.createProxy();
 	return t ? (e.enableProxy(t.element), e.bindRegrab(t.element), e.land(t.element).then(e.onComplete).catch(() => e.onComplete({
 		completed: !1,
 		reason: "landing-error"
 	})), t.element) : (e.onMissing(), null);
 }
-function Me(e) {
+function je(e) {
 	e.active && e.complete({
 		completed: e.result.completed,
 		reason: e.result.reason ?? "",
 		reveal: e.result.completed ? e.reveal : void 0
 	});
 }
-function Ne(e, t) {
+function Me(e, t) {
 	let n = (e) => {
 		if (!e?.isConnected) return null;
 		let t = e.getBoundingClientRect();
@@ -1118,7 +1075,7 @@ function Ne(e, t) {
 	};
 	return n(e()) ?? n(t());
 }
-function Pe(e) {
+function Ne(e) {
 	return {
 		landing: () => {
 			let t = e.createGate();
@@ -1129,7 +1086,7 @@ function Pe(e) {
 		}
 	};
 }
-function Fe(r, i, a, o, s, c) {
+function Pe(r, i, a, o, s, c) {
 	let l = 0, u = null, d;
 	return {
 		capture: () => {
@@ -1140,9 +1097,9 @@ function Fe(r, i, a, o, s, c) {
 				source: r
 			});
 			let n = a?.();
-			return t(i().filter((e) => e !== r && e.dataset.runtimeProxy !== "true"), document, !0, xe(r), {
+			return t(i().filter((e) => e !== r && e.dataset.runtimeProxy !== "true"), document, !0, be(r), {
 				scopeSurfaces: n,
-				viewportBySurface: Se(n),
+				viewportBySurface: xe(n),
 				surfaceMeasures: o?.(),
 				focus: {
 					sourceElement: r,
@@ -1176,7 +1133,7 @@ function Fe(r, i, a, o, s, c) {
 }
 //#endregion
 //#region src/runtime/move/MoveAdapter.ts
-function Ie(e) {
+function Fe(e) {
 	let { runtime: t, objectId: n, element: r, event: i, fromRect: o, clone: s = !1 } = e, c = t.objects.get(n), d = t.surfaces.snapshot(), p = d.map((e) => e.id), m = c?.surfaceId ?? d[0]?.id, h = (e) => e.closest("[data-layout-content][data-layout-open=\"false\"]") !== null, g = () => {
 		let e = [...t.objects.values()].map((e) => e.element).filter((e) => !!e?.isConnected), n = Array.from(document.querySelectorAll("[data-flip-target]"));
 		return Array.from(/* @__PURE__ */ new Set([...e, ...n]));
@@ -1221,7 +1178,7 @@ function Ie(e) {
 	}
 	function W(e, t) {
 		if (H() !== "active" || !b) return;
-		let n = Te({
+		let n = we({
 			active: H() === "active",
 			event: {
 				clientX: e,
@@ -1286,10 +1243,10 @@ function Ie(e) {
 		delete r.dataset.runtimeActive, o && (B || P?.restoreLayoutHidden(), ee?.release());
 		let u = (e, i, a, o = !1, s = null) => {
 			if (H() !== "landing") {
-				o && s && $(s, e);
+				o && s && Z(s, e);
 				return;
 			}
-			let u = i?.kind === "element" ? i.element : null, d = u ?? t.resolveVisualTarget(N, c) ?? t.objects.get(n)?.element ?? null, f = Oe({
+			let u = i?.kind === "element" ? i.element : null, d = u ?? t.resolveVisualTarget(N, c) ?? t.objects.get(n)?.element ?? null, f = De({
 				resolve: () => d,
 				applyState: (e) => t.applyVisualState(n, e, {
 					phase: "revealing",
@@ -1299,7 +1256,7 @@ function Ie(e) {
 				})
 			});
 			if (!f) {
-				o && s && $(s, e), C?.complete({
+				o && s && Z(s, e), C?.complete({
 					completed: !1,
 					reason: "target-not-registered"
 				}), C = null;
@@ -1314,10 +1271,10 @@ function Ie(e) {
 					width: e.width,
 					height: e.height
 				} : i.rect;
-			})() : i?.kind === "element" ? i.element : f, h = ke((e, n) => t.captureVisualState(p, e, n), f, {
+			})() : i?.kind === "element" ? i.element : f, h = Oe((e, n) => t.captureVisualState(p, e, n), f, {
 				ignoreTemporaryOpacity: !0,
 				rect: a ?? (i?.kind === "rect" ? m : void 0) ?? void 0
-			}), g = Ae({
+			}), g = ke({
 				createContext: () => t.createVisualLifecycleContext(e, c, m, v, { targetVisibilityOwned: o }),
 				source: r,
 				sourceRect: l,
@@ -1325,7 +1282,7 @@ function Ie(e) {
 				targetSnapshot: h,
 				motionState: L
 			});
-			t.setVisualProxyZIndex(e, g.landingProxyZIndex), w = je({
+			t.setVisualProxyZIndex(e, g.landingProxyZIndex), w = Ae({
 				createProxy: () => t.getVisualProxy(e) ?? t.createVisualProxy(e, g) ?? null,
 				enableProxy: (e) => T(e, !0),
 				bindRegrab: (r) => {
@@ -1344,7 +1301,7 @@ function Ie(e) {
 					}), C = null;
 				},
 				onComplete: (n) => {
-					Me({
+					je({
 						active: H() === "landing",
 						result: n,
 						complete: (e) => C?.complete(e),
@@ -1355,13 +1312,13 @@ function Ie(e) {
 				}
 			});
 		};
-		return S = De(() => void 0, () => {
+		return S = Ee(() => void 0, () => {
 			let e = N, n = O, r = k, i = A, a = j, o = !!(n && U(n, c));
 			if (O = null, k = null, A = !1, j = null, o && n) {
 				u(e, n, r, i, a);
 				return;
 			}
-			i && a && $(a, e), t.resolveLandingTarget(e, c).then((t) => u(e, t));
+			i && a && Z(a, e), t.resolveLandingTarget(e, c).then((t) => u(e, t));
 		}), {
 			accepted: !0,
 			destination: x,
@@ -1375,11 +1332,11 @@ function Ie(e) {
 		if (H() !== "landing") return;
 		let i = w;
 		if (!i || !N) return;
-		let a = t.getGroup(N), o = a ? t.objects.get(a.primaryObjectId)?.visual : void 0, s = t.resolveVisualTarget(N, x), c = t.objects.get(n)?.element ?? null, l = a ? t.objects.get(a.primaryObjectId)?.element ?? null : Ne(() => E ?? s, () => c);
+		let a = t.getGroup(N), o = a ? t.objects.get(a.primaryObjectId)?.visual : void 0, s = t.resolveVisualTarget(N, x), c = t.objects.get(n)?.element ?? null, l = a ? t.objects.get(a.primaryObjectId)?.element ?? null : Me(() => E ?? s, () => c);
 		if (!l) return;
 		let u = t.findObjectIdByElement(l, n) ?? n, d = t.createRegrabContext(N, e, i, l);
 		if (!d) return;
-		Ee({
+		Te({
 			event: d.event,
 			sessionId: N,
 			proxy: i,
@@ -1399,9 +1356,9 @@ function Ie(e) {
 				t.objects.setElement(n, r), r.style.visibility = "", r.style.pointerEvents = "", a && (r.style.transition = ""), ee = t.acquireObject(N, n), t.takeSurfaces(N, p);
 				let c = t.getGroup(N);
 				B = !!c;
-				let { beforePickup: d } = Ce(r, _, re, V);
+				let { beforePickup: d } = Se(r, _, re, V);
 				ne = t.getObjectSurfaceIndex(n, m), v = r.cloneNode(!0);
-				let h = be(t.getMoveContext(N), r, i, o, t.getObjectGrabAlign(n)), g = h.rect;
+				let h = ye(t.getMoveContext(N), r, i, o, t.getObjectGrabAlign(n)), g = h.rect;
 				R = {
 					x: h.offsetX,
 					y: h.offsetY
@@ -1410,7 +1367,7 @@ function Ie(e) {
 					hovered: r.matches(":hover"),
 					selected: r.classList.contains("is-selected"),
 					grabbed: !0
-				}), y = ye((e, r) => t.captureVisualState(n, r), n, r), P = _e(r, N);
+				}), y = ve((e, r) => t.captureVisualState(n, r), n, r), P = ge(r, N);
 				let x = t.getObjectProxyLayout(n, r), S = !!x?.compact, C = m ? t.resolveMoveSurfaceViewport(m) : null, w = !!(C && C.scrollHeight > C.clientHeight && C.scrollTop >= C.scrollHeight - C.clientHeight - 1), T = t.getObjectCameraConfig(n);
 				K(r, g, {
 					layout: x,
@@ -1419,7 +1376,7 @@ function Ie(e) {
 					affordancesSelector: t.getObjectAffordancesConfig(n)?.selector,
 					keepSourceVisible: !!(c && c.objectIds.length > 1),
 					proxyZIndex: t.getObjectProxyZIndex(n)
-				}), Q(r, N);
+				}), fe(r, N);
 				let E = oe(r);
 				E && t.registerVisualProxy(N, { element: E }), E && t.updateVisualProxy(N), r.style.pointerEvents = "none", !s && !c && (P.detachFromLayout(), w && C && (C.scrollTop = Math.max(0, C.scrollHeight - C.clientHeight))), r.style.transition = "none", c || t.scheduleLayout(d), r.dataset.runtimeActive = "true";
 				let D = t.getVisualProxy(N)?.element ?? ae(r);
@@ -1451,13 +1408,13 @@ function Ie(e) {
 						scaleY: S ? 1 : 1.03
 					}), e.start(), I = e;
 				} else {
-					let e = ve({ onFrame: A });
+					let e = _e({ onFrame: A });
 					e.setTarget({
 						x: i.clientX - R.x,
 						y: i.clientY - R.y
 					}), I = e;
 				}
-				b = we((e) => t.resolveMoveHit(n, e.clientX, e.clientY), (e, t) => e.columnId === t?.columnId && e.index === t?.index), W(i.clientX, i.clientY);
+				b = Ce((e) => t.resolveMoveHit(n, e.clientX, e.clientY), (e, t) => e.columnId === t?.columnId && e.index === t?.index), W(i.clientX, i.clientY);
 			},
 			update(e, t) {
 				t.event instanceof PointerEvent && G(t.event);
@@ -1471,15 +1428,15 @@ function Ie(e) {
 				B || (s || i || !i && typeof a == "string" && a === m ? P?.restoreLayoutHidden() : P?.detachFromLayout()), document.body.classList.remove("kb-dragging");
 			},
 			cancel(e, n) {
-				M = !0, O = null, k = null, A && j && $(j, N ?? ""), A = !1, j = null, I?.stop(), I = null, t.getVisualProxy(N) ? t.disposeVisualProxy(N) : w ? (t.disposeVisualProxy(N), w = null) : se(r), J(t.getGroup(N)), document.body.classList.remove("kb-dragging"), delete r.dataset.runtimeActive, se(r), P?.restore(), P = null;
+				M = !0, O = null, k = null, A && j && Z(j, N ?? ""), A = !1, j = null, I?.stop(), I = null, t.getVisualProxy(N) ? t.disposeVisualProxy(N) : w ? (t.disposeVisualProxy(N), w = null) : se(r), J(t.getGroup(N)), document.body.classList.remove("kb-dragging"), delete r.dataset.runtimeActive, se(r), P?.restore(), P = null;
 			}
 		},
 		lifecycle: {
-			layout: Fe(r, _, re, V, t.layout, g),
+			layout: Pe(r, _, re, V, t.layout, g),
 			surface: { enter: async () => {
 				ee?.release(), await ie();
 			} },
-			...Pe({
+			...Ne({
 				createGate: () => t.createCompletionGate(N, {
 					completed: !1,
 					reason: "landing-cancelled"
@@ -1506,11 +1463,11 @@ function Ie(e) {
 		}
 	};
 }
-function Le(e) {
-	return Ie({
+function Ie(e) {
+	return Fe({
 		...e,
 		clone: !0
 	});
 }
 //#endregion
-export { u as C, o as D, i as E, a as O, l as S, s as T, w as _, z as a, y as b, V as c, B as d, re as f, N as g, E as h, X as i, F as l, ce as m, Ie as n, de as o, $ as p, _e as r, j as s, Le as t, le as u, v, c as w, f as x, b as y };
+export { u as C, o as D, i as E, a as O, l as S, s as T, w as _, z as a, y as b, V as c, B as d, re as f, N as g, E as h, X as i, F as l, ce as m, Fe as n, de as o, Z as p, ge as r, j as s, Ie as t, le as u, v, c as w, f as x, b as y };

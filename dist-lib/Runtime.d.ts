@@ -53,6 +53,12 @@ export type RuntimeEvent = {
     type: 'move-visual-end';
     sessionId: string;
     objectId: string;
+}
+/** 视觉跟踪结束后的完整移动事务收尾，不能与 move-visual-end 混用。 */
+ | {
+    type: 'move-visual-settled';
+    sessionId: string;
+    objectId: string;
 } | {
     type: 'ownership-changed';
     id: string;
