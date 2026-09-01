@@ -23,6 +23,40 @@ Runtime Core
 Vue 适配层只负责把 Vue 的组件生命周期和 DOM ref 映射到 Core API，不实现拖拽、命中、
 proxy、landing、reveal、FLIP 或业务 Store。
 
+## 前置配置
+
+所有 Vue composable 都需要从父组件或应用级 provider 获取 Runtime 实例。推荐在应用入口
+注入，这样根组件及其所有子组件都可以直接使用 `useObject`、`useSurface`、`useTarget`
+和 `useRuntimeAction`：
+
+```ts
+// main.ts
+import { createApp } from 'vue'
+import { runtime } from 'gugu-interaction-runtime'
+import { runtimeInjectionKey } from 'gugu-interaction-runtime/vue'
+import App from './App.vue'
+
+createApp(App).provide(runtimeInjectionKey, runtime).mount('#app')
+```
+
+如果只需要在一棵子树中使用，也可以在父组件中调用 `provideRuntime(runtime)`，再由子组件
+调用 composable：
+
+```vue
+<!-- Parent.vue -->
+<script setup lang="ts">
+import { runtime } from 'gugu-interaction-runtime'
+import { provideRuntime } from 'gugu-interaction-runtime/vue'
+
+provideRuntime(runtime)
+</script>
+```
+
+`provide()` 对当前组件自身不可见，只对子组件可见。因此不能在同一个组件里先调用
+`provideRuntime(runtime)`，再调用 `useObject()`、`useSurface()`、`useTarget()` 或
+`useRuntimeAction()`；否则会抛出 `Vue Runtime provider is missing`。多 Runtime 实例
+场景应显式注入对应实例，不要依赖模块单例回退。
+
 ## 兼容基线
 
 旧版可用 API 来自 `f4ea296` 的父提交（对应历史 Vue 适配层）：
