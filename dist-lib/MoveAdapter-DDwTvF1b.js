@@ -1240,14 +1240,16 @@ function Fe(e) {
 		let s = t.getMoveContext(N)?.sourceSize;
 		s && (x.sourceSize = { ...s });
 		let c = x, l = w?.getBoundingClientRect() ?? t.getVisualProxy(N)?.element.getBoundingClientRect() ?? ae(r)?.getBoundingClientRect() ?? r.getBoundingClientRect();
-		delete r.dataset.runtimeActive, o && (B || P?.restoreLayoutHidden(), ee?.release());
-		let u = (e, i, a, o = !1, s = null) => {
+		delete r.dataset.runtimeActive;
+		let u = t.preservesMoveTarget(n);
+		o && (B || P?.restoreLayoutHidden(), ee?.release());
+		let d = (e, i, a, o = !1, s = null) => {
 			if (H() !== "landing") {
 				o && s && Z(s, e);
 				return;
 			}
-			let u = i?.kind === "element" ? i.element : null, d = u ?? t.resolveVisualTarget(N, c) ?? t.objects.get(n)?.element ?? null, f = De({
-				resolve: () => d,
+			let d = i?.kind === "element" ? i.element : null, f = d ?? t.resolveVisualTarget(N, c) ?? t.objects.get(n)?.element ?? null, p = De({
+				resolve: () => f,
 				applyState: (e) => t.applyVisualState(n, e, {
 					phase: "revealing",
 					hovered: !1,
@@ -1255,35 +1257,38 @@ function Fe(e) {
 					grabbed: !1
 				})
 			});
-			if (!f) {
+			if (!p) {
 				o && s && Z(s, e), C?.complete({
 					completed: !1,
 					reason: "target-not-registered"
 				}), C = null;
 				return;
 			}
-			E = f, D = f, i?.kind === "rect" && de(f, e), u && t.keepSurfaceTargetVisible(c.columnId, f);
-			let p = t.findObjectIdByElement(f, n) ?? n, m = i?.kind === "rect" ? (() => {
-				let e = f.getBoundingClientRect();
+			E = p, D = p, i?.kind === "rect" && de(p, e), d && t.keepSurfaceTargetVisible(c.columnId, p);
+			let m = t.findObjectIdByElement(p, n) ?? n, h = i?.kind === "rect" ? (() => {
+				let e = p.getBoundingClientRect();
 				return e.width > 0 && e.height > 0 ? {
 					left: e.left,
 					top: e.top,
 					width: e.width,
 					height: e.height
 				} : i.rect;
-			})() : i?.kind === "element" ? i.element : f, h = Oe((e, n) => t.captureVisualState(p, e, n), f, {
+			})() : i?.kind === "element" ? i.element : p, g = Oe((e, n) => t.captureVisualState(m, e, n), p, {
 				ignoreTemporaryOpacity: !0,
-				rect: a ?? (i?.kind === "rect" ? m : void 0) ?? void 0
-			}), g = ke({
-				createContext: () => t.createVisualLifecycleContext(e, c, m, v, { targetVisibilityOwned: o }),
+				rect: a ?? (i?.kind === "rect" ? h : void 0) ?? void 0
+			}), _ = ke({
+				createContext: () => t.createVisualLifecycleContext(e, c, h, v, {
+					targetVisibilityOwned: o,
+					preserveTargetOverride: u
+				}),
 				source: r,
 				sourceRect: l,
 				visualSnapshot: y,
-				targetSnapshot: h,
+				targetSnapshot: g,
 				motionState: L
 			});
-			t.setVisualProxyZIndex(e, g.landingProxyZIndex), w = Ae({
-				createProxy: () => t.getVisualProxy(e) ?? t.createVisualProxy(e, g) ?? null,
+			t.setVisualProxyZIndex(e, _.landingProxyZIndex), w = Ae({
+				createProxy: () => t.getVisualProxy(e) ?? t.createVisualProxy(e, _) ?? null,
 				enableProxy: (e) => T(e, !0),
 				bindRegrab: (r) => {
 					t.bindRegrabTarget(e, n, r, (e) => Y(e, n));
@@ -1293,7 +1298,7 @@ function Fe(e) {
 						r?.isConnected && (r.style.pointerEvents = "auto", e !== n && t.registerRegrab(e, (t) => Y(t, e)));
 					}
 				},
-				land: () => t.landVisualProxy(e, i?.kind === "rect" ? i.rect : f, g),
+				land: () => t.landVisualProxy(e, i?.kind === "rect" ? i.rect : p, _),
 				onMissing: () => {
 					C?.complete({
 						completed: !1,
@@ -1305,7 +1310,7 @@ function Fe(e) {
 						active: H() === "landing",
 						result: n,
 						complete: (e) => C?.complete(e),
-						reveal: () => t.revealVisualProxy(e, f, g).then(() => {
+						reveal: () => t.revealVisualProxy(e, p, _).then(() => {
 							w &&= (t.disposeVisualProxy(e), null), E = null;
 						})
 					}), C = null;
@@ -1315,10 +1320,10 @@ function Fe(e) {
 		return S = Ee(() => void 0, () => {
 			let e = N, n = O, r = k, i = A, a = j, o = !!(n && U(n, c));
 			if (O = null, k = null, A = !1, j = null, o && n) {
-				u(e, n, r, i, a);
+				d(e, n, r, i, a);
 				return;
 			}
-			i && a && Z(a, e), t.resolveLandingTarget(e, c).then((t) => u(e, t));
+			i && a && Z(a, e), t.resolveLandingTarget(e, c).then((t) => d(e, t));
 		}), {
 			accepted: !0,
 			destination: x,
@@ -1332,22 +1337,22 @@ function Fe(e) {
 		if (H() !== "landing") return;
 		let i = w;
 		if (!i || !N) return;
-		let a = e.target;
-		if (E && a instanceof Node && E.contains(a)) return;
-		let o = t.getGroup(N), s = o ? t.objects.get(o.primaryObjectId)?.visual : void 0, c = t.resolveVisualTarget(N, x), l = t.objects.get(n)?.element ?? null, u = o ? t.objects.get(o.primaryObjectId)?.element ?? null : Me(() => E ?? c, () => l);
-		if (!u) return;
-		let d = t.findObjectIdByElement(u, n) ?? n, f = t.createRegrabContext(N, e, i, u);
-		if (!f) return;
+		let a = e.target, o = E?.isConnected ? E : N ? t.resolveMoveLandingTarget(N, x) : null;
+		if (o && a instanceof Node && o.contains(a)) return;
+		let s = t.getGroup(N), c = s ? t.objects.get(s.primaryObjectId)?.visual : void 0, l = t.resolveVisualTarget(N, x), u = t.objects.get(n)?.element ?? null, d = s ? t.objects.get(s.primaryObjectId)?.element ?? null : Me(() => E ?? l, () => u);
+		if (!d) return;
+		let f = t.findObjectIdByElement(d, n) ?? n, p = t.createRegrabContext(N, e, i, d);
+		if (!p) return;
 		Te({
-			event: f.event,
+			event: p.event,
 			sessionId: N,
 			proxy: i,
-			source: u,
+			source: d,
 			interrupt: () => t.takeoverRegrab(N),
-			clearRegrab: () => J(o)
+			clearRegrab: () => J(s)
 		});
-		let p = u.getBoundingClientRect();
-		o ? (s && t.objects.update(o.primaryObjectId, { visual: s }), t.startGroupObjectPointer(o.objectIds, o.primaryObjectId, u, e, f.regrabRect, p)) : t.startObjectPointer(d, u, e, f.regrabRect, p);
+		let m = d.getBoundingClientRect();
+		s ? (c && t.objects.update(s.primaryObjectId, { visual: c }), t.startGroupObjectPointer(s.objectIds, s.primaryObjectId, d, e, p.regrabRect, m)) : t.startObjectPointer(f, d, e, p.regrabRect, m);
 	}
 	return {
 		driver: {

@@ -250,6 +250,10 @@ export function createDetachMoveFromAdapter(config: {
       ?? getFloatingProxy(element)?.getBoundingClientRect()
       ?? element.getBoundingClientRect()
     delete element.dataset.runtimeActive
+    // preserveMoveTarget 必须在这里就地采样：对象此刻仍处于注册状态；业务
+    // Action 的乐观更新可能在 landing 期间卸载被拖对象，届时类型注册查不到，
+    // 会误判 preserveTarget=false 并把语义落点（面包屑/文件夹）conceal 隐藏。
+    const preserveTargetOverride = runtime.preservesMoveTarget(objectId)
     // objectLease 释放时机分两种情况：
     // - 无效落点（invalidReturn）：destination 就是原位置，没有 emit，业务
     //   <Teleport> 传送回去的本来就是正确位置，这里立刻释放没有风险，也不能
@@ -328,7 +332,7 @@ export function createDetachMoveFromAdapter(config: {
           destination,
           liveLandingRect,
           beforeContent!,
-          { targetVisibilityOwned },
+          { targetVisibilityOwned, preserveTargetOverride },
         ),
         source: element, sourceRect: beforeRect, visualSnapshot: draggingSnapshot!, targetSnapshot,
         motionState: releaseMotionState,
@@ -412,8 +416,13 @@ export function createDetachMoveFromAdapter(config: {
     // pointerdown 整段抢走，目标自身的 click 永远不触发，表现为拖入动画
     // 结束前点击目标目录无法进入。命中点落在 landing 目标内时让事件穿透，
     // 交给业务点击处理；要在动画中抓回卡片仍可按代理露出目标的区域。
+    // 排除目标优先用当前 landing 记录的元素；若业务（如 Vue 重渲染）已把
+    // 该节点替换，则按语义 target 实时重解析，避免拿着失配的旧引用漏判。
     const regrabNode = regrabEvent.target
-    if (landingTargetElement && regrabNode instanceof Node && landingTargetElement.contains(regrabNode)) return
+    const excludeTarget = landingTargetElement?.isConnected
+      ? landingTargetElement
+      : (sessionId ? runtime.resolveMoveLandingTarget(sessionId, pendingDrop) : null)
+    if (excludeTarget && regrabNode instanceof Node && excludeTarget.contains(regrabNode)) return
     const group = runtime.getGroup(sessionId)
     const groupVisual = group ? runtime.objects.get(group.primaryObjectId)?.visual : undefined
     const visualTarget = runtime.resolveVisualTarget(sessionId!, pendingDrop)

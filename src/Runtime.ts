@@ -766,7 +766,7 @@ setMotionProfiles(this.registry.motionProfile)
     destination?: unknown,
     target?: HTMLElement | LandingRect,
     beforeContent?: HTMLElement,
-    options?: { targetVisibilityOwned?: boolean },
+    options?: { targetVisibilityOwned?: boolean; preserveTargetOverride?: boolean },
   ): VisualLifecycleContext {
     const session = this.sessionCoordinator.get(sessionId)
     const object = session ? this.objects.get(session.objectId) : undefined
@@ -851,7 +851,11 @@ setMotionProfiles(this.registry.motionProfile)
       targetSnapshot: targetElement
         ? (adapter.captureVisualState ?? fallback.captureVisualState)(targetElement)
         : undefined,
-      preserveTarget: this.preservesMoveTarget(object?.id ?? ''),
+      // preserveMoveTarget 必须在释放时就地采样：业务 Action 的乐观更新可能
+      // 在 landing 期间卸载被拖对象（如文件移出当前目录后卡片组件卸载），
+      // 届时 objects.get 已拿不到对象，类型注册查不到会误判为 false，导致
+      // 语义落点（面包屑/文件夹）在动画中被 conceal 隐藏。
+      preserveTarget: options?.preserveTargetOverride ?? this.preservesMoveTarget(object?.id ?? ''),
       targetVisibilityOwned: options?.targetVisibilityOwned ?? false,
       // 无效落点是回到原位，不是飞入语义目标；即使对象类型配置了
       // target landing，也必须保留普通 landing 的完整回位表现。

@@ -1,5 +1,5 @@
 import { _ as e, a as t, c as n, d as r, f as i, g as a, h as o, i as s, l as c, m as l, n as u, o as d, p as f, r as p, s as m, t as h, u as g, v as _, y as v } from "./GroupLayout-DZr40zZY.js";
-import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-BFRMdoei.js";
+import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-DDwTvF1b.js";
 //#region src/core/Emitter.ts
 var I = class {
 	constructor() {
@@ -1960,7 +1960,7 @@ var Le = class {
 			sourceRect: s?.getBoundingClientRect(),
 			visualSnapshot: s ? (c.captureVisualState ?? l.captureVisualState)(s) : void 0,
 			targetSnapshot: v ? (c.captureVisualState ?? l.captureVisualState)(v) : void 0,
-			preserveTarget: this.preservesMoveTarget(o?.id ?? ""),
+			preserveTarget: i?.preserveTargetOverride ?? this.preservesMoveTarget(o?.id ?? ""),
 			targetVisibilityOwned: i?.targetVisibilityOwned ?? !1,
 			landingMode: E,
 			releaseMode: u?.releaseMode ?? "physical",

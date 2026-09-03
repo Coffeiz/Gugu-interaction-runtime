@@ -357,6 +357,7 @@ export declare class Runtime {
     preservesMoveTarget(objectId: string): boolean;
     createVisualLifecycleContext(sessionId: string, destination?: unknown, target?: HTMLElement | LandingRect, beforeContent?: HTMLElement, options?: {
         targetVisibilityOwned?: boolean;
+        preserveTargetOverride?: boolean;
     }): VisualLifecycleContext;
     /** 由注册的 VisualAdapter 创建并登记当前 session 的唯一视觉代理。 */
     createVisualProxy(sessionId: string, context: VisualLifecycleContext): VisualProxy | undefined;
