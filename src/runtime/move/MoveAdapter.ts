@@ -407,6 +407,13 @@ export function createDetachMoveFromAdapter(config: {
     if (getSessionState() !== 'landing') return
     const proxy = landingProxy
     if (!proxy || !sessionId) return
+    // 按在落点目标元素（面包屑/文件夹这类语义 target）上不是"空中抓回"：
+    // 代理此刻正好盖在目标上方，按代理矩形命中会把用户点击目标的
+    // pointerdown 整段抢走，目标自身的 click 永远不触发，表现为拖入动画
+    // 结束前点击目标目录无法进入。命中点落在 landing 目标内时让事件穿透，
+    // 交给业务点击处理；要在动画中抓回卡片仍可按代理露出目标的区域。
+    const regrabNode = regrabEvent.target
+    if (landingTargetElement && regrabNode instanceof Node && landingTargetElement.contains(regrabNode)) return
     const group = runtime.getGroup(sessionId)
     const groupVisual = group ? runtime.objects.get(group.primaryObjectId)?.visual : undefined
     const visualTarget = runtime.resolveVisualTarget(sessionId!, pendingDrop)

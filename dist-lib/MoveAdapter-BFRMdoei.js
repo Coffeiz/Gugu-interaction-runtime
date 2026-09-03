@@ -1332,20 +1332,22 @@ function Fe(e) {
 		if (H() !== "landing") return;
 		let i = w;
 		if (!i || !N) return;
-		let a = t.getGroup(N), o = a ? t.objects.get(a.primaryObjectId)?.visual : void 0, s = t.resolveVisualTarget(N, x), c = t.objects.get(n)?.element ?? null, l = a ? t.objects.get(a.primaryObjectId)?.element ?? null : Me(() => E ?? s, () => c);
-		if (!l) return;
-		let u = t.findObjectIdByElement(l, n) ?? n, d = t.createRegrabContext(N, e, i, l);
-		if (!d) return;
+		let a = e.target;
+		if (E && a instanceof Node && E.contains(a)) return;
+		let o = t.getGroup(N), s = o ? t.objects.get(o.primaryObjectId)?.visual : void 0, c = t.resolveVisualTarget(N, x), l = t.objects.get(n)?.element ?? null, u = o ? t.objects.get(o.primaryObjectId)?.element ?? null : Me(() => E ?? c, () => l);
+		if (!u) return;
+		let d = t.findObjectIdByElement(u, n) ?? n, f = t.createRegrabContext(N, e, i, u);
+		if (!f) return;
 		Te({
-			event: d.event,
+			event: f.event,
 			sessionId: N,
 			proxy: i,
-			source: l,
+			source: u,
 			interrupt: () => t.takeoverRegrab(N),
-			clearRegrab: () => J(a)
+			clearRegrab: () => J(o)
 		});
-		let f = l.getBoundingClientRect();
-		a ? (o && t.objects.update(a.primaryObjectId, { visual: o }), t.startGroupObjectPointer(a.objectIds, a.primaryObjectId, l, e, d.regrabRect, f)) : t.startObjectPointer(u, l, e, d.regrabRect, f);
+		let p = u.getBoundingClientRect();
+		o ? (s && t.objects.update(o.primaryObjectId, { visual: s }), t.startGroupObjectPointer(o.objectIds, o.primaryObjectId, u, e, f.regrabRect, p)) : t.startObjectPointer(d, u, e, f.regrabRect, p);
 	}
 	return {
 		driver: {
