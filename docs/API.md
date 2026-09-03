@@ -1,6 +1,6 @@
 # Core API 参考
 
-> 适用版本：3.0.2
+> 适用版本：3.0.6
 
 本文是 `gugu-interaction-runtime` 的公开接口索引。它按接入顺序组织，适合在已经
 理解基本模型后查找字段和方法。完整示例见 [接入指南](./INTEGRATION.md)，Vue
@@ -273,7 +273,7 @@ Target 绑定和布局 mutation，不注册业务语义，也不提交 Action。
 
 ## 10. 版本与验证
 
-当前版本为 `3.0.2`。发布前执行：
+当前版本为 `3.0.6`。发布前执行：
 
 ```bash
 npm run typecheck
