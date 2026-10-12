@@ -24,7 +24,7 @@ export interface DetachPickupPreparation {
 export declare function prepareDetachPickup(sourceElement: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[], surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => {
     width?: number;
     height: number;
-} | null)>): DetachPickupPreparation;
+} | null)>, includeViewportPeers?: boolean): DetachPickupPreparation;
 export declare function createDetachDropState<TDrop>(resolve: (event: PointerEvent) => TDrop | null, same: (drop: TDrop, previous: TDrop | null) => boolean): {
     update(event: PointerEvent): TDrop | null;
     release(): TDrop | null;

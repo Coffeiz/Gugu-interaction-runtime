@@ -3,6 +3,8 @@ export interface LayoutParticipantFocus {
     readonly sourceElement: HTMLElement;
     readonly layoutKey?: string;
     readonly mode: LayoutParticipantMode;
+    /** Include visible preceding siblings when bottom-anchor clamping shifts the scroll view. */
+    readonly includeViewportPeers?: boolean;
 }
 export interface LayoutParticipantPlan {
     readonly eligible: ReadonlySet<HTMLElement>;
@@ -18,6 +20,12 @@ export declare function findLayoutScopeSurface(element: HTMLElement, scopeSurfac
  * Relative FLIP, so their leaves do not need a second transform.
  */
 export declare function captureSourceAffectedCards(cards: readonly HTMLElement[], sourceElement: HTMLElement): ReadonlySet<HTMLElement>;
+/**
+ * Bottom-anchored removal also changes the viewport position of visible cards before the
+ * source when scrollTop is clamped to the new maximum. Capture those same-container peers so
+ * their viewport-space movement can be animated; offscreen cards stay outside the FLIP set.
+ */
+export declare function captureViewportRemovalPeers(cards: readonly HTMLElement[], sourceElement: HTMLElement, viewport: ViewportRectLike, measureRect?: (element: HTMLElement) => ViewportRectLike): ReadonlySet<HTMLElement>;
 /**
  * Resolve the semantic object at its post-mutation location. Cross-Surface Vue trees may mount
  * a different DOM node for the same object, so data-layout-key is the identity; same-node

@@ -133,4 +133,65 @@ describe('Layout FLIP participant reduction', () => {
     expect(suffix1Spy).toHaveBeenCalledTimes(1)
     expect(suffix2Spy).toHaveBeenCalledTimes(1)
   })
+
+  it('滚动到底部移除 source 时捕获视口内的上方兄弟并播放 FLIP', () => {
+    const surface = document.createElement('section')
+    surface.dataset.layoutSurface = 'test'
+    const viewport = document.createElement('div')
+    viewport.dataset.scrollViewport = ''
+    const list = document.createElement('div')
+    const above = document.createElement('article')
+    above.dataset.layoutRole = 'card'
+    const source = document.createElement('article')
+    source.dataset.layoutRole = 'card'
+    source.dataset.layoutKey = 'moving'
+    const suffix = document.createElement('article')
+    suffix.dataset.layoutRole = 'card'
+    const offscreen = document.createElement('article')
+    offscreen.dataset.layoutRole = 'card'
+    list.append(above, source, suffix, offscreen)
+    viewport.append(list)
+    surface.append(viewport)
+    document.body.append(surface)
+
+    let phase: 'before' | 'after' = 'before'
+    mockRect(surface, () => ({ left: 0, top: 0, width: 300, height: 300 }))
+    mockRect(viewport, () => ({ left: 0, top: 0, width: 300, height: 300 }))
+    const aboveSpy = mockRect(above, () => ({
+      left: 0,
+      top: phase === 'before' ? 220 : 270,
+      width: 250,
+      height: 50,
+    }))
+    const suffixSpy = mockRect(suffix, () => ({ left: 0, top: 280, width: 250, height: 50 }))
+    const offscreenSpy = mockRect(offscreen, () => ({ left: 0, top: 1200, width: 250, height: 50 }))
+
+    const snapshot = captureLayoutFlip(
+      [above, suffix, offscreen],
+      document,
+      false,
+      undefined,
+      {
+        scopeSurfaces: [surface],
+        viewportBySurface: new Map([[surface, viewport]]),
+        focus: {
+          sourceElement: source,
+          layoutKey: 'moving',
+          mode: 'removal',
+          includeViewportPeers: true,
+        },
+      },
+    )
+
+    expect(snapshot.participants?.cards).toEqual([above, suffix, offscreen])
+    phase = 'after'
+    source.remove()
+    playLayoutFlip(snapshot)
+
+    const telemetry = getLastLayoutFlipTelemetry()
+    expect(telemetry?.animatedCards).toBe(1)
+    expect(aboveSpy).toHaveBeenCalledTimes(2)
+    expect(suffixSpy).toHaveBeenCalledTimes(2)
+    expect(offscreenSpy).toHaveBeenCalledTimes(1)
+  })
 })

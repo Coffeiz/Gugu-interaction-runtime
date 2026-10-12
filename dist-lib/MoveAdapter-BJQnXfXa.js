@@ -1,4 +1,4 @@
-import { a as e, n as t, o as n, y as r } from "./GroupLayout-DZr40zZY.js";
+import { a as e, n as t, o as n, y as r } from "./GroupLayout-KQ7I0YKH.js";
 //#region src/motion/ReleaseMotion.ts
 var i = {
 	velocityScale: 1,
@@ -986,16 +986,17 @@ function xe(e) {
 	}
 	return t.size > 0 ? t : void 0;
 }
-function Se(e, n, r, i) {
-	let a = n().filter((t) => t !== e && t.dataset.runtimeProxy !== "true"), o = r?.();
-	return { beforePickup: t(a, document, !0, be(e), {
-		scopeSurfaces: o,
-		viewportBySurface: xe(o),
+function Se(e, n, r, i, a = !1) {
+	let o = n().filter((t) => t !== e && t.dataset.runtimeProxy !== "true"), s = r?.();
+	return { beforePickup: t(o, document, !0, be(e), {
+		scopeSurfaces: s,
+		viewportBySurface: xe(s),
 		surfaceMeasures: i?.(),
 		focus: {
 			sourceElement: e,
 			layoutKey: e.dataset.layoutKey,
-			mode: "removal"
+			mode: "removal",
+			includeViewportPeers: a
 		}
 	}) };
 }
@@ -1363,21 +1364,21 @@ function Fe(e) {
 				t.objects.setElement(n, r), r.style.visibility = "", r.style.pointerEvents = "", a && (r.style.transition = ""), ee = t.acquireObject(N, n), t.takeSurfaces(N, p);
 				let c = t.getGroup(N);
 				B = !!c;
-				let { beforePickup: d } = Se(r, _, re, V);
+				let d = m ? t.resolveMoveSurfaceViewport(m) : null, h = !!(d && d.scrollHeight > d.clientHeight && d.scrollTop >= d.scrollHeight - d.clientHeight - 1), { beforePickup: g } = Se(r, _, re, V, !s && !c && h);
 				ne = t.getObjectSurfaceIndex(n, m), v = r.cloneNode(!0);
-				let h = ye(t.getMoveContext(N), r, i, o, t.getObjectGrabAlign(n)), g = h.rect;
+				let x = ye(t.getMoveContext(N), r, i, o, t.getObjectGrabAlign(n)), S = x.rect;
 				R = {
-					x: h.offsetX,
-					y: h.offsetY
+					x: x.offsetX,
+					y: x.offsetY
 				}, document.body.classList.add("kb-dragging"), t.applyVisualState(n, r, {
 					phase: "dragging",
 					hovered: r.matches(":hover"),
 					selected: r.classList.contains("is-selected"),
 					grabbed: !0
 				}), y = ve((e, r) => t.captureVisualState(n, r), n, r), P = ge(r, N);
-				let x = t.getObjectProxyLayout(n, r), S = !!x?.compact, C = m ? t.resolveMoveSurfaceViewport(m) : null, w = !!(C && C.scrollHeight > C.clientHeight && C.scrollTop >= C.scrollHeight - C.clientHeight - 1), T = t.getObjectCameraConfig(n);
-				K(r, g, {
-					layout: x,
+				let C = t.getObjectProxyLayout(n, r), w = !!C?.compact, T = t.getObjectCameraConfig(n);
+				K(r, S, {
+					layout: C,
 					contentScale: T.enabled && T.pickup && T.scale ? t.getSurfaceCameraPickupScale(m, N) : void 0,
 					cameraShell: T.enabled && T.scale,
 					affordancesSelector: t.getObjectAffordancesConfig(n)?.selector,
@@ -1385,11 +1386,11 @@ function Fe(e) {
 					proxyZIndex: t.getObjectProxyZIndex(n)
 				}), fe(r, N);
 				let E = oe(r);
-				E && t.registerVisualProxy(N, { element: E }), E && t.updateVisualProxy(N), r.style.pointerEvents = "none", !s && !c && (P.detachFromLayout(), w && C && (C.scrollTop = Math.max(0, C.scrollHeight - C.clientHeight))), r.style.transition = "none", c || t.scheduleLayout(d), r.dataset.runtimeActive = "true";
+				E && t.registerVisualProxy(N, { element: E }), E && t.updateVisualProxy(N), r.style.pointerEvents = "none", !s && !c && (P.detachFromLayout(), h && d && (d.scrollTop = Math.max(0, d.scrollHeight - d.clientHeight))), r.style.transition = "none", c || t.scheduleLayout(g), r.dataset.runtimeActive = "true";
 				let D = t.getVisualProxy(N)?.element ?? ae(r);
 				if (!D) return;
 				D.style.transition = "none";
-				let O = g.left, k = g.top, A = (e) => {
+				let O = S.left, k = S.top, A = (e) => {
 					if (!D.isConnected) return;
 					t.updateVisualProxy(N);
 					let n = e.x - O, r = e.y - k;
@@ -1402,8 +1403,8 @@ function Fe(e) {
 						onFrame: A
 					});
 					e.setProfile(l), e.seed({
-						x: g.left,
-						y: g.top,
+						x: S.left,
+						y: S.top,
 						scaleX: 1,
 						scaleY: 1,
 						rotateX: u.tilt,
@@ -1411,8 +1412,8 @@ function Fe(e) {
 					}), e.setTarget({
 						x: i.clientX - R.x,
 						y: i.clientY - R.y,
-						scaleX: S ? 1 : 1.03,
-						scaleY: S ? 1 : 1.03
+						scaleX: w ? 1 : 1.03,
+						scaleY: w ? 1 : 1.03
 					}), e.start(), I = e;
 				} else {
 					let e = _e({ onFrame: A });

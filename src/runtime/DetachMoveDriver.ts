@@ -98,6 +98,7 @@ export function prepareDetachPickup(
   registeredElements: () => HTMLElement[],
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
+  includeViewportPeers = false,
 ): DetachPickupPreparation {
   const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
@@ -111,6 +112,7 @@ export function prepareDetachPickup(
         sourceElement,
         layoutKey: sourceElement.dataset.layoutKey,
         mode: 'removal',
+        includeViewportPeers,
       },
     }),
   }

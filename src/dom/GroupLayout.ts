@@ -6,6 +6,7 @@ import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasure
 import {
   buildLayoutParticipantPlan,
   captureSourceAffectedCards,
+  captureViewportRemovalPeers,
   findLayoutScopeSurface,
   isRectWithinViewportOverscan,
   type LayoutParticipantFocus,
@@ -228,9 +229,22 @@ export function captureLayoutFlip(
     .filter(inScope)
   const measurement = createLayoutMeasurement()
   const scopedCards = cards.filter(inScope)
-  const sourceAffected = options.focus
+  const sourceAffected = new Set(options.focus
     ? captureSourceAffectedCards(scopedCards, options.focus.sourceElement)
-    : new Set<HTMLElement>()
+    : [])
+  const viewportRects = captureViewportRects(options.viewportBySurface, measurement)
+  if (options.focus?.mode === 'removal' && options.focus.includeViewportPeers) {
+    const sourceSurface = findLayoutScopeSurface(options.focus.sourceElement, options.scopeSurfaces)
+    const sourceViewport = sourceSurface ? viewportRects.get(sourceSurface) : undefined
+    if (sourceViewport) {
+      for (const peer of captureViewportRemovalPeers(
+        scopedCards,
+        options.focus.sourceElement,
+        sourceViewport,
+        element => measurement.rect(element),
+      )) sourceAffected.add(peer)
+    }
+  }
   // Pickup/removal is the only phase whose entire affected range is known before mutation.
   // For release/move the destination target may be a different DOM node mounted by Vue, so
   // keep the capture broad and reduce the second measurement once the final DOM exists.
@@ -239,7 +253,6 @@ export function captureLayoutFlip(
     : scopedCards
   const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(captureCards, root, options.scopeSurfaces)
   const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement, options.surfaceMeasures)
-  const viewportRects = captureViewportRects(options.viewportBySurface, measurement)
   const groupBefore = groups.length > 0
     ? captureGroupLayout([...groups, ...groupLeaves], measurement)
     : []

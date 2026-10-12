@@ -495,7 +495,19 @@ export function createDetachMoveFromAdapter(config: {
       runtime.takeSurfaces(sessionId!, surfaceIds)
       const group = runtime.getGroup(sessionId!)
       isGroupSession = Boolean(group)
-      const { beforePickup } = prepareDetachPickup(element, registeredElements, layoutScopeSurfaces, layoutSurfaceMeasures)
+      const sourceViewport = initialSurfaceId
+        ? runtime.resolveMoveSurfaceViewport(initialSurfaceId)
+        : null
+      const sourceWasAtBottom = Boolean(sourceViewport
+        && sourceViewport.scrollHeight > sourceViewport.clientHeight
+        && sourceViewport.scrollTop >= sourceViewport.scrollHeight - sourceViewport.clientHeight - 1)
+      const { beforePickup } = prepareDetachPickup(
+        element,
+        registeredElements,
+        layoutScopeSurfaces,
+        layoutSurfaceMeasures,
+        !clone && !group && sourceWasAtBottom,
+      )
       pickupIndex = runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)
       beforeContent = element.cloneNode(true) as HTMLElement
       const moveContext = runtime.getMoveContext(sessionId!)
@@ -534,12 +546,6 @@ export function createDetachMoveFromAdapter(config: {
       // 的姿态、过渡和 release 动量一致；唯一差别是 detach 立即移除源占位。
       const proxyLayout = runtime.getObjectProxyLayout(objectId, element)
       const compactProxy = Boolean(proxyLayout?.compact)
-      const sourceViewport = initialSurfaceId
-        ? runtime.resolveMoveSurfaceViewport(initialSurfaceId)
-        : null
-      const sourceWasAtBottom = Boolean(sourceViewport
-        && sourceViewport.scrollHeight > sourceViewport.clientHeight
-        && sourceViewport.scrollTop >= sourceViewport.scrollHeight - sourceViewport.clientHeight - 1)
       const camera = runtime.getObjectCameraConfig(objectId)
       applyFloatingStyle(element, rect, {
         layout: proxyLayout,

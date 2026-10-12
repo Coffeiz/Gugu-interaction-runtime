@@ -4,6 +4,8 @@ export interface LayoutParticipantFocus {
   readonly sourceElement: HTMLElement
   readonly layoutKey?: string
   readonly mode: LayoutParticipantMode
+  /** Include visible preceding siblings when bottom-anchor clamping shifts the scroll view. */
+  readonly includeViewportPeers?: boolean
 }
 
 export interface LayoutParticipantPlan {
@@ -90,6 +92,30 @@ export function captureSourceAffectedCards(
     if (isFollowing(sourceOrderNode, cardOrderNode)) affected.add(card)
   }
   return affected
+}
+
+/**
+ * Bottom-anchored removal also changes the viewport position of visible cards before the
+ * source when scrollTop is clamped to the new maximum. Capture those same-container peers so
+ * their viewport-space movement can be animated; offscreen cards stay outside the FLIP set.
+ */
+export function captureViewportRemovalPeers(
+  cards: readonly HTMLElement[],
+  sourceElement: HTMLElement,
+  viewport: ViewportRectLike,
+  measureRect: (element: HTMLElement) => ViewportRectLike = element => element.getBoundingClientRect(),
+): ReadonlySet<HTMLElement> {
+  const sourceOrderNode = layoutOrderNode(sourceElement)
+  const parent = sourceOrderNode.parentElement
+  if (!parent) return new Set()
+  const peers = new Set<HTMLElement>()
+  for (const card of cards) {
+    const cardOrderNode = layoutOrderNode(card)
+    if (cardOrderNode === sourceOrderNode || cardOrderNode.parentElement !== parent) continue
+    if (isFollowing(sourceOrderNode, cardOrderNode)) continue
+    if (isRectWithinViewportOverscan(measureRect(card), viewport)) peers.add(card)
+  }
+  return peers
 }
 
 /**
