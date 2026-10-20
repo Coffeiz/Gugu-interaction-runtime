@@ -1,4 +1,4 @@
-import { l as e } from "./GroupLayout-B0YxiY7n.js";
+import { l as e } from "./GroupLayout-DwHEZprO.js";
 import { inject as t, nextTick as n, onUnmounted as r, provide as i, ref as a, toValue as o, watch as s } from "vue";
 //#region src/vue/context.ts
 var c = Symbol("gugu-interaction-runtime");
@@ -137,9 +137,9 @@ function b(t) {
 		layoutElement: () => f().layoutElement,
 		measureLayout: () => {
 			let e = l();
-			return m && e === p ? h : (p = e, m = !0, h = f().measureLayout(), g === null && typeof requestAnimationFrame < "u" && (g = requestAnimationFrame(() => {
+			return m && e === p || (p = e, m = !0, h = f().measureLayout(), g === null && typeof requestAnimationFrame < "u" && (g = requestAnimationFrame(() => {
 				p = null, m = !1, h = null, g = null;
-			})), h);
+			}))), h;
 		}
 	}, b = y(t, l, _), x = i.surfaces.register({
 		id: t.id,
@@ -218,7 +218,7 @@ function b(t) {
 			return;
 		}
 		let r = (e) => {
-			e && !e.isCurrent() || I();
+			(!e || e.isCurrent()) && I();
 		};
 		i.layout.defer(e, n.participantId, (e) => r(e), "surface-resize") || r(), i.layout.commit(e, n.participantId);
 	}, R = () => {

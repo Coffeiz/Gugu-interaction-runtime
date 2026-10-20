@@ -102,7 +102,7 @@ function m(e) {
 		n.clear();
 		for (let n of r) {
 			let r = t.get(n);
-			!r || r.started !== null || (r.started = e, n.style.setProperty("transition", `transform ${r.duration}ms ${r.easingText}`, "important"), n.style.transform = "translate(0px, 0px)");
+			r && r.started === null && (r.started = e, n.style.setProperty("transition", `transform ${r.duration}ms ${r.easingText}`, "important"), n.style.transform = "translate(0px, 0px)");
 		}
 		u();
 	}
@@ -188,11 +188,7 @@ function ie(e, t, n = C, r = w, i, a) {
 	re(e);
 	let s = [], c = 0, l = 0;
 	for (let n of e) {
-		if (a && !a(n)) {
-			o.has(n) && (n.style.transition = "");
-			continue;
-		}
-		if (n.dataset.runtimeProxy === "true" || n.dataset.runtimePlaceholder === "true" || n.dataset.runtimeActive === "true") {
+		if (a && !a(n) || n.dataset.runtimeProxy === "true" || n.dataset.runtimePlaceholder === "true" || n.dataset.runtimeActive === "true") {
 			o.has(n) && (n.style.transition = "");
 			continue;
 		}
@@ -204,11 +200,7 @@ function ie(e, t, n = C, r = w, i, a) {
 		let r = i?.rect(n) ?? n.getBoundingClientRect();
 		c += 1;
 		let u = e.left - r.left, d = e.top - r.top;
-		if (Math.abs(u) < .5 && Math.abs(d) < .5) {
-			l += 1, n.style.transition = "";
-			continue;
-		}
-		s.push({
+		Math.abs(u) < .5 && Math.abs(d) < .5 ? (l += 1, n.style.transition = "") : s.push({
 			element: n,
 			dx: u,
 			dy: d
@@ -513,15 +505,7 @@ function we(e) {
 				u && e && e !== u && d && t === d ? (m = !1, h = !0) : (f.parentElement === r.parentElement || u && e === u) && (m = I(r, f));
 			}
 		}
-		if (!m) {
-			h ? o += 1 : a += 1;
-			continue;
-		}
-		if (n && !n.has(f)) {
-			s += 1;
-			continue;
-		}
-		i.add(f);
+		m ? n && !n.has(f) ? s += 1 : i.add(f) : h ? o += 1 : a += 1;
 	}
 	return {
 		eligible: i,
@@ -552,7 +536,7 @@ function U() {
 }
 var De = 0;
 function Oe(e) {
-	if (De += 1, !(typeof performance > "u" || typeof performance.mark != "function")) try {
+	if (De += 1, typeof performance < "u" && typeof performance.mark == "function") try {
 		performance.clearMarks?.("gugu:layout-flip"), performance.mark("gugu:layout-flip", { detail: e });
 	} catch {
 		try {
@@ -822,11 +806,7 @@ function Ge(e, t = C, n = w, r, i, a) {
 	let c = /* @__PURE__ */ new Map(), l = 0;
 	for (let t of e) {
 		let e = i?.has(t.element) ?? !1;
-		if (e && a && !a.has(t.element)) {
-			s.has(t.element) && (t.element.style.transition = "");
-			continue;
-		}
-		if (t.element.dataset.runtimeProxy === "true" || t.element.dataset.runtimePlaceholder === "true" || t.element.dataset.runtimeActive === "true") {
+		if (e && a && !a.has(t.element) || t.element.dataset.runtimeProxy === "true" || t.element.dataset.runtimePlaceholder === "true" || t.element.dataset.runtimeActive === "true") {
 			s.has(t.element) && (t.element.style.transition = "");
 			continue;
 		}
@@ -891,7 +871,7 @@ function qe(e) {
 	q.delete(e);
 	let t = typeof Node < "u" && e instanceof Node, n = t ? e.getRootNode() : e, r = K.get(n);
 	r && (r.timeout !== void 0 && window.clearTimeout(r.timeout), r.entries.forEach(({ element: n, overflow: r }) => {
-		t && !e.contains(n) || (n.style.overflow = r);
+		(!t || e.contains(n)) && (n.style.overflow = r);
 	}), K.delete(n));
 	let i = [];
 	e instanceof HTMLElement && i.push(e), typeof e.querySelectorAll == "function" && i.push(...Array.from(e.querySelectorAll("[data-runtime-flip], [data-runtime-group-animating], [data-runtime-surface-resize], [data-runtime-layout-transaction], [data-layout-content]")));
@@ -916,20 +896,12 @@ async function Je(e) {
 	}), o = e.content.getBoundingClientRect().height, s = W(a, e.root, !1, void 0, { surfaceMeasures: e.surfaceMeasures });
 	!e.opening && o > 0 && (X(e.content), e.content.dataset.runtimeGroupAnimating = "true", e.content.style.height = `${o}px`, e.content.style.overflow = "hidden", e.content.style.transition = "");
 	let c = V ? Ze(e.content, e.opening, e.duration, e.easing) : null;
-	if (e.mutate(), await e.waitForLayout(), H.get(e.content) !== r) {
-		e.layoutTransaction?.cancel(t, n?.participantId);
-		return;
-	}
-	if (e.isCurrent && !e.isCurrent()) {
+	if (e.mutate(), await e.waitForLayout(), H.get(e.content) !== r || e.isCurrent && !e.isCurrent()) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
 	}
 	let l = e.layoutCache?.getGroup(e.content, e.opening), u = e.content.scrollHeight, d = e.opening ? u : 0, f = e.opening && l && l.height === d ? l : void 0;
-	if (Ke(e.content, d, e.duration, e.easing, o), c && Qe(c, e.opening), await new Promise((e) => requestAnimationFrame(() => e())), H.get(e.content) !== r) {
-		e.layoutTransaction?.cancel(t, n?.participantId);
-		return;
-	}
-	if (e.isCurrent && !e.isCurrent()) {
+	if (Ke(e.content, d, e.duration, e.easing, o), c && Qe(c, e.opening), await new Promise((e) => requestAnimationFrame(() => e())), H.get(e.content) !== r || e.isCurrent && !e.isCurrent()) {
 		e.layoutTransaction?.cancel(t, n?.participantId);
 		return;
 	}
@@ -942,7 +914,7 @@ async function Je(e) {
 			targetMeasure: p.get(e.element)
 		}))
 	} : s, h = (e) => {
-		e && !e.isCurrent() || G(m);
+		(!e || e.isCurrent()) && G(m);
 	};
 	n && e.layoutTransaction?.defer(t, n.participantId, (e) => h(e), "group-flip") || h(), e.layoutTransaction?.commit(t, n?.participantId);
 }
@@ -1062,7 +1034,7 @@ function et(e, t = C, n = w, r) {
 			i.transition = "none", te(e.element, t, n, r.duration, r.easing), window.setTimeout(() => {
 				if (e.element.dataset.runtimeSurfaceResizeToken !== c) return;
 				let t = Z.get(e.element);
-				!t || t.token !== c || (Q(e.element, t.baseStyle), e.measure && (i.height = `${n}px`), Z.delete(e.element), delete e.element.dataset.runtimeSurfaceResize, delete e.element.dataset.runtimeLayoutTransaction);
+				t && t.token === c && (Q(e.element, t.baseStyle), e.measure && (i.height = `${n}px`), Z.delete(e.element), delete e.element.dataset.runtimeSurfaceResize, delete e.element.dataset.runtimeLayoutTransaction);
 			}, r.duration + 40);
 		}
 	});

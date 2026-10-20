@@ -1,4 +1,4 @@
-import { a as e, n as t, o as n, y as r } from "./GroupLayout-B0YxiY7n.js";
+import { a as e, n as t, o as n, y as r } from "./GroupLayout-DwHEZprO.js";
 //#region src/motion/ReleaseMotion.ts
 var i = {
 	velocityScale: 1,
@@ -155,15 +155,7 @@ function f(e) {
 			let e = Math.exp(-10 * b);
 			r.rotateX *= e, r.rotateZ *= e;
 		}
-		if (g(), t === "follow") {
-			o = requestAnimationFrame(_);
-			return;
-		}
-		if (m === "settle" && Math.abs(i.x - r.x) < n.position && Math.abs(i.y - r.y) < n.position && Math.abs(r.vx) < n.velocity && Math.abs(r.vy) < n.velocity && Math.abs((i.scaleX ?? r.scaleX) - r.scaleX) < (n.scalePosition ?? d.scalePosition) && Math.abs((i.scaleY ?? r.scaleY) - r.scaleY) < (n.scalePosition ?? d.scalePosition) && Math.abs(r.scaleVX) < (n.scaleVelocity ?? d.scaleVelocity) && Math.abs(r.scaleVY) < (n.scaleVelocity ?? d.scaleVelocity)) {
-			u = !1, o = null, e.onArrived?.();
-			return;
-		}
-		o = requestAnimationFrame(_);
+		g(), t === "follow" ? o = requestAnimationFrame(_) : m === "settle" && Math.abs(i.x - r.x) < n.position && Math.abs(i.y - r.y) < n.position && Math.abs(r.vx) < n.velocity && Math.abs(r.vy) < n.velocity && Math.abs((i.scaleX ?? r.scaleX) - r.scaleX) < (n.scalePosition ?? d.scalePosition) && Math.abs((i.scaleY ?? r.scaleY) - r.scaleY) < (n.scalePosition ?? d.scalePosition) && Math.abs(r.scaleVX) < (n.scaleVelocity ?? d.scaleVelocity) && Math.abs(r.scaleVY) < (n.scaleVelocity ?? d.scaleVelocity) ? (u = !1, o = null, e.onArrived?.()) : o = requestAnimationFrame(_);
 	}
 	let v = null, y = null;
 	return {
@@ -300,11 +292,7 @@ function b(e) {
 			y: n.scaleY ?? t.scaleY
 		}, e.stiffness ?? m, e.damping ?? h, d), t.scaleX = v.position.x, t.scaleY = v.position.y, t.scaleVX = v.velocity.x, t.scaleVY = v.velocity.y;
 		let y = Math.exp(-(e.rotationDecay ?? _) * d);
-		if (t.rotateX *= y, t.rotateZ *= y, c(), Math.abs(n.x - t.x) < .35 && Math.abs(n.y - t.y) < .35 && Math.abs(t.vx) < 5 && Math.abs(t.vy) < 5 && Math.abs((n.scaleX ?? t.scaleX) - t.scaleX) < .001 && Math.abs((n.scaleY ?? t.scaleY) - t.scaleY) < .001 && Math.abs(t.scaleVX) < .01 && Math.abs(t.scaleVY) < .01) {
-			t.x = n.x, t.y = n.y, n.scaleX !== void 0 && (t.scaleX = n.scaleX), n.scaleY !== void 0 && (t.scaleY = n.scaleY), t.vx = 0, t.vy = 0, t.scaleVX = 0, t.scaleVY = 0, c(), a = !1, i = null, e.onArrived?.();
-			return;
-		}
-		i = requestAnimationFrame(l);
+		t.rotateX *= y, t.rotateZ *= y, c(), Math.abs(n.x - t.x) < .35 && Math.abs(n.y - t.y) < .35 && Math.abs(t.vx) < 5 && Math.abs(t.vy) < 5 && Math.abs((n.scaleX ?? t.scaleX) - t.scaleX) < .001 && Math.abs((n.scaleY ?? t.scaleY) - t.scaleY) < .001 && Math.abs(t.scaleVX) < .01 && Math.abs(t.scaleVY) < .01 ? (t.x = n.x, t.y = n.y, n.scaleX !== void 0 && (t.scaleX = n.scaleX), n.scaleY !== void 0 && (t.scaleY = n.scaleY), t.vx = 0, t.vy = 0, t.scaleVX = 0, t.scaleVY = 0, c(), a = !1, i = null, e.onArrived?.()) : i = requestAnimationFrame(l);
 	};
 	return {
 		seed(e) {
@@ -317,10 +305,6 @@ function b(e) {
 			n = { ...e };
 		},
 		retarget(e) {
-			if (!a) {
-				n = { ...e };
-				return;
-			}
 			n = { ...e };
 		},
 		start() {
@@ -550,17 +534,7 @@ function B(e, t, n = {}) {
 	}, E = null, O = null, k = 0, j = (t) => {
 		y || (y = !0, e.removeEventListener("transitionend", S), O !== null && (window.clearTimeout(O), O = null), C());
 	}, N = () => {
-		if (!y) {
-			if (T()) {
-				j("waitForTarget:isAtTarget");
-				return;
-			}
-			if (performance.now() - x >= i + 500) {
-				j("waitForTarget:timeout");
-				return;
-			}
-			window.requestAnimationFrame(N);
-		}
+		y || (T() ? j("waitForTarget:isAtTarget") : performance.now() - x >= i + 500 ? j("waitForTarget:timeout") : window.requestAnimationFrame(N));
 	}, ee = (t, r = i) => {
 		b = t;
 		let f = e.getBoundingClientRect();
@@ -598,15 +572,11 @@ function B(e, t, n = {}) {
 			let t = Math.abs(e.left - b.left), n = Math.abs(e.top - b.top), r = Math.abs(e.width - b.width), i = Math.abs(e.height - b.height);
 			if (t < .5 && n < .5 && r < .5 && i < .5) return;
 			let a = performance.now() - k;
-			if (a >= 60) {
-				P(e);
-				return;
-			}
-			E = e, O === null && (O = window.setTimeout(() => {
+			a >= 60 ? P(e) : (E = e, O === null && (O = window.setTimeout(() => {
 				if (O = null, y || !E) return;
 				let e = E;
 				E = null, P(e);
-			}, 60 - a));
+			}, 60 - a)));
 		}
 	};
 }
@@ -665,9 +635,7 @@ function re(e, t, n = {}) {
 					scaleX: r,
 					scaleY: i
 				}), Y.start();
-				return;
-			}
-			ie = !0, J();
+			} else ie = !0, J();
 		}));
 	}, ue = (t) => {
 		let r = t.x, a = t.y;
@@ -835,7 +803,7 @@ function K(e, t, n = {}) {
 	i.style.transition = "none", D(i, "none"), i.offsetWidth, i.style.transition = a;
 	let o = !!n.layout?.compact;
 	r.style.zIndex = String(n.proxyZIndex ?? 1e3), r.style.transform = "scale(1)", r.style.transition = "transform 150ms cubic-bezier(.22,1,.36,1), box-shadow 150ms ease, background 150ms ease, opacity 150ms ease", G.add(r), W.set(e, r), n.keepSourceVisible || (e.style.visibility = "hidden"), requestAnimationFrame(() => {
-		!r.isConnected || !G.has(r) || q(r, o);
+		r.isConnected && G.has(r) && q(r, o);
 	});
 }
 function q(e, t = !1, n = !0) {
@@ -849,7 +817,7 @@ function ae(e) {
 function oe(e) {
 	let t = W.get(e);
 	if (t) return requestAnimationFrame(() => {
-		!t.isConnected || F(t).dataset.runtimePhase === "landing" || q(t, F(t).dataset.runtimeCompact === "true", !1);
+		t.isConnected && F(t).dataset.runtimePhase !== "landing" && q(t, F(t).dataset.runtimeCompact === "true", !1);
 	}), G.delete(t), W.delete(e), H.delete(e), t;
 }
 function se(e) {
@@ -1118,14 +1086,14 @@ function Pe(r, i, a, o, s, c, l) {
 				requestAnimationFrame(() => {
 					if (a !== u) return;
 					let e = (e) => {
-						e && !e.isCurrent() || n(r);
+						(!e || e.isCurrent()) && n(r);
 					};
 					d && f && s?.defer(d, f, (t) => e(t), "move-flip") || e(), d && s?.commit(d, f), f = void 0;
 				});
 				return;
 			}
 			let o = (t) => {
-				t && !t.isCurrent() || e(r);
+				(!t || t.isCurrent()) && e(r);
 			};
 			d && f && s?.defer(d, f, (e) => o(e), "move-flip") || o(), d && s?.commit(d, f), f = void 0;
 		},
@@ -1328,11 +1296,7 @@ function Fe(e) {
 		};
 		return S = Ee(() => void 0, () => {
 			let e = N, n = O, r = k, i = A, a = j, o = !!(n && ie(n, c));
-			if (O = null, k = null, A = !1, j = null, o && n) {
-				d(e, n, r, i, a);
-				return;
-			}
-			i && a && Z(a, e), t.resolveLandingTarget(e, c).then((t) => d(e, t));
+			O = null, k = null, A = !1, j = null, o && n ? d(e, n, r, i, a) : (i && a && Z(a, e), t.resolveLandingTarget(e, c).then((t) => d(e, t)));
 		}), {
 			accepted: !0,
 			destination: x,

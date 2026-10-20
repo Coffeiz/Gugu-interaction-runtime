@@ -1,5 +1,5 @@
-import { _ as e, a as t, c as n, d as r, f as i, g as a, h as o, i as s, l as c, m as l, n as u, o as d, p as f, r as p, s as m, t as h, u as g, v as _, y as v } from "./GroupLayout-B0YxiY7n.js";
-import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-BU46APag.js";
+import { _ as e, a as t, c as n, d as r, f as i, g as a, h as o, i as s, l as c, m as l, n as u, o as d, p as f, r as p, s as m, t as h, u as g, v as _, y as v } from "./GroupLayout-DwHEZprO.js";
+import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-CSjywsPN.js";
 //#region src/core/Emitter.ts
 var I = class {
 	constructor() {
@@ -60,11 +60,7 @@ var I = class {
 		return this.disposed;
 	}
 	track(e) {
-		if (this.disposed) {
-			e();
-			return;
-		}
-		L++, this.disposers.push(e);
+		this.disposed ? e() : (L++, this.disposers.push(e));
 	}
 	trackListener(e, t, n) {
 		e.addEventListener(t, n), this.track(() => e.removeEventListener(t, n));
@@ -169,9 +165,7 @@ var I = class {
 		if (this.endReason = e, e === "regrab") {
 			if (this.state === "disposed") return;
 			this.state !== "interrupt" && this.state !== "cancelled" && this.state !== "done" && this.transition("interrupt"), (this.state === "interrupt" || this.state === "cancelled" || this.state === "done") && this.transition("disposed"), this.leases.forEach((e) => e.release()), this.leases = [], this.cleanup.disposeAll();
-			return;
-		}
-		(this.state === "prepare" || this.state === "active" || this.state === "release" || this.state === "landing" || this.state === "saving") && this.transition("interrupt"), this.dispose();
+		} else (this.state === "prepare" || this.state === "active" || this.state === "release" || this.state === "landing" || this.state === "saving") && this.transition("interrupt"), this.dispose();
 	}
 }, z = class extends R {
 	constructor(e, t, n, r = {}) {
@@ -248,10 +242,10 @@ var I = class {
 	}
 	update(e, t) {
 		let n = this.items.get(e);
-		return n ? !Object.entries(t).some(([e, t]) => n[e] !== t) || (Object.assign(n, t), this.events.emit({
+		return n ? (Object.entries(t).some(([e, t]) => n[e] !== t) && (Object.assign(n, t), this.events.emit({
 			type: "object-changed",
 			id: e
-		}), !0) : !1;
+		})), !0) : !1;
 	}
 }, V = class {
 	constructor() {
@@ -300,10 +294,10 @@ var I = class {
 	}
 	update(e, t) {
 		let n = this.items.get(e);
-		return n ? !Object.entries(t).some(([e, t]) => n[e] !== t) || (Object.assign(n, t), this.events.emit({
+		return n ? (Object.entries(t).some(([e, t]) => n[e] !== t) && (Object.assign(n, t), this.events.emit({
 			type: "surface-changed",
 			id: e
-		}), !0) : !1;
+		})), !0) : !1;
 	}
 	accepts(e, t) {
 		let n = this.items.get(e);
@@ -350,10 +344,10 @@ var I = class {
 	}
 	update(e, t) {
 		let n = this.items.get(e);
-		return n ? !Object.entries(t).some(([e, t]) => n[e] !== t) || (Object.assign(n, t), this.events.emit({
+		return n ? (Object.entries(t).some(([e, t]) => n[e] !== t) && (Object.assign(n, t), this.events.emit({
 			type: "target-changed",
 			id: e
-		}), !0) : !1;
+		})), !0) : !1;
 	}
 	findForSurface(e, t) {
 		return this.snapshot().filter((t) => t.surfaceId === e).filter((e) => !t || e.accepts.length === 0 || e.accepts.includes(t)).filter((e) => e.element?.isConnected).sort((e, t) => (t.priority ?? 0) - (e.priority ?? 0))[0];
@@ -512,7 +506,7 @@ var W = class {
 	}
 	reveal(e, t) {
 		let n = this.getContext(e.session.id);
-		if (!n.revealCommitted && !(n.landingStarted && !n.landingCompleted)) return n.revealCommitted = !0, n.transaction.setPhase("handoff"), this.sessionLifecycles.get(e.session.id)?.reveal?.(e, t);
+		if (!n.revealCommitted && (!n.landingStarted || n.landingCompleted)) return n.revealCommitted = !0, n.transaction.setPhase("handoff"), this.sessionLifecycles.get(e.session.id)?.reveal?.(e, t);
 	}
 }, G = class {
 	constructor(e) {
@@ -862,17 +856,16 @@ var be = class e {
 			return;
 		}
 		let a = i?.destination;
-		if (a === void 0) {
-			r.cancel(e.id, "invalid-release-result");
-			return;
+		if (a === void 0) r.cancel(e.id, "invalid-release-result");
+		else {
+			try {
+				await this.commit(e, t, a, i?.emitAction !== !1);
+			} catch (t) {
+				r.cancel(e.id, t instanceof Error ? t.message : "commit-failed");
+				return;
+			}
+			await this.land(e, t, a);
 		}
-		try {
-			await this.commit(e, t, a, i?.emitAction !== !1);
-		} catch (t) {
-			r.cancel(e.id, t instanceof Error ? t.message : "commit-failed");
-			return;
-		}
-		await this.land(e, t, a);
 	}
 	start(e, t) {
 		let n = t.getBehavior(e.type);
@@ -903,7 +896,7 @@ var be = class e {
 	}
 	update(e, t) {
 		let n = this.port.getSession(e);
-		!n || n.state !== "active" || this.port.getBehavior(n.type)?.update?.(this.port.createContext(e), t);
+		n && n.state === "active" && this.port.getBehavior(n.type)?.update?.(this.port.createContext(e), t);
 	}
 }, Se = class {
 	prepare(e, t) {
@@ -1029,11 +1022,7 @@ function De(t) {
 	let n = null, r = null, o = !1, s = Math.max(0, t.stableFrameLimit ?? 2), c = Math.max(1, t.idlePollInterval ?? 4), l = 0, u = 0, d = t.initialRect ? X(t.initialRect) : null, p = null, m = !1, h = !1, g = !1, v = i(t.target)?.sequence ?? 0, y = null, b = () => {
 		o || (o = !0, r !== null && cancelAnimationFrame(r), r = null, n?.disconnect(), n = null, y?.(), y = null);
 	}, x = (e) => {
-		if (d && Ee(d, e)) {
-			l += 1;
-			return;
-		}
-		l = 0, d = e, t.retarget(e);
+		d && Ee(d, e) ? l += 1 : (l = 0, d = e, t.retarget(e));
 	}, S = (e, n = performance.now()) => {
 		let r = _(t.target, n);
 		p = new DOMRect(e.left - (r?.x ?? 0), e.top - (r?.y ?? 0), e.width, e.height);
@@ -1047,13 +1036,7 @@ function De(t) {
 		S(n, e), u = 0, h = !1, x(n);
 	};
 	if (n = new ResizeObserver(() => {
-		if (!(o || !t.target.isConnected)) {
-			if (e()) {
-				h = !0, m = !0;
-				return;
-			}
-			C();
-		}
+		!o && t.target.isConnected && (e() ? (h = !0, m = !0) : C());
 	}), n.observe(t.target), t.observeAncestors !== !1) {
 		let e = typeof document < "u" ? document.body : null, r = t.stopAt === void 0 ? e : t.stopAt, i = t.target.parentElement;
 		for (; i && i !== r;) n.observe(i), i = i.parentElement;
@@ -1061,31 +1044,15 @@ function De(t) {
 	let w = (n) => {
 		if (o || (r = requestAnimationFrame(w), !t.target.isConnected)) return;
 		let i = _(t.target, n), f = e();
-		if (a(t.target) && (m = !0, h)) {
-			C(n);
-			return;
-		}
-		if (g) {
-			g = !1, f && (m = !0), p && (u = 0, x(i ? new DOMRect(p.left + i.x, p.top + i.y, p.width, p.height) : X(p)));
-			return;
-		}
-		if (i) {
+		if (a(t.target) && (m = !0, h)) C(n);
+		else if (g) g = !1, f && (m = !0), p && (u = 0, x(i ? new DOMRect(p.left + i.x, p.top + i.y, p.width, p.height) : X(p)));
+		else if (i) {
 			if (m = !0, !p) {
 				let e = t.target.getBoundingClientRect();
 				S(e, n);
 			}
 			p && (u = 0, x(new DOMRect(p.left + i.x, p.top + i.y, p.width, p.height)));
-			return;
-		}
-		if (f) {
-			m = !0, p ? (!d || !Ee(d, p)) && x(X(p)) : C(n), u = 0;
-			return;
-		}
-		if (m || h) {
-			m = !1, C(n);
-			return;
-		}
-		u += 1, !(l >= s && u % c !== 0) && C(n);
+		} else f ? (m = !0, p ? (!d || !Ee(d, p)) && x(X(p)) : C(n), u = 0) : m || h ? (m = !1, C(n)) : (u += 1, !(l >= s && u % c !== 0) && C(n));
 	};
 	return r = requestAnimationFrame(w), t.cleanup.track(b), b;
 }
@@ -1169,7 +1136,7 @@ function je(e, t, n = {}) {
 		o = n, s === null && (s = r.requestAnimationFrame(() => {
 			s = null;
 			let n = o;
-			o = null, !(a || !n) && e.update(t.id, {
+			o = null, !a && n && e.update(t.id, {
 				kind: "pointermove",
 				event: n
 			});
@@ -1433,19 +1400,9 @@ function Q(e, t = new G(e)) {
 //#region src/dom/AutoScroll.ts
 function Ie(e, t = {}) {
 	let n = t.edgeSize ?? 48, r = t.maxSpeed ?? 16, i = null, a = null, o = null, s = !1, c = null, l = 0, u = null, d = null, f = null, p = () => {
-		if (!i || !i.isConnected) {
-			c = null;
-			return;
-		}
-		c = i.getBoundingClientRect(), l = 0;
+		!i || !i.isConnected ? c = null : (c = i.getBoundingClientRect(), l = 0);
 	}, m = (e) => {
-		if (u !== e) {
-			if (d?.disconnect(), u = e, !e || typeof ResizeObserver > "u") {
-				d = null;
-				return;
-			}
-			d = new ResizeObserver(p), d.observe(e);
-		}
+		u !== e && (d?.disconnect(), u = e, !e || typeof ResizeObserver > "u" ? d = null : (d = new ResizeObserver(p), d.observe(e)));
 	}, h = (e, t) => {
 		let i = (n - e) / n;
 		return Math.ceil(r * i * (t * 60));
@@ -1489,7 +1446,7 @@ var Le = class {
 	}
 	getGroup(e, t) {
 		let n = this.groups.get(e);
-		if (!(!n || n.version !== this.version)) return n.states.get(t ? "open" : "closed");
+		if (n && n.version === this.version) return n.states.get(t ? "open" : "closed");
 	}
 	setGroup(e, t, n, r) {
 		let i = this.groups.get(e), a = i && i.version === this.version ? i : {
@@ -1695,11 +1652,7 @@ var Le = class {
 			return;
 		}
 		let { id: r, element: i, ...a } = t.target, o = i ?? t.element;
-		if (this.targets.get(n)) {
-			this.targets.update(n, a), this.targets.setElement(n, o ?? null);
-			return;
-		}
-		this.targets.register({
+		this.targets.get(n) ? (this.targets.update(n, a), this.targets.setElement(n, o ?? null)) : this.targets.register({
 			...a,
 			id: n,
 			element: o ?? null
@@ -2294,11 +2247,11 @@ var Le = class {
 	}
 	captureMoveLayout(e) {
 		let t = this.sessionCoordinator.get(e), n = t ? this.behaviors.get(t.type) : void 0;
-		!(n instanceof W) || !t || n.captureLayout(this.createBehaviorContext(t));
+		n instanceof W && t && n.captureLayout(this.createBehaviorContext(t));
 	}
 	playMoveLayout(e, t = !1) {
 		let n = this.sessionCoordinator.get(e), r = n ? this.behaviors.get(n.type) : void 0;
-		!(r instanceof W) || !n || r.playLayout(this.createBehaviorContext(n), t);
+		r instanceof W && n && r.playLayout(this.createBehaviorContext(n), t);
 	}
 	captureLayout(e, t = document, n = !0, r) {
 		return u(e, t, n, r);
@@ -2685,9 +2638,7 @@ function Ve(e) {
 				let n = i.get(t), a = e.targets.get(o);
 				if (n && a?.element !== n) return;
 				i.delete(t), e.targets.unregister(o), r.delete(t);
-				return;
-			}
-			i.set(t, a), e.targets.register({
+			} else i.set(t, a), e.targets.register({
 				...n,
 				id: o,
 				element: a
