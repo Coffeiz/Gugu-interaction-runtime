@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T14-00-08-456Z",
+  "startedAt": "2026-10-20T14:00:08.718Z",
+  "status": "failed",
+  "browserVersion": "156.0.8078.4",
+  "sourceRevision": "076458e",
+  "sourceDirty": true,
+  "throttles": [
+    1,
+    6
+  ],
+  "repetitions": 3,
+  "headed": false,
+  "implementationFilter": "all",
+  "excluded": [],
+  "attempts": [
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:00:12.553Z",
+      "completedAt": "2026-10-20T14:00:16.589Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r1-2026-10-20T14-00-08-456Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:00:16.591Z",
+      "completedAt": "2026-10-20T14:00:26.509Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r1-2026-10-20T14-00-08-456Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:00:26.510Z",
+      "completedAt": "2026-10-20T14:00:35.296Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r2-2026-10-20T14-00-08-456Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:00:35.297Z",
+      "completedAt": "2026-10-20T14:00:38.203Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r2-2026-10-20T14-00-08-456Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:00:38.204Z",
+      "completedAt": "2026-10-20T14:00:40.789Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r3-2026-10-20T14-00-08-456Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:00:40.791Z",
+      "completedAt": "2026-10-20T14:00:50.217Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r3-2026-10-20T14-00-08-456Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu6-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:00:50.222Z",
+      "completedAt": "2026-10-20T14:00:58.281Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu6-r1-2026-10-20T14-00-08-456Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu6-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 6,
+      "repetition": 1,
+      "status": "failed",
+      "startedAt": "2026-10-20T14:00:58.284Z",
+      "completedAt": "2026-10-20T14:01:28.317Z",
+      "error": "TimeoutError: page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://127.0.0.1:5197/benchmark?scenario=grouped&count=2000&interaction=grouped&implementation=dnd-kit&run=grouped-2000-grouped-dnd-kit-cpu6-r1\", waiting until \"load\"\n"
+    }
+  ],
+  "rows": [
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r1",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r1-2026-10-20T14-00-08-456Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r1",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r1-2026-10-20T14-00-08-456Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r2",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r2-2026-10-20T14-00-08-456Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r2",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r2-2026-10-20T14-00-08-456Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r3",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r3-2026-10-20T14-00-08-456Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r3",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r3-2026-10-20T14-00-08-456Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu6-r1",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu6-r1-2026-10-20T14-00-08-456Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "finishedAt": "2026-10-20T14:01:28.317Z",
+  "error": "TimeoutError: page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://127.0.0.1:5197/benchmark?scenario=grouped&count=2000&interaction=grouped&implementation=dnd-kit&run=grouped-2000-grouped-dnd-kit-cpu6-r1\", waiting until \"load\"\n"
+}

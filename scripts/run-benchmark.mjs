@@ -80,8 +80,8 @@ try {
             url.searchParams.set('interaction', interaction)
             url.searchParams.set('implementation', implementation)
             url.searchParams.set('run', sampleId)
-            await page.goto(url.href)
-            await page.locator('[data-benchmark-ready="true"]').waitFor()
+            await page.goto(url.href, { timeout: 180000 })
+            await page.locator('[data-benchmark-ready="true"]').waitFor({ timeout: 180000 })
             await page.waitForTimeout(500)
             await page.evaluate(() => { performance.clearResourceTimings(); performance.clearMeasures(); performance.clearMarks() })
             const traceEvents = []

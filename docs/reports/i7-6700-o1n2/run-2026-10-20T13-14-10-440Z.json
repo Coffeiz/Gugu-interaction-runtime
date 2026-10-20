@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T13-14-10-440Z",
+  "startedAt": "2026-10-20T13:14:10.467Z",
+  "status": "failed",
+  "browserVersion": null,
+  "sourceRevision": "076458e",
+  "sourceDirty": true,
+  "throttles": [
+    1,
+    6
+  ],
+  "repetitions": 3,
+  "headed": false,
+  "implementationFilter": "all",
+  "excluded": [],
+  "attempts": [],
+  "rows": [],
+  "finishedAt": "2026-10-20T13:14:11.927Z",
+  "error": "Error: browserType.launch: Executable doesn't exist at /home/coffeiz/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
+}

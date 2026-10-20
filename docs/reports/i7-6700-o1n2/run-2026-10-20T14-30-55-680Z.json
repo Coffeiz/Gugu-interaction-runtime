@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T14-30-55-680Z",
+  "startedAt": "2026-10-20T14:30:55.703Z",
+  "status": "completed",
+  "browserVersion": "156.0.8078.4",
+  "sourceRevision": "076458e",
+  "sourceDirty": true,
+  "throttles": [
+    1,
+    6
+  ],
+  "repetitions": 3,
+  "headed": false,
+  "implementationFilter": "all",
+  "excluded": [],
+  "attempts": [
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:31:01.223Z",
+      "completedAt": "2026-10-20T14:31:06.386Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r1-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:31:06.388Z",
+      "completedAt": "2026-10-20T14:31:16.380Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r1-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:31:16.381Z",
+      "completedAt": "2026-10-20T14:31:25.546Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r2-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:31:25.547Z",
+      "completedAt": "2026-10-20T14:31:28.504Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r2-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:31:28.505Z",
+      "completedAt": "2026-10-20T14:31:31.428Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r3-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:31:31.429Z",
+      "completedAt": "2026-10-20T14:31:40.491Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r3-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu6-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:31:40.494Z",
+      "completedAt": "2026-10-20T14:31:48.159Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu6-r1-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu6-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 6,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:31:48.161Z",
+      "completedAt": "2026-10-20T14:32:54.122Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu6-r1-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu6-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 6,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:32:54.123Z",
+      "completedAt": "2026-10-20T14:33:56.450Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu6-r2-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu6-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:33:56.453Z",
+      "completedAt": "2026-10-20T14:34:04.378Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu6-r2-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu6-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:34:04.379Z",
+      "completedAt": "2026-10-20T14:34:12.323Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu6-r3-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu6-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 6,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T14:34:12.324Z",
+      "completedAt": "2026-10-20T14:35:20.150Z",
+      "trace": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu6-r3-2026-10-20T14-30-55-680Z.json.gz",
+      "error": null
+    }
+  ],
+  "rows": [
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r1",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r1-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r1",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r1-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r2",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r2-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r2",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r2-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r3",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu1-r3-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r3",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu1-r3-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu6-r1",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu6-r1-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu6-r1",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu6-r1-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu6-r2",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu6-r2-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu6-r2",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu6-r2-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu6-r3",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-runtime-cpu6-r3-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu6-r3",
+      "path": "docs/reports/i7-6700-o1n2/raw/grouped-2000-grouped-dnd-kit-cpu6-r3-2026-10-20T14-30-55-680Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "finishedAt": "2026-10-20T14:35:20.150Z"
+}

@@ -27,7 +27,7 @@
                 <section v-for="month in year.months" :key="month.id" class="bench-month" :class="{ 'is-folded': folded.has(month.id) }" :data-layout-group="month.id">
                   <header class="bench-month-title" @click="toggleFold(month.id)">{{ month.label }} <small>{{ month.ids.length }}</small></header>
                   <div class="bench-month-content">
-                    <DndKitBenchCard v-for="id in month.ids" :key="id" :id="id" :index="group.ids.indexOf(id)" :group-id="group.id" :label="`Card ${id}`" :selected="isSelected(id)" />
+                    <DndKitBenchCard v-for="id in month.ids" :key="id" :id="id" :index="group.indexMap.get(id) ?? 0" :group-id="group.id" :label="`Card ${id}`" :selected="isSelected(id)" />
                   </div>
                 </section>
               </div>
@@ -152,10 +152,8 @@ const baseGroups = computed(() => {
         const year = 2026 - yearIndex
         const yearIds = groupIds.filter((_, cardIndex) => Math.floor((cardIndex % 48) / 12) === yearIndex)
         const months = Array.from({ length: 12 }, (_, monthIndex) => {
-          const monthIds = yearIds.filter(id => {
-            const cardIndex = groupIds.indexOf(id)
-            return cardIndex % 48 % 12 === monthIndex
-          })
+          // 卡片在 groupIds 中的序号即其年月归属：cardIndex % 48 决定年，(cardIndex % 48) % 12 决定月
+          const monthIds = groupIds.filter((_, cardIndex) => cardIndex % 12 === monthIndex && Math.floor((cardIndex % 48) / 12) === yearIndex)
           return { id: `year-${year}-month-${monthIndex + 1}`, label: `${year}年 ${String(monthIndex + 1).padStart(2, '0')}月`, ids: monthIds }
         })
         return { id: `year-${year}`, label: `${year}年`, ids: yearIds, months }
@@ -166,14 +164,20 @@ const baseGroups = computed(() => {
 })
 const groupOrder = reactive<Record<string, string[]>>({})
 const canvasPositions = reactive<Record<string, { x: number; y: number }>>({})
-const groups = computed(() => baseGroups.value.map(group => ({
-  ...group,
-  ids: groupOrder[group.id] ?? group.ids,
-  years: group.years.map(year => ({
-    ...year,
-    months: year.months.map(month => ({ ...month, ids: groupOrder[month.id] ?? month.ids })),
-  })),
-})))
+const buildIndexMap = (ids: string[]): Map<string, number> => new Map(ids.map((id, index) => [id, index] as [string, number]))
+const groups = computed(() => baseGroups.value.map(group => {
+  const ids = groupOrder[group.id] ?? group.ids
+  return {
+    ...group,
+    ids,
+    // 预先建立 id -> index 映射，避免模板里 group.ids.indexOf(id) 的 O(N^2) 查找
+    indexMap: buildIndexMap(ids),
+    years: group.years.map(year => ({
+      ...year,
+      months: year.months.map(month => ({ ...month, ids: groupOrder[month.id] ?? month.ids })),
+    })),
+  }
+}))
 let activeRecorder: PerformanceRecorder | null = null
 let activeOptions: BenchmarkOptions | null = null
 let landingSettled: Promise<void> = Promise.resolve()

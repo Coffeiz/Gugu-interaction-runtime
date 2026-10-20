@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T13-06-01-096Z",
+  "startedAt": "2026-10-20T13:06:01.122Z",
+  "status": "failed",
+  "browserVersion": null,
+  "sourceRevision": "076458e",
+  "sourceDirty": true,
+  "throttles": [
+    4,
+    6
+  ],
+  "repetitions": 3,
+  "headed": false,
+  "implementationFilter": "all",
+  "excluded": [],
+  "attempts": [],
+  "rows": [],
+  "finishedAt": "2026-10-20T13:06:01.649Z",
+  "error": "Error: Vite process exited before serving http://127.0.0.1:5197/benchmark: {\"code\":1,\"signal\":null}"
+}

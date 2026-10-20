@@ -5,3 +5,4 @@ test-results/
 playwright-report/
 blob-report/
 /docs/reports/raw/*.json.gz
+/docs/reports/i7-6700-o1n2/raw/*.json.gz
