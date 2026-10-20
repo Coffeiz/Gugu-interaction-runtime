@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { buildLayoutParticipantPlan, captureSourceAffectedCards } from '../dom/LayoutParticipantPolicy'
+import { buildLayoutParticipantPlan, captureSourceAffectedCards, captureViewportRemovalRange } from '../dom/LayoutParticipantPolicy'
 
 afterEach(() => { document.body.innerHTML = '' })
 
@@ -11,6 +11,42 @@ function makeCard(key: string): HTMLElement {
 }
 
 describe('same-container detach release range', () => {
+  it('binary-searches visible removal suffix in a vertical list and falls back for other layouts', () => {
+    const list = document.createElement('div')
+    list.style.display = 'flex'
+    list.style.flexDirection = 'column'
+    const cards = Array.from({ length: 1000 }, (_, index) => {
+      const card = makeCard(String(index))
+      list.append(card)
+      return card
+    })
+    document.body.append(list)
+    const rectCalls = new Map<HTMLElement, number>()
+    const measure = (element: HTMLElement) => {
+      rectCalls.set(element, (rectCalls.get(element) ?? 0) + 1)
+      const index = Number(element.dataset.layoutKey)
+      return { top: index * 40, left: 0, width: 100, height: 30 }
+    }
+
+    const visible = captureViewportRemovalRange(cards.slice(1), cards[0], {
+      top: 10_000,
+      left: 0,
+      width: 200,
+      height: 400,
+    }, measure)
+
+    expect(visible).not.toBeNull()
+    expect([...visible!].map(card => card.dataset.layoutKey)).toEqual(
+      Array.from({ length: 31 }, (_, index) => String(index + 240)),
+    )
+    expect([...rectCalls.values()].reduce((sum, count) => sum + count, 0)).toBeLessThan(30)
+
+    list.style.flexDirection = 'row'
+    expect(captureViewportRemovalRange(cards.slice(1), cards[0], {
+      top: 0, left: 0, width: 200, height: 400,
+    }, measure)).toBeNull()
+  })
+
   it('向下重排从“source 已离开布局”的 release baseline 只保留 destination suffix', () => {
     const surface = document.createElement('section')
     const list = document.createElement('div')

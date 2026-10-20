@@ -32,18 +32,28 @@ export function createDetachMoveFromAdapter(config: {
   // 有没有被某一层折叠祖先包住，包住了就不参与这次 FLIP。
   const isInsideCollapsedGroup = (element: HTMLElement): boolean =>
     element.closest('[data-layout-content][data-layout-open="false"]') !== null
-  const allLayoutElements = (): HTMLElement[] => {
+  const allLayoutElements = (surfaceId?: string): HTMLElement[] => {
+    const surface = surfaceId ? runtime.surfaces.get(surfaceId) : undefined
+    const scope = surface?.layoutElement?.() ?? surface?.element
     const objects = [...runtime.objects.values()]
+      .filter(item => !surfaceId || item.surfaceId === surfaceId)
       .map(item => item.element)
       .filter((candidate): candidate is HTMLElement => Boolean(candidate?.isConnected))
     // 布局锚点（例如列表末尾的“新建项目”）不是可拖拽物，不会注册为
     // Runtime object，但必须和兄弟卡片共享同一份 FLIP 快照，否则它仍由
     // Vue TransitionGroup 单独移动，release 时会与卡片错拍。
-    const anchors = Array.from(document.querySelectorAll<HTMLElement>('[data-flip-target]'))
+    const anchors = Array.from((scope ?? document).querySelectorAll<HTMLElement>('[data-flip-target]'))
     return Array.from(new Set([...objects, ...anchors]))
   }
-  const registeredElements = (): HTMLElement[] => {
-    return allLayoutElements()
+  const registeredElements = (surfaceId?: string): HTMLElement[] => {
+    const elements = allLayoutElements(surfaceId)
+    const surface = surfaceId ? runtime.surfaces.get(surfaceId) : undefined
+    const scope = surface?.layoutElement?.() ?? surface?.element
+    const hasCollapsedContent = scope
+      ? scope.querySelector('[data-layout-content][data-layout-open="false"]') !== null
+      : document.querySelector('[data-layout-content][data-layout-open="false"]') !== null
+    if (!hasCollapsedContent) return elements
+    return elements
       .filter(candidate => !isInsideCollapsedGroup(candidate))
   }
   let beforeContent: HTMLElement | undefined
@@ -512,7 +522,7 @@ export function createDetachMoveFromAdapter(config: {
         && sourceViewport.scrollTop >= sourceViewport.scrollHeight - sourceViewport.clientHeight - 1)
       const { beforePickup } = prepareDetachPickup(
         element,
-        registeredElements,
+        () => registeredElements(initialSurfaceId),
         layoutScopeSurfaces,
         layoutSurfaceMeasures,
         !clone && !group && sourceWasAtBottom,

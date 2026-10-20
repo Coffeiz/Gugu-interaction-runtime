@@ -6,6 +6,7 @@ import { createLayoutMeasurement, type LayoutMeasurement } from './LayoutMeasure
 import {
   buildLayoutParticipantPlan,
   captureSourceAffectedCards,
+  captureViewportRemovalRange,
   captureViewportRemovalPeers,
   findLayoutScopeSurface,
   isRectWithinViewportOverscan,
@@ -163,6 +164,27 @@ function captureViewportRects(
   return result
 }
 
+function retainVisibleRemovalRange(args: {
+  readonly sourceAffected: Set<HTMLElement>
+  readonly focus: LayoutParticipantFocus
+  readonly scopeSurfaces?: readonly HTMLElement[]
+  readonly viewportRects: ReadonlyMap<HTMLElement, GroupRect>
+  readonly measurement: LayoutMeasurement
+}): void {
+  const sourceSurface = findLayoutScopeSurface(args.focus.sourceElement, args.scopeSurfaces)
+  const viewport = sourceSurface ? args.viewportRects.get(sourceSurface) : undefined
+  if (!viewport) return
+  const range = captureViewportRemovalRange(
+    [...args.sourceAffected],
+    args.focus.sourceElement,
+    viewport,
+    element => args.measurement.rect(element),
+  )
+  if (!range) return
+  args.sourceAffected.clear()
+  for (const card of range) args.sourceAffected.add(card)
+}
+
 function buildViewportEligibility(
   cards: readonly HTMLElement[],
   groupBefore: readonly GroupLayoutSnapshot[],
@@ -248,6 +270,15 @@ export function captureLayoutFlip(
     ? captureSourceAffectedCards(layoutScopedCards, options.focus.sourceElement)
     : [])
   const viewportRects = captureViewportRects(options.viewportBySurface, measurement)
+  if (options.focus?.mode === 'removal' && !options.focus.includeViewportPeers) {
+    retainVisibleRemovalRange({
+      sourceAffected,
+      focus: options.focus,
+      scopeSurfaces: options.scopeSurfaces,
+      viewportRects,
+      measurement,
+    })
+  }
   if (options.focus?.mode === 'removal' && options.focus.includeViewportPeers) {
     const sourceSurface = findLayoutScopeSurface(options.focus.sourceElement, options.scopeSurfaces)
     const sourceViewport = sourceSurface ? viewportRects.get(sourceSurface) : undefined

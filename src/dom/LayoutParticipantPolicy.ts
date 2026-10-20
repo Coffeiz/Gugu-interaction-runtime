@@ -61,6 +61,17 @@ function isFollowing(reference: HTMLElement, candidate: HTMLElement): boolean {
   return Boolean(reference.compareDocumentPosition(candidate) & Node.DOCUMENT_POSITION_FOLLOWING)
 }
 
+function lowerBound(length: number, matches: (index: number) => boolean): number {
+  let low = 0
+  let high = length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (matches(middle)) high = middle
+    else low = middle + 1
+  }
+  return low
+}
+
 /**
  * Runtime 的可交互对象节点不一定就是业务布局中的直接 card sibling。
  * 例如已完成列用 `.done-card-item[data-layout-role="card"]` 承担列表排布，
@@ -85,13 +96,66 @@ export function captureSourceAffectedCards(
   const sourceOrderNode = layoutOrderNode(sourceElement)
   const parent = sourceOrderNode.parentElement
   if (!parent) return new Set()
-  const affected = new Set<HTMLElement>()
+  const candidatesByOrderNode = new Map<HTMLElement, HTMLElement[]>()
   for (const card of cards) {
     const cardOrderNode = layoutOrderNode(card)
     if (cardOrderNode === sourceOrderNode || cardOrderNode.parentElement !== parent) continue
-    if (isFollowing(sourceOrderNode, cardOrderNode)) affected.add(card)
+    const candidates = candidatesByOrderNode.get(cardOrderNode) ?? []
+    candidates.push(card)
+    candidatesByOrderNode.set(cardOrderNode, candidates)
+  }
+  const affected = new Set<HTMLElement>()
+  let sibling = sourceOrderNode.nextElementSibling
+  while (sibling) {
+    if (sibling instanceof HTMLElement) {
+      for (const card of candidatesByOrderNode.get(sibling) ?? []) affected.add(card)
+    }
+    sibling = sibling.nextElementSibling
   }
   return affected
+}
+
+/**
+ * Fast path for a vertical, same-container removal: only following cards within viewport
+ * overscan can move visibly. Their DOM order is monotonic in Y, so binary-search the range
+ * rather than forcing a geometry read for every card in a large list. Callers must opt in only
+ * when the parent is a vertical flex container and a real scroll viewport is known.
+ */
+export function captureViewportRemovalRange(
+  cards: readonly HTMLElement[],
+  sourceElement: HTMLElement,
+  viewport: ViewportRectLike,
+  measureRect: (element: HTMLElement) => ViewportRectLike = element => element.getBoundingClientRect(),
+): ReadonlySet<HTMLElement> | null {
+  const sourceOrderNode = layoutOrderNode(sourceElement)
+  const parent = sourceOrderNode.parentElement
+  if (!parent || getComputedStyle(parent).flexDirection !== 'column') return null
+
+  const byOrderNode = new Map<HTMLElement, HTMLElement[]>()
+  for (const card of cards) {
+    const orderNode = layoutOrderNode(card)
+    if (orderNode.parentElement !== parent || orderNode === sourceOrderNode) continue
+    const siblings = byOrderNode.get(orderNode) ?? []
+    siblings.push(card)
+    byOrderNode.set(orderNode, siblings)
+  }
+  const following: HTMLElement[] = []
+  let sibling = sourceOrderNode.nextElementSibling
+  while (sibling) {
+    if (sibling instanceof HTMLElement) following.push(...(byOrderNode.get(sibling) ?? []))
+    sibling = sibling.nextElementSibling
+  }
+  if (following.length === 0) return new Set()
+
+  const overscan = Math.max(240, viewport.height)
+  const minY = viewport.top - overscan
+  const maxY = viewport.top + viewport.height + overscan
+  const start = lowerBound(following.length, index => {
+    const rect = measureRect(following[index])
+    return rect.top + rect.height >= minY
+  })
+  const end = lowerBound(following.length, index => measureRect(following[index]).top > maxY)
+  return new Set(following.slice(start, end))
 }
 
 /**
