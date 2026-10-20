@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T10-26-35-698Z",
+  "startedAt": "2026-10-20T10:26:35.731Z",
+  "status": "completed",
+  "browserVersion": "151.0.7922.34",
+  "sourceRevision": "66ae66d",
+  "sourceDirty": true,
+  "throttles": [
+    1
+  ],
+  "repetitions": 3,
+  "headed": false,
+  "implementationFilter": "all",
+  "excluded": [
+    {
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    },
+    {
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "regrab",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "reason": "regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior"
+    }
+  ],
+  "attempts": [
+    {
+      "sampleId": "flat-50-regrab-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:36.733Z",
+      "completedAt": "2026-10-20T10:26:38.274Z",
+      "trace": "docs/reports/raw/flat-50-regrab-runtime-cpu1-r1-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-regrab-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:38.274Z",
+      "completedAt": "2026-10-20T10:26:39.640Z",
+      "trace": "docs/reports/raw/flat-50-regrab-runtime-cpu1-r2-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-regrab-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:39.641Z",
+      "completedAt": "2026-10-20T10:26:41.006Z",
+      "trace": "docs/reports/raw/flat-50-regrab-runtime-cpu1-r3-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-regrab-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:41.007Z",
+      "completedAt": "2026-10-20T10:26:42.371Z",
+      "trace": "docs/reports/raw/flat-200-regrab-runtime-cpu1-r1-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-regrab-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:42.372Z",
+      "completedAt": "2026-10-20T10:26:43.747Z",
+      "trace": "docs/reports/raw/flat-200-regrab-runtime-cpu1-r2-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-regrab-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:43.747Z",
+      "completedAt": "2026-10-20T10:26:45.130Z",
+      "trace": "docs/reports/raw/flat-200-regrab-runtime-cpu1-r3-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-regrab-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:45.131Z",
+      "completedAt": "2026-10-20T10:26:46.551Z",
+      "trace": "docs/reports/raw/flat-500-regrab-runtime-cpu1-r1-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-regrab-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:46.552Z",
+      "completedAt": "2026-10-20T10:26:47.968Z",
+      "trace": "docs/reports/raw/flat-500-regrab-runtime-cpu1-r2-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-regrab-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:47.969Z",
+      "completedAt": "2026-10-20T10:26:49.387Z",
+      "trace": "docs/reports/raw/flat-500-regrab-runtime-cpu1-r3-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-regrab-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:49.388Z",
+      "completedAt": "2026-10-20T10:26:50.874Z",
+      "trace": "docs/reports/raw/flat-1000-regrab-runtime-cpu1-r1-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-regrab-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:50.875Z",
+      "completedAt": "2026-10-20T10:26:52.305Z",
+      "trace": "docs/reports/raw/flat-1000-regrab-runtime-cpu1-r2-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-regrab-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:52.305Z",
+      "completedAt": "2026-10-20T10:26:53.732Z",
+      "trace": "docs/reports/raw/flat-1000-regrab-runtime-cpu1-r3-2026-10-20T10-26-35-698Z.json.gz",
+      "error": null
+    }
+  ],
+  "rows": [
+    {
+      "sampleId": "flat-50-regrab-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-50-regrab-runtime-cpu1-r1-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-regrab-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-50-regrab-runtime-cpu1-r2-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-regrab-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-50-regrab-runtime-cpu1-r3-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-regrab-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-200-regrab-runtime-cpu1-r1-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-regrab-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-200-regrab-runtime-cpu1-r2-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-regrab-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-200-regrab-runtime-cpu1-r3-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-regrab-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-500-regrab-runtime-cpu1-r1-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-regrab-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-500-regrab-runtime-cpu1-r2-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-regrab-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-500-regrab-runtime-cpu1-r3-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-regrab-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-1000-regrab-runtime-cpu1-r1-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-regrab-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-1000-regrab-runtime-cpu1-r2-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-regrab-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-1000-regrab-runtime-cpu1-r3-2026-10-20T10-26-35-698Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "finishedAt": "2026-10-20T10:26:53.732Z"
+}

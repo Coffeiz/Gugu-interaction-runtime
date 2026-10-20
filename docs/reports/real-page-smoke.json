@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T08:31:34.914Z",
-  "sourceRevision": "76dec47",
-  "sourceDirty": true,
+  "generatedAt": "2026-10-20T10:19:36.532Z",
+  "sourceRevision": "66ae66d",
+  "sourceDirty": false,
   "target": "Gugu-web Projects Kanban actual Vue page and ProjectCard components",
   "runtime": "local sibling runtime through VITE_USE_LOCAL_RUNTIME=1",
   "browser": "Chromium 151.0.7922.34 (headless)",
-  "durationMs": 6312,
+  "durationMs": 5876,
   "fixture": {
     "projects": 80,
     "dataSource": "Playwright-mocked API responses",

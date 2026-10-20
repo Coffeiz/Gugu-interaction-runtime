@@ -1,5 +1,7 @@
 # Free-layout FLIP 优化验证（2026-10-20）
 
+> **已被后续验证取代，不用于当前对外结论。** 原 canvas benchmark fixture 在提交时按 list index 重排卡片，而不是按拖放坐标放置，因此下方 canvas 指标并未测到预期的自由画布落位。修复 fixture 后的结果见 [本轮优化与 benchmark 报告](performance-optimization-followup-2026-10-20.md)。本文件保留旧批次记录供追溯。
+
 ## 改动
 
 Surface 的 `layout: 'free'` 表示对象按连续坐标独立定位，移动一个对象不会重排相邻对象。Runtime 在 pickup/release 的 FLIP capture 中不再对同一 free-layout Surface 的相邻对象读取几何；grid Surface 路径保持不变。被跳过的对象仍计入候选/跳过 telemetry，不作为动画参与者。

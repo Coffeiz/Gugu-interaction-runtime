@@ -140,9 +140,7 @@ const groupedTelemetryPairs = groupedTelemetryRows.filter(row => row.interaction
 })
 const exactGroupedTelemetryPairs = groupedTelemetryPairs.filter(pair => pair.exactMatch).length
 const includedSamples = rows.reduce((sum, row) => sum + row.repetitions, 0)
-const preChangeBatchRows = rows.filter(row => row.sourceBatches.split(', ').some(batch => ['B01', 'B02', 'B03'].includes(batch)))
-const postChangeGroupedRows = rows.filter(row => row.scenario === 'grouped' && row.sourceBatches.split(', ').some(batch => ['B04', 'B05'].includes(batch)))
-const newGrouped50 = rows.filter(row => row.scenario === 'grouped' && row.count === 50 && row.interaction === 'grouped' && row.throttle === 1 && row.sourceBatches === 'B04')
+const currentGrouped50 = rows.filter(row => row.scenario === 'grouped' && row.count === 50 && row.interaction === 'grouped' && row.throttle === 1)
 const inputFor = (collection, implementation) => collection.find(row => row.implementation === implementation)?.inputMs
 const oldGrouped50InputFor = implementation => median(historicalGrouped50Inputs.get(implementation) ?? [])
 const eventTimingCoverage = { 'dnd-kit': { rows: 0, missingRows: 0, samples: 0, missingSamples: 0 }, runtime: { rows: 0, missingRows: 0, samples: 0, missingSamples: 0 } }
@@ -193,9 +191,8 @@ const lines = [
   `- Drag Interaction P98 暂不进入对外汇总：本次 ${interactionP98.values} 个有值原始样本中，${interactionP98.equalToEventTimingMax} 个等于 Event Timing max，P98 不能代表重复交互分布。Event Timing 汇总行缺测：dnd-kit ${eventTimingCoverage['dnd-kit'].missingRows}/${eventTimingCoverage['dnd-kit'].rows}，runtime ${eventTimingCoverage.runtime.missingRows}/${eventTimingCoverage.runtime.rows}；原始样本缺测：dnd-kit ${eventTimingCoverage['dnd-kit'].missingSamples}/${eventTimingCoverage['dnd-kit'].samples}，runtime ${eventTimingCoverage.runtime.missingSamples}/${eventTimingCoverage.runtime.samples}。缺测记为 —，不代表 0。`,
   '- Long Tasks 是测量窗口内浏览器 Long Tasks 条目数；它不等价于卡顿次数，且不能单独代表交互质量。',
   `- \`regrab\` 是 Runtime 特有的落位代理再抓取能力；dnd-kit 无对应操作，因此保留 flat 50/200/500/1000 @1× 的 Runtime 单边行但不作横向比较。2000 项目前没有成功样本：唯一保留的 2000-regrab 实跑失败并已列在“已记录的失败尝试”，不纳入有效样本。`,
-  `- grouped 的 inputMs 在新批次普遍升高。grouped/50/grouped/1×：dnd-kit 从 B01 旧批 ${fmt(oldGrouped50InputFor('dnd-kit'))} ms 变为表内 B04 ${fmt(inputFor(newGrouped50, 'dnd-kit'))} ms；Runtime 从 B01 ${fmt(oldGrouped50InputFor('runtime'))} ms 变为 B04 ${fmt(inputFor(newGrouped50, 'runtime'))} ms。B01 旧行已被同 key 的最新有效 trace 替换，旧 raw trace 仍保留；旧批数值按 B01 raw 单独重算，不参与当前汇总。`,
-  `- 版本边界：B01–B03 在本机时间 10:08–10:15 运行；\`src/dom/GroupLayout.ts\` 与 \`src/benchmark/PerformanceRecorder.ts\` 的工作树修改时间分别为 10:33:07、10:33:30；B04–B05 在 15:02–15:04 运行。因此主表中 ${preChangeBatchRows.length} 行来自这两处修改之前，${postChangeGroupedRows.length} 行 grouped 数据来自修改之后。flat 与 grouped 等跨边界数据不能作横向性能比较；旧 raw 未记录 Git revision，修改时间用于界定批次，不等同于逐样本源码哈希。`,
-  '- 两批 grouped inputMs 的整体抬升同时发生在 dnd-kit 与 Runtime，并且跨多个规模；这提示存在运行批次/帧调度层面的墙钟差异，但现有证据无法确认唯一原因，也不能排除代码变化影响。',
+  `- grouped/50/grouped/1× 的历史记录（raw run ${historicalBaselineTag}）中位数为：dnd-kit ${fmt(oldGrouped50InputFor('dnd-kit'))} ms、Runtime ${fmt(oldGrouped50InputFor('runtime'))} ms；本次汇总值为 dnd-kit ${fmt(inputFor(currentGrouped50, 'dnd-kit'))} ms、Runtime ${fmt(inputFor(currentGrouped50, 'runtime'))} ms（来源 ${currentGrouped50[0]?.sourceBatches ?? '无有效行'}）。两批运行时间和源码状态不同；这只能说明输入段墙钟读数变化，不能据此归因于某项代码变更。旧 trace 保留在 raw 中，不参与当前统计。`,
+  '- 本次新增 benchmark batches 的 manifest 均记录 revision 66ae66d、dirty=true；当时工作树差异来自已更新的真实页面 smoke 产物，未改动 benchmark/runtime 源码。更早 raw trace 的 revision 信息不完整，因此不按文件修改时间推断逐样本源码边界。',
   '- 合成 fixture 不等同于真实产品 DOM。完整 Runtime 含 dnd-kit 基线没有的代理、布局联动及 Surface 行为；没有 runtime-minus 消融对照前，不应将总耗时差解释为核心算法效率差异。CPU 节流是 CDP 模拟，不代表真实低配设备。', '',
   '## 真实页面验证', '',
   realPageSmoke
@@ -242,8 +239,7 @@ await writeFile(resolve(root, 'docs/reports/benchmark-summary.json'), JSON.strin
   generatedAt: new Date().toISOString(),
   validSamples: includedSamples,
   sourceBatches: batchSources,
-  sourceVersionBoundary: { preChangeTableRows: preChangeBatchRows.length, postChangeGroupedTableRows: postChangeGroupedRows.length, modifiedFiles: [{ path: 'src/dom/GroupLayout.ts', localMtime: '2026-10-20 10:33:07' }, { path: 'src/benchmark/PerformanceRecorder.ts', localMtime: '2026-10-20 10:33:30' }] },
-  grouped50InputMsBatchComparison: { scenario: 'grouped', count: 50, interaction: 'grouped', throttle: 1, oldBatch: 'B01', newBatch: 'B04', oldDndKit: oldGrouped50InputFor('dnd-kit'), newDndKit: inputFor(newGrouped50, 'dnd-kit'), oldRuntime: oldGrouped50InputFor('runtime'), newRuntime: inputFor(newGrouped50, 'runtime') },
+  grouped50InputMsBatchComparison: { scenario: 'grouped', count: 50, interaction: 'grouped', throttle: 1, historicalRunTag: historicalBaselineTag, currentSourceBatches: currentGrouped50[0]?.sourceBatches ?? null, oldDndKit: oldGrouped50InputFor('dnd-kit'), newDndKit: inputFor(currentGrouped50, 'dnd-kit'), oldRuntime: oldGrouped50InputFor('runtime'), newRuntime: inputFor(currentGrouped50, 'runtime') },
   runManifests: runManifests.map(({ runTag, status, sourceRevision, sourceDirty, startedAt, finishedAt, attempts, excluded }) => ({ runTag, status, sourceRevision, sourceDirty, startedAt, finishedAt, attempts, excluded })),
   failedAttempts,
   realPageSmoke,

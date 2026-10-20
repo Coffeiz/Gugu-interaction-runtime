@@ -1,0 +1,4581 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T10-19-41-542Z",
+  "startedAt": "2026-10-20T10:19:41.575Z",
+  "status": "completed",
+  "browserVersion": "151.0.7922.34",
+  "sourceRevision": "66ae66d",
+  "sourceDirty": true,
+  "throttles": [
+    1
+  ],
+  "repetitions": 3,
+  "headed": false,
+  "implementationFilter": "all",
+  "excluded": [],
+  "attempts": [
+    {
+      "sampleId": "flat-50-same-list-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:42.378Z",
+      "completedAt": "2026-10-20T10:19:44.211Z",
+      "trace": "docs/reports/raw/flat-50-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:44.211Z",
+      "completedAt": "2026-10-20T10:19:45.632Z",
+      "trace": "docs/reports/raw/flat-50-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:45.632Z",
+      "completedAt": "2026-10-20T10:19:47.049Z",
+      "trace": "docs/reports/raw/flat-50-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:47.049Z",
+      "completedAt": "2026-10-20T10:19:48.556Z",
+      "trace": "docs/reports/raw/flat-50-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:48.556Z",
+      "completedAt": "2026-10-20T10:19:50.045Z",
+      "trace": "docs/reports/raw/flat-50-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:50.045Z",
+      "completedAt": "2026-10-20T10:19:51.446Z",
+      "trace": "docs/reports/raw/flat-50-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:51.447Z",
+      "completedAt": "2026-10-20T10:19:53.119Z",
+      "trace": "docs/reports/raw/flat-50-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:53.119Z",
+      "completedAt": "2026-10-20T10:19:54.539Z",
+      "trace": "docs/reports/raw/flat-50-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:54.540Z",
+      "completedAt": "2026-10-20T10:19:55.974Z",
+      "trace": "docs/reports/raw/flat-50-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:55.974Z",
+      "completedAt": "2026-10-20T10:19:57.634Z",
+      "trace": "docs/reports/raw/flat-50-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:57.635Z",
+      "completedAt": "2026-10-20T10:19:59.271Z",
+      "trace": "docs/reports/raw/flat-50-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:19:59.272Z",
+      "completedAt": "2026-10-20T10:20:00.674Z",
+      "trace": "docs/reports/raw/flat-50-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:00.675Z",
+      "completedAt": "2026-10-20T10:20:02.195Z",
+      "trace": "docs/reports/raw/flat-200-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:02.196Z",
+      "completedAt": "2026-10-20T10:20:03.919Z",
+      "trace": "docs/reports/raw/flat-200-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:03.919Z",
+      "completedAt": "2026-10-20T10:20:05.370Z",
+      "trace": "docs/reports/raw/flat-200-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:05.370Z",
+      "completedAt": "2026-10-20T10:20:06.907Z",
+      "trace": "docs/reports/raw/flat-200-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:06.907Z",
+      "completedAt": "2026-10-20T10:20:08.428Z",
+      "trace": "docs/reports/raw/flat-200-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:08.429Z",
+      "completedAt": "2026-10-20T10:20:09.866Z",
+      "trace": "docs/reports/raw/flat-200-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:09.867Z",
+      "completedAt": "2026-10-20T10:20:11.540Z",
+      "trace": "docs/reports/raw/flat-200-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:11.541Z",
+      "completedAt": "2026-10-20T10:20:13.019Z",
+      "trace": "docs/reports/raw/flat-200-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:13.020Z",
+      "completedAt": "2026-10-20T10:20:14.486Z",
+      "trace": "docs/reports/raw/flat-200-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:14.487Z",
+      "completedAt": "2026-10-20T10:20:16.147Z",
+      "trace": "docs/reports/raw/flat-200-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:16.147Z",
+      "completedAt": "2026-10-20T10:20:17.806Z",
+      "trace": "docs/reports/raw/flat-200-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:17.806Z",
+      "completedAt": "2026-10-20T10:20:19.307Z",
+      "trace": "docs/reports/raw/flat-200-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:19.308Z",
+      "completedAt": "2026-10-20T10:20:20.854Z",
+      "trace": "docs/reports/raw/flat-500-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:20.854Z",
+      "completedAt": "2026-10-20T10:20:22.412Z",
+      "trace": "docs/reports/raw/flat-500-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:22.413Z",
+      "completedAt": "2026-10-20T10:20:23.990Z",
+      "trace": "docs/reports/raw/flat-500-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:23.990Z",
+      "completedAt": "2026-10-20T10:20:25.536Z",
+      "trace": "docs/reports/raw/flat-500-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:25.536Z",
+      "completedAt": "2026-10-20T10:20:27.086Z",
+      "trace": "docs/reports/raw/flat-500-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:27.087Z",
+      "completedAt": "2026-10-20T10:20:28.706Z",
+      "trace": "docs/reports/raw/flat-500-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:28.707Z",
+      "completedAt": "2026-10-20T10:20:30.395Z",
+      "trace": "docs/reports/raw/flat-500-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:30.396Z",
+      "completedAt": "2026-10-20T10:20:32.069Z",
+      "trace": "docs/reports/raw/flat-500-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:32.069Z",
+      "completedAt": "2026-10-20T10:20:33.684Z",
+      "trace": "docs/reports/raw/flat-500-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:33.684Z",
+      "completedAt": "2026-10-20T10:20:35.382Z",
+      "trace": "docs/reports/raw/flat-500-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:35.383Z",
+      "completedAt": "2026-10-20T10:20:37.092Z",
+      "trace": "docs/reports/raw/flat-500-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:37.092Z",
+      "completedAt": "2026-10-20T10:20:38.729Z",
+      "trace": "docs/reports/raw/flat-500-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:38.730Z",
+      "completedAt": "2026-10-20T10:20:40.294Z",
+      "trace": "docs/reports/raw/flat-1000-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:40.295Z",
+      "completedAt": "2026-10-20T10:20:42.235Z",
+      "trace": "docs/reports/raw/flat-1000-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:42.235Z",
+      "completedAt": "2026-10-20T10:20:44.216Z",
+      "trace": "docs/reports/raw/flat-1000-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:44.217Z",
+      "completedAt": "2026-10-20T10:20:45.817Z",
+      "trace": "docs/reports/raw/flat-1000-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:45.818Z",
+      "completedAt": "2026-10-20T10:20:47.392Z",
+      "trace": "docs/reports/raw/flat-1000-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:47.392Z",
+      "completedAt": "2026-10-20T10:20:49.382Z",
+      "trace": "docs/reports/raw/flat-1000-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:49.383Z",
+      "completedAt": "2026-10-20T10:20:51.133Z",
+      "trace": "docs/reports/raw/flat-1000-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:51.133Z",
+      "completedAt": "2026-10-20T10:20:53.150Z",
+      "trace": "docs/reports/raw/flat-1000-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:53.151Z",
+      "completedAt": "2026-10-20T10:20:55.164Z",
+      "trace": "docs/reports/raw/flat-1000-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:55.164Z",
+      "completedAt": "2026-10-20T10:20:56.862Z",
+      "trace": "docs/reports/raw/flat-1000-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:56.863Z",
+      "completedAt": "2026-10-20T10:20:58.590Z",
+      "trace": "docs/reports/raw/flat-1000-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:20:58.591Z",
+      "completedAt": "2026-10-20T10:21:00.578Z",
+      "trace": "docs/reports/raw/flat-1000-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:00.579Z",
+      "completedAt": "2026-10-20T10:21:02.204Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:02.205Z",
+      "completedAt": "2026-10-20T10:21:05.518Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:05.518Z",
+      "completedAt": "2026-10-20T10:21:08.796Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:08.796Z",
+      "completedAt": "2026-10-20T10:21:10.455Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:10.455Z",
+      "completedAt": "2026-10-20T10:21:12.100Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:12.101Z",
+      "completedAt": "2026-10-20T10:21:15.657Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:15.658Z",
+      "completedAt": "2026-10-20T10:21:17.416Z",
+      "trace": "docs/reports/raw/flat-2000-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:17.417Z",
+      "completedAt": "2026-10-20T10:21:20.884Z",
+      "trace": "docs/reports/raw/flat-2000-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:20.884Z",
+      "completedAt": "2026-10-20T10:21:24.460Z",
+      "trace": "docs/reports/raw/flat-2000-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-runtime-cpu1-r2",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:24.460Z",
+      "completedAt": "2026-10-20T10:21:26.227Z",
+      "trace": "docs/reports/raw/flat-2000-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-runtime-cpu1-r3",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:26.228Z",
+      "completedAt": "2026-10-20T10:21:27.978Z",
+      "trace": "docs/reports/raw/flat-2000-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:27.979Z",
+      "completedAt": "2026-10-20T10:21:31.387Z",
+      "trace": "docs/reports/raw/flat-2000-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:31.389Z",
+      "completedAt": "2026-10-20T10:21:32.918Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:32.918Z",
+      "completedAt": "2026-10-20T10:21:34.336Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:34.336Z",
+      "completedAt": "2026-10-20T10:21:35.749Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:35.749Z",
+      "completedAt": "2026-10-20T10:21:37.275Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:37.276Z",
+      "completedAt": "2026-10-20T10:21:38.801Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:38.801Z",
+      "completedAt": "2026-10-20T10:21:40.201Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:40.201Z",
+      "completedAt": "2026-10-20T10:21:41.857Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:41.858Z",
+      "completedAt": "2026-10-20T10:21:43.289Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:43.289Z",
+      "completedAt": "2026-10-20T10:21:44.763Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:44.764Z",
+      "completedAt": "2026-10-20T10:21:46.457Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:46.457Z",
+      "completedAt": "2026-10-20T10:21:48.107Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 50,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:48.108Z",
+      "completedAt": "2026-10-20T10:21:49.544Z",
+      "trace": "docs/reports/raw/flat-thumbnails-50-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:49.545Z",
+      "completedAt": "2026-10-20T10:21:51.072Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:51.072Z",
+      "completedAt": "2026-10-20T10:21:52.524Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:52.524Z",
+      "completedAt": "2026-10-20T10:21:53.966Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:53.966Z",
+      "completedAt": "2026-10-20T10:21:55.496Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:55.497Z",
+      "completedAt": "2026-10-20T10:21:57.035Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:57.036Z",
+      "completedAt": "2026-10-20T10:21:58.486Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:21:58.487Z",
+      "completedAt": "2026-10-20T10:22:00.157Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:00.157Z",
+      "completedAt": "2026-10-20T10:22:01.662Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:01.663Z",
+      "completedAt": "2026-10-20T10:22:03.170Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:03.171Z",
+      "completedAt": "2026-10-20T10:22:04.853Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:04.853Z",
+      "completedAt": "2026-10-20T10:22:06.509Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 200,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:06.509Z",
+      "completedAt": "2026-10-20T10:22:07.999Z",
+      "trace": "docs/reports/raw/flat-thumbnails-200-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:08.000Z",
+      "completedAt": "2026-10-20T10:22:09.543Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:09.544Z",
+      "completedAt": "2026-10-20T10:22:11.143Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:11.143Z",
+      "completedAt": "2026-10-20T10:22:12.733Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:12.734Z",
+      "completedAt": "2026-10-20T10:22:14.302Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:14.303Z",
+      "completedAt": "2026-10-20T10:22:15.849Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:15.850Z",
+      "completedAt": "2026-10-20T10:22:17.419Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:17.420Z",
+      "completedAt": "2026-10-20T10:22:19.102Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:19.102Z",
+      "completedAt": "2026-10-20T10:22:20.757Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:20.757Z",
+      "completedAt": "2026-10-20T10:22:22.413Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:22.414Z",
+      "completedAt": "2026-10-20T10:22:24.100Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:24.100Z",
+      "completedAt": "2026-10-20T10:22:25.804Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 500,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:25.805Z",
+      "completedAt": "2026-10-20T10:22:27.466Z",
+      "trace": "docs/reports/raw/flat-thumbnails-500-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:27.467Z",
+      "completedAt": "2026-10-20T10:22:29.056Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:29.057Z",
+      "completedAt": "2026-10-20T10:22:30.978Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:30.978Z",
+      "completedAt": "2026-10-20T10:22:32.932Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:32.933Z",
+      "completedAt": "2026-10-20T10:22:34.506Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:34.509Z",
+      "completedAt": "2026-10-20T10:22:36.115Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:36.117Z",
+      "completedAt": "2026-10-20T10:22:38.109Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:38.111Z",
+      "completedAt": "2026-10-20T10:22:39.810Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:39.812Z",
+      "completedAt": "2026-10-20T10:22:41.812Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:41.813Z",
+      "completedAt": "2026-10-20T10:22:43.836Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:43.837Z",
+      "completedAt": "2026-10-20T10:22:45.562Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:45.563Z",
+      "completedAt": "2026-10-20T10:22:47.280Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 1000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:47.281Z",
+      "completedAt": "2026-10-20T10:22:49.376Z",
+      "trace": "docs/reports/raw/flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:49.377Z",
+      "completedAt": "2026-10-20T10:22:51.030Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:51.031Z",
+      "completedAt": "2026-10-20T10:22:54.628Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:54.629Z",
+      "completedAt": "2026-10-20T10:22:57.899Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:57.900Z",
+      "completedAt": "2026-10-20T10:22:59.570Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:22:59.572Z",
+      "completedAt": "2026-10-20T10:23:01.218Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:01.218Z",
+      "completedAt": "2026-10-20T10:23:04.581Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-runtime-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:04.582Z",
+      "completedAt": "2026-10-20T10:23:06.390Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:06.391Z",
+      "completedAt": "2026-10-20T10:23:09.962Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:09.963Z",
+      "completedAt": "2026-10-20T10:23:13.357Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-runtime-cpu1-r2",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:13.358Z",
+      "completedAt": "2026-10-20T10:23:15.168Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-runtime-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:15.169Z",
+      "completedAt": "2026-10-20T10:23:16.953Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "flat-thumbnails",
+      "count": 2000,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:16.953Z",
+      "completedAt": "2026-10-20T10:23:20.432Z",
+      "trace": "docs/reports/raw/flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-runtime-cpu1-r1",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:20.433Z",
+      "completedAt": "2026-10-20T10:23:22.023Z",
+      "trace": "docs/reports/raw/kanban-800-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-dnd-kit-cpu1-r1",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:22.024Z",
+      "completedAt": "2026-10-20T10:23:23.826Z",
+      "trace": "docs/reports/raw/kanban-800-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-dnd-kit-cpu1-r2",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:23.827Z",
+      "completedAt": "2026-10-20T10:23:25.654Z",
+      "trace": "docs/reports/raw/kanban-800-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-runtime-cpu1-r2",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:25.655Z",
+      "completedAt": "2026-10-20T10:23:27.208Z",
+      "trace": "docs/reports/raw/kanban-800-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-runtime-cpu1-r3",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:27.209Z",
+      "completedAt": "2026-10-20T10:23:28.786Z",
+      "trace": "docs/reports/raw/kanban-800-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-dnd-kit-cpu1-r3",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "same-list",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:28.786Z",
+      "completedAt": "2026-10-20T10:23:30.542Z",
+      "trace": "docs/reports/raw/kanban-800-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-runtime-cpu1-r1",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "cross-column",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:30.544Z",
+      "completedAt": "2026-10-20T10:23:32.139Z",
+      "trace": "docs/reports/raw/kanban-800-cross-column-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-dnd-kit-cpu1-r1",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "cross-column",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:32.140Z",
+      "completedAt": "2026-10-20T10:23:34.039Z",
+      "trace": "docs/reports/raw/kanban-800-cross-column-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-dnd-kit-cpu1-r2",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "cross-column",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:34.039Z",
+      "completedAt": "2026-10-20T10:23:35.876Z",
+      "trace": "docs/reports/raw/kanban-800-cross-column-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-runtime-cpu1-r2",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "cross-column",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:35.876Z",
+      "completedAt": "2026-10-20T10:23:37.462Z",
+      "trace": "docs/reports/raw/kanban-800-cross-column-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-runtime-cpu1-r3",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "cross-column",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:37.462Z",
+      "completedAt": "2026-10-20T10:23:39.044Z",
+      "trace": "docs/reports/raw/kanban-800-cross-column-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-dnd-kit-cpu1-r3",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "cross-column",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:39.045Z",
+      "completedAt": "2026-10-20T10:23:40.900Z",
+      "trace": "docs/reports/raw/kanban-800-cross-column-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-runtime-cpu1-r1",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:40.901Z",
+      "completedAt": "2026-10-20T10:23:42.587Z",
+      "trace": "docs/reports/raw/kanban-800-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-dnd-kit-cpu1-r1",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:42.588Z",
+      "completedAt": "2026-10-20T10:23:44.488Z",
+      "trace": "docs/reports/raw/kanban-800-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-dnd-kit-cpu1-r2",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:44.489Z",
+      "completedAt": "2026-10-20T10:23:46.346Z",
+      "trace": "docs/reports/raw/kanban-800-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-runtime-cpu1-r2",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:46.347Z",
+      "completedAt": "2026-10-20T10:23:48.022Z",
+      "trace": "docs/reports/raw/kanban-800-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-runtime-cpu1-r3",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "multi-select",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:48.022Z",
+      "completedAt": "2026-10-20T10:23:49.710Z",
+      "trace": "docs/reports/raw/kanban-800-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-dnd-kit-cpu1-r3",
+      "scenario": "kanban",
+      "count": 800,
+      "interaction": "multi-select",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:49.711Z",
+      "completedAt": "2026-10-20T10:23:51.560Z",
+      "trace": "docs/reports/raw/kanban-800-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:51.561Z",
+      "completedAt": "2026-10-20T10:23:53.105Z",
+      "trace": "docs/reports/raw/grouped-50-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:53.105Z",
+      "completedAt": "2026-10-20T10:23:54.224Z",
+      "trace": "docs/reports/raw/grouped-50-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:54.225Z",
+      "completedAt": "2026-10-20T10:23:55.323Z",
+      "trace": "docs/reports/raw/grouped-50-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:55.324Z",
+      "completedAt": "2026-10-20T10:23:56.863Z",
+      "trace": "docs/reports/raw/grouped-50-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:56.863Z",
+      "completedAt": "2026-10-20T10:23:58.410Z",
+      "trace": "docs/reports/raw/grouped-50-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:58.412Z",
+      "completedAt": "2026-10-20T10:23:59.849Z",
+      "trace": "docs/reports/raw/grouped-50-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:23:59.850Z",
+      "completedAt": "2026-10-20T10:24:01.401Z",
+      "trace": "docs/reports/raw/grouped-50-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:01.401Z",
+      "completedAt": "2026-10-20T10:24:02.526Z",
+      "trace": "docs/reports/raw/grouped-50-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:02.527Z",
+      "completedAt": "2026-10-20T10:24:03.932Z",
+      "trace": "docs/reports/raw/grouped-50-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:03.933Z",
+      "completedAt": "2026-10-20T10:24:05.497Z",
+      "trace": "docs/reports/raw/grouped-50-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:05.498Z",
+      "completedAt": "2026-10-20T10:24:07.059Z",
+      "trace": "docs/reports/raw/grouped-50-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 50,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:07.060Z",
+      "completedAt": "2026-10-20T10:24:08.243Z",
+      "trace": "docs/reports/raw/grouped-50-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:08.244Z",
+      "completedAt": "2026-10-20T10:24:09.811Z",
+      "trace": "docs/reports/raw/grouped-200-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:09.812Z",
+      "completedAt": "2026-10-20T10:24:11.272Z",
+      "trace": "docs/reports/raw/grouped-200-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:11.272Z",
+      "completedAt": "2026-10-20T10:24:12.760Z",
+      "trace": "docs/reports/raw/grouped-200-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:12.760Z",
+      "completedAt": "2026-10-20T10:24:14.299Z",
+      "trace": "docs/reports/raw/grouped-200-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:14.300Z",
+      "completedAt": "2026-10-20T10:24:15.849Z",
+      "trace": "docs/reports/raw/grouped-200-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:15.851Z",
+      "completedAt": "2026-10-20T10:24:17.020Z",
+      "trace": "docs/reports/raw/grouped-200-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:17.024Z",
+      "completedAt": "2026-10-20T10:24:18.576Z",
+      "trace": "docs/reports/raw/grouped-200-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:18.577Z",
+      "completedAt": "2026-10-20T10:24:19.739Z",
+      "trace": "docs/reports/raw/grouped-200-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:19.743Z",
+      "completedAt": "2026-10-20T10:24:21.255Z",
+      "trace": "docs/reports/raw/grouped-200-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:21.256Z",
+      "completedAt": "2026-10-20T10:24:22.824Z",
+      "trace": "docs/reports/raw/grouped-200-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:22.825Z",
+      "completedAt": "2026-10-20T10:24:24.391Z",
+      "trace": "docs/reports/raw/grouped-200-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 200,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:24.392Z",
+      "completedAt": "2026-10-20T10:24:25.569Z",
+      "trace": "docs/reports/raw/grouped-200-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:25.574Z",
+      "completedAt": "2026-10-20T10:24:27.136Z",
+      "trace": "docs/reports/raw/grouped-500-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:27.137Z",
+      "completedAt": "2026-10-20T10:24:28.465Z",
+      "trace": "docs/reports/raw/grouped-500-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:28.466Z",
+      "completedAt": "2026-10-20T10:24:30.062Z",
+      "trace": "docs/reports/raw/grouped-500-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:30.063Z",
+      "completedAt": "2026-10-20T10:24:31.631Z",
+      "trace": "docs/reports/raw/grouped-500-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:31.632Z",
+      "completedAt": "2026-10-20T10:24:33.241Z",
+      "trace": "docs/reports/raw/grouped-500-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:33.242Z",
+      "completedAt": "2026-10-20T10:24:34.577Z",
+      "trace": "docs/reports/raw/grouped-500-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:34.578Z",
+      "completedAt": "2026-10-20T10:24:36.141Z",
+      "trace": "docs/reports/raw/grouped-500-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:36.142Z",
+      "completedAt": "2026-10-20T10:24:37.462Z",
+      "trace": "docs/reports/raw/grouped-500-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:37.463Z",
+      "completedAt": "2026-10-20T10:24:39.090Z",
+      "trace": "docs/reports/raw/grouped-500-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:39.091Z",
+      "completedAt": "2026-10-20T10:24:40.689Z",
+      "trace": "docs/reports/raw/grouped-500-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:40.689Z",
+      "completedAt": "2026-10-20T10:24:42.275Z",
+      "trace": "docs/reports/raw/grouped-500-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 500,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:42.276Z",
+      "completedAt": "2026-10-20T10:24:43.580Z",
+      "trace": "docs/reports/raw/grouped-500-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:43.582Z",
+      "completedAt": "2026-10-20T10:24:45.206Z",
+      "trace": "docs/reports/raw/grouped-1000-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:45.207Z",
+      "completedAt": "2026-10-20T10:24:46.861Z",
+      "trace": "docs/reports/raw/grouped-1000-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:46.862Z",
+      "completedAt": "2026-10-20T10:24:48.594Z",
+      "trace": "docs/reports/raw/grouped-1000-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:48.595Z",
+      "completedAt": "2026-10-20T10:24:50.186Z",
+      "trace": "docs/reports/raw/grouped-1000-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:50.187Z",
+      "completedAt": "2026-10-20T10:24:51.790Z",
+      "trace": "docs/reports/raw/grouped-1000-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:51.790Z",
+      "completedAt": "2026-10-20T10:24:53.500Z",
+      "trace": "docs/reports/raw/grouped-1000-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:53.501Z",
+      "completedAt": "2026-10-20T10:24:55.123Z",
+      "trace": "docs/reports/raw/grouped-1000-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:55.124Z",
+      "completedAt": "2026-10-20T10:24:57.103Z",
+      "trace": "docs/reports/raw/grouped-1000-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:57.104Z",
+      "completedAt": "2026-10-20T10:24:59.166Z",
+      "trace": "docs/reports/raw/grouped-1000-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:24:59.168Z",
+      "completedAt": "2026-10-20T10:25:00.775Z",
+      "trace": "docs/reports/raw/grouped-1000-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:00.778Z",
+      "completedAt": "2026-10-20T10:25:02.391Z",
+      "trace": "docs/reports/raw/grouped-1000-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 1000,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:02.392Z",
+      "completedAt": "2026-10-20T10:25:04.471Z",
+      "trace": "docs/reports/raw/grouped-1000-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:04.472Z",
+      "completedAt": "2026-10-20T10:25:06.215Z",
+      "trace": "docs/reports/raw/grouped-2000-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:06.216Z",
+      "completedAt": "2026-10-20T10:25:09.889Z",
+      "trace": "docs/reports/raw/grouped-2000-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:09.890Z",
+      "completedAt": "2026-10-20T10:25:13.004Z",
+      "trace": "docs/reports/raw/grouped-2000-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:13.005Z",
+      "completedAt": "2026-10-20T10:25:14.744Z",
+      "trace": "docs/reports/raw/grouped-2000-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:14.744Z",
+      "completedAt": "2026-10-20T10:25:16.487Z",
+      "trace": "docs/reports/raw/grouped-2000-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "grouped",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:16.489Z",
+      "completedAt": "2026-10-20T10:25:20.146Z",
+      "trace": "docs/reports/raw/grouped-2000-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-runtime-cpu1-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:20.147Z",
+      "completedAt": "2026-10-20T10:25:21.908Z",
+      "trace": "docs/reports/raw/grouped-2000-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-dnd-kit-cpu1-r1",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:21.909Z",
+      "completedAt": "2026-10-20T10:25:25.620Z",
+      "trace": "docs/reports/raw/grouped-2000-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-dnd-kit-cpu1-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:25.621Z",
+      "completedAt": "2026-10-20T10:25:28.747Z",
+      "trace": "docs/reports/raw/grouped-2000-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-runtime-cpu1-r2",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:28.748Z",
+      "completedAt": "2026-10-20T10:25:30.514Z",
+      "trace": "docs/reports/raw/grouped-2000-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-runtime-cpu1-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "folded-context",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:30.515Z",
+      "completedAt": "2026-10-20T10:25:32.260Z",
+      "trace": "docs/reports/raw/grouped-2000-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-dnd-kit-cpu1-r3",
+      "scenario": "grouped",
+      "count": 2000,
+      "interaction": "folded-context",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:32.261Z",
+      "completedAt": "2026-10-20T10:25:35.445Z",
+      "trace": "docs/reports/raw/grouped-2000-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-runtime-cpu1-r1",
+      "scenario": "canvas",
+      "count": 50,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:35.447Z",
+      "completedAt": "2026-10-20T10:25:36.863Z",
+      "trace": "docs/reports/raw/canvas-50-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-dnd-kit-cpu1-r1",
+      "scenario": "canvas",
+      "count": 50,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:36.864Z",
+      "completedAt": "2026-10-20T10:25:37.946Z",
+      "trace": "docs/reports/raw/canvas-50-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-dnd-kit-cpu1-r2",
+      "scenario": "canvas",
+      "count": 50,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:37.949Z",
+      "completedAt": "2026-10-20T10:25:39.085Z",
+      "trace": "docs/reports/raw/canvas-50-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-runtime-cpu1-r2",
+      "scenario": "canvas",
+      "count": 50,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:39.086Z",
+      "completedAt": "2026-10-20T10:25:40.469Z",
+      "trace": "docs/reports/raw/canvas-50-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-runtime-cpu1-r3",
+      "scenario": "canvas",
+      "count": 50,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:40.470Z",
+      "completedAt": "2026-10-20T10:25:41.848Z",
+      "trace": "docs/reports/raw/canvas-50-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-dnd-kit-cpu1-r3",
+      "scenario": "canvas",
+      "count": 50,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:41.849Z",
+      "completedAt": "2026-10-20T10:25:42.929Z",
+      "trace": "docs/reports/raw/canvas-50-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-runtime-cpu1-r1",
+      "scenario": "canvas",
+      "count": 200,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:42.930Z",
+      "completedAt": "2026-10-20T10:25:44.331Z",
+      "trace": "docs/reports/raw/canvas-200-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-dnd-kit-cpu1-r1",
+      "scenario": "canvas",
+      "count": 200,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:44.332Z",
+      "completedAt": "2026-10-20T10:25:45.464Z",
+      "trace": "docs/reports/raw/canvas-200-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-dnd-kit-cpu1-r2",
+      "scenario": "canvas",
+      "count": 200,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:45.465Z",
+      "completedAt": "2026-10-20T10:25:46.581Z",
+      "trace": "docs/reports/raw/canvas-200-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-runtime-cpu1-r2",
+      "scenario": "canvas",
+      "count": 200,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:46.582Z",
+      "completedAt": "2026-10-20T10:25:47.969Z",
+      "trace": "docs/reports/raw/canvas-200-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-runtime-cpu1-r3",
+      "scenario": "canvas",
+      "count": 200,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:47.970Z",
+      "completedAt": "2026-10-20T10:25:49.437Z",
+      "trace": "docs/reports/raw/canvas-200-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-dnd-kit-cpu1-r3",
+      "scenario": "canvas",
+      "count": 200,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:49.438Z",
+      "completedAt": "2026-10-20T10:25:50.564Z",
+      "trace": "docs/reports/raw/canvas-200-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-runtime-cpu1-r1",
+      "scenario": "canvas",
+      "count": 500,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:50.565Z",
+      "completedAt": "2026-10-20T10:25:51.977Z",
+      "trace": "docs/reports/raw/canvas-500-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-dnd-kit-cpu1-r1",
+      "scenario": "canvas",
+      "count": 500,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:51.978Z",
+      "completedAt": "2026-10-20T10:25:53.212Z",
+      "trace": "docs/reports/raw/canvas-500-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-dnd-kit-cpu1-r2",
+      "scenario": "canvas",
+      "count": 500,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:53.214Z",
+      "completedAt": "2026-10-20T10:25:54.452Z",
+      "trace": "docs/reports/raw/canvas-500-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-runtime-cpu1-r2",
+      "scenario": "canvas",
+      "count": 500,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:54.453Z",
+      "completedAt": "2026-10-20T10:25:55.866Z",
+      "trace": "docs/reports/raw/canvas-500-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-runtime-cpu1-r3",
+      "scenario": "canvas",
+      "count": 500,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:55.867Z",
+      "completedAt": "2026-10-20T10:25:57.301Z",
+      "trace": "docs/reports/raw/canvas-500-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-dnd-kit-cpu1-r3",
+      "scenario": "canvas",
+      "count": 500,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:57.302Z",
+      "completedAt": "2026-10-20T10:25:58.560Z",
+      "trace": "docs/reports/raw/canvas-500-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-runtime-cpu1-r1",
+      "scenario": "canvas",
+      "count": 1000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:25:58.566Z",
+      "completedAt": "2026-10-20T10:26:00.013Z",
+      "trace": "docs/reports/raw/canvas-1000-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-dnd-kit-cpu1-r1",
+      "scenario": "canvas",
+      "count": 1000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:00.015Z",
+      "completedAt": "2026-10-20T10:26:01.609Z",
+      "trace": "docs/reports/raw/canvas-1000-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-dnd-kit-cpu1-r2",
+      "scenario": "canvas",
+      "count": 1000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:01.610Z",
+      "completedAt": "2026-10-20T10:26:03.181Z",
+      "trace": "docs/reports/raw/canvas-1000-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-runtime-cpu1-r2",
+      "scenario": "canvas",
+      "count": 1000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:03.182Z",
+      "completedAt": "2026-10-20T10:26:04.626Z",
+      "trace": "docs/reports/raw/canvas-1000-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-runtime-cpu1-r3",
+      "scenario": "canvas",
+      "count": 1000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:04.627Z",
+      "completedAt": "2026-10-20T10:26:06.095Z",
+      "trace": "docs/reports/raw/canvas-1000-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-dnd-kit-cpu1-r3",
+      "scenario": "canvas",
+      "count": 1000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:06.097Z",
+      "completedAt": "2026-10-20T10:26:07.683Z",
+      "trace": "docs/reports/raw/canvas-1000-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu1-r1",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:07.684Z",
+      "completedAt": "2026-10-20T10:26:09.222Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu1-r1",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:09.222Z",
+      "completedAt": "2026-10-20T10:26:12.041Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu1-r2",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:12.042Z",
+      "completedAt": "2026-10-20T10:26:14.926Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu1-r2",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:14.928Z",
+      "completedAt": "2026-10-20T10:26:16.455Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu1-r3",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:16.456Z",
+      "completedAt": "2026-10-20T10:26:18.028Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu1-r3",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 1,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T10:26:18.031Z",
+      "completedAt": "2026-10-20T10:26:21.114Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "error": null
+    }
+  ],
+  "rows": [
+    {
+      "sampleId": "flat-50-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-50-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-50-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-50-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-50-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-50-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-50-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-50-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-50-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-50-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-50-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-50-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-50-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-50-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-200-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-200-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-200-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-200-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-200-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-200-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-200-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-200-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-200-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-200-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-200-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-200-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-200-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-500-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-500-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-500-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-500-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-500-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-500-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-500-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-500-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-500-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-500-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-500-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-500-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-500-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-1000-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-1000-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-1000-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-1000-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-1000-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-1000-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-1000-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-1000-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-1000-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-1000-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-1000-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-1000-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-1000-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-2000-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-2000-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-2000-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-2000-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-2000-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-2000-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-2000-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-2000-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-2000-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-2000-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-2000-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-2000-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-50-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-50-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-50-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-50-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-50-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-50-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-50-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-50-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-50-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-50-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-50-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-50-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-50-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-200-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-200-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-200-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-200-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-200-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-200-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-200-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-200-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-200-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-200-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-200-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-200-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-200-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-500-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-500-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-500-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-500-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-500-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-500-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-500-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-500-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-500-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-500-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-500-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-500-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-500-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-1000-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-1000-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-1000-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-1000-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-1000-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-1000-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-1000-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-1000-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-1000-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-1000-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-2000-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-2000-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-2000-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-2000-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-2000-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-2000-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-2000-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/flat-thumbnails-2000-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-2000-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/flat-thumbnails-2000-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-runtime-cpu1-r1",
+      "path": "docs/reports/raw/kanban-800-same-list-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/kanban-800-same-list-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/kanban-800-same-list-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-runtime-cpu1-r2",
+      "path": "docs/reports/raw/kanban-800-same-list-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-runtime-cpu1-r3",
+      "path": "docs/reports/raw/kanban-800-same-list-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-same-list-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/kanban-800-same-list-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-runtime-cpu1-r1",
+      "path": "docs/reports/raw/kanban-800-cross-column-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/kanban-800-cross-column-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/kanban-800-cross-column-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-runtime-cpu1-r2",
+      "path": "docs/reports/raw/kanban-800-cross-column-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-runtime-cpu1-r3",
+      "path": "docs/reports/raw/kanban-800-cross-column-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-cross-column-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/kanban-800-cross-column-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-runtime-cpu1-r1",
+      "path": "docs/reports/raw/kanban-800-multi-select-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/kanban-800-multi-select-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/kanban-800-multi-select-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-runtime-cpu1-r2",
+      "path": "docs/reports/raw/kanban-800-multi-select-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-runtime-cpu1-r3",
+      "path": "docs/reports/raw/kanban-800-multi-select-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "kanban-800-multi-select-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/kanban-800-multi-select-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-50-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-50-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-50-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-50-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-50-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-grouped-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-50-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-50-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-50-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-50-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-50-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-50-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-50-folded-context-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-50-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-200-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-200-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-200-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-200-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-200-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-grouped-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-200-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-200-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-200-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-200-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-200-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-200-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-200-folded-context-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-200-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-500-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-500-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-500-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-500-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-500-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-grouped-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-500-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-500-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-500-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-500-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-500-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-500-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-500-folded-context-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-500-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-1000-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-1000-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-1000-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-1000-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-1000-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-grouped-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-1000-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-1000-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-1000-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-1000-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-1000-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-1000-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-1000-folded-context-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-1000-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-2000-grouped-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-2000-grouped-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-2000-grouped-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-2000-grouped-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-2000-grouped-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-grouped-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-2000-grouped-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-runtime-cpu1-r1",
+      "path": "docs/reports/raw/grouped-2000-folded-context-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/grouped-2000-folded-context-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/grouped-2000-folded-context-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-runtime-cpu1-r2",
+      "path": "docs/reports/raw/grouped-2000-folded-context-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-runtime-cpu1-r3",
+      "path": "docs/reports/raw/grouped-2000-folded-context-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "grouped-2000-folded-context-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/grouped-2000-folded-context-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-runtime-cpu1-r1",
+      "path": "docs/reports/raw/canvas-50-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/canvas-50-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/canvas-50-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-runtime-cpu1-r2",
+      "path": "docs/reports/raw/canvas-50-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-runtime-cpu1-r3",
+      "path": "docs/reports/raw/canvas-50-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-50-canvas-node-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/canvas-50-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-runtime-cpu1-r1",
+      "path": "docs/reports/raw/canvas-200-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/canvas-200-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/canvas-200-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-runtime-cpu1-r2",
+      "path": "docs/reports/raw/canvas-200-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-runtime-cpu1-r3",
+      "path": "docs/reports/raw/canvas-200-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-200-canvas-node-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/canvas-200-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-runtime-cpu1-r1",
+      "path": "docs/reports/raw/canvas-500-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/canvas-500-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/canvas-500-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-runtime-cpu1-r2",
+      "path": "docs/reports/raw/canvas-500-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-runtime-cpu1-r3",
+      "path": "docs/reports/raw/canvas-500-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-500-canvas-node-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/canvas-500-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-runtime-cpu1-r1",
+      "path": "docs/reports/raw/canvas-1000-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/canvas-1000-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/canvas-1000-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-runtime-cpu1-r2",
+      "path": "docs/reports/raw/canvas-1000-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-runtime-cpu1-r3",
+      "path": "docs/reports/raw/canvas-1000-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-1000-canvas-node-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/canvas-1000-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu1-r1",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu1-r1",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu1-r1-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu1-r2",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu1-r2",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu1-r2-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu1-r3",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu1-r3",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu1-r3-2026-10-20T10-19-41-542Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "finishedAt": "2026-10-20T10:26:21.115Z"
+}
