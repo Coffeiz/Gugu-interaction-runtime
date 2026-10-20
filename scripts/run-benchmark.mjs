@@ -22,6 +22,7 @@ const allCounts = [50, 200, 500, 1000, 2000]
 const scenarioFilter = args.get('scenario') || 'all'
 const interactionFilter = args.get('interaction') || 'all'
 const countFilter = args.get('count') || 'all'
+const implementationFilter = args.get('implementation') || 'all'
 const repetitions = Number(args.get('repetitions') || 5)
 const throttleArgument = args.get('throttle') || 'all'
 const throttles = throttleArgument === 'all' ? [1, 4, 6] : throttleArgument.split(',').map(Number)
@@ -35,7 +36,7 @@ const manifestPath = resolve(reportRoot, `run-${runTag}.json`)
 const rows = []
 const excluded = []
 const attempts = []
-const manifest = { schemaVersion: 3, runTag, startedAt: new Date().toISOString(), status: 'running', browserVersion: null, sourceRevision, sourceDirty, throttles, repetitions, headed, excluded, attempts, rows: [] }
+const manifest = { schemaVersion: 3, runTag, startedAt: new Date().toISOString(), status: 'running', browserVersion: null, sourceRevision, sourceDirty, throttles, repetitions, headed, implementationFilter, excluded, attempts, rows: [] }
 const persistManifest = () => writeFile(manifestPath, JSON.stringify(manifest, null, 2))
 
 await mkdir(rawRoot, { recursive: true })
@@ -61,7 +62,8 @@ try {
           await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle })
         // Interleave both implementations in the same page/context/browser session to reduce warm-cache bias.
         for (let repetition = 0; repetition < repetitions; repetition += 1) {
-          const implementations = repetition % 2 === 0 ? ['runtime', 'dnd-kit'] : ['dnd-kit', 'runtime']
+          const implementations = (repetition % 2 === 0 ? ['runtime', 'dnd-kit'] : ['dnd-kit', 'runtime'])
+            .filter(value => implementationFilter === 'all' || implementationFilter.split(',').includes(value))
           for (const implementation of implementations) {
             if (interaction === 'regrab' && implementation === 'dnd-kit') {
               excluded.push({ scenario, count, interaction, implementation, throttle, repetition: repetition + 1, reason: 'regrab is a runtime-specific landing-proxy interaction without an equivalent dnd-kit behavior' })

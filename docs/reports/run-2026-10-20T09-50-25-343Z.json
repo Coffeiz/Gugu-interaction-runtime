@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T09-50-25-343Z",
+  "startedAt": "2026-10-20T09:50:25.438Z",
+  "status": "completed",
+  "browserVersion": "151.0.7922.34",
+  "sourceRevision": "bfcdf7d",
+  "sourceDirty": true,
+  "throttles": [
+    6
+  ],
+  "repetitions": 3,
+  "headed": false,
+  "implementationFilter": "runtime",
+  "excluded": [],
+  "attempts": [
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu6-r1",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:50:27.246Z",
+      "completedAt": "2026-10-20T09:50:34.891Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-runtime-cpu6-r1-2026-10-20T09-50-25-343Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu6-r2",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:50:34.892Z",
+      "completedAt": "2026-10-20T09:50:41.001Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-runtime-cpu6-r2-2026-10-20T09-50-25-343Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu6-r3",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "same-list",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:50:41.003Z",
+      "completedAt": "2026-10-20T09:50:47.392Z",
+      "trace": "docs/reports/raw/flat-2000-same-list-runtime-cpu6-r3-2026-10-20T09-50-25-343Z.json.gz",
+      "error": null
+    }
+  ],
+  "rows": [
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu6-r1",
+      "path": "docs/reports/raw/flat-2000-same-list-runtime-cpu6-r1-2026-10-20T09-50-25-343Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu6-r2",
+      "path": "docs/reports/raw/flat-2000-same-list-runtime-cpu6-r2-2026-10-20T09-50-25-343Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "flat-2000-same-list-runtime-cpu6-r3",
+      "path": "docs/reports/raw/flat-2000-same-list-runtime-cpu6-r3-2026-10-20T09-50-25-343Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "finishedAt": "2026-10-20T09:50:47.393Z"
+}

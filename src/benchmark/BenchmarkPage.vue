@@ -44,8 +44,8 @@
               :selected="isSelected(id)"
               :thumbnail="scenario === 'flat-thumbnails' && index % 2 === 0"
               :canvas="scenario === 'canvas'"
-              :x="(index % 24) * 188"
-              :y="Math.floor(index / 24) * 108"
+              :x="canvasPositions[id]?.x ?? (index % 24) * 188"
+              :y="canvasPositions[id]?.y ?? Math.floor(index / 24) * 108"
             />
           </div>
         </DndKitBenchSurface>
@@ -61,6 +61,7 @@
         :class="{ 'is-folded': folded.has(group.id) }"
         :data-surface="group.id"
         data-layout-surface
+        data-scroll-viewport
       >
         <header v-if="scenario === 'kanban'" class="bench-group-title">{{ group.label }} <small>{{ group.ids.length }}</small></header>
         <div v-if="scenario === 'grouped'" class="bench-list-content bench-year-content">
@@ -86,8 +87,8 @@
             :selected="isSelected(id)"
             :thumbnail="scenario === 'flat-thumbnails' && index % 2 === 0"
             :canvas="scenario === 'canvas'"
-            :x="(index % 24) * 188"
-            :y="Math.floor(index / 24) * 108"
+            :x="canvasPositions[id]?.x ?? (index % 24) * 188"
+            :y="canvasPositions[id]?.y ?? Math.floor(index / 24) * 108"
           />
         </div>
       </section>
@@ -164,6 +165,7 @@ const baseGroups = computed(() => {
   })
 })
 const groupOrder = reactive<Record<string, string[]>>({})
+const canvasPositions = reactive<Record<string, { x: number; y: number }>>({})
 const groups = computed(() => baseGroups.value.map(group => ({
   ...group,
   ids: groupOrder[group.id] ?? group.ids,
@@ -181,6 +183,7 @@ let runtimeSessionId: string | null = null
 let runtimeSettled = false
 let multiStartPoint: { x: number; y: number } | null = null
 let commitStarted = false
+let canvasGrabOffset: { x: number; y: number } | null = null
 
 watch([scenario, implementation, count], async () => {
   resetData()
@@ -212,6 +215,8 @@ function resetRuntime(): void {
 }
 
 function resetData(): void {
+  canvasGrabOffset = null
+  for (const id of Object.keys(canvasPositions)) delete canvasPositions[id]
   for (const group of baseGroups.value) {
     groupOrder[group.id] = [...group.ids]
     for (const year of group.years) {
@@ -372,7 +377,21 @@ runtime.onAction(action => {
   void (async () => {
     const ids = action.type === 'move-group' ? [...action.objectIds] : [action.objectId]
     recorder.setCommit({ objectIds: ids, committed: true, sourceGroupId: action.fromSurfaceId, destinationGroupId: action.toSurfaceId, index: action.toIndex })
-    moveItems(ids, action.toSurfaceId, action.toIndex ?? 0, action.fromSurfaceId)
+    if (scenario.value === 'canvas') {
+      if (action.type === 'move' && action.point) {
+        const content = document.querySelector<HTMLElement>('[data-surface] .bench-list-content')
+        if (content) {
+          const contentRect = content.getBoundingClientRect()
+          const offset = canvasGrabOffset ?? { x: 88, y: 39 }
+          canvasPositions[ids[0]] = {
+            x: Math.max(0, action.point.x - contentRect.left - offset.x),
+            y: Math.max(0, action.point.y - contentRect.top - offset.y),
+          }
+        }
+      }
+    } else {
+      moveItems(ids, action.toSurfaceId, action.toIndex ?? 0, action.fromSurfaceId)
+    }
     await nextTick()
     recorder.mark('commit-end')
     if (runtimeSettled) {
@@ -405,6 +424,10 @@ document.addEventListener('pointerdown', event => {
   }
   if (!event.target.closest('.bench-card')) return
   const card = event.target.closest<HTMLElement>('.bench-card')
+  if (scenario.value === 'canvas' && card) {
+    const rect = card.getBoundingClientRect()
+    canvasGrabOffset = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+  }
   if (implementation.value === 'dnd-kit' && interaction.value === 'multi-select' && card?.classList.contains('is-selected')) {
     multiStartPoint = { x: (event as PointerEvent).clientX, y: (event as PointerEvent).clientY }
   }
@@ -466,7 +489,7 @@ html, body, #app { width: 100%; height: 100%; margin: 0; }
 .bench-month-content { display: flex; flex-direction: column; gap: 5px; overflow: visible; }
 .bench-month.is-folded .bench-month-content { height: 0; overflow: hidden; }
 .bench-group-title small { float: right; }
-.bench-card { position: relative; display: flex; min-height: 40px; align-items: center; gap: 8px; padding: 6px 9px; border: 1px solid #d8dee9; border-radius: 6px; background: white; user-select: none; touch-action: none; }
+.bench-card { position: relative; display: flex; min-height: 40px; align-items: center; gap: 8px; padding: 6px 9px; border: 1px solid #d8dee9; border-radius: 6px; background: white; font: 13px system-ui,sans-serif; user-select: none; touch-action: none; }
 .bench-card.is-selected { outline: 2px solid #7781d6; }
 .bench-thumbnail { width: 32px; height: 24px; flex: 0 0 auto; border-radius: 3px; background: linear-gradient(135deg,#bdd3f2,#f2c9d3); }
 .scenario-canvas .bench-workspace, .bench-workspace.is-canvas { min-height: 2400px; }
