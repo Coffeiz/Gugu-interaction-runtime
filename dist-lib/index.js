@@ -1,5 +1,5 @@
-import { _ as e, a as t, c as n, d as r, f as i, g as a, h as o, i as s, l as c, m as l, n as u, o as d, p as f, r as p, s as m, t as h, u as g, v as _, y as v } from "./GroupLayout-KQ7I0YKH.js";
-import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-BJQnXfXa.js";
+import { _ as e, a as t, c as n, d as r, f as i, g as a, h as o, i as s, l as c, m as l, n as u, o as d, p as f, r as p, s as m, t as h, u as g, v as _, y as v } from "./GroupLayout-B0YxiY7n.js";
+import { C as y, D as b, E as x, O as S, S as C, T as w, _ as T, a as E, b as D, c as O, d as ee, f as te, g as k, h as A, i as j, l as M, m as N, n as P, o as F, p as ne, r as re, s as ie, t as ae, u as oe, v as se, w as ce, x as le, y as ue } from "./MoveAdapter-BU46APag.js";
 //#region src/core/Emitter.ts
 var I = class {
 	constructor() {
@@ -2128,7 +2128,7 @@ var Le = class {
 			return Math.max(0, Math.min(i, a));
 		}, a = i();
 		if (Math.abs(a - n.scrollTop) < .5) return;
-		let o = n.scrollTop, s = Math.max(200, this.registry.motionProfile?.landing?.duration ?? 250);
+		let o = n.scrollTop, s = Math.min(250, Math.max(1, this.registry.motionProfile?.landing?.duration ?? 250));
 		if (typeof requestAnimationFrame > "u") {
 			n.scrollTop = a;
 			return;

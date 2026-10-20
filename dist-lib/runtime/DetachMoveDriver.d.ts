@@ -24,7 +24,7 @@ export interface DetachPickupPreparation {
 export declare function prepareDetachPickup(sourceElement: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[], surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => {
     width?: number;
     height: number;
-} | null)>, includeViewportPeers?: boolean): DetachPickupPreparation;
+} | null)>, includeViewportPeers?: boolean, freeLayoutSurfaces?: () => readonly HTMLElement[]): DetachPickupPreparation;
 export declare function createDetachDropState<TDrop>(resolve: (event: PointerEvent) => TDrop | null, same: (drop: TDrop, previous: TDrop | null) => boolean): {
     update(event: PointerEvent): TDrop | null;
     release(): TDrop | null;
@@ -112,7 +112,7 @@ export declare function createDetachLandingLifecycle<TGate extends {
 export declare function createDetachLayoutLifecycle(sourceEl: HTMLElement, registeredElements: () => HTMLElement[], scopeSurfaces?: () => readonly HTMLElement[], surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => {
     width?: number;
     height: number;
-} | null)>, layoutTransaction?: LayoutTransactionCoordinator, presenceElements?: () => readonly HTMLElement[]): {
+} | null)>, layoutTransaction?: LayoutTransactionCoordinator, presenceElements?: () => readonly HTMLElement[], freeLayoutSurfaces?: () => readonly HTMLElement[]): {
     capture: () => import('..').LayoutFlipSnapshot;
     play: (_context: unknown, snapshot: unknown, useRaf?: boolean) => void;
     cancel: () => void;

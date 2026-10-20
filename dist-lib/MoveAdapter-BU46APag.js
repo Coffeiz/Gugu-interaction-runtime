@@ -1,4 +1,4 @@
-import { a as e, n as t, o as n, y as r } from "./GroupLayout-KQ7I0YKH.js";
+import { a as e, n as t, o as n, y as r } from "./GroupLayout-B0YxiY7n.js";
 //#region src/motion/ReleaseMotion.ts
 var i = {
 	velocityScale: 1,
@@ -411,11 +411,11 @@ function j(e, t = e.getBoundingClientRect(), n = {}) {
 		boxSizing: "border-box",
 		margin: "0",
 		pointerEvents: "none"
-	}), s.dataset.runtimePhase = "grab-start", o.appendChild(s), a.appendChild(o), i.appendChild(a), i.className = "", i.style.position = "fixed", i.style.left = `${t.left}px`, i.style.top = `${t.top}px`, i.style.boxSizing = "border-box", i.style.transformOrigin = "50% 50%", i.style.width = `${t.width}px`, i.style.height = `${t.height}px`, N(i, n.contentScale), i.style.margin = "0", i.style.zIndex = String(n.proxyZIndex ?? 2147483647), i.style.pointerEvents = "none", i.style.visibility = "visible", i.style.willChange = "transform", i.style.display = "", i.dataset.runtimeProxy = "true", i.style.transformOrigin = "50% 50%", i.style.transform = "scale(1)", Y && n.glass !== !1 ? X(s) : D(s, "0 12px 24px rgba(0,0,0,.18)"), r && (s.dataset.runtimeCompact = "true");
+	}), s.dataset.runtimePhase = "grab-start", o.appendChild(s), a.appendChild(o), i.appendChild(a), i.className = "", i.style.position = "fixed", i.style.left = `${t.left}px`, i.style.top = `${t.top}px`, i.style.boxSizing = "border-box", i.style.transformOrigin = "50% 50%", i.style.width = `${t.width}px`, i.style.height = `${t.height}px`, N(i, n.contentScale), i.style.margin = "0", i.style.zIndex = String(n.proxyZIndex ?? 2147483647), i.style.pointerEvents = "none", i.style.visibility = "visible", i.style.willChange = "transform", i.style.display = "", i.dataset.runtimeProxy = "true", i.style.transformOrigin = "50% 50%", i.style.transform = "scale(1)", J && n.glass !== !1 ? Y(s) : D(s, "0 12px 24px rgba(0,0,0,.18)"), r && (s.dataset.runtimeCompact = "true");
 	let c = r?.duration ?? 200, l = r?.easing ?? "cubic-bezier(.22,1,.36,1)";
 	return s.style.transition = `left ${c}ms ${l}, width ${c}ms ${l}, transform ${c}ms ${l}, grid-template-columns ${c}ms ${l}, box-shadow .15s ease, border-radius .15s ease, background-color .15s ease, opacity .15s ease`, i.style.transition = "transform .15s ease", document.documentElement.appendChild(i), requestAnimationFrame(() => {
 		i.isConnected && s.dataset.runtimePhase === "grab-start" && (s.dataset.runtimePhase = "grabbing", r && (s.style.left = r.left ?? "50%", s.style.width = r.width, s.style.transform = r.transform ?? "translateX(-50%)", r.gridTemplateColumns && (s.style.gridTemplateColumns = r.gridTemplateColumns)));
-	}), J.add(i), i;
+	}), ce.add(i), i;
 }
 function M(e) {
 	let t = typeof e == "function" ? e() : e;
@@ -648,28 +648,28 @@ function re(e, t, n = {}) {
 		height: e.height
 	}), B = t, re = performance.now(), V = !1, H = n.landingMode === "target" && !!h, U = H ? n.dismiss?.duration ?? i : 0, ie = !1, W = null, G = !H, K = null, q = null, ae = 0, oe = () => void 0, se = new Promise((e) => {
 		oe = e;
-	}), J = () => {
-		V || (V = !0, X.stop(), K !== null && window.clearTimeout(K), q !== null && window.clearTimeout(q), K = null, q = null, L !== null && window.cancelAnimationFrame(L), L = null, W !== null && window.cancelAnimationFrame(W), W = null, I?.remove(), I = null, oe());
-	}, Y = () => {
-		ie && G && J();
-	}, ce = () => {
+	}), ce = () => {
+		V || (V = !0, Y.stop(), K !== null && window.clearTimeout(K), q !== null && window.clearTimeout(q), K = null, q = null, L !== null && window.cancelAnimationFrame(L), L = null, W !== null && window.cancelAnimationFrame(W), W = null, I?.remove(), I = null, oe());
+	}, J = () => {
+		ie && G && ce();
+	}, le = () => {
 		V || W === null && (W = window.requestAnimationFrame(() => {
 			if (W = null, V) return;
 			let e = n.readTarget?.();
 			if (e && e.width > 0 && e.height > 0 && (Math.abs(e.left - B.left) >= .5 || Math.abs(e.top - B.top) >= .5 || Math.abs(e.width - B.width) >= .5 || Math.abs(e.height - B.height) >= .5)) {
 				B = e;
 				let t = z(e), r = n.landingMode === "target" ? 1 : t.width / (n.landingMode === "free" ? me : w), i = n.landingMode === "target" ? 1 : t.height / (n.landingMode === "free" ? he : T);
-				X.retarget({
+				Y.retarget({
 					x: t.left,
 					y: t.top,
 					scaleX: r,
 					scaleY: i
-				}), X.start();
+				}), Y.start();
 				return;
 			}
-			ie = !0, Y();
+			ie = !0, J();
 		}));
-	}, le = (t) => {
+	}, ue = (t) => {
 		let r = t.x, a = t.y;
 		if (e.style.transform = `translate3d(${(r - x).toFixed(2)}px, ${(a - S).toFixed(2)}px, 0) scale(${t.scaleX.toFixed(4)}, ${t.scaleY.toFixed(4)})`, te(e).style.transform = `perspective(760px) rotateX(${t.rotateX.toFixed(2)}deg) rotateZ(${t.rotateZ.toFixed(2)}deg)`, n.landingMode === "free" && E && n.cameraShell) P(E, w, T, y);
 		else {
@@ -679,19 +679,19 @@ function re(e, t, n = {}) {
 				n.cameraShell ? P(E, r, a, n.landingContentScale === void 0 ? t.scaleX * s : s) : (E.shell.style.left = "0px", E.shell.style.top = "0px", E.shell.style.width = `${r}px`, E.shell.style.height = `${a}px`, E.shell.style.transform = "scale(1)");
 			}
 		}
-	}, X = n.landingMode === "free" ? b({
+	}, Y = n.landingMode === "free" ? b({
 		duration: i,
 		easing: a,
 		stiffness: n.stiffness,
 		damping: n.damping,
 		rotationDecay: n.rotationDecay,
-		onFrame: le,
-		onArrived: ce
+		onFrame: ue,
+		onArrived: le
 	}) : f({
 		mode: "settle",
-		onFrame: le,
-		onArrived: ce
-	}), ue = Math.hypot(n.motionState?.vx ?? 0, n.motionState?.vy ?? 0), de = n.releaseDamping ?? .78, fe = n.targetMotion ? {
+		onFrame: ue,
+		onArrived: le
+	}), X = Math.hypot(n.motionState?.vx ?? 0, n.motionState?.vy ?? 0), de = n.releaseDamping ?? .78, fe = n.targetMotion ? {
 		position: {
 			...c.position,
 			...n.targetMotion.position
@@ -701,7 +701,7 @@ function re(e, t, n = {}) {
 			...n.targetMotion.scale
 		}
 	} : c;
-	n.landingMode !== "free" && X.setProfile(ue > 30 ? {
+	n.landingMode !== "free" && Y.setProfile(X > 30 ? {
 		...fe,
 		position: {
 			...fe.position,
@@ -718,7 +718,7 @@ function re(e, t, n = {}) {
 		rotateX: n.motionState?.rotateX ?? 0,
 		rotateZ: n.motionState?.rotateZ ?? 0
 	};
-	X.seed({
+	Y.seed({
 		x: Z.x,
 		y: Z.y,
 		vx: Z.vx,
@@ -727,7 +727,7 @@ function re(e, t, n = {}) {
 		scaleY: Z.scaleY,
 		rotateX: Z.rotateX,
 		rotateZ: Z.rotateZ
-	}), le(Z);
+	}), ue(Z);
 	let Q = z(t), $ = E?.baseWidth ?? w, pe = E?.baseHeight ?? T;
 	E && n.landingMode !== "free" && n.landingMode !== "target" && (O > 0 || (O = $ > 0 ? Q.width / $ : 1), E.shell.style.transformOrigin = "0 0", n.cameraShell ? (E.shell.style.left = `${((w - $ * y) / 2).toFixed(2)}px`, E.shell.style.top = `${((T - pe * y) / 2).toFixed(2)}px`, E.shell.style.transform = y === 1 ? "scale(1)" : `scale(${y}, ${y})`) : (E.shell.style.left = "0px", E.shell.style.top = "0px", E.shell.style.width = `${w}px`, E.shell.style.height = `${T}px`, E.shell.style.transform = "scale(1)"), E.shell.style.transition = "none");
 	let me = $ * y, he = pe * y, ge = n.landingMode === "target" ? {
@@ -740,7 +740,7 @@ function re(e, t, n = {}) {
 		scaleX: w > 0 ? Q.width / w : 1,
 		scaleY: T > 0 ? Q.height / T : 1
 	};
-	X.setTarget({
+	Y.setTarget({
 		x: Q.left,
 		y: Q.top,
 		scaleX: ge.scaleX,
@@ -767,7 +767,7 @@ function re(e, t, n = {}) {
 			if (n.landingMode !== "target" && (m.dataset.runtimePhase = "landing", m.dataset.runtimeCompact === "true" && (m.style.left = "0", m.style.width = "100%", m.style.transform = "none", m.style.gridTemplateColumns = "", g || (m.style.gridTemplateColumns = "", delete m.dataset.runtimeCompact))), o != null && (m.offsetWidth, D(v, o)), s != null && (v.style.borderRadius = s), l != null && (v.style.border = l), u != null && (v.style.backdropFilter = u, v.style.setProperty("-webkit-backdrop-filter", u)), d != null && (v.style.backgroundColor = d, n.targetBackgroundImage && (v.style.backgroundImage = n.targetBackgroundImage)), p != null && (v.style.opacity = p), H && h) {
 				let e = n.dismiss?.easing ?? a, t = n.dismiss?.scale ?? .72;
 				h.style.transformOrigin = "50% 50%", h.style.transition = `transform ${U}ms ${e}`, v.style.transition = `opacity ${U}ms ${e}`, h.style.transform = `scale(${t})`, v.style.opacity = "0", q = window.setTimeout(() => {
-					q = null, G = !0, Y();
+					q = null, G = !0, J();
 				}, U + 40);
 			}
 			g && A(g, i, a);
@@ -775,18 +775,18 @@ function re(e, t, n = {}) {
 	});
 	let ve = (e = 0) => {
 		K !== null && window.clearTimeout(K), ae = performance.now() + Math.max(2e3, i * 8, 5e3) + e, K = window.setTimeout(() => {
-			K = null, !V && performance.now() >= ae && ce();
+			K = null, !V && performance.now() >= ae && le();
 		}, Math.max(2e3, i * 8, 5e3) + e);
 	};
 	ve();
 	let ye = n.coast;
-	return n.landingMode === "free" ? X.start() : ye && ye.maxDistance > 0 && Math.hypot(n.motionState?.vx ?? 0, n.motionState?.vy ?? 0) > ye.minVelocity ? X.startCoastThenSettle(ye) : X.start(), {
+	return n.landingMode === "free" ? Y.start() : ye && ye.maxDistance > 0 && Math.hypot(n.motionState?.vx ?? 0, n.motionState?.vy ?? 0) > ye.minVelocity ? Y.startCoastThenSettle(ye) : Y.start(), {
 		finished: se,
 		retarget(e) {
 			if (V) return;
 			B = e, ve(1e3);
 			let t = z(B), r = n.landingMode === "target" ? 1 : n.landingMode === "free" ? t.width / me : t.width / w, i = n.landingMode === "target" ? 1 : n.landingMode === "free" ? t.height / he : t.height / T;
-			E && n.landingMode !== "free" && n.landingMode !== "target" && n.landingContentScale === void 0 && (O = $ > 0 ? t.width / $ : O), X.setTarget({
+			E && n.landingMode !== "free" && n.landingMode !== "target" && n.landingContentScale === void 0 && (O = $ > 0 ? t.width / $ : O), Y.setTarget({
 				x: t.left,
 				y: t.top,
 				scaleX: r,
@@ -796,8 +796,8 @@ function re(e, t, n = {}) {
 	};
 }
 function V(e) {
-	if (!J.has(e)) return;
-	J.delete(e);
+	if (!ce.has(e)) return;
+	ce.delete(e);
 	let t = e.parentElement?.dataset.runtimeCameraGlue === "true" ? e.parentElement : null;
 	t?.remove(), t || e.remove();
 }
@@ -841,7 +841,7 @@ function K(e, t, n = {}) {
 function q(e, t = !1, n = !0) {
 	if (!e.isConnected) return;
 	let r = F(e);
-	Y ? X(r) : D(r, "0 12px 24px rgba(0,0,0,.18)"), n && (e.style.transform = `scale(${t ? 1 : 1.03})`);
+	J ? Y(r) : D(r, "0 12px 24px rgba(0,0,0,.18)"), n && (e.style.transform = `scale(${t ? 1 : 1.03})`);
 }
 function ae(e) {
 	return W.get(e);
@@ -854,33 +854,33 @@ function oe(e) {
 }
 function se(e) {
 	let t = W.get(e);
-	t && (G.delete(t), t.remove(), J.delete(t), W.delete(e));
+	t && (G.delete(t), t.remove(), ce.delete(t), W.delete(e));
 	let n = H.get(e);
 	n && ie(e, n.style), H.delete(e);
 }
-var J = /* @__PURE__ */ new Set(), Y = !1;
-function ce(e) {
-	Y = e;
+var ce = /* @__PURE__ */ new Set(), J = !1;
+function le(e) {
+	J = e;
 }
-function le() {
-	return Y;
+function ue() {
+	return J;
 }
-function X(e) {
+function Y(e) {
 	e.style.background = "rgba(255, 255, 255, 0.42)", e.style.backdropFilter = "blur(12px) saturate(1.15)", e.style.setProperty("-webkit-backdrop-filter", "blur(12px) saturate(1.15)"), e.style.border = "1px solid rgba(255, 255, 255, 0.72)", D(e, "0 22px 50px rgba(30, 35, 60, 0.30)"), e.style.opacity = "0.97";
 }
-var ue = /* @__PURE__ */ new Map();
+var X = /* @__PURE__ */ new Map();
 function de(e, t) {
-	ue.set(e, t), e.style.visibility = "hidden";
+	X.set(e, t), e.style.visibility = "hidden";
 }
 function fe(e, t) {
-	(e.style.visibility === "hidden" || getComputedStyle(e).visibility === "hidden") && ue.set(e, t);
+	(e.style.visibility === "hidden" || getComputedStyle(e).visibility === "hidden") && X.set(e, t);
 }
 function Z(e, t) {
-	let n = ue.get(e) === t;
-	return n && (e.style.visibility = "", ue.delete(e)), n;
+	let n = X.get(e) === t;
+	return n && (e.style.visibility = "", X.delete(e)), n;
 }
 function Q(e, t) {
-	ue.get(e) === t && ue.delete(e);
+	X.get(e) === t && X.delete(e);
 }
 //#endregion
 //#region src/dom/SourceVisualLease.ts
@@ -986,11 +986,12 @@ function xe(e) {
 	}
 	return t.size > 0 ? t : void 0;
 }
-function Se(e, n, r, i, a = !1) {
-	let o = n().filter((t) => t !== e && t.dataset.runtimeProxy !== "true"), s = r?.();
-	return { beforePickup: t(o, document, !0, be(e), {
-		scopeSurfaces: s,
-		viewportBySurface: xe(s),
+function Se(e, n, r, i, a = !1, o) {
+	let s = n().filter((t) => t !== e && t.dataset.runtimeProxy !== "true"), c = r?.();
+	return { beforePickup: t(s, document, !0, be(e), {
+		scopeSurfaces: c,
+		freeLayoutSurfaces: o?.(),
+		viewportBySurface: xe(c),
 		surfaceMeasures: i?.(),
 		focus: {
 			sourceElement: e,
@@ -1087,19 +1088,20 @@ function Ne(e) {
 		}
 	};
 }
-function Pe(r, i, a, o, s, c) {
-	let l = 0, u = null, d;
+function Pe(r, i, a, o, s, c, l) {
+	let u = 0, d = null, f;
 	return {
 		capture: () => {
-			l += 1, u = r.ownerDocument;
-			let e = s?.begin(u, "move");
-			d = e?.participantId, e && s?.request(u, {
+			u += 1, d = r.ownerDocument;
+			let e = s?.begin(d, "move");
+			f = e?.participantId, e && s?.request(d, {
 				type: "move-layout",
 				source: r
 			});
 			let n = a?.();
 			return t(i().filter((e) => e !== r && e.dataset.runtimeProxy !== "true"), document, !0, be(r), {
 				scopeSurfaces: n,
+				freeLayoutSurfaces: l?.(),
 				viewportBySurface: xe(n),
 				surfaceMeasures: o?.(),
 				focus: {
@@ -1111,40 +1113,46 @@ function Pe(r, i, a, o, s, c) {
 			});
 		},
 		play: (t, r, i = !1) => {
-			let a = ++l;
+			let a = ++u;
 			if (i) {
 				requestAnimationFrame(() => {
-					if (a !== l) return;
+					if (a !== u) return;
 					let e = (e) => {
 						e && !e.isCurrent() || n(r);
 					};
-					u && d && s?.defer(u, d, (t) => e(t), "move-flip") || e(), u && s?.commit(u, d), d = void 0;
+					d && f && s?.defer(d, f, (t) => e(t), "move-flip") || e(), d && s?.commit(d, f), f = void 0;
 				});
 				return;
 			}
 			let o = (t) => {
 				t && !t.isCurrent() || e(r);
 			};
-			u && d && s?.defer(u, d, (e) => o(e), "move-flip") || o(), u && s?.commit(u, d), d = void 0;
+			d && f && s?.defer(d, f, (e) => o(e), "move-flip") || o(), d && s?.commit(d, f), f = void 0;
 		},
 		cancel: () => {
-			u && s?.cancel(u, d), u = null, d = void 0;
+			d && s?.cancel(d, f), d = null, f = void 0;
 		}
 	};
 }
 //#endregion
 //#region src/runtime/move/MoveAdapter.ts
 function Fe(e) {
-	let { runtime: t, objectId: n, element: r, event: i, fromRect: o, clone: s = !1 } = e, c = t.objects.get(n), d = t.surfaces.snapshot(), p = d.map((e) => e.id), m = c?.surfaceId ?? d[0]?.id, h = (e) => e.closest("[data-layout-content][data-layout-open=\"false\"]") !== null, g = () => {
-		let e = [...t.objects.values()].map((e) => e.element).filter((e) => !!e?.isConnected), n = Array.from(document.querySelectorAll("[data-flip-target]"));
-		return Array.from(/* @__PURE__ */ new Set([...e, ...n]));
-	}, _ = () => g().filter((e) => !h(e)), v, y, b, x = null, S = null, C = null, w = null, E = null, D = null, O = null, k = null, A = !1, j = null, M = !1, N = null, ee = null, P = null, F = null, I = null, L, R = {
+	let { runtime: t, objectId: n, element: r, event: i, fromRect: o, clone: s = !1 } = e, c = t.objects.get(n), d = t.surfaces.snapshot(), p = d.map((e) => e.id), m = c?.surfaceId ?? d[0]?.id, h = (e) => e.closest("[data-layout-content][data-layout-open=\"false\"]") !== null, g = (e) => {
+		let n = e ? t.surfaces.get(e) : void 0, r = n?.layoutElement?.() ?? n?.element, i = [...t.objects.values()].filter((t) => !e || t.surfaceId === e).map((e) => e.element).filter((e) => !!e?.isConnected), a = Array.from((r ?? document).querySelectorAll("[data-flip-target]"));
+		return Array.from(/* @__PURE__ */ new Set([...i, ...a]));
+	}, _ = (e) => {
+		let n = g(e), r = e ? t.surfaces.get(e) : void 0, i = r?.layoutElement?.() ?? r?.element;
+		return (i ? i.querySelector("[data-layout-content][data-layout-open=\"false\"]") !== null : document.querySelector("[data-layout-content][data-layout-open=\"false\"]") !== null) ? n.filter((e) => !h(e)) : n;
+	}, v, y, b, x = null, S = null, C = null, w = null, E = null, D = null, O = null, k = null, A = !1, j = null, M = !1, N = null, ee = null, P = null, F = null, I = null, L, R = {
 		x: 0,
 		y: 0
 	}, ne = null, z = !1, B = !1, re = () => {
 		let e = /* @__PURE__ */ new Set();
 		return m && e.add(m), x?.columnId && e.add(x.columnId), t.surfaces.snapshot().filter((t) => e.has(t.id)).map((e) => e.layoutElement?.() ?? e.element).filter((e) => !!e?.isConnected);
 	}, V = () => {
+		let e = /* @__PURE__ */ new Set();
+		return m && e.add(m), x?.columnId && e.add(x.columnId), t.surfaces.snapshot().filter((t) => e.has(t.id) && t.layout === "free").map((e) => e.layoutElement?.() ?? e.element).filter((e) => !!e?.isConnected);
+	}, H = () => {
 		let e = /* @__PURE__ */ new Set();
 		m && e.add(m), x?.columnId && e.add(x.columnId);
 		let n = /* @__PURE__ */ new Map();
@@ -1155,20 +1163,20 @@ function Fe(e) {
 		}
 		return n;
 	};
-	function H() {
+	function U() {
 		return N ? t.getSession(N)?.state : void 0;
 	}
-	function U(e, r) {
+	function ie(e, r) {
 		if (!e) return !1;
 		if (e.kind === "rect") return e.rect.width > 0 && e.rect.height > 0;
 		let i = e.element;
 		return i.isConnected ? i !== (t.objects.get(n)?.element ?? null) || !m || r.columnId === m ? !0 : t.surfaces.get(r.columnId)?.element?.contains(i) ?? !1 : !1;
 	}
-	async function ie() {
+	async function W() {
 		let e = N, r = x;
-		if (!e || !r || H() !== "landing" || (await Promise.resolve(), N !== e || H() !== "landing")) return;
+		if (!e || !r || U() !== "landing" || (await Promise.resolve(), N !== e || U() !== "landing")) return;
 		let i = t.resolveMoveLandingResolution(e, r);
-		if (!U(i, r) || !i) return;
+		if (!ie(i, r) || !i) return;
 		let a = i.kind === "element" ? i.element : t.resolveVisualTarget(e, r);
 		if (a?.isConnected && !t.preservesMoveTarget(n) && (t.concealVisualTarget(e, a), A = !0, j = a), i?.kind === "element") {
 			let e = i.element.getBoundingClientRect();
@@ -1177,10 +1185,10 @@ function Fe(e) {
 		} else k = null;
 		O = i;
 	}
-	function W(e, t) {
-		if (H() !== "active" || !b) return;
+	function G(e, t) {
+		if (U() !== "active" || !b) return;
 		let n = we({
-			active: H() === "active",
+			active: U() === "active",
 			event: {
 				clientX: e,
 				clientY: t
@@ -1195,18 +1203,18 @@ function Fe(e) {
 			}
 		});
 	}
-	function G(e) {
+	function q(e) {
 		z = !0, I?.setTarget({
 			x: e.clientX - R.x,
 			y: e.clientY - R.y
-		}), W(e.clientX, e.clientY), F?.update(t.resolveMoveSurfaceElement(n, e.clientX, e.clientY), {
+		}), G(e.clientX, e.clientY), F?.update(t.resolveMoveSurfaceElement(n, e.clientX, e.clientY), {
 			x: e.clientX,
 			y: e.clientY
 		});
 	}
-	function q(e) {
+	function ce(e) {
 		if (M || (M = !0, O = null, k = null, A = !1, j = null, L = I ? { ...I.getState() } : void 0, I?.stop(), I = null, F?.stop(), !b || !N)) return { accepted: !1 };
-		e && W(e.clientX, e.clientY);
+		e && G(e.clientX, e.clientY);
 		let i = b.release();
 		x = i ? {
 			...i,
@@ -1245,7 +1253,7 @@ function Fe(e) {
 		let u = t.preservesMoveTarget(n);
 		o && (B || P?.restoreLayoutHidden(), ee?.release());
 		let d = (e, i, a, o = !1, s = null) => {
-			if (H() !== "landing") {
+			if (U() !== "landing") {
 				o && s && Z(s, e);
 				return;
 			}
@@ -1292,11 +1300,11 @@ function Fe(e) {
 				createProxy: () => t.getVisualProxy(e) ?? t.createVisualProxy(e, _) ?? null,
 				enableProxy: (e) => T(e, !0),
 				bindRegrab: (r) => {
-					t.bindRegrabTarget(e, n, r, (e) => Y(e, n));
+					t.bindRegrabTarget(e, n, r, (e) => le(e, n));
 					let i = t.getGroup(e);
 					if (i) for (let e of i.objectIds) {
 						let r = t.objects.get(e)?.element;
-						r?.isConnected && (r.style.pointerEvents = "auto", e !== n && t.registerRegrab(e, (t) => Y(t, e)));
+						r?.isConnected && (r.style.pointerEvents = "auto", e !== n && t.registerRegrab(e, (t) => le(t, e)));
 					}
 				},
 				land: () => t.landVisualProxy(e, i?.kind === "rect" ? i.rect : p, _),
@@ -1308,7 +1316,7 @@ function Fe(e) {
 				},
 				onComplete: (n) => {
 					je({
-						active: H() === "landing",
+						active: U() === "landing",
 						result: n,
 						complete: (e) => C?.complete(e),
 						reveal: () => t.revealVisualProxy(e, p, _).then(() => {
@@ -1319,7 +1327,7 @@ function Fe(e) {
 			});
 		};
 		return S = Ee(() => void 0, () => {
-			let e = N, n = O, r = k, i = A, a = j, o = !!(n && U(n, c));
+			let e = N, n = O, r = k, i = A, a = j, o = !!(n && ie(n, c));
 			if (O = null, k = null, A = !1, j = null, o && n) {
 				d(e, n, r, i, a);
 				return;
@@ -1334,8 +1342,8 @@ function Fe(e) {
 	function J(e) {
 		for (let r of e?.objectIds ?? [n]) t.clearRegrab(r);
 	}
-	function Y(e, r = n) {
-		if (H() !== "landing") return;
+	function le(e, r = n) {
+		if (U() !== "landing") return;
 		let i = w;
 		if (!i || !N) return;
 		let a = e.target, o = E?.isConnected ? E : N ? t.resolveMoveLandingTarget(N, x) : null;
@@ -1360,11 +1368,11 @@ function Fe(e) {
 			prepare(e) {
 				N = e.session.id, z = !1;
 				let a = r.style.visibility === "hidden" || getComputedStyle(r).visibility === "hidden";
-				if (F = t.createAutoScroller(N, { onScroll: (e) => W(e.x, e.y) }), e.session.state !== "prepare") return;
+				if (F = t.createAutoScroller(N, { onScroll: (e) => G(e.x, e.y) }), e.session.state !== "prepare") return;
 				t.objects.setElement(n, r), r.style.visibility = "", r.style.pointerEvents = "", a && (r.style.transition = ""), ee = t.acquireObject(N, n), t.takeSurfaces(N, p);
 				let c = t.getGroup(N);
 				B = !!c;
-				let d = m ? t.resolveMoveSurfaceViewport(m) : null, h = !!(d && d.scrollHeight > d.clientHeight && d.scrollTop >= d.scrollHeight - d.clientHeight - 1), { beforePickup: g } = Se(r, _, re, V, !s && !c && h);
+				let d = m ? t.resolveMoveSurfaceViewport(m) : null, h = !!(d && d.scrollHeight > d.clientHeight && d.scrollTop >= d.scrollHeight - d.clientHeight - 1), { beforePickup: g } = Se(r, () => _(m), re, H, !s && !c && h, V);
 				ne = t.getObjectSurfaceIndex(n, m), v = r.cloneNode(!0);
 				let x = ye(t.getMoveContext(N), r, i, o, t.getObjectGrabAlign(n)), S = x.rect;
 				R = {
@@ -1422,13 +1430,13 @@ function Fe(e) {
 						y: i.clientY - R.y
 					}), I = e;
 				}
-				b = Ce((e) => t.resolveMoveHit(n, e.clientX, e.clientY), (e, t) => e.columnId === t?.columnId && e.index === t?.index), W(i.clientX, i.clientY);
+				b = Ce((e) => t.resolveMoveHit(n, e.clientX, e.clientY), (e, t) => e.columnId === t?.columnId && e.index === t?.index), G(i.clientX, i.clientY);
 			},
 			update(e, t) {
-				t.event instanceof PointerEvent && G(t.event);
+				t.event instanceof PointerEvent && q(t.event);
 			},
 			resolveDestination(e, t) {
-				return q(t.event instanceof PointerEvent ? t.event : void 0);
+				return ce(t.event instanceof PointerEvent ? t.event : void 0);
 			},
 			commit: (e, n) => {
 				t.getVisualProxy(N) || se(r);
@@ -1440,9 +1448,9 @@ function Fe(e) {
 			}
 		},
 		lifecycle: {
-			layout: Pe(r, _, re, V, t.layout, g),
+			layout: Pe(r, _, re, H, t.layout, g, V),
 			surface: { enter: async () => {
-				ee?.release(), await ie();
+				ee?.release(), await W();
 			} },
 			...Ne({
 				createGate: () => t.createCompletionGate(N, {
@@ -1478,4 +1486,4 @@ function Ie(e) {
 	});
 }
 //#endregion
-export { u as C, o as D, i as E, a as O, l as S, s as T, w as _, z as a, y as b, V as c, B as d, re as f, N as g, E as h, X as i, F as l, ce as m, Fe as n, de as o, Z as p, ge as r, j as s, Ie as t, le as u, v, c as w, f as x, b as y };
+export { u as C, o as D, i as E, a as O, l as S, s as T, w as _, z as a, y as b, V as c, B as d, re as f, N as g, E as h, Y as i, F as l, le as m, Fe as n, de as o, Z as p, ge as r, j as s, Ie as t, ue as u, v, c as w, f as x, b as y };

@@ -8,7 +8,14 @@ export default defineConfig({
     vue(),
     dts({
       include: ['src'],
-      exclude: ['src/demo/**', 'src/App.vue', 'src/main.ts', 'src/shims-vue.d.ts'],
+      exclude: [
+        'src/demo/**',
+        'src/__tests__/**',
+        'src/benchmark/**',
+        'src/App.vue',
+        'src/main.ts',
+        'src/shims-vue.d.ts',
+      ],
       rollupTypes: false,
     }),
   ],

@@ -65,6 +65,8 @@ export interface LayoutFlipTelemetry {
 }
 /** 最近一笔 Layout FLIP 的 participant/measurement 统计，供性能回归和 DevTools 调试。 */
 export declare function getLastLayoutFlipTelemetry(): LayoutFlipTelemetry | null;
+/** 当前模块实例已发布的 Layout FLIP telemetry 事务数。 */
+export declare function getLayoutFlipTelemetryCount(): number;
 export interface LayoutFlipSnapshot {
     readonly root: ParentNode;
     /** 分组树（年/月包装节点 + 挂在分组下的卡片叶子）的 Relative FLIP 快照。 */
@@ -90,6 +92,8 @@ export declare function captureLayoutFlip(cards: readonly HTMLElement[], root?: 
  */
 presenceIgnore?: (element: HTMLElement) => boolean, options?: {
     readonly scopeSurfaces?: readonly HTMLElement[];
+    /** Free-layout Surface leaves do not move when sibling objects are repositioned. */
+    readonly freeLayoutSurfaces?: readonly HTMLElement[];
     readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => {
         width?: number;
         height: number;

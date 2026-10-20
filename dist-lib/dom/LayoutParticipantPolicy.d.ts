@@ -21,6 +21,13 @@ export declare function findLayoutScopeSurface(element: HTMLElement, scopeSurfac
  */
 export declare function captureSourceAffectedCards(cards: readonly HTMLElement[], sourceElement: HTMLElement): ReadonlySet<HTMLElement>;
 /**
+ * Fast path for a vertical, same-container removal: only following cards within viewport
+ * overscan can move visibly. Their DOM order is monotonic in Y, so binary-search the range
+ * rather than forcing a geometry read for every card in a large list. Callers must opt in only
+ * when the parent is a vertical flex container and a real scroll viewport is known.
+ */
+export declare function captureViewportRemovalRange(cards: readonly HTMLElement[], sourceElement: HTMLElement, viewport: ViewportRectLike, measureRect?: (element: HTMLElement) => ViewportRectLike): ReadonlySet<HTMLElement> | null;
+/**
  * Bottom-anchored removal also changes the viewport position of visible cards before the
  * source when scrollTop is clamped to the new maximum. Capture those same-container peers so
  * their viewport-space movement can be animated; offscreen cards stay outside the FLIP set.
