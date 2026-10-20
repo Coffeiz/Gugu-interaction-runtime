@@ -693,6 +693,7 @@ describe('Runtime move orchestration', () => {
 
   it('Surface 目标滚动由 Runtime 统一保持在视口内', () => {
     const runtime = createRuntime()
+    runtime.configureMotion({ landing: { duration: 1000, easing: 'linear' } })
     const viewport = document.createElement('div')
     const target = document.createElement('div')
     const rafCallbacks: FrameRequestCallback[] = []

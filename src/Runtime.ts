@@ -1112,9 +1112,9 @@ setMotionProfiles(this.registry.motionProfile)
   /**
    * 将落地目标滚动到注册 Surface 的可视范围内。
    *
-   * 松手后的滚动由 Runtime 用 rAF 驱动，时长跟 landing 基准时长一致，
-   * 不再交给浏览器的原生 smooth scroll。这样代理从松手立即开始飞行时，
-   * 容器滚动不会比代理慢一大截，避免代理先完成并被销毁而容器仍在滚动。
+   * 松手后的滚动由 Runtime 用 rAF 驱动，不交给浏览器的原生 smooth scroll。
+   * 它与代理 landing 并行，但必须有独立的短时长上限：较长的 landing 配置
+   * 不应让列表滚动持续到代理结束后，造成目标卡片最后一刻才显现的跳变。
    */
   keepSurfaceTargetVisible(surfaceId: string, target: HTMLElement): void {
     const viewport = this.resolveMoveSurfaceViewport(surfaceId)
@@ -1142,7 +1142,7 @@ setMotionProfiles(this.registry.motionProfile)
     if (Math.abs(targetScrollTop - viewport.scrollTop) < 0.5) return
 
     const startScrollTop = viewport.scrollTop
-    const duration = Math.max(200, this.registry.motionProfile?.landing?.duration ?? 250)
+    const duration = Math.min(250, Math.max(1, this.registry.motionProfile?.landing?.duration ?? 250))
     if (typeof requestAnimationFrame === 'undefined') {
       viewport.scrollTop = targetScrollTop
       return
