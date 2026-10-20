@@ -18,10 +18,7 @@
 | Run | 样本 | 结果 | revision / dirty | 错误与诊断 | Trace |
 |---|---|---|---|---|---|
 | 2026-10-20T08-30-08-108Z | flat-2000-regrab-runtime-cpu1-r1 | failed | 76dec47 / true | TimeoutError: page.waitForFunction: Timeout 60000ms exceeded.; {"status":"dragging","proxies":0,"samples":0,"actions":[]} | docs/reports/raw/flat-2000-regrab-runtime-cpu1-r1-2026-10-20T08-30-08-108Z.json.gz |
-| 2026-10-20T09-42-03-422Z | flat-2000-same-list-dnd-kit-cpu6-r1 | failed | a90d23a / true | TimeoutError: page.goto: Timeout 30000ms exceeded.
-Call log:
-[2m  - navigating to "http://127.0.0.1:5197/benchmark?scenario=flat&count=2000&interaction=same-list&implementation=dnd-kit&run=flat-2000-same-list-dnd-kit-cpu6-r1", waiting until "load"[22m
-; 无诊断 | — |
+| 2026-10-20T09-42-03-422Z | flat-2000-same-list-dnd-kit-cpu6-r1 | failed | a90d23a / true | TimeoutError: page.goto: Timeout 30000ms exceeded. Call log: - navigating to "http://127.0.0.1:5197/benchmark?scenario=flat&count=2000&interaction=same-list&implementation=dnd-kit&run=flat-2000-same-list-dnd-kit-cpu6-r1", waiting until "load"; 无诊断 | — |
 
 ## 环境与方法
 
@@ -33,8 +30,8 @@ Call log:
 - Drag Interaction P98 暂不进入对外汇总：本次 371 个有值原始样本中，354 个等于 Event Timing max，P98 不能代表重复交互分布。Event Timing 汇总行缺测：dnd-kit 19/73，runtime 0/77；原始样本缺测：dnd-kit 79/219，runtime 0/231。缺测记为 —，不代表 0。
 - Long Tasks 是测量窗口内浏览器 Long Tasks 条目数；它不等价于卡顿次数，且不能单独代表交互质量。
 - `regrab` 是 Runtime 特有的落位代理再抓取能力；dnd-kit 无对应操作，因此保留 flat 50/200/500/1000 @1× 的 Runtime 单边行但不作横向比较。2000 项目前没有成功样本：唯一保留的 2000-regrab 实跑失败并已列在“已记录的失败尝试”，不纳入有效样本。
-- grouped/50/grouped/1× 的历史记录（raw run 2026-10-20T02-08-31-456Z）中位数为：dnd-kit 172.7 ms、Runtime 170.9 ms；本次汇总值为 dnd-kit 417.4 ms、Runtime 416.1 ms（来源 B02）。两批运行时间和源码状态不同；这只能说明输入段墙钟读数变化，不能据此归因于某项代码变更。旧 trace 保留在 raw 中，不参与当前统计。
-- 本次新增 benchmark batches 的 manifest 均记录 revision 66ae66d、dirty=true；当时工作树差异来自已更新的真实页面 smoke 产物，未改动 benchmark/runtime 源码。更早 raw trace 的 revision 信息不完整，因此不按文件修改时间推断逐样本源码边界。
+- grouped/50/grouped/1× 的历史记录（raw run 2026-10-20T02-08-31-456Z）中位数为：dnd-kit 172.7 ms、Runtime 170.9 ms；本次汇总值为 dnd-kit 417.4 ms、Runtime 416.1 ms（来源 B02）。该历史 run 中目标月份处于折叠状态，而当前 grouped 夹具未折叠，因此两批的场景语义也不同；时间、源码状态和场景定义均不一致，只能说明输入段墙钟读数变化，不能据此归因于某项代码变更。旧 trace 保留在 raw 中，不参与当前统计。
+- 三轮新增完整运行对应批次 B02–B04，manifest 记录 revision 66ae66d、dirty=true；历史批次 B01 的 revision 是 a90d23a，早于视口裁剪优化。manifest 仅记录 dirty 布尔值，没有记录工作树差异路径，因此无法证实 dirty 差异仅来自真实页面 smoke 产物；这里不推断具体来源。更早 raw trace 的 revision 信息不完整，不按文件修改时间推断逐样本源码边界。
 - 合成 fixture 不等同于真实产品 DOM。完整 Runtime 含 dnd-kit 基线没有的代理、布局联动及 Surface 行为；没有 runtime-minus 消融对照前，不应将总耗时差解释为核心算法效率差异。CPU 节流是 CDP 模拟，不代表真实低配设备。
 
 ## 真实页面验证
@@ -216,7 +213,7 @@ npm run benchmark -- --count 50,2000 --repetitions 3 --throttle 4,6 --interactio
 > Runtime 内部观测；dnd-kit 不提供该 telemetry，因此不作实现间比较。每个拖拽样本记录 telemetry 发布计数的增量，并展示最后一笔已发布事务的字段快照；事务数是本次样本新增的发布笔数，不将末笔字段误称为整次交互总量。无新增事务记为 —，字段值为 0 则保留为 0。以下是 headless 合成 fixture 数据；真实页面与 headed 数据须分开呈现。
 > 这些计数用于解释参与者筛选和测量行为，不用于推导耗时优势。`grouped` 是未折叠基线，`folded-context` 才会折叠第 12 个月份，两者应在相同规模和节流条件下对照阅读。当前合成 fixture 未提供 `[data-scroll-viewport]`，因此 `offscreenSkipped=0` 不表示没有卡片被视口裁剪；视口裁剪路径未覆盖。
 > `candidateCards` / `capturedCards` / `eligibleCards` 是卡片参与者计数；`rangeSkipped`、`offscreenSkipped` 是筛选计数。`parentInheritedCardEvents` 汇总参与者继承跳过与 Relative FLIP 父级位移继承事件，并非去重卡片数。`measuredCardVisits`、`animatedCardEntries` 是处理/动画计划条目数，不是去重 DOM 卡片数；分组与叶子处理可能重复计入。`tinyDeltaSkipped` 汇总卡片与组元素的跳过事件；`animatedGroups` 是组元素条目数。
-> 本轮 6/9 对 grouped/folded-context 的末笔 telemetry 字段完全相同：折叠第 12 个月份作为背景存在，但在本 fixture/动作中没有改变被测的 FLIP 计数。
+> 本轮 6/9 对 grouped/folded-context 的末笔 telemetry 字段完全相同；其中 50 项档有 3/3 对存在细微差异，200 项及以上档位有 6/6 对完全相同。
 
 | 场景 | 项数 | 交互 | CPU× | n | 来源批次 | telemetry n | 缺测 n | 新增事务数（中位数） | candidateCards | capturedCards | eligibleCards | rangeSkipped | offscreenSkipped | parentInheritedCardEvents | captureReads | captureCacheHits | playReads | playCacheHits | measuredCardVisits | animatedCardEntries | animatedGroups | tinyDeltaSkipped |
 |---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -300,5 +297,6 @@ npm run benchmark -- --count 50,2000 --repetitions 3 --throttle 4,6 --interactio
 
 ### 两个可定位的成本读数
 
-- canvas / 2000 / 6×：Runtime 的 commit 为 48.0 ms，dnd-kit 为 2.7 ms（仅列观测值，不作等功能胜负判断）。Runtime 末笔 FLIP telemetry 为 measuredCardVisits 0.0、animatedCardEntries 0.0、tinyDeltaSkipped 0.0；说明该样本测量了很多卡片，但没有卡片动画条目。
+- canvas / 2000 / 6×：Runtime 的 commit 为 48.0 ms，dnd-kit 为 2.7 ms（仅列观测值，不作等功能胜负判断）。Runtime 末笔 FLIP telemetry 显示 candidateCards 1999.0、rangeSkipped 1999.0、measuredCardVisits 0.0、animatedCardEntries 0.0；即候选卡片全部被 range 跳过，测量 0、动画 0。
 - flat / 2000 / same-list / 1×：eligibleCards 29.0、animatedCardEntries 29.0、rangeSkipped 2.0；该样本中参与者范围几乎覆盖全部 eligible 卡片。
+- 批次口径提示：B01（revision a90d23a）早于视口裁剪优化 `bc7862f`；其 flat/500/same-list/6× telemetry 的 offscreenSkipped 为 0.0、eligibleCards 为 497.0。B02（revision 66ae66d）的 flat/500/same-list/1× 对应值为 468.0 与 29.0。两行源码版本与节流条件均不同，不作为同条件前后对照。

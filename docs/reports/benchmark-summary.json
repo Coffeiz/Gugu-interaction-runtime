@@ -1,6 +1,6 @@
 {
   "schemaVersion": 4,
-  "generatedAt": "2026-10-20T10:44:25.958Z",
+  "generatedAt": "2026-10-20T11:31:06.396Z",
   "validSamples": 450,
   "sourceBatches": [
     {
@@ -46,6 +46,9 @@
     "interaction": "grouped",
     "throttle": 1,
     "historicalRunTag": "2026-10-20T02-08-31-456Z",
+    "historicalScenarioFolded": true,
+    "currentScenarioFolded": false,
+    "comparable": false,
     "currentSourceBatches": "B02",
     "oldDndKit": 172.70000000298023,
     "newDndKit": 417.3999999985099,
@@ -6992,7 +6995,7 @@
       "sourceRevision": "a90d23a",
       "sourceDirty": true,
       "sampleId": "flat-2000-same-list-dnd-kit-cpu6-r1",
-      "error": "TimeoutError: page.goto: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:5197/benchmark?scenario=flat&count=2000&interaction=same-list&implementation=dnd-kit&run=flat-2000-same-list-dnd-kit-cpu6-r1\", waiting until \"load\"\u001b[22m\n",
+      "error": "TimeoutError: page.goto: Timeout 30000ms exceeded. Call log: - navigating to \"http://127.0.0.1:5197/benchmark?scenario=flat&count=2000&interaction=same-list&implementation=dnd-kit&run=flat-2000-same-list-dnd-kit-cpu6-r1\", waiting until \"load\"",
       "diagnostics": null,
       "trace": null
     }
