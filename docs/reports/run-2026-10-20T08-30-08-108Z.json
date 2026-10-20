@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T08-30-08-108Z",
+  "startedAt": "2026-10-20T08:30:08.186Z",
+  "status": "failed",
+  "browserVersion": "151.0.7922.34",
+  "sourceRevision": "76dec47",
+  "sourceDirty": true,
+  "throttles": [
+    1
+  ],
+  "repetitions": 1,
+  "headed": false,
+  "excluded": [],
+  "attempts": [
+    {
+      "sampleId": "flat-2000-regrab-runtime-cpu1-r1",
+      "scenario": "flat",
+      "count": 2000,
+      "interaction": "regrab",
+      "implementation": "runtime",
+      "throttle": 1,
+      "repetition": 1,
+      "status": "failed",
+      "startedAt": "2026-10-20T08:30:09.353Z",
+      "completedAt": "2026-10-20T08:31:13.341Z",
+      "trace": "docs/reports/raw/flat-2000-regrab-runtime-cpu1-r1-2026-10-20T08-30-08-108Z.json.gz",
+      "error": "TimeoutError: page.waitForFunction: Timeout 60000ms exceeded."
+    }
+  ],
+  "rows": [
+    {
+      "sampleId": "flat-2000-regrab-runtime-cpu1-r1",
+      "path": "docs/reports/raw/flat-2000-regrab-runtime-cpu1-r1-2026-10-20T08-30-08-108Z.json.gz",
+      "status": "failed",
+      "error": "TimeoutError: page.waitForFunction: Timeout 60000ms exceeded."
+    }
+  ],
+  "finishedAt": "2026-10-20T08:31:13.347Z",
+  "error": "Error: flat-2000-regrab-runtime-cpu1-r1 failed; trace saved to /Users/coffeiz/Desktop/workspace/gugu-interaction-runtime/docs/reports/raw/flat-2000-regrab-runtime-cpu1-r1-2026-10-20T08-30-08-108Z.json.gz: {\"status\":\"dragging\",\"proxies\":0,\"samples\":0,\"actions\":[]}"
+}

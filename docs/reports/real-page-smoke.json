@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-20T08:31:34.914Z",
+  "sourceRevision": "76dec47",
+  "sourceDirty": true,
+  "target": "Gugu-web Projects Kanban actual Vue page and ProjectCard components",
+  "runtime": "local sibling runtime through VITE_USE_LOCAL_RUNTIME=1",
+  "browser": "Chromium 151.0.7922.34 (headless)",
+  "durationMs": 6312,
+  "fixture": {
+    "projects": 80,
+    "dataSource": "Playwright-mocked API responses",
+    "persistentWrites": false
+  },
+  "drag": {
+    "sourceProjectId": "1",
+    "targetProjectId": "2",
+    "fromSurface": "active",
+    "toSurface": "pending",
+    "method": "Playwright mouse, 12 animation-frame-paced steps",
+    "committed": true,
+    "mutationMocked": true
+  },
+  "result": {
+    "cardCount": 80,
+    "cardOrder": [
+      "1",
+      "2",
+      "3",
+      "5",
+      "6",
+      "8",
+      "9",
+      "11",
+      "12",
+      "14",
+      "15",
+      "17"
+    ],
+    "movedProjectSurface": "pending"
+  },
+  "apiRequests": [
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mcp/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/projects/file-counts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/preferences"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/ui-labels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/pending-queues/imported-drafts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/preferences"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/onboarding/state"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/projects"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/events"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/events"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/bubble"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/projects/1"
+    }
+  ],
+  "pageErrors": [],
+  "passed": true
+}
