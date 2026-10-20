@@ -82,6 +82,15 @@ export function createDetachMoveFromAdapter(config: {
       .map(surface => surface.layoutElement?.() ?? surface.element)
       .filter((surface): surface is HTMLElement => Boolean(surface?.isConnected))
   }
+  const layoutFreeSurfaces = (): readonly HTMLElement[] => {
+    const ids = new Set<string>()
+    if (initialSurfaceId) ids.add(initialSurfaceId)
+    if (pendingDrop?.columnId) ids.add(pendingDrop.columnId)
+    return runtime.surfaces.snapshot()
+      .filter(surface => ids.has(surface.id) && surface.layout === 'free')
+      .map(surface => surface.layoutElement?.() ?? surface.element)
+      .filter((surface): surface is HTMLElement => Boolean(surface?.isConnected))
+  }
 
   const layoutSurfaceMeasures = () => {
     const ids = new Set<string>()
@@ -507,6 +516,7 @@ export function createDetachMoveFromAdapter(config: {
         layoutScopeSurfaces,
         layoutSurfaceMeasures,
         !clone && !group && sourceWasAtBottom,
+        layoutFreeSurfaces,
       )
       pickupIndex = runtime.getObjectSurfaceIndex(objectId, initialSurfaceId)
       beforeContent = element.cloneNode(true) as HTMLElement
@@ -712,6 +722,7 @@ export function createDetachMoveFromAdapter(config: {
       layoutSurfaceMeasures,
       runtime.layout,
       allLayoutElements,
+      layoutFreeSurfaces,
     ),
     surface: {
       // emit() 成功之后触发（见 RuntimeMove.ts MoveCommitCoordinator.commit），

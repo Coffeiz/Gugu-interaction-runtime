@@ -127,6 +127,7 @@ function splitLayoutFlipParticipants(
   cards: readonly HTMLElement[],
   root: ParentNode,
   scopeSurfaces?: readonly HTMLElement[],
+  freeLayoutSurfaces?: readonly HTMLElement[],
 ): { groups: HTMLElement[]; groupLeaves: HTMLElement[]; flatCards: HTMLElement[] } {
   const inScope = (element: HTMLElement): boolean => {
     if (!scopeSurfaces || scopeSurfaces.length === 0) return true
@@ -135,7 +136,9 @@ function splitLayoutFlipParticipants(
   // 内容 wrapper（年/月 folder）虽然通常是组标题的兄弟节点，但它同样
   // 承担了这一组的流式位移和裁剪。若只捕获 data-layout-group，标题会做
   // FLIP 而 folder 直接跳到新位置，表现为标题与底部内容错位/提前被裁切。
-  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group], [data-layout-content]')).filter(inScope)
+  const groups = Array.from(root.querySelectorAll<HTMLElement>('[data-layout-group], [data-layout-content]'))
+    .filter(inScope)
+    .filter(element => !freeLayoutSurfaces?.some(surface => surface === element || surface.contains(element)))
   const groupLeaves: HTMLElement[] = []
   const flatCards: HTMLElement[] = []
   for (const card of cards) {
@@ -202,6 +205,8 @@ export function captureLayoutFlip(
   presenceIgnore?: (element: HTMLElement) => boolean,
   options: {
     readonly scopeSurfaces?: readonly HTMLElement[]
+    /** Free-layout Surface leaves do not move when sibling objects are repositioned. */
+    readonly freeLayoutSurfaces?: readonly HTMLElement[]
     readonly surfaceMeasures?: ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>
     /** Surface layout element -> actual scroll viewport. */
     readonly viewportBySurface?: ReadonlyMap<HTMLElement, HTMLElement>
@@ -222,6 +227,8 @@ export function captureLayoutFlip(
     if (!surfaces || surfaces.length === 0) return true
     return surfaces.some(surface => surface === element || surface.contains(element))
   }
+  const inFreeLayout = (element: HTMLElement): boolean =>
+    options.freeLayoutSurfaces?.some(surface => surface === element || surface.contains(element)) ?? false
   // [data-layout-surface] 只查一次：这个选择器要扫全文档，之前 activeSurfaces
   // 和 surfaces 各自现查一遍，同一批节点在一次 captureLayoutFlip 里被
   // querySelectorAll 两次——见 landing 卡顿排查，trace 里这个查询单次能到
@@ -236,8 +243,9 @@ export function captureLayoutFlip(
     .filter(inScope)
   const measurement = createLayoutMeasurement()
   const scopedCards = cards.filter(inScope)
+  const layoutScopedCards = scopedCards.filter(card => !inFreeLayout(card))
   const sourceAffected = new Set(options.focus
-    ? captureSourceAffectedCards(scopedCards, options.focus.sourceElement)
+    ? captureSourceAffectedCards(layoutScopedCards, options.focus.sourceElement)
     : [])
   const viewportRects = captureViewportRects(options.viewportBySurface, measurement)
   if (options.focus?.mode === 'removal' && options.focus.includeViewportPeers) {
@@ -245,7 +253,7 @@ export function captureLayoutFlip(
     const sourceViewport = sourceSurface ? viewportRects.get(sourceSurface) : undefined
     if (sourceViewport) {
       for (const peer of captureViewportRemovalPeers(
-        scopedCards,
+        layoutScopedCards,
         options.focus.sourceElement,
         sourceViewport,
         element => measurement.rect(element),
@@ -256,9 +264,14 @@ export function captureLayoutFlip(
   // For release/move the destination target may be a different DOM node mounted by Vue, so
   // keep the capture broad and reduce the second measurement once the final DOM exists.
   const captureCards = options.focus?.mode === 'removal'
-    ? scopedCards.filter(card => sourceAffected.has(card))
-    : scopedCards
-  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(captureCards, root, options.scopeSurfaces)
+    ? layoutScopedCards.filter(card => sourceAffected.has(card))
+    : layoutScopedCards
+  const { groups, groupLeaves, flatCards } = splitLayoutFlipParticipants(
+    captureCards,
+    root,
+    options.scopeSurfaces,
+    options.freeLayoutSurfaces,
+  )
   const surfaces = captureSurfaceLayout(inScopeSurfaceElements, measurement, options.surfaceMeasures)
   const groupBefore = groups.length > 0
     ? captureGroupLayout([...groups, ...groupLeaves], measurement)

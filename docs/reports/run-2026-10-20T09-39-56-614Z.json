@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 3,
+  "runTag": "2026-10-20T09-39-56-614Z",
+  "startedAt": "2026-10-20T09:39:56.771Z",
+  "status": "completed",
+  "browserVersion": "151.0.7922.34",
+  "sourceRevision": "a90d23a",
+  "sourceDirty": true,
+  "throttles": [
+    6
+  ],
+  "repetitions": 3,
+  "headed": false,
+  "excluded": [],
+  "attempts": [
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu6-r1",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:39:58.762Z",
+      "completedAt": "2026-10-20T09:40:04.444Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu6-r1-2026-10-20T09-39-56-614Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu6-r1",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 6,
+      "repetition": 1,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:40:04.445Z",
+      "completedAt": "2026-10-20T09:40:31.809Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu6-r1-2026-10-20T09-39-56-614Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu6-r2",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 6,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:40:31.810Z",
+      "completedAt": "2026-10-20T09:41:00.931Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu6-r2-2026-10-20T09-39-56-614Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu6-r2",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 2,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:41:00.931Z",
+      "completedAt": "2026-10-20T09:41:05.424Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu6-r2-2026-10-20T09-39-56-614Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu6-r3",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "runtime",
+      "throttle": 6,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:41:05.425Z",
+      "completedAt": "2026-10-20T09:41:09.871Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu6-r3-2026-10-20T09-39-56-614Z.json.gz",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu6-r3",
+      "scenario": "canvas",
+      "count": 2000,
+      "interaction": "canvas-node",
+      "implementation": "dnd-kit",
+      "throttle": 6,
+      "repetition": 3,
+      "status": "succeeded",
+      "startedAt": "2026-10-20T09:41:09.871Z",
+      "completedAt": "2026-10-20T09:41:42.918Z",
+      "trace": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu6-r3-2026-10-20T09-39-56-614Z.json.gz",
+      "error": null
+    }
+  ],
+  "rows": [
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu6-r1",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu6-r1-2026-10-20T09-39-56-614Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu6-r1",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu6-r1-2026-10-20T09-39-56-614Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu6-r2",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu6-r2-2026-10-20T09-39-56-614Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu6-r2",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu6-r2-2026-10-20T09-39-56-614Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-runtime-cpu6-r3",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-runtime-cpu6-r3-2026-10-20T09-39-56-614Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "sampleId": "canvas-2000-canvas-node-dnd-kit-cpu6-r3",
+      "path": "docs/reports/raw/canvas-2000-canvas-node-dnd-kit-cpu6-r3-2026-10-20T09-39-56-614Z.json.gz",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "finishedAt": "2026-10-20T09:41:42.923Z"
+}

@@ -99,6 +99,7 @@ export function prepareDetachPickup(
   scopeSurfaces?: () => readonly HTMLElement[],
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
   includeViewportPeers = false,
+  freeLayoutSurfaces?: () => readonly HTMLElement[],
 ): DetachPickupPreparation {
   const cards = registeredElements()
     .filter(element => element !== sourceElement && element.dataset.runtimeProxy !== 'true')
@@ -106,6 +107,7 @@ export function prepareDetachPickup(
   return {
     beforePickup: captureLayoutFlip(cards, document, true, ignoreDetachSource(sourceElement), {
       scopeSurfaces: surfaces,
+      freeLayoutSurfaces: freeLayoutSurfaces?.(),
       viewportBySurface: resolveScopeViewports(surfaces),
       surfaceMeasures: surfaceMeasures?.(),
       focus: {
@@ -366,6 +368,7 @@ export function createDetachLayoutLifecycle(
   surfaceMeasures?: () => ReadonlyMap<HTMLElement, (() => { width?: number; height: number } | null)>,
   layoutTransaction?: LayoutTransactionCoordinator,
   presenceElements?: () => readonly HTMLElement[],
+  freeLayoutSurfaces?: () => readonly HTMLElement[],
 ) {
   let layoutToken = 0
   let transactionRoot: ParentNode | null = null
@@ -386,6 +389,7 @@ export function createDetachLayoutLifecycle(
         ignoreDetachSource(sourceEl),
         {
           scopeSurfaces: surfaces,
+          freeLayoutSurfaces: freeLayoutSurfaces?.(),
           viewportBySurface: resolveScopeViewports(surfaces),
           surfaceMeasures: surfaceMeasures?.(),
           focus: {

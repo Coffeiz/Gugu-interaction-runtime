@@ -29,6 +29,28 @@ function makeCollectionCard(key: string, collection: string): HTMLElement {
 }
 
 describe('审查回归', () => {
+  it('free-layout Surface 的相邻对象不进入 FLIP 几何测量', () => {
+    const surface = document.createElement('section')
+    surface.dataset.layoutSurface = 'canvas'
+    const source = document.createElement('article')
+    const firstPeer = document.createElement('article')
+    const secondPeer = document.createElement('article')
+    surface.append(source, firstPeer, secondPeer)
+    document.body.append(surface)
+    mockRect(surface, { left: 0, top: 0, width: 800, height: 600 })
+    const firstRead = vi.spyOn(firstPeer, 'getBoundingClientRect')
+    const secondRead = vi.spyOn(secondPeer, 'getBoundingClientRect')
+
+    captureLayoutFlip([firstPeer, secondPeer], document, false, undefined, {
+      scopeSurfaces: [surface],
+      freeLayoutSurfaces: [surface],
+      focus: { sourceElement: source, mode: 'move' },
+    })
+
+    expect(firstRead).not.toHaveBeenCalled()
+    expect(secondRead).not.toHaveBeenCalled()
+  })
+
   it('collection 节点重挂载但 key 不变时，不误判为离场', () => {
     const root = document.createElement('main')
     const collection = document.createElement('section')
