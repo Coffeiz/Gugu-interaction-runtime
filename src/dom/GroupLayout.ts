@@ -78,14 +78,21 @@ export interface LayoutFlipTelemetry {
 }
 
 let lastLayoutFlipTelemetry: LayoutFlipTelemetry | null = null
+let layoutFlipTelemetryCount = 0
 
 /** 最近一笔 Layout FLIP 的 participant/measurement 统计，供性能回归和 DevTools 调试。 */
 export function getLastLayoutFlipTelemetry(): LayoutFlipTelemetry | null {
   return lastLayoutFlipTelemetry ? { ...lastLayoutFlipTelemetry } : null
 }
 
+/** 当前模块实例已发布的 Layout FLIP telemetry 事务数。 */
+export function getLayoutFlipTelemetryCount(): number {
+  return layoutFlipTelemetryCount
+}
+
 function publishLayoutFlipTelemetry(telemetry: LayoutFlipTelemetry): void {
   lastLayoutFlipTelemetry = telemetry
+  layoutFlipTelemetryCount += 1
   if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return
   try {
     performance.clearMarks?.('gugu:layout-flip')

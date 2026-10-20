@@ -36,12 +36,16 @@
     "test:watch": "vitest",
     "test:e2e": "env -u NO_COLOR playwright test",
     "test:e2e:ui": "env -u NO_COLOR playwright test --ui",
+    "benchmark:real-page": "node scripts/run-real-page-smoke.mjs",
+    "benchmark": "node scripts/run-benchmark.mjs",
+    "benchmark:report": "node scripts/summarize-benchmark.mjs",
     "prepare": "npm run build:lib"
   },
   "peerDependencies": {
     "vue": "^3.5.0"
   },
   "devDependencies": {
+    "@dnd-kit/vue": "^0.5.1",
     "@playwright/test": "^1.62.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/language-core": "^3.3.9",
