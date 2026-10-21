@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/Runtime-3.0.8-6f42c1.svg" alt="Runtime 3.0.8">
   <img src="https://img.shields.io/badge/TypeScript-5.x-3178c6.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/Vue-3.x-42b883.svg" alt="Vue 3">
+  <a href="https://hub.xerj.org/contributors/Coffeiz"><img src="https://hub.xerj.org/contributors/Coffeiz/badge.svg" alt="XERJ Corpus Hub contributor"></a>
 </p>
 
 <p>
